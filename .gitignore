@@ -1,0 +1,31 @@
+# Binaries and build output
+/revolvr
+/bin/
+/build/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go test and coverage output
+*.test
+*.prof
+coverage.out
+coverage.html
+
+# Local revolvr runtime state
+/.revolvr/
+
+# Environment and local config
+.env
+.env.*
+!.env.example
+
+# Editor and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
