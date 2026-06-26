@@ -75,6 +75,29 @@ func TestAppendEventRecordsJSONPayload(t *testing.T) {
 	assertJSONEqual(t, event.Payload, `{"prompt_path":"prompts/task-1.md","tokens":42}`)
 }
 
+func TestRecordCommitSHA(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 25, 13, 30, 0, 0, time.UTC)
+	store := openTestStore(t, func() time.Time { return now })
+	defer store.Close()
+	run := mustCreateRun(t, store, "run-commit", now)
+
+	if err := store.RecordCommitSHA(ctx, run.ID, "abc123def456"); err != nil {
+		t.Fatalf("record commit sha: %v", err)
+	}
+
+	got, ok, err := store.GetRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if !ok {
+		t.Fatal("run not found")
+	}
+	if got.CommitSHA != "abc123def456" {
+		t.Fatalf("commit sha = %q, want abc123def456", got.CommitSHA)
+	}
+}
+
 func TestListRecentRuns(t *testing.T) {
 	ctx := context.Background()
 	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)

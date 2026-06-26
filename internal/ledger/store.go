@@ -233,6 +233,36 @@ VALUES (?, ?, ?, ?)`,
 	return Event{ID: eventID, RunID: runID, Type: eventType, Payload: raw, CreatedAt: createdAt}, nil
 }
 
+func (s *Store) RecordCommitSHA(ctx context.Context, runID string, commitSHA string) error {
+	if err := s.ready(); err != nil {
+		return err
+	}
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return errors.New("record commit sha: run id is required")
+	}
+	commitSHA = strings.TrimSpace(commitSHA)
+	if commitSHA == "" {
+		return errors.New("record commit sha: commit sha is required")
+	}
+
+	result, err := s.db.ExecContext(ctx, `
+UPDATE runs
+SET commit_sha = ?
+WHERE id = ?`, commitSHA, runID)
+	if err != nil {
+		return fmt.Errorf("record commit sha: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("record commit sha: read affected rows: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("record commit sha: run %q not found", runID)
+	}
+	return nil
+}
+
 func (s *Store) ListRecentRuns(ctx context.Context, limit int) ([]Run, error) {
 	if err := s.ready(); err != nil {
 		return nil, err
