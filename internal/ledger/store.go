@@ -74,6 +74,15 @@ type RunSpec struct {
 	CommitSHA          string
 }
 
+type RunCompletion struct {
+	Status             string
+	Summary            string
+	CompletedAt        time.Time
+	CodexExitCode      *int
+	VerificationStatus string
+	CommitSHA          string
+}
+
 type Run struct {
 	ID                 string
 	TaskID             string
@@ -192,6 +201,75 @@ INSERT INTO runs (
 		return Run{}, fmt.Errorf("create run: %w", err)
 	}
 	return run, nil
+}
+
+func (s *Store) CompleteRun(ctx context.Context, runID string, completion RunCompletion) (Run, bool, error) {
+	if err := s.ready(); err != nil {
+		return Run{}, false, err
+	}
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return Run{}, false, errors.New("complete run: run id is required")
+	}
+
+	existing, ok, err := s.GetRun(ctx, runID)
+	if err != nil || !ok {
+		return Run{}, ok, err
+	}
+
+	status := strings.TrimSpace(completion.Status)
+	if status == "" {
+		status = StatusCompleted
+	}
+	if !validStatus(status) {
+		return Run{}, false, fmt.Errorf("complete run: invalid status %q", status)
+	}
+
+	completedAt := completion.CompletedAt
+	if completedAt.IsZero() {
+		completedAt = s.clock()
+	}
+	completedAt = completedAt.UTC()
+	durationSeconds := int(completedAt.Sub(existing.StartedAt).Seconds())
+	if durationSeconds < 0 {
+		durationSeconds = 0
+	}
+
+	result, err := s.db.ExecContext(ctx, `
+UPDATE runs
+SET
+	status = ?,
+	summary = ?,
+	completed_at = ?,
+	duration_seconds = ?,
+	codex_exit_code = ?,
+	verification_status = ?,
+	commit_sha = ?
+WHERE id = ?`,
+		status,
+		nullableString(completion.Summary),
+		formatTime(completedAt),
+		durationSeconds,
+		nullableInt(completion.CodexExitCode),
+		nullableString(completion.VerificationStatus),
+		nullableString(completion.CommitSHA),
+		runID,
+	)
+	if err != nil {
+		return Run{}, false, fmt.Errorf("complete run: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return Run{}, false, fmt.Errorf("complete run: read affected rows: %w", err)
+	}
+	if rowsAffected == 0 {
+		return Run{}, false, nil
+	}
+	updated, ok, err := s.GetRun(ctx, runID)
+	if err != nil || !ok {
+		return Run{}, ok, err
+	}
+	return updated, true, nil
 }
 
 func (s *Store) AppendEvent(ctx context.Context, runID string, eventType EventType, payload any) (Event, error) {
@@ -413,6 +491,15 @@ func (s *Store) normalizeRunSpec(spec RunSpec) (Run, error) {
 		VerificationStatus: spec.VerificationStatus,
 		CommitSHA:          spec.CommitSHA,
 	}, nil
+}
+
+func validStatus(status string) bool {
+	switch status {
+	case StatusRunning, StatusCompleted, StatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Store) listEvents(ctx context.Context, runID string) ([]Event, error) {

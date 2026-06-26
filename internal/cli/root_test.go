@@ -2,8 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
+
+	"revolvr/internal/commit"
+	"revolvr/internal/ledger"
+	"revolvr/internal/runonce"
+	"revolvr/internal/taskqueue"
 )
 
 func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
@@ -74,17 +80,57 @@ func TestPlaceholderCommandOutput(t *testing.T) {
 	}
 }
 
-func TestRunOnceFlagIsAcceptedByPlaceholder(t *testing.T) {
+func TestRunOnceInvokesRunnerAndPrintsSummary(t *testing.T) {
 	var out bytes.Buffer
-	root := NewRootCommand(Options{Version: "test", Out: &out})
+	called := false
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: "/repo",
+		RunOnce: func(_ context.Context, cfg runonce.Config) (runonce.Result, error) {
+			called = true
+			if cfg.WorkingDir != "/repo" {
+				t.Fatalf("working dir = %q, want /repo", cfg.WorkingDir)
+			}
+			return runonce.Result{
+				Outcome: runonce.OutcomeCommitted,
+				Run:     ledger.Run{ID: "run-1"},
+				Task:    taskqueue.Task{ID: "task-1"},
+				Commit:  commit.Result{CommitSHA: "abc123"},
+			}, nil
+		},
+	})
+	root.SetArgs([]string{"run", "--once"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute run --once: %v", err)
+	}
+	if !called {
+		t.Fatal("run once runner was not called")
+	}
+
+	if got, want := out.String(), "Run run-1 completed task task-1; commit abc123.\n"; got != want {
+		t.Fatalf("run once output = %q, want %q", got, want)
+	}
+}
+
+func TestRunOncePrintsNoTaskSummary(t *testing.T) {
+	var out bytes.Buffer
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		RunOnce: func(context.Context, runonce.Config) (runonce.Result, error) {
+			return runonce.Result{Outcome: runonce.OutcomeNoTask, NoTask: true}, nil
+		},
+	})
 	root.SetArgs([]string{"run", "--once"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("execute run --once: %v", err)
 	}
 
-	if got, want := out.String(), "revolvr run is not implemented yet.\n"; got != want {
-		t.Fatalf("placeholder output = %q, want %q", got, want)
+	if got, want := out.String(), "No pending runnable tasks.\n"; got != want {
+		t.Fatalf("run once output = %q, want %q", got, want)
 	}
 }
 

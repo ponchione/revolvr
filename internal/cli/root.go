@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
+
+	"revolvr/internal/runonce"
 )
 
 const defaultVersion = "dev"
@@ -13,7 +16,11 @@ type Options struct {
 	Version string
 	Out     io.Writer
 	Err     io.Writer
+	WorkDir string
+	RunOnce RunOnceFunc
 }
+
+type RunOnceFunc func(context.Context, runonce.Config) (runonce.Result, error)
 
 func NewRootCommand(opts Options) *cobra.Command {
 	version := opts.Version
@@ -44,7 +51,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(
 		newInitCommand(),
 		newTaskCommand(),
-		newRunCommand(),
+		newRunCommand(opts),
 		newStatusCommand(),
 		newShowCommand(),
 	)
@@ -70,14 +77,29 @@ func newTaskCommand() *cobra.Command {
 	}
 }
 
-func newRunCommand() *cobra.Command {
+func newRunCommand(opts Options) *cobra.Command {
+	runOnce := opts.RunOnce
+	if runOnce == nil {
+		runOnce = runonce.Run
+	}
+	var once bool
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run one harness pass",
 		Args:  cobra.NoArgs,
-		RunE:  runPlaceholder,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !once {
+				return runPlaceholder(cmd, nil)
+			}
+			result, err := runOnce(cmd.Context(), runonce.Config{WorkingDir: opts.WorkDir})
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result))
+			return err
+		},
 	}
-	cmd.Flags().Bool("once", false, "run one selected task")
+	cmd.Flags().BoolVar(&once, "once", false, "run one selected task")
 	return cmd
 }
 
@@ -102,4 +124,16 @@ func newShowCommand() *cobra.Command {
 func runPlaceholder(cmd *cobra.Command, _ []string) error {
 	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s is not implemented yet.\n", cmd.CommandPath())
 	return err
+}
+
+func runOnceSummary(result runonce.Result) string {
+	if result.NoTask {
+		return "No pending runnable tasks.\n"
+	}
+	switch result.Outcome {
+	case runonce.OutcomeCommitted:
+		return fmt.Sprintf("Run %s completed task %s; commit %s.\n", result.Run.ID, result.Task.ID, result.Commit.CommitSHA)
+	default:
+		return fmt.Sprintf("Run %s stopped (%s): %s\n", result.Run.ID, result.Outcome, result.Message)
+	}
 }

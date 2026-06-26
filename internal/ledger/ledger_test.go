@@ -98,6 +98,64 @@ func TestRecordCommitSHA(t *testing.T) {
 	}
 }
 
+func TestCompleteRunUpdatesTerminalFields(t *testing.T) {
+	ctx := context.Background()
+	startedAt := time.Date(2026, 6, 25, 13, 45, 0, 0, time.UTC)
+	completedAt := startedAt.Add(95 * time.Second)
+	exitCode := 0
+	store := openTestStore(t, func() time.Time { return completedAt })
+	defer store.Close()
+	run := mustCreateRun(t, store, "run-complete", startedAt)
+
+	updated, ok, err := store.CompleteRun(ctx, run.ID, RunCompletion{
+		Status:             StatusCompleted,
+		Summary:            "completed with commit",
+		CodexExitCode:      &exitCode,
+		VerificationStatus: "passed",
+		CommitSHA:          "abc123",
+	})
+	if err != nil {
+		t.Fatalf("complete run: %v", err)
+	}
+	if !ok {
+		t.Fatal("complete run returned not found")
+	}
+	if got, want := updated.Status, StatusCompleted; got != want {
+		t.Fatalf("status = %q, want %q", got, want)
+	}
+	if got, want := updated.Summary, "completed with commit"; got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	if updated.CompletedAt == nil || !updated.CompletedAt.Equal(completedAt) {
+		t.Fatalf("completed at = %v, want %s", updated.CompletedAt, completedAt)
+	}
+	if got, want := updated.DurationSeconds, 95; got != want {
+		t.Fatalf("duration seconds = %d, want %d", got, want)
+	}
+	if updated.CodexExitCode == nil || *updated.CodexExitCode != exitCode {
+		t.Fatalf("codex exit code = %v, want %d", updated.CodexExitCode, exitCode)
+	}
+	if got, want := updated.VerificationStatus, "passed"; got != want {
+		t.Fatalf("verification status = %q, want %q", got, want)
+	}
+	if got, want := updated.CommitSHA, "abc123"; got != want {
+		t.Fatalf("commit sha = %q, want %q", got, want)
+	}
+}
+
+func TestCompleteRunRejectsInvalidStatus(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 25, 13, 50, 0, 0, time.UTC)
+	store := openTestStore(t, func() time.Time { return now })
+	defer store.Close()
+	run := mustCreateRun(t, store, "run-invalid-status", now)
+
+	_, _, err := store.CompleteRun(ctx, run.ID, RunCompletion{Status: "blocked"})
+	if err == nil {
+		t.Fatal("complete run with invalid status succeeded, want error")
+	}
+}
+
 func TestListRecentRuns(t *testing.T) {
 	ctx := context.Background()
 	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)
