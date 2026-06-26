@@ -55,6 +55,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(
 		newInitCommand(opts),
 		newTaskCommand(opts),
+		newConfigCommand(opts),
 		newRunCommand(opts),
 		newStatusCommand(opts),
 		newShowCommand(opts),
@@ -100,6 +101,7 @@ func newTaskCommand(opts Options) *cobra.Command {
 	cmd.AddCommand(
 		newTaskAddCommand(opts),
 		newTaskListCommand(opts),
+		newTaskUnblockCommand(opts),
 	)
 	return cmd
 }
@@ -174,30 +176,153 @@ func newTaskListCommand(opts Options) *cobra.Command {
 	}
 }
 
+func newTaskUnblockCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "unblock <task-id>",
+		Short: "Make a blocked task pending again",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			taskID := strings.TrimSpace(args[0])
+			if taskID == "" {
+				return fmt.Errorf("task unblock: task id is required")
+			}
+
+			store, closeStore, err := openTaskStore(cmd.Context(), opts)
+			if err != nil {
+				return err
+			}
+			defer closeStore()
+
+			task, changed, err := store.UnblockTask(cmd.Context(), taskID)
+			if err != nil {
+				return err
+			}
+			if !changed {
+				if task.ID == "" {
+					return fmt.Errorf("task %q not found", taskID)
+				}
+				return fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Unblocked task %s.\n", task.ID)
+			return err
+		},
+	}
+}
+
+func newConfigCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Inspect run configuration",
+		Args:  cobra.NoArgs,
+		RunE:  runPlaceholder,
+	}
+	cmd.AddCommand(newConfigCheckCommand(opts))
+	return cmd
+}
+
+func newConfigCheckCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "check",
+		Short: "Validate and show effective run configuration",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			result, err := checkRunConfig(opts.WorkDir)
+			if err != nil {
+				return err
+			}
+			return writeConfigCheck(cmd.OutOrStdout(), result)
+		},
+	}
+}
+
 func newRunCommand(opts Options) *cobra.Command {
 	runOnce := opts.RunOnce
 	if runOnce == nil {
 		runOnce = runonce.Run
 	}
 	var once bool
+	var maxPasses int
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run one harness pass",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !once {
-				return runPlaceholder(cmd, nil)
+			if once {
+				return runSinglePass(cmd, opts.WorkDir, runOnce)
 			}
-			result, err := runOnce(cmd.Context(), runonce.Config{WorkingDir: opts.WorkDir})
-			if err != nil {
-				return err
+			if cmd.Flags().Changed("max-passes") {
+				return runBoundedLoop(cmd, opts.WorkDir, runOnce, maxPasses)
 			}
-			_, err = fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result))
-			return err
+			return runPlaceholder(cmd, nil)
 		},
 	}
 	cmd.Flags().BoolVar(&once, "once", false, "run one selected task")
+	cmd.Flags().IntVar(&maxPasses, "max-passes", 0, "run up to N fresh passes")
 	return cmd
+}
+
+func runSinglePass(cmd *cobra.Command, workDir string, runOnce RunOnceFunc) error {
+	runCfg, err := loadRunOnceConfig(workDir, runonce.Config{WorkingDir: workDir})
+	if err != nil {
+		return err
+	}
+	result, err := runOnce(cmd.Context(), runCfg)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result)); err != nil {
+		return err
+	}
+	return runOnceOutcomeError(result)
+}
+
+func runBoundedLoop(cmd *cobra.Command, workDir string, runOnce RunOnceFunc, maxPasses int) error {
+	if maxPasses <= 0 {
+		return fmt.Errorf("run: --max-passes must be greater than 0")
+	}
+	for pass := 0; pass < maxPasses; pass++ {
+		if err := cmd.Context().Err(); err != nil {
+			return err
+		}
+		runCfg, err := loadRunOnceConfig(workDir, runonce.Config{WorkingDir: workDir})
+		if err != nil {
+			return err
+		}
+		result, err := runOnce(cmd.Context(), runCfg)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result)); err != nil {
+			return err
+		}
+		if err := runOnceOutcomeError(result); err != nil {
+			return err
+		}
+		if result.NoTask || result.Outcome == runonce.OutcomeNoTask {
+			return nil
+		}
+	}
+	_, err := fmt.Fprintf(cmd.OutOrStdout(), "Reached max passes (%d).\n", maxPasses)
+	return err
+}
+
+type runOnceError struct {
+	RunID   string
+	Outcome runonce.Outcome
+}
+
+func (e runOnceError) Error() string {
+	if e.RunID == "" {
+		return fmt.Sprintf("run stopped with outcome %s", e.Outcome)
+	}
+	return fmt.Sprintf("run %s stopped with outcome %s", e.RunID, e.Outcome)
+}
+
+func runOnceOutcomeError(result runonce.Result) error {
+	if result.NoTask || result.Outcome == runonce.OutcomeNoTask || result.Outcome == runonce.OutcomeCommitted || result.Outcome == "" {
+		return nil
+	}
+	return runOnceError{RunID: result.Run.ID, Outcome: result.Outcome}
 }
 
 func newStatusCommand(opts Options) *cobra.Command {
@@ -395,6 +520,15 @@ func writeRun(out io.Writer, history ledger.RunWithEvents) error {
 			return err
 		}
 	}
+	artifacts, artifactEvents := ledger.RunArtifactsFromEvents(history.Events)
+	if artifactEvents {
+		if err := writeArtifacts(out, artifacts); err != nil {
+			return err
+		}
+	}
+	if err := writeDiagnostics(out, diagnosticsFromHistory(history)); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprint(out, "Events:\n"); err != nil {
 		return err
 	}
@@ -407,6 +541,34 @@ func writeRun(out io.Writer, history ledger.RunWithEvents) error {
 	}
 	for _, event := range history.Events {
 		if _, err := fmt.Fprintf(out, "%d\t%s\t%s\n", event.ID, event.Type, cliTime(event.CreatedAt)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeArtifacts(out io.Writer, artifacts ledger.RunArtifacts) error {
+	if _, err := fmt.Fprint(out, "Artifacts:\n"); err != nil {
+		return err
+	}
+	if artifacts.Empty() {
+		_, err := fmt.Fprint(out, "none\n")
+		return err
+	}
+	for _, artifact := range []struct {
+		label string
+		path  string
+	}{
+		{label: "prompt", path: artifacts.PromptPath},
+		{label: "codex stdout jsonl", path: artifacts.CodexStdoutJSONLPath},
+		{label: "codex stderr", path: artifacts.CodexStderrPath},
+		{label: "last message", path: artifacts.LastMessagePath},
+		{label: "receipt", path: artifacts.ReceiptPath},
+	} {
+		if strings.TrimSpace(artifact.path) == "" {
+			continue
+		}
+		if _, err := fmt.Fprintf(out, "%s: %s\n", artifact.label, artifact.path); err != nil {
 			return err
 		}
 	}

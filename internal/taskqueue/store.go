@@ -329,6 +329,49 @@ WHERE id = ?`,
 	return s.getExistingTask(ctx, taskID, "block task")
 }
 
+func (s *Store) UnblockTask(ctx context.Context, taskID string) (Task, bool, error) {
+	if err := s.ready(); err != nil {
+		return Task{}, false, err
+	}
+	if strings.TrimSpace(taskID) == "" {
+		return Task{}, false, errors.New("unblock task: task id is required")
+	}
+
+	now := s.clock().UTC()
+	result, err := s.db.ExecContext(ctx, `
+UPDATE tasks
+SET
+	status = ?,
+	blocker = NULL,
+	updated_at = ?,
+	completed_at = NULL,
+	blocked_at = NULL
+WHERE id = ? AND status = ?`,
+		StatusPending,
+		formatTime(now),
+		taskID,
+		StatusBlocked,
+	)
+	if err != nil {
+		return Task{}, false, fmt.Errorf("unblock task: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return Task{}, false, fmt.Errorf("unblock task: read affected rows: %w", err)
+	}
+	if changed == 0 {
+		task, ok, err := s.GetTask(ctx, taskID)
+		if err != nil {
+			return Task{}, false, fmt.Errorf("unblock task: %w", err)
+		}
+		if !ok {
+			return Task{}, false, nil
+		}
+		return task, false, nil
+	}
+	return s.getExistingTask(ctx, taskID, "unblock task")
+}
+
 func (s *Store) init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
 		return fmt.Errorf("init task queue: enable foreign keys: %w", err)

@@ -112,6 +112,7 @@ type Result struct {
 	Codex              codexexec.Result
 	Verification       verification.Result
 	Commit             commit.Result
+	ReceiptWarnings    []ReceiptWarning
 	LedgerError        error
 }
 
@@ -188,6 +189,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	paths := newRunPaths(run.ID)
 	result.ReceiptRelPath = paths.receiptRel
 	result.ReceiptPath = filepath.Join(workDir, paths.receiptRel)
+	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventRunArtifacts, ledger.RunArtifacts{
+		PromptPath:           paths.promptRel,
+		CodexStdoutJSONLPath: paths.stdoutRel,
+		CodexStderrPath:      paths.stderrRel,
+		LastMessagePath:      paths.lastMessageRel,
+		ReceiptPath:          paths.receiptRel,
+	})
 
 	preRunDirty, err := cfg.DirtyCapture(ctx, gitConfig(cfg, workDir))
 	if err != nil {
@@ -196,6 +204,15 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	result.PreRunDirty = preRunDirty
+	if !cfg.AllowPreExistingDirty && hasPreExistingDirty(result.PreRunDirty) {
+		appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventChangedFilesCaptured, map[string]any{
+			"pre_run_dirty_files": dirtyFileList(result.PreRunDirty),
+			"changed_files":       []string{},
+			"capture_error":       result.PreRunDirty.CaptureError,
+		})
+		result.Message = "pre-existing dirty files are present"
+		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
 
 	promptText, err := prompt.Build(prompt.Input{
 		RunID:          run.ID,
@@ -394,6 +411,11 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.MissingVerificationPolicy == "" {
 		cfg.MissingVerificationPolicy = verification.MissingCommandsFail
 	}
+	switch cfg.MissingVerificationPolicy {
+	case verification.MissingCommandsFail, verification.MissingCommandsPass:
+	default:
+		return Config{}, "", fmt.Errorf("run once: invalid missing verification policy %q", cfg.MissingVerificationPolicy)
+	}
 	if cfg.VerificationCommands == nil {
 		cfg.VerificationCommands = defaultVerificationCommands(workDir)
 	}
@@ -416,6 +438,14 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 		cfg.Clock = time.Now
 	}
 	return cfg, workDir, nil
+}
+
+func EffectiveConfig(cfg Config) (Config, error) {
+	normalized, _, err := normalizeConfig(cfg)
+	if err != nil {
+		return Config{}, err
+	}
+	return normalized, nil
 }
 
 func defaultHeartbeatInterval(timeout time.Duration) time.Duration {
@@ -497,7 +527,14 @@ func finish(ctx context.Context, cfg Config, tasks *taskqueue.Store, runs *ledge
 	if strings.TrimSpace(result.Message) == "" {
 		result.Message = string(outcome)
 	}
-	finalizeRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, verificationEntries(result.Verification), commitSHA, result.Message)
+	parsedReceipt := result.Receipt
+	receiptWasSynthesized := result.ReceiptSynthesized
+	entries := verificationEntries(result.Verification)
+	files := changedFiles(result.PostRunChanged)
+	finalizeRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, entries, commitSHA, result.Message)
+	if !receiptWasSynthesized && !result.ReceiptSynthesized {
+		recordReceiptWarnings(ctx, runs, result, parsedReceipt, verdict, verificationStatus, entries, files)
+	}
 
 	runStatus := ledger.StatusFailed
 	eventType := ledger.EventRunFailed
@@ -547,6 +584,9 @@ func finish(ctx context.Context, cfg Config, tasks *taskqueue.Store, runs *ledge
 		"codex_exit_code":     result.Codex.ExitCode,
 		"verification_status": verificationStatus,
 		"commit_sha":          commitSHA,
+		"commit_status":       result.Commit.Status,
+		"commit_refusal":      result.Commit.RefusalReason,
+		"commit_message":      result.Commit.Message,
 	})
 	return *result, nil
 }
@@ -812,6 +852,17 @@ func verificationEntries(result verification.Result) []receipt.VerificationEntry
 func changedFiles(capture gitstate.Capture) []string {
 	if len(capture.ChangedFiles) > 0 {
 		return append([]string(nil), capture.ChangedFiles...)
+	}
+	return append([]string(nil), capture.Paths...)
+}
+
+func hasPreExistingDirty(capture gitstate.Capture) bool {
+	return len(capture.DirtyFiles) > 0 || len(capture.Paths) > 0
+}
+
+func dirtyFileList(capture gitstate.Capture) []string {
+	if len(capture.DirtyFiles) > 0 {
+		return append([]string(nil), capture.DirtyFiles...)
 	}
 	return append([]string(nil), capture.Paths...)
 }

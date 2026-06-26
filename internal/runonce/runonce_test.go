@@ -2,6 +2,7 @@ package runonce
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -111,9 +112,31 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	if _, found, err := lock.ReadSourceWriter(ctx, env.workDir); err != nil || found {
 		t.Fatalf("lock after successful run found=%v err=%v, want released", found, err)
 	}
+	history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if err != nil {
+		t.Fatalf("get run with events: %v", err)
+	}
+	if !ok {
+		t.Fatal("run history not found")
+	}
+	artifacts, found := ledger.RunArtifactsFromEvents(history.Events)
+	if !found {
+		t.Fatal("run artifacts not found in ledger events")
+	}
+	wantArtifacts := ledger.RunArtifacts{
+		PromptPath:           filepath.Join(".revolvr", "runs", result.Run.ID, "prompt.md"),
+		CodexStdoutJSONLPath: filepath.Join(".revolvr", "runs", result.Run.ID, "codex.jsonl"),
+		CodexStderrPath:      filepath.Join(".revolvr", "runs", result.Run.ID, "codex.stderr"),
+		LastMessagePath:      filepath.Join(".revolvr", "runs", result.Run.ID, "last-message.txt"),
+		ReceiptPath:          filepath.Join(".revolvr", "receipts", result.Run.ID+".md"),
+	}
+	if !reflect.DeepEqual(artifacts, wantArtifacts) {
+		t.Fatalf("run artifacts = %#v, want %#v", artifacts, wantArtifacts)
+	}
 	assertRunEvents(t, env.ledger, result.Run.ID, []ledger.EventType{
 		ledger.EventRunStarted,
 		ledger.EventTaskSelected,
+		ledger.EventRunArtifacts,
 		ledger.EventPromptBuilt,
 		ledger.EventCodexStarted,
 		ledger.EventCodexJSONEvent,
@@ -126,6 +149,243 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		ledger.EventCommitCreated,
 		ledger.EventRunCompleted,
 	})
+}
+
+func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-warning-files", Task: "Create a mismatched receipt"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	state := &fakeCommandState{
+		t:            t,
+		workDir:      env.workDir,
+		writeReceipt: true,
+		receiptContent: func(runID, taskID, task string) string {
+			return receiptContent(runID, taskID, task, receiptOptions{ChangedFiles: []string{"internal/claimed.go"}})
+		},
+		postStatus:        " M internal/actual.go\n",
+		verificationExit:  0,
+		commitSHA:         "abc123def456",
+		expectedCommitAdd: []string{"add", "--", "internal/actual.go"},
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:           env.workDir,
+		TaskStore:            env.tasks,
+		LedgerStore:          env.ledger,
+		CodexExecutable:      "codex-test",
+		GitExecutable:        "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run,
+		Clock:                env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeCommitted {
+		t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
+	}
+	if result.Task.Status != taskqueue.StatusCompleted || result.Run.Status != ledger.StatusCompleted {
+		t.Fatalf("task/run status = %s/%s, want completed/completed", result.Task.Status, result.Run.Status)
+	}
+
+	warnings := receiptWarningEvents(t, env.ledger, result.Run.ID)
+	if len(warnings) != 1 {
+		t.Fatalf("warning count = %d, want 1", len(warnings))
+	}
+	var payload struct {
+		WarningType string   `json:"warning_type"`
+		Message     string   `json:"message"`
+		ReceiptPath string   `json:"receipt_path"`
+		Claimed     []string `json:"claimed"`
+		Observed    []string `json:"observed"`
+	}
+	decodeEventPayload(t, warnings[0], &payload)
+	if payload.WarningType != receiptWarningChangedFiles {
+		t.Fatalf("warning type = %q, want %q", payload.WarningType, receiptWarningChangedFiles)
+	}
+	if payload.Message != changedFilesWarningMessage {
+		t.Fatalf("warning message = %q, want %q", payload.Message, changedFilesWarningMessage)
+	}
+	if got, want := payload.ReceiptPath, filepath.Join(".revolvr", "receipts", result.Run.ID+".md"); got != want {
+		t.Fatalf("receipt path = %q, want %q", got, want)
+	}
+	if got, want := payload.Claimed, []string{"internal/claimed.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("claimed files = %#v, want %#v", got, want)
+	}
+	if got, want := payload.Observed, []string{"internal/actual.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("observed files = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunRecordsVerificationReceiptWarningWithoutBlockingCommit(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-warning-verification", Task: "Claim wrong verification"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	state := &fakeCommandState{
+		t:            t,
+		workDir:      env.workDir,
+		writeReceipt: true,
+		receiptContent: func(runID, taskID, task string) string {
+			return receiptContent(runID, taskID, task, receiptOptions{
+				ChangedFiles:       []string{"internal/feature.go"},
+				VerificationStatus: "failed",
+				Verification: []receipt.VerificationEntry{{
+					Command:  "go test ./...",
+					ExitCode: 1,
+					Status:   "failed",
+				}},
+			})
+		},
+		postStatus:       " M internal/feature.go\n",
+		verificationExit: 0,
+		commitSHA:        "abc123def456",
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:           env.workDir,
+		TaskStore:            env.tasks,
+		LedgerStore:          env.ledger,
+		CodexExecutable:      "codex-test",
+		GitExecutable:        "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run,
+		Clock:                env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeCommitted {
+		t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
+	}
+	warnings := receiptWarningEvents(t, env.ledger, result.Run.ID)
+	if len(warnings) != 1 {
+		t.Fatalf("warning count = %d, want 1", len(warnings))
+	}
+	var payload struct {
+		WarningType string            `json:"warning_type"`
+		Message     string            `json:"message"`
+		Claimed     verificationFacts `json:"claimed"`
+		Observed    verificationFacts `json:"observed"`
+	}
+	decodeEventPayload(t, warnings[0], &payload)
+	if payload.WarningType != receiptWarningVerification {
+		t.Fatalf("warning type = %q, want %q", payload.WarningType, receiptWarningVerification)
+	}
+	if payload.Message != verificationWarningMessage {
+		t.Fatalf("warning message = %q, want %q", payload.Message, verificationWarningMessage)
+	}
+	if payload.Claimed.Status != "failed" || payload.Observed.Status != "passed" {
+		t.Fatalf("verification payload = %+v / %+v, want failed/passed", payload.Claimed, payload.Observed)
+	}
+}
+
+func TestRunReceiptWarningsDoNotChangeFailedOutcome(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-warning-failed", Task: "Fail despite receipt"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+	state := &fakeCommandState{
+		t:            t,
+		workDir:      env.workDir,
+		writeReceipt: true,
+		receiptContent: func(runID, taskID, task string) string {
+			return receiptContent(runID, taskID, task, receiptOptions{
+				ChangedFiles:       []string{"internal/feature.go"},
+				VerificationStatus: "passed",
+				Verification: []receipt.VerificationEntry{{
+					Command:  "go test ./...",
+					ExitCode: 0,
+					Status:   "passed",
+				}},
+			})
+		},
+		postStatus:       " M internal/feature.go\n",
+		verificationExit: 1,
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:           env.workDir,
+		TaskStore:            env.tasks,
+		LedgerStore:          env.ledger,
+		CodexExecutable:      "codex-test",
+		GitExecutable:        "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run,
+		Clock:                env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeVerificationFailed {
+		t.Fatalf("outcome = %s, want verification_failed", result.Outcome)
+	}
+	if result.Task.Status != taskqueue.StatusBlocked || result.Run.Status != ledger.StatusFailed {
+		t.Fatalf("task/run status = %s/%s, want blocked/failed", result.Task.Status, result.Run.Status)
+	}
+	if state.gitAddOrCommitCalls != 0 {
+		t.Fatalf("git add/commit calls = %d, want 0", state.gitAddOrCommitCalls)
+	}
+	warnings := receiptWarningEvents(t, env.ledger, result.Run.ID)
+	if len(warnings) != 2 {
+		t.Fatalf("warning count = %d, want verification and verdict warnings", len(warnings))
+	}
+}
+
+func TestRunDoesNotWarnWhenReceiptFactsMatchHarness(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-no-warning", Task: "Match receipt facts"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+	state := &fakeCommandState{
+		t:            t,
+		workDir:      env.workDir,
+		writeReceipt: true,
+		receiptContent: func(runID, taskID, task string) string {
+			return receiptContent(runID, taskID, task, receiptOptions{
+				ChangedFiles:       []string{"internal/feature.go"},
+				VerificationStatus: "passed",
+				Verification: []receipt.VerificationEntry{{
+					Command:  "go test ./...",
+					ExitCode: 0,
+					Status:   "passed",
+				}},
+			})
+		},
+		postStatus:       " M internal/feature.go\n",
+		verificationExit: 0,
+		commitSHA:        "abc123def456",
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:           env.workDir,
+		TaskStore:            env.tasks,
+		LedgerStore:          env.ledger,
+		CodexExecutable:      "codex-test",
+		GitExecutable:        "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run,
+		Clock:                env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCommitted {
+		t.Fatalf("outcome = %s, want committed", result.Outcome)
+	}
+	if warnings := receiptWarningEvents(t, env.ledger, result.Run.ID); len(warnings) != 0 {
+		t.Fatalf("warnings = %+v, want none", warnings)
+	}
 }
 
 func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
@@ -175,6 +435,9 @@ func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 	}
 	if result.Receipt.Verdict != receipt.VerdictVerificationFailed {
 		t.Fatalf("fallback verdict = %q, want verification_failed", result.Receipt.Verdict)
+	}
+	if warnings := receiptWarningEvents(t, env.ledger, result.Run.ID); len(warnings) != 0 {
+		t.Fatalf("fallback warnings = %+v, want none", warnings)
 	}
 }
 
@@ -263,6 +526,182 @@ func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 	}
 	if result.Receipt.Verdict != receipt.VerdictCodexFailed {
 		t.Fatalf("fallback verdict = %q, want codex_failed", result.Receipt.Verdict)
+	}
+}
+
+func TestRunBlocksPreExistingDirtyBeforePromptCodexVerificationAndCommit(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-dirty", Task: "Avoid dirty worktree"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	codexCalled := false
+	changedCalled := false
+	verificationCalled := false
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		TaskStore:   env.tasks,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{
+				Kind:       gitstate.CaptureKindDirty,
+				DirtyFiles: []string{"internal/dirty.go"},
+				Paths:      []string{"internal/dirty.go"},
+			}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			changedCalled = true
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalled = true
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			verificationCalled = true
+			return verification.Result{Status: verification.StatusPassed, Passed: true}, nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123"}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeBlocked {
+		t.Fatalf("outcome = %s, want blocked", result.Outcome)
+	}
+	if result.Message != "pre-existing dirty files are present" {
+		t.Fatalf("message = %q, want dirty preflight message", result.Message)
+	}
+	if codexCalled || changedCalled || verificationCalled || commitCalled {
+		t.Fatalf("called codex=%v changed=%v verification=%v commit=%v, want all false", codexCalled, changedCalled, verificationCalled, commitCalled)
+	}
+	if result.Task.Status != taskqueue.StatusBlocked {
+		t.Fatalf("task status = %q, want blocked", result.Task.Status)
+	}
+	if result.Run.Status != ledger.StatusFailed {
+		t.Fatalf("run status = %q, want failed", result.Run.Status)
+	}
+	if !result.ReceiptSynthesized || result.Receipt.Verdict != receipt.VerdictBlocked {
+		t.Fatalf("receipt synthesized=%v verdict=%q, want synthesized blocked", result.ReceiptSynthesized, result.Receipt.Verdict)
+	}
+	promptPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "prompt.md")
+	if _, err := os.Stat(promptPath); !os.IsNotExist(err) {
+		t.Fatalf("prompt artifact stat err = %v, want not exist", err)
+	}
+	assertRunEvents(t, env.ledger, result.Run.ID, []ledger.EventType{
+		ledger.EventRunStarted,
+		ledger.EventTaskSelected,
+		ledger.EventRunArtifacts,
+		ledger.EventChangedFilesCaptured,
+		ledger.EventReceiptSynthesized,
+		ledger.EventRunFailed,
+	})
+
+	history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if err != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, err)
+	}
+	var payload struct {
+		PreRunDirtyFiles []string `json:"pre_run_dirty_files"`
+		ChangedFiles     []string `json:"changed_files"`
+		CaptureError     string   `json:"capture_error"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventChangedFilesCaptured, &payload) {
+		t.Fatal("changed-files capture event not found")
+	}
+	if got, want := payload.PreRunDirtyFiles, []string{"internal/dirty.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pre-run dirty files = %#v, want %#v", got, want)
+	}
+	if len(payload.ChangedFiles) != 0 || payload.CaptureError != "" {
+		t.Fatalf("changed-files payload = %+v, want no changed files or error", payload)
+	}
+	if _, found, err := lock.ReadSourceWriter(ctx, env.workDir); err != nil || found {
+		t.Fatalf("lock after dirty preflight found=%v err=%v, want released", found, err)
+	}
+}
+
+func TestRunAllowsPreExistingDirtyWhenConfigured(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-allow-dirty", Task: "Proceed with dirty worktree"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	codexCalled := false
+	verificationCalled := false
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:                env.workDir,
+		TaskStore:                 env.tasks,
+		LedgerStore:               env.ledger,
+		AllowPreExistingDirty:     true,
+		VerificationCommands:      []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		MissingVerificationPolicy: verification.MissingCommandsFail,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{
+				Kind:       gitstate.CaptureKindDirty,
+				DirtyFiles: []string{"internal/dirty.go"},
+				Paths:      []string{"internal/dirty.go"},
+			}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{
+				Kind:         gitstate.CaptureKindChanged,
+				ChangedFiles: []string{"internal/feature.go"},
+				Paths:        []string{"internal/feature.go"},
+			}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalled = true
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			verificationCalled = true
+			return verification.Result{
+				Status:             verification.StatusPassed,
+				Passed:             true,
+				FailedCommandIndex: -1,
+				Commands: []verification.CommandResult{{
+					Command:  "go test ./...",
+					Name:     "go",
+					Args:     []string{"test", "./..."},
+					Status:   verification.StatusPassed,
+					Passed:   true,
+					ExitCode: 0,
+				}},
+			}, nil
+		},
+		CommitRunner: func(_ context.Context, cfg commit.Config) (commit.Result, error) {
+			commitCalled = true
+			if !cfg.AllowPreExistingDirty {
+				t.Fatal("commit config AllowPreExistingDirty = false, want true")
+			}
+			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123", Message: "commit created"}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeCommitted {
+		t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
+	}
+	if !codexCalled || !verificationCalled || !commitCalled {
+		t.Fatalf("called codex=%v verification=%v commit=%v, want all true", codexCalled, verificationCalled, commitCalled)
+	}
+	if result.Run.CommitSHA != "abc123" {
+		t.Fatalf("run commit sha = %q, want abc123", result.Run.CommitSHA)
+	}
+	if result.Task.Status != taskqueue.StatusCompleted {
+		t.Fatalf("task status = %q, want completed", result.Task.Status)
 	}
 }
 
@@ -537,6 +976,7 @@ type fakeCommandState struct {
 	t                   *testing.T
 	workDir             string
 	writeReceipt        bool
+	receiptContent      func(runID string, taskID string, task string) string
 	postStatus          string
 	codexExit           int
 	verificationExit    int
@@ -577,6 +1017,9 @@ func (s *fakeCommandState) runCodex(command runner.Command) runner.Result {
 	taskID := promptValue(s.t, promptText, "Task ID")
 	if s.writeReceipt {
 		content := validReceipt(runID, taskID, "Implement the selected task")
+		if s.receiptContent != nil {
+			content = s.receiptContent(runID, taskID, "Implement the selected task")
+		}
 		if err := writeTestFile(filepath.Join(command.Dir, receiptRel), content); err != nil {
 			s.t.Fatalf("write receipt: %v", err)
 		}
@@ -661,6 +1104,80 @@ None.
 `, runID, runID, taskID, task)
 }
 
+type receiptOptions struct {
+	Verdict            receipt.Verdict
+	ChangedFiles       []string
+	VerificationStatus string
+	Verification       []receipt.VerificationEntry
+}
+
+func receiptContent(runID string, taskID string, task string, opts receiptOptions) string {
+	verdict := opts.Verdict
+	if verdict == "" {
+		verdict = receipt.VerdictCompleted
+	}
+	verificationStatus := opts.VerificationStatus
+	if verificationStatus == "" {
+		verificationStatus = "not_run"
+	}
+
+	var out strings.Builder
+	out.WriteString("---\n")
+	fmt.Fprintf(&out, "schema_version: %s\n", receipt.SchemaVersion)
+	fmt.Fprintf(&out, "run_id: %s\n", runID)
+	fmt.Fprintf(&out, "pass_id: %s\n", runID)
+	fmt.Fprintf(&out, "task_id: %s\n", taskID)
+	fmt.Fprintf(&out, "task: %q\n", task)
+	fmt.Fprintf(&out, "verdict: %s\n", verdict)
+	out.WriteString("timestamp: 2026-06-26T12:00:00Z\n")
+	out.WriteString("codex_exit_code: 0\n")
+	fmt.Fprintf(&out, "verification_status: %s\n", verificationStatus)
+	out.WriteString("commit_sha: \"\"\n")
+	if len(opts.ChangedFiles) == 0 {
+		out.WriteString("changed_files: []\n")
+	} else {
+		out.WriteString("changed_files:\n")
+		for _, path := range opts.ChangedFiles {
+			fmt.Fprintf(&out, "  - %s\n", path)
+		}
+	}
+	if len(opts.Verification) == 0 {
+		out.WriteString("verification: []\n")
+	} else {
+		out.WriteString("verification:\n")
+		for _, entry := range opts.Verification {
+			fmt.Fprintf(&out, "  - command: %s\n", entry.Command)
+			fmt.Fprintf(&out, "    exit_code: %d\n", entry.ExitCode)
+			fmt.Fprintf(&out, "    status: %s\n", entry.Status)
+		}
+	}
+	out.WriteString("metrics:\n")
+	out.WriteString("  input_tokens: 0\n")
+	out.WriteString("  output_tokens: 0\n")
+	out.WriteString("  duration_seconds: 0\n")
+	out.WriteString("---\n")
+	out.WriteString("## Summary\nImplemented the selected task.\n\n")
+	out.WriteString("## Changed Files\n")
+	if len(opts.ChangedFiles) == 0 {
+		out.WriteString("None.\n")
+	} else {
+		for _, path := range opts.ChangedFiles {
+			fmt.Fprintf(&out, "- %s\n", path)
+		}
+	}
+	out.WriteString("\n## Verification\n")
+	if len(opts.Verification) == 0 {
+		out.WriteString("- Not run yet.\n")
+	} else {
+		for _, entry := range opts.Verification {
+			fmt.Fprintf(&out, "- `%s` (%s, exit %d)\n", entry.Command, entry.Status, entry.ExitCode)
+		}
+	}
+	out.WriteString("\n## Concerns\nNone.\n\n")
+	out.WriteString("## Next Steps\nNone.\n")
+	return out.String()
+}
+
 func readPrompt(t *testing.T, reader io.Reader) string {
 	t.Helper()
 	content, err := io.ReadAll(reader)
@@ -733,4 +1250,43 @@ func assertRunEvents(t *testing.T, store *ledger.Store, runID string, want []led
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("event types = %#v, want %#v", got, want)
 	}
+}
+
+func receiptWarningEvents(t *testing.T, store *ledger.Store, runID string) []ledger.Event {
+	t.Helper()
+	history, ok, err := store.GetRunWithEvents(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run with events: %v", err)
+	}
+	if !ok {
+		t.Fatal("run history not found")
+	}
+	var warnings []ledger.Event
+	for _, event := range history.Events {
+		if event.Type == ledger.EventReceiptWarning {
+			warnings = append(warnings, event)
+		}
+	}
+	return warnings
+}
+
+func decodeEventPayload(t *testing.T, event ledger.Event, target any) {
+	t.Helper()
+	if err := json.Unmarshal(event.Payload, target); err != nil {
+		t.Fatalf("decode %s payload: %v", event.Type, err)
+	}
+}
+
+func decodeTestEventPayload(t *testing.T, events []ledger.Event, eventType ledger.EventType, target any) bool {
+	t.Helper()
+	for _, event := range events {
+		if event.Type != eventType {
+			continue
+		}
+		if err := json.Unmarshal(event.Payload, target); err != nil {
+			t.Fatalf("decode %s payload: %v", eventType, err)
+		}
+		return true
+	}
+	return false
 }

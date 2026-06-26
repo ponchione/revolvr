@@ -209,6 +209,74 @@ func TestBlockTask(t *testing.T) {
 	}
 }
 
+func TestUnblockTask(t *testing.T) {
+	ctx := context.Background()
+	base := time.Date(2026, 6, 25, 12, 30, 0, 0, time.UTC)
+	now := base
+	store := openTestStore(t, func() time.Time { return now })
+	defer store.Close()
+
+	if _, err := store.AddTask(ctx, TaskSpec{ID: "task-unblock", Task: "blocked work", CreatedAt: base}); err != nil {
+		t.Fatalf("add blocked task: %v", err)
+	}
+	if _, err := store.AddTask(ctx, TaskSpec{ID: "task-complete", Task: "completed work", CreatedAt: base.Add(time.Minute)}); err != nil {
+		t.Fatalf("add completed task: %v", err)
+	}
+	now = base.Add(10 * time.Minute)
+	if _, ok, err := store.BlockTask(ctx, "task-unblock", "waiting"); err != nil || !ok {
+		t.Fatalf("block task: ok=%v err=%v", ok, err)
+	}
+	now = base.Add(11 * time.Minute)
+	if _, ok, err := store.CompleteTask(ctx, "task-complete", "done"); err != nil || !ok {
+		t.Fatalf("complete task: ok=%v err=%v", ok, err)
+	}
+
+	unblockedAt := base.Add(20 * time.Minute)
+	now = unblockedAt
+	task, changed, err := store.UnblockTask(ctx, "task-unblock")
+	if err != nil {
+		t.Fatalf("unblock task: %v", err)
+	}
+	if !changed {
+		t.Fatal("unblock task changed = false, want true")
+	}
+	if got, want := task.Status, StatusPending; got != want {
+		t.Fatalf("status = %q, want %q", got, want)
+	}
+	if task.Blocker != "" || task.BlockedAt != nil || task.CompletedAt != nil {
+		t.Fatalf("unblocked task fields = %+v, want blocker/block timestamps cleared", task)
+	}
+	if !task.UpdatedAt.Equal(unblockedAt) {
+		t.Fatalf("updated at = %s, want %s", task.UpdatedAt, unblockedAt)
+	}
+	selected, ok, err := store.SelectNext(ctx)
+	if err != nil {
+		t.Fatalf("select next: %v", err)
+	}
+	if !ok || selected.ID != "task-unblock" {
+		t.Fatalf("selected = %+v ok=%v, want task-unblock", selected, ok)
+	}
+
+	completed, changed, err := store.UnblockTask(ctx, "task-complete")
+	if err != nil {
+		t.Fatalf("unblock completed task: %v", err)
+	}
+	if changed {
+		t.Fatal("unblock completed changed = true, want false")
+	}
+	if completed.Status != StatusCompleted || completed.CompletedAt == nil {
+		t.Fatalf("completed task after unblock = %+v, want still completed", completed)
+	}
+
+	missing, changed, err := store.UnblockTask(ctx, "missing-task")
+	if err != nil {
+		t.Fatalf("unblock missing task: %v", err)
+	}
+	if changed || missing.ID != "" {
+		t.Fatalf("missing unblock = %+v changed=%v, want not found", missing, changed)
+	}
+}
+
 func TestPersistenceAcrossReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "revolvr.sqlite")
