@@ -291,6 +291,30 @@ func TestRunRequiresExplicitMissingCommandPolicy(t *testing.T) {
 	}
 }
 
+func TestRunRejectsEscapingCommandDir(t *testing.T) {
+	for _, dir := range []string{"../outside", filepath.Join(t.TempDir(), "outside")} {
+		t.Run(dir, func(t *testing.T) {
+			called := false
+			_, err := Run(context.Background(), Config{
+				WorkingDir: t.TempDir(),
+				Commands: []Command{
+					{Name: "go", Args: []string{"test", "./..."}, Dir: dir},
+				},
+				CommandRunner: func(context.Context, runner.Command) runner.Result {
+					called = true
+					return runner.Result{ExitCode: 0}
+				},
+			})
+			if err == nil {
+				t.Fatal("run verification succeeded, want command dir error")
+			}
+			if called {
+				t.Fatal("command runner was called after command dir rejection")
+			}
+		})
+	}
+}
+
 func mustAbs(t *testing.T, path string) string {
 	t.Helper()
 	abs, err := filepath.Abs(path)

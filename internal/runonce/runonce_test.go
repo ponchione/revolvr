@@ -2,17 +2,22 @@ package runonce
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
+	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
+	"revolvr/internal/lock"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
 	"revolvr/internal/taskqueue"
@@ -75,6 +80,22 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	if got, want := result.Receipt.Metrics, (receipt.Metrics{InputTokens: 7, OutputTokens: 3, DurationSeconds: 1}); got != want {
 		t.Fatalf("receipt metrics = %#v, want %#v", got, want)
 	}
+	if result.Receipt.CommitSHA != "abc123def456" {
+		t.Fatalf("receipt commit sha = %q, want abc123def456", result.Receipt.CommitSHA)
+	}
+	if result.Receipt.VerificationStatus != "passed" {
+		t.Fatalf("receipt verification status = %q, want passed", result.Receipt.VerificationStatus)
+	}
+	if got, want := result.Receipt.Verification, []receipt.VerificationEntry{{Command: "go test ./...", ExitCode: 0, Status: "passed"}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("receipt verification entries = %#v, want %#v", got, want)
+	}
+	reparsedReceipt, err := receiptFromFile(result.ReceiptPath)
+	if err != nil {
+		t.Fatalf("parse final receipt: %v", err)
+	}
+	if reparsedReceipt.CommitSHA != "abc123def456" || reparsedReceipt.VerificationStatus != "passed" {
+		t.Fatalf("final receipt = %+v, want commit sha and passed verification", reparsedReceipt)
+	}
 	if containsArg(state.codexArgs, "resume") {
 		t.Fatalf("codex args include resume: %#v", state.codexArgs)
 	}
@@ -86,6 +107,9 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		{"rev-parse", "--verify", "HEAD"},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("git commands = %#v, want %#v", got, want)
+	}
+	if _, found, err := lock.ReadSourceWriter(ctx, env.workDir); err != nil || found {
+		t.Fatalf("lock after successful run found=%v err=%v, want released", found, err)
 	}
 	assertRunEvents(t, env.ledger, result.Run.ID, []ledger.EventType{
 		ledger.EventRunStarted,
@@ -242,6 +266,51 @@ func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 	}
 }
 
+func TestRunUpdatesParsedReceiptWhenVerificationFails(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-receipt-verify", Task: "Break verification after receipt"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+	state := &fakeCommandState{
+		t:                t,
+		workDir:          env.workDir,
+		writeReceipt:     true,
+		postStatus:       " M internal/feature.go\n",
+		verificationExit: 1,
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:           env.workDir,
+		TaskStore:            env.tasks,
+		LedgerStore:          env.ledger,
+		CodexExecutable:      "codex-test",
+		GitExecutable:        "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run,
+		Clock:                env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeVerificationFailed {
+		t.Fatalf("outcome = %s, want verification_failed", result.Outcome)
+	}
+	if result.ReceiptSynthesized {
+		t.Fatal("receipt was synthesized, want parsed receipt updated by harness")
+	}
+	if result.Receipt.Verdict != receipt.VerdictVerificationFailed {
+		t.Fatalf("receipt verdict = %q, want verification_failed", result.Receipt.Verdict)
+	}
+	if result.Receipt.VerificationStatus != "failed" {
+		t.Fatalf("receipt verification status = %q, want failed", result.Receipt.VerificationStatus)
+	}
+	if state.gitAddOrCommitCalls != 0 {
+		t.Fatalf("git add/commit calls = %d, want 0", state.gitAddOrCommitCalls)
+	}
+}
+
 func TestRunReturnsNoTaskWhenQueueIsEmpty(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
@@ -262,6 +331,155 @@ func TestRunReturnsNoTaskWhenQueueIsEmpty(t *testing.T) {
 	}
 	if len(state.commands) != 0 {
 		t.Fatalf("commands = %#v, want none", state.commands)
+	}
+}
+
+func TestRunRefusesLiveSourceWriterLockBeforeStateMutation(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-locked", Task: "Do locked work"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	existing, err := lock.AcquireSourceWriter(ctx, lock.Config{
+		WorkingDir: env.workDir,
+		RunID:      "already-running",
+		PID:        999,
+		Timeout:    time.Hour,
+		Clock:      env.clock,
+	})
+	if err != nil {
+		t.Fatalf("acquire existing source-writer lock: %v", err)
+	}
+	defer existing.Release(ctx)
+
+	state := &fakeCommandState{t: t, workDir: env.workDir}
+	result, err := Run(ctx, Config{
+		WorkingDir:          env.workDir,
+		TaskStore:           env.tasks,
+		LedgerStore:         env.ledger,
+		CommandRunner:       state.run,
+		Clock:               env.clock,
+		SourceWriterLockPID: 123,
+	})
+	if !errors.Is(err, lock.ErrHeld) {
+		t.Fatalf("run once error = %v, want source-writer lock held", err)
+	}
+	if result.Run.ID != "" {
+		t.Fatalf("run id = %q, want no ledger run created", result.Run.ID)
+	}
+	if len(state.commands) != 0 {
+		t.Fatalf("commands = %#v, want none", state.commands)
+	}
+	runs, err := env.ledger.ListRecentRuns(ctx, 10)
+	if err != nil {
+		t.Fatalf("list runs: %v", err)
+	}
+	if len(runs) != 0 {
+		t.Fatalf("runs = %#v, want none", runs)
+	}
+	task, ok, err := env.tasks.GetTask(ctx, "task-locked")
+	if err != nil || !ok {
+		t.Fatalf("get task: ok=%v err=%v", ok, err)
+	}
+	if task.Status != taskqueue.StatusPending {
+		t.Fatalf("task status = %q, want pending", task.Status)
+	}
+}
+
+func TestRunRefreshesSourceWriterLockWhileCodexRuns(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-heartbeat", Task: "Observe heartbeat"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+	clock := &advancingClock{current: time.Date(2026, 6, 26, 14, 0, 0, 0, time.UTC), step: time.Second}
+
+	var observed lock.Metadata
+	codexRunner := func(ctx context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+		deadline := time.After(2 * time.Second)
+		for {
+			metadata, found, err := lock.ReadSourceWriter(ctx, env.workDir)
+			if err != nil {
+				return codexexec.Result{}, err
+			}
+			if found && metadata.RunID == cfg.RunID && metadata.HeartbeatAt.After(metadata.AcquiredAt) {
+				observed = metadata
+				return codexexec.Result{ExitCode: 2}, nil
+			}
+			select {
+			case <-ctx.Done():
+				return codexexec.Result{}, ctx.Err()
+			case <-deadline:
+				return codexexec.Result{}, errors.New("timed out waiting for source-writer heartbeat")
+			case <-time.After(time.Millisecond):
+			}
+		}
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:                        env.workDir,
+		TaskStore:                         env.tasks,
+		LedgerStore:                       env.ledger,
+		CodexRunner:                       codexRunner,
+		DirtyCapture:                      cleanDirtyCapture,
+		ChangedCapture:                    emptyChangedCapture,
+		Clock:                             clock.now,
+		SourceWriterLockPID:               321,
+		SourceWriterLockTimeout:           time.Hour,
+		SourceWriterLockHeartbeatInterval: time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCodexFailed {
+		t.Fatalf("outcome = %s, want codex_failed", result.Outcome)
+	}
+	if observed.RunID != result.Run.ID || observed.PID != 321 {
+		t.Fatalf("observed metadata = %+v, want run %s pid 321", observed, result.Run.ID)
+	}
+	if !observed.HeartbeatAt.After(observed.AcquiredAt) {
+		t.Fatalf("heartbeat was not refreshed: %+v", observed)
+	}
+	if _, found, err := lock.ReadSourceWriter(ctx, env.workDir); err != nil || found {
+		t.Fatalf("lock after run found=%v err=%v, want released", found, err)
+	}
+}
+
+func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-cancel", Task: "Cancel while Codex runs"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	codexRunner := func(ctx context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+		cancel()
+		err := ctx.Err()
+		if err == nil {
+			err = context.Canceled
+		}
+		return codexexec.Result{ExitCode: -1, Err: err}, err
+	}
+
+	_, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		TaskStore:   env.tasks,
+		LedgerStore: env.ledger,
+		CodexRunner: codexRunner,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+		},
+		Clock: env.clock,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("run once error = %v, want context canceled", err)
+	}
+	if _, found, readErr := lock.ReadSourceWriter(context.Background(), env.workDir); readErr != nil || found {
+		t.Fatalf("lock after cancellation found=%v err=%v, want released", found, readErr)
 	}
 }
 
@@ -292,6 +510,27 @@ func newTestEnv(t *testing.T) testEnv {
 
 func (e testEnv) clock() time.Time {
 	return e.now.Add(2 * time.Minute)
+}
+
+func cleanDirtyCapture(context.Context, gitstate.Config) (gitstate.Capture, error) {
+	return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+}
+
+func emptyChangedCapture(context.Context, gitstate.Config) (gitstate.Capture, error) {
+	return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+}
+
+type advancingClock struct {
+	mu      sync.Mutex
+	current time.Time
+	step    time.Duration
+}
+
+func (c *advancingClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.current = c.current.Add(c.step)
+	return c.current
 }
 
 type fakeCommandState struct {
@@ -450,6 +689,14 @@ func writeTestFile(path string, content string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(content), 0o644)
+}
+
+func receiptFromFile(path string) (receipt.Receipt, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return receipt.Receipt{}, err
+	}
+	return receipt.Parse(content)
 }
 
 func argAfter(args []string, flag string) string {

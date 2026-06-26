@@ -232,6 +232,31 @@ func TestRunValidatesRequiredConfig(t *testing.T) {
 	}
 }
 
+func TestRunRejectsEscapingArtifactPaths(t *testing.T) {
+	for _, artifactPath := range []string{"../outside/codex.jsonl", filepath.Join(t.TempDir(), "codex.jsonl")} {
+		t.Run(artifactPath, func(t *testing.T) {
+			called := false
+			_, err := Run(context.Background(), Config{
+				WorkingDir: t.TempDir(),
+				Prompt:     "do one task",
+				Artifacts: ArtifactPaths{
+					StdoutJSONL: artifactPath,
+				},
+				CommandRunner: func(context.Context, runner.Command) runner.Result {
+					called = true
+					return runner.Result{ExitCode: 0}
+				},
+			})
+			if err == nil {
+				t.Fatal("run codex exec succeeded, want artifact path error")
+			}
+			if called {
+				t.Fatal("command runner was called after artifact path rejection")
+			}
+		})
+	}
+}
+
 func assertFile(t *testing.T, path string, want string) {
 	t.Helper()
 	got, err := os.ReadFile(path)

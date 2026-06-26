@@ -12,7 +12,9 @@ import (
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/gitstate"
+	"revolvr/internal/id"
 	"revolvr/internal/ledger"
+	"revolvr/internal/lock"
 	"revolvr/internal/prompt"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
@@ -24,6 +26,8 @@ const (
 	defaultCodexSandbox        = "workspace-write"
 	defaultCodexApprovalPolicy = "never"
 	defaultOutputCap           = 256 * 1024
+	defaultLockTimeout         = 5 * time.Minute
+	defaultLockReleaseTimeout  = 5 * time.Second
 )
 
 type Outcome string
@@ -78,6 +82,10 @@ type Config struct {
 	CommitStdoutCap          int
 	CommitStderrCap          int
 
+	SourceWriterLockTimeout           time.Duration
+	SourceWriterLockHeartbeatInterval time.Duration
+	SourceWriterLockPID               int
+
 	CommandRunner      CommandRunner
 	CodexRunner        CodexRunner
 	DirtyCapture       DirtyCapture
@@ -113,6 +121,26 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return Result{}, err
 	}
 	result := Result{WorkingDir: workDir}
+	runID := id.New()
+
+	sourceLock, err := lock.AcquireSourceWriter(ctx, lock.Config{
+		WorkingDir: workDir,
+		RunID:      runID,
+		PID:        cfg.SourceWriterLockPID,
+		Timeout:    cfg.SourceWriterLockTimeout,
+		Clock:      cfg.Clock,
+	})
+	if err != nil {
+		result.Message = "source-writer lock unavailable: " + err.Error()
+		return result, err
+	}
+	stopHeartbeat := startLockHeartbeat(ctx, sourceLock, cfg.SourceWriterLockHeartbeatInterval)
+	defer func() {
+		stopHeartbeat()
+		releaseCtx, cancel := context.WithTimeout(context.Background(), defaultLockReleaseTimeout)
+		defer cancel()
+		_ = sourceLock.Release(releaseCtx)
+	}()
 
 	taskStore, closeTask, err := openTaskStore(ctx, cfg, workDir)
 	if err != nil {
@@ -139,6 +167,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	result.Task = task
 
 	run, err := ledgerStore.CreateRun(ctx, ledger.RunSpec{
+		ID:     runID,
 		TaskID: task.ID,
 		Task:   task.Task,
 	})
@@ -353,6 +382,15 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.CommitStderrCap <= 0 {
 		cfg.CommitStderrCap = defaultOutputCap
 	}
+	if cfg.SourceWriterLockTimeout <= 0 {
+		cfg.SourceWriterLockTimeout = defaultLockTimeout
+	}
+	if cfg.SourceWriterLockHeartbeatInterval <= 0 {
+		cfg.SourceWriterLockHeartbeatInterval = defaultHeartbeatInterval(cfg.SourceWriterLockTimeout)
+	}
+	if cfg.SourceWriterLockHeartbeatInterval >= cfg.SourceWriterLockTimeout {
+		cfg.SourceWriterLockHeartbeatInterval = defaultHeartbeatInterval(cfg.SourceWriterLockTimeout)
+	}
 	if cfg.MissingVerificationPolicy == "" {
 		cfg.MissingVerificationPolicy = verification.MissingCommandsFail
 	}
@@ -378,6 +416,50 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 		cfg.Clock = time.Now
 	}
 	return cfg, workDir, nil
+}
+
+func defaultHeartbeatInterval(timeout time.Duration) time.Duration {
+	interval := timeout / 3
+	if interval < time.Second {
+		interval = time.Second
+	}
+	if interval >= timeout {
+		interval = timeout / 2
+	}
+	if interval <= 0 {
+		interval = time.Nanosecond
+	}
+	return interval
+}
+
+func startLockHeartbeat(ctx context.Context, sourceLock *lock.SourceWriter, interval time.Duration) func() {
+	if sourceLock == nil {
+		return func() {}
+	}
+	if interval <= 0 {
+		interval = time.Second
+	}
+
+	heartbeatCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-ticker.C:
+				_ = sourceLock.Heartbeat(heartbeatCtx)
+			}
+		}
+	}()
+
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 func openTaskStore(ctx context.Context, cfg Config, workDir string) (*taskqueue.Store, func(), error) {
@@ -415,9 +497,7 @@ func finish(ctx context.Context, cfg Config, tasks *taskqueue.Store, runs *ledge
 	if strings.TrimSpace(result.Message) == "" {
 		result.Message = string(outcome)
 	}
-	if result.ReceiptSynthesized {
-		ensureRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, verificationEntries(result.Verification), commitSHA, result.Message)
-	}
+	finalizeRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, verificationEntries(result.Verification), commitSHA, result.Message)
 
 	runStatus := ledger.StatusFailed
 	eventType := ledger.EventRunFailed
@@ -493,6 +573,52 @@ func ensureRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, resul
 		}
 	}
 
+	writeFallbackReceipt(ctx, cfg, runs, result, verdict, verificationStatus, verificationEntries, commitSHA, finalText)
+}
+
+func finalizeRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string) {
+	if result.ReceiptPath == "" {
+		return
+	}
+	metrics := result.Receipt.Metrics
+	if result.Codex.UsageFound {
+		metrics = result.Codex.Usage
+	}
+
+	content, err := os.ReadFile(result.ReceiptPath)
+	if err == nil {
+		updated, parsed, changed, rewriteErr := receipt.RewriteHarnessFields(content, receipt.HarnessFields{
+			Verdict:            verdict,
+			CodexExitCode:      result.Codex.ExitCode,
+			VerificationStatus: verificationStatus,
+			CommitSHA:          commitSHA,
+			ChangedFiles:       changedFiles(result.PostRunChanged),
+			Verification:       verificationEntries,
+			Metrics:            metrics,
+		})
+		if rewriteErr == nil && receiptMatches(parsed, result.Run.ID, result.Task.ID) {
+			if changed {
+				if writeErr := writeTextFile(result.ReceiptPath, string(updated), 0o644); writeErr != nil {
+					result.ReceiptError = writeErr.Error()
+					return
+				}
+			}
+			result.Receipt = parsed
+			return
+		}
+		if rewriteErr != nil {
+			result.ReceiptError = rewriteErr.Error()
+		} else {
+			result.ReceiptError = "receipt identifiers did not match the selected run"
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		result.ReceiptError = err.Error()
+	}
+
+	writeFallbackReceipt(ctx, cfg, runs, result, verdict, verificationStatus, verificationEntries, commitSHA, finalText)
+}
+
+func writeFallbackReceipt(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string) {
 	content, parsed := receipt.FormatFallbackReceipt(receipt.FallbackInput{
 		RunID:              result.Run.ID,
 		PassID:             result.Run.ID,

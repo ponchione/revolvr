@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"revolvr/internal/ledger"
+	"revolvr/internal/pathguard"
 	"revolvr/internal/runner"
 )
 
@@ -243,10 +244,11 @@ func resolveCommandDir(workDir, dir string) (string, error) {
 	if dir == "" {
 		return workDir, nil
 	}
-	if filepath.IsAbs(dir) {
-		return filepath.Clean(dir), nil
+	resolved, err := pathguard.Resolve(workDir, dir)
+	if err != nil {
+		return "", err
 	}
-	return filepath.Abs(filepath.Join(workDir, dir))
+	return filepath.Clean(resolved), nil
 }
 
 func commandTimeout(cfg Config, command Command) time.Duration {

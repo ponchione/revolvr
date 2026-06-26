@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"revolvr/internal/ledger"
+	"revolvr/internal/pathguard"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
 )
@@ -303,10 +304,11 @@ func resolveArtifactPath(workDir, path string) (string, error) {
 	if path == "" {
 		return "", errors.New("path is required")
 	}
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path), nil
+	resolved, err := pathguard.Resolve(workDir, path)
+	if err != nil {
+		return "", err
 	}
-	return filepath.Abs(filepath.Join(workDir, path))
+	return filepath.Clean(resolved), nil
 }
 
 func createArtifact(path string) (*os.File, error) {

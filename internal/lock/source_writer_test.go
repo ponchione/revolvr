@@ -1,0 +1,210 @@
+package lock
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestAcquireSourceWriterWritesAndReleasesLock(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
+
+	handle, err := AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "run-1",
+		PID:        1234,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if err != nil {
+		t.Fatalf("acquire source writer: %v", err)
+	}
+
+	metadata, found, err := ReadSourceWriter(ctx, workDir)
+	if err != nil {
+		t.Fatalf("read source writer: %v", err)
+	}
+	if !found {
+		t.Fatal("lock metadata not found")
+	}
+	if metadata.RunID != "run-1" || metadata.PID != 1234 {
+		t.Fatalf("metadata owner = run %q pid %d", metadata.RunID, metadata.PID)
+	}
+	if !metadata.AcquiredAt.Equal(clock.value) || !metadata.HeartbeatAt.Equal(clock.value) {
+		t.Fatalf("metadata timestamps = acquired %s heartbeat %s", metadata.AcquiredAt, metadata.HeartbeatAt)
+	}
+	if want := clock.value.Add(time.Minute); !metadata.ExpiresAt.Equal(want) {
+		t.Fatalf("expires at = %s, want %s", metadata.ExpiresAt, want)
+	}
+
+	if err := handle.Release(ctx); err != nil {
+		t.Fatalf("release source writer: %v", err)
+	}
+	if _, found, err := ReadSourceWriter(ctx, workDir); err != nil || found {
+		t.Fatalf("read after release found=%v err=%v, want no lock", found, err)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, SourceWriterRelPath)); err != nil {
+		t.Fatalf("lock file missing after release: %v", err)
+	}
+}
+
+func TestAcquireSourceWriterRefusesLiveLock(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
+
+	first, err := AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "run-1",
+		PID:        111,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if err != nil {
+		t.Fatalf("first acquire: %v", err)
+	}
+	defer first.Release(ctx)
+
+	_, err = AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "run-2",
+		PID:        222,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if !errors.Is(err, ErrHeld) {
+		t.Fatalf("second acquire error = %v, want ErrHeld", err)
+	}
+	var held *HeldError
+	if !errors.As(err, &held) || held.Metadata.RunID != "run-1" || held.Metadata.PID != 111 {
+		t.Fatalf("held error = %#v, want run-1 pid 111", err)
+	}
+}
+
+func TestAcquireSourceWriterReplacesStaleLock(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
+
+	_, err := AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "stale-run",
+		PID:        111,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if err != nil {
+		t.Fatalf("first acquire: %v", err)
+	}
+
+	clock.value = clock.value.Add(2 * time.Minute)
+	fresh, err := AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "fresh-run",
+		PID:        222,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if err != nil {
+		t.Fatalf("fresh acquire replacing stale lock: %v", err)
+	}
+	defer fresh.Release(ctx)
+
+	metadata, found, err := ReadSourceWriter(ctx, workDir)
+	if err != nil {
+		t.Fatalf("read source writer: %v", err)
+	}
+	if !found || metadata.RunID != "fresh-run" || metadata.PID != 222 {
+		t.Fatalf("metadata after stale replacement = %+v found=%v", metadata, found)
+	}
+}
+
+func TestHeartbeatRefreshesTimestampAndExpiry(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
+
+	handle, err := AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "run-heartbeat",
+		PID:        123,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if err != nil {
+		t.Fatalf("acquire source writer: %v", err)
+	}
+	defer handle.Release(ctx)
+
+	clock.value = clock.value.Add(20 * time.Second)
+	if err := handle.Heartbeat(ctx); err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+
+	metadata, found, err := ReadSourceWriter(ctx, workDir)
+	if err != nil {
+		t.Fatalf("read source writer: %v", err)
+	}
+	if !found {
+		t.Fatal("lock metadata not found after heartbeat")
+	}
+	if !metadata.HeartbeatAt.Equal(clock.value) {
+		t.Fatalf("heartbeat at = %s, want %s", metadata.HeartbeatAt, clock.value)
+	}
+	if want := clock.value.Add(time.Minute); !metadata.ExpiresAt.Equal(want) {
+		t.Fatalf("expires at = %s, want %s", metadata.ExpiresAt, want)
+	}
+}
+
+func TestReleaseDoesNotClearAnotherOwner(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
+
+	stale, err := AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "stale-run",
+		PID:        111,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if err != nil {
+		t.Fatalf("first acquire: %v", err)
+	}
+	clock.value = clock.value.Add(2 * time.Minute)
+	fresh, err := AcquireSourceWriter(ctx, Config{
+		WorkingDir: workDir,
+		RunID:      "fresh-run",
+		PID:        222,
+		Timeout:    time.Minute,
+		Clock:      clock.now,
+	})
+	if err != nil {
+		t.Fatalf("fresh acquire replacing stale lock: %v", err)
+	}
+	defer fresh.Release(ctx)
+
+	if err := stale.Release(ctx); !errors.Is(err, ErrHeld) {
+		t.Fatalf("stale release error = %v, want ErrHeld", err)
+	}
+	metadata, found, err := ReadSourceWriter(ctx, workDir)
+	if err != nil {
+		t.Fatalf("read source writer: %v", err)
+	}
+	if !found || metadata.RunID != "fresh-run" {
+		t.Fatalf("metadata after stale release = %+v found=%v", metadata, found)
+	}
+}
+
+type fixedClock struct {
+	value time.Time
+}
+
+func (c *fixedClock) now() time.Time {
+	return c.value
+}
