@@ -153,3 +153,14 @@ This smoke test builds a temporary binary, initializes a temporary Git repo,
 points `codex.executable` at a strict fake Codex executable, verifies a
 deterministic generated file, checks the completed task/run state, and confirms
 the committed receipt and run artifacts.
+
+Run the matching verification-failure smoke test without invoking real Codex:
+
+```bash
+./scripts/smoke-run-once-fake-codex-verification-failure.sh
+```
+
+This smoke test uses a strict fake Codex executable that makes a deterministic
+file change, then intentionally fails local verification. It checks that the run
+fails cleanly, the task is blocked, no commit is created, and run diagnostics
+and artifacts are still recorded.
