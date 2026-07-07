@@ -142,3 +142,14 @@ Run the local CLI smoke test without invoking Codex:
 
 The smoke test builds a temporary binary and exercises `init`, `task add`,
 `task list`, `config check`, and `status` in a temporary workspace.
+
+Run the `run --once` integration smoke test without invoking real Codex:
+
+```bash
+./scripts/smoke-run-once-fake-codex.sh
+```
+
+This smoke test builds a temporary binary, initializes a temporary Git repo,
+points `codex.executable` at a strict fake Codex executable, verifies a
+deterministic generated file, checks the completed task/run state, and confirms
+the committed receipt and run artifacts.

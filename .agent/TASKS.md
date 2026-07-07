@@ -17,6 +17,7 @@
 - [x] Add a concise README with setup, task queue, config, run, status, and show examples for the current CLI.
 - [x] Expand `revolvr config check` output to show the effective verification command details, not only the command count.
 - [x] Add a targeted smoke-test note or script for exercising `init`, `task add`, `task list`, `config check`, and `status` without invoking Codex.
+- [x] Add a no-real-Codex integration smoke test for `revolvr run --once` success path using a strict fake Codex executable.
 
 ## Blocked
 
