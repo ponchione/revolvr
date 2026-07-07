@@ -105,6 +105,9 @@ identity, clean worktree state, `.revolvr/` ignore state, and effective
 verification coverage. It exits nonzero when a required check fails. Use
 `status` to find recent run IDs for `show`.
 
+Note: Real dogfood runs should start from a clean worktree and use `status` and
+`show <run-id>` to inspect the recorded result.
+
 ## Run
 
 Run one selected pending task:
