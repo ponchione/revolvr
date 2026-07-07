@@ -175,6 +175,33 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 	}
 }
 
+func TestBuildArgsBypassesApprovalsAndSandbox(t *testing.T) {
+	args := buildArgs("/repo", Config{
+		ApprovalPolicy:            "never",
+		Sandbox:                   "workspace-write",
+		BypassApprovalsAndSandbox: true,
+	}, ArtifactPaths{
+		LastMessage: "/repo/.revolvr/runs/run-1/last-message.txt",
+	})
+
+	want := []string{
+		"exec", "--json",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"--cd", "/repo",
+		"--output-last-message", "/repo/.revolvr/runs/run-1/last-message.txt",
+		"-",
+	}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+	if containsArg(args, "--ask-for-approval") {
+		t.Fatalf("args include approval policy despite bypass: %#v", args)
+	}
+	if containsArg(args, "--sandbox") {
+		t.Fatalf("args include sandbox despite bypass: %#v", args)
+	}
+}
+
 func TestRunReportsInvalidJSONAndProcessState(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()

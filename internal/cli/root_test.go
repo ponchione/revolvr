@@ -545,6 +545,9 @@ func TestRunOnceInvokesRunnerAndPrintsSummary(t *testing.T) {
 			if cfg.CodexExecutable != "" || cfg.GitExecutable != "" || cfg.VerificationCommands != nil || cfg.AllowPreExistingDirty {
 				t.Fatalf("run config = %+v, want no config-file overrides", cfg)
 			}
+			if !cfg.CodexBypassApprovalsAndSandbox {
+				t.Fatal("codex bypass approvals and sandbox = false, want default true")
+			}
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     ledger.Run{ID: "run-1"},
@@ -574,6 +577,7 @@ codex:
   executable: codex-custom
   sandbox: danger-full-access
   approval_policy: on-request
+  dangerously_bypass_approvals_and_sandbox: true
   timeout_seconds: 45
 git:
   executable: git-custom
@@ -619,7 +623,7 @@ output:
 	if got.WorkingDir != workDir {
 		t.Fatalf("working dir = %q, want %q", got.WorkingDir, workDir)
 	}
-	if got.CodexExecutable != "codex-custom" || got.CodexSandbox != "danger-full-access" || got.CodexApprovalPolicy != "on-request" || got.CodexTimeout != 45*time.Second {
+	if got.CodexExecutable != "codex-custom" || got.CodexSandbox != "danger-full-access" || got.CodexApprovalPolicy != "on-request" || !got.CodexBypassApprovalsAndSandbox || got.CodexTimeout != 45*time.Second {
 		t.Fatalf("codex config = %+v, want config overrides", got)
 	}
 	if got.GitExecutable != "git-custom" || got.GitTimeout != 12*time.Second {
@@ -722,6 +726,7 @@ func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 		"Config found: false\n" +
 		"Defaults: used\n" +
 		"Codex executable: codex\n" +
+		"Codex dangerously bypass approvals and sandbox: true\n" +
 		"Codex sandbox: workspace-write\n" +
 		"Codex approval policy: never\n" +
 		"Codex timeout: 0s\n" +
@@ -745,6 +750,7 @@ codex:
   executable: codex-custom
   sandbox: danger-full-access
   approval_policy: on-request
+  yolo: true
   timeout_seconds: 45
 git:
   executable: git-custom
@@ -794,6 +800,7 @@ output:
 		"Config found: true\n" +
 		"Defaults: merged\n" +
 		"Codex executable: codex-custom\n" +
+		"Codex dangerously bypass approvals and sandbox: true\n" +
 		"Codex sandbox: danger-full-access\n" +
 		"Codex approval policy: on-request\n" +
 		"Codex timeout: 45s\n" +
@@ -810,6 +817,22 @@ output:
 	}
 }
 
+func TestConfigCheckCanDisableCodexBypassDefault(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  yolo: false
+`)
+
+	out, err := executeCLI(t, workDir, "config", "check")
+	if err != nil {
+		t.Fatalf("execute config check: %v", err)
+	}
+	if !strings.Contains(out, "Codex dangerously bypass approvals and sandbox: false\n") {
+		t.Fatalf("config check output = %q, want yolo false", out)
+	}
+}
+
 func TestConfigCheckInvalidMissingPolicyReturnsClearError(t *testing.T) {
 	workDir := t.TempDir()
 	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
@@ -823,6 +846,23 @@ verification:
 	}
 	if !strings.Contains(err.Error(), "invalid verification missing_policy") || !strings.Contains(err.Error(), "maybe") {
 		t.Fatalf("config check error = %v, want invalid missing_policy", err)
+	}
+}
+
+func TestConfigCheckRejectsConflictingCodexBypassAliases(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  dangerously_bypass_approvals_and_sandbox: true
+  yolo: true
+`)
+
+	_, err := executeCLI(t, workDir, "config", "check")
+	if err == nil {
+		t.Fatal("config check succeeded, want conflicting bypass aliases error")
+	}
+	if !strings.Contains(err.Error(), "dangerously_bypass_approvals_and_sandbox and yolo cannot both be set") {
+		t.Fatalf("config check error = %v, want conflicting bypass aliases", err)
 	}
 }
 

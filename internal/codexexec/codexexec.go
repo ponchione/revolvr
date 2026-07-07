@@ -35,18 +35,19 @@ type ArtifactPaths struct {
 }
 
 type Config struct {
-	Executable     string
-	WorkingDir     string
-	Prompt         string
-	Timeout        time.Duration
-	StdoutCap      int
-	StderrCap      int
-	Sandbox        string
-	ApprovalPolicy string
-	Artifacts      ArtifactPaths
-	RunID          string
-	Ledger         Ledger
-	CommandRunner  CommandRunner
+	Executable                string
+	WorkingDir                string
+	Prompt                    string
+	Timeout                   time.Duration
+	StdoutCap                 int
+	StderrCap                 int
+	Sandbox                   string
+	ApprovalPolicy            string
+	BypassApprovalsAndSandbox bool
+	Artifacts                 ArtifactPaths
+	RunID                     string
+	Ledger                    Ledger
+	CommandRunner             CommandRunner
 }
 
 type CappedOutput struct {
@@ -261,11 +262,13 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 
 func buildArgs(workDir string, cfg Config, artifacts ArtifactPaths) []string {
 	args := make([]string, 0, 12)
-	if cfg.ApprovalPolicy != "" {
+	if !cfg.BypassApprovalsAndSandbox && cfg.ApprovalPolicy != "" {
 		args = append(args, "--ask-for-approval", cfg.ApprovalPolicy)
 	}
 	args = append(args, "exec", "--json")
-	if cfg.Sandbox != "" {
+	if cfg.BypassApprovalsAndSandbox {
+		args = append(args, "--dangerously-bypass-approvals-and-sandbox")
+	} else if cfg.Sandbox != "" {
 		args = append(args, "--sandbox", cfg.Sandbox)
 	}
 	args = append(args, "--cd", workDir)

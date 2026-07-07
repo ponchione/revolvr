@@ -13,8 +13,7 @@ echo "Starting one fresh Codex loop pass in: $ROOT"
 echo
 
 codex exec \
-  --sandbox workspace-write \
-  --ask-for-approval never \
+  --dangerously-bypass-approvals-and-sandbox \
   --cd "$ROOT" \
   "$(cat .agent/LOOP_PROMPT.md)"
 

@@ -262,7 +262,7 @@ func newRunCommand(opts Options) *cobra.Command {
 }
 
 func runSinglePass(cmd *cobra.Command, workDir string, runOnce RunOnceFunc) error {
-	runCfg, err := loadRunOnceConfig(workDir, runonce.Config{WorkingDir: workDir})
+	runCfg, err := loadRunOnceConfig(workDir, defaultRunOnceConfig(workDir))
 	if err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func runBoundedLoop(cmd *cobra.Command, workDir string, runOnce RunOnceFunc, max
 		if err := cmd.Context().Err(); err != nil {
 			return err
 		}
-		runCfg, err := loadRunOnceConfig(workDir, runonce.Config{WorkingDir: workDir})
+		runCfg, err := loadRunOnceConfig(workDir, defaultRunOnceConfig(workDir))
 		if err != nil {
 			return err
 		}

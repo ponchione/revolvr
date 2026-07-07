@@ -19,10 +19,11 @@ import (
 const defaultConfigFile = "config.yaml"
 
 const (
-	defaultCodexExecutable = "codex"
-	defaultGitExecutable   = "git"
-	defaultGitTimeout      = 30 * time.Second
-	defaultCommitTimeout   = 30 * time.Second
+	defaultCodexExecutable                = "codex"
+	defaultCodexBypassApprovalsAndSandbox = true
+	defaultGitExecutable                  = "git"
+	defaultGitTimeout                     = 30 * time.Second
+	defaultCommitTimeout                  = 30 * time.Second
 )
 
 type fileConfig struct {
@@ -34,10 +35,12 @@ type fileConfig struct {
 }
 
 type codexConfig struct {
-	Executable     string `yaml:"executable"`
-	Sandbox        string `yaml:"sandbox"`
-	ApprovalPolicy string `yaml:"approval_policy"`
-	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	Executable                           string `yaml:"executable"`
+	Sandbox                              string `yaml:"sandbox"`
+	ApprovalPolicy                       string `yaml:"approval_policy"`
+	DangerouslyBypassApprovalsAndSandbox *bool  `yaml:"dangerously_bypass_approvals_and_sandbox"`
+	Yolo                                 *bool  `yaml:"yolo"`
+	TimeoutSeconds                       int    `yaml:"timeout_seconds"`
 }
 
 type gitConfig struct {
@@ -91,7 +94,7 @@ func checkRunConfig(workDir string) (configCheckResult, error) {
 		return configCheckResult{}, err
 	}
 
-	cfg, err := loadRunOnceConfig(workDir, runonce.Config{WorkingDir: workDir})
+	cfg, err := loadRunOnceConfig(workDir, defaultRunOnceConfig(workDir))
 	if err != nil {
 		return configCheckResult{}, err
 	}
@@ -117,6 +120,7 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Config found: %t", result.Found),
 		fmt.Sprintf("Defaults: %s", defaults),
 		fmt.Sprintf("Codex executable: %s", effectiveString(cfg.CodexExecutable, defaultCodexExecutable)),
+		fmt.Sprintf("Codex dangerously bypass approvals and sandbox: %t", cfg.CodexBypassApprovalsAndSandbox),
 		fmt.Sprintf("Codex sandbox: %s", cfg.CodexSandbox),
 		fmt.Sprintf("Codex approval policy: %s", cfg.CodexApprovalPolicy),
 		fmt.Sprintf("Codex timeout: %s", cfg.CodexTimeout),
@@ -144,6 +148,13 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		}
 	}
 	return nil
+}
+
+func defaultRunOnceConfig(workDir string) runonce.Config {
+	return runonce.Config{
+		WorkingDir:                     workDir,
+		CodexBypassApprovalsAndSandbox: defaultCodexBypassApprovalsAndSandbox,
+	}
 }
 
 func loadRunOnceConfig(workDir string, base runonce.Config) (runonce.Config, error) {
@@ -189,6 +200,15 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	}
 	if value := strings.TrimSpace(cfg.Codex.ApprovalPolicy); value != "" {
 		base.CodexApprovalPolicy = value
+	}
+	if cfg.Codex.DangerouslyBypassApprovalsAndSandbox != nil && cfg.Codex.Yolo != nil {
+		return runonce.Config{}, errors.New("codex dangerously_bypass_approvals_and_sandbox and yolo cannot both be set")
+	}
+	if cfg.Codex.DangerouslyBypassApprovalsAndSandbox != nil {
+		base.CodexBypassApprovalsAndSandbox = *cfg.Codex.DangerouslyBypassApprovalsAndSandbox
+	}
+	if cfg.Codex.Yolo != nil {
+		base.CodexBypassApprovalsAndSandbox = *cfg.Codex.Yolo
 	}
 	if cfg.Codex.TimeoutSeconds > 0 {
 		base.CodexTimeout = seconds(cfg.Codex.TimeoutSeconds)

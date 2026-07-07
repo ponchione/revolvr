@@ -58,12 +58,13 @@ type Config struct {
 	TaskDBPath  string
 	LedgerPath  string
 
-	CodexExecutable     string
-	CodexSandbox        string
-	CodexApprovalPolicy string
-	CodexTimeout        time.Duration
-	CodexStdoutCap      int
-	CodexStderrCap      int
+	CodexExecutable                string
+	CodexSandbox                   string
+	CodexApprovalPolicy            string
+	CodexBypassApprovalsAndSandbox bool
+	CodexTimeout                   time.Duration
+	CodexStdoutCap                 int
+	CodexStderrCap                 int
 
 	GitExecutable string
 	GitTimeout    time.Duration
@@ -243,14 +244,15 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	})
 
 	codexResult, err := cfg.CodexRunner(ctx, codexexec.Config{
-		Executable:     cfg.CodexExecutable,
-		WorkingDir:     workDir,
-		Prompt:         promptText,
-		Timeout:        cfg.CodexTimeout,
-		StdoutCap:      cfg.CodexStdoutCap,
-		StderrCap:      cfg.CodexStderrCap,
-		Sandbox:        cfg.CodexSandbox,
-		ApprovalPolicy: cfg.CodexApprovalPolicy,
+		Executable:                cfg.CodexExecutable,
+		WorkingDir:                workDir,
+		Prompt:                    promptText,
+		Timeout:                   cfg.CodexTimeout,
+		StdoutCap:                 cfg.CodexStdoutCap,
+		StderrCap:                 cfg.CodexStderrCap,
+		Sandbox:                   cfg.CodexSandbox,
+		ApprovalPolicy:            cfg.CodexApprovalPolicy,
+		BypassApprovalsAndSandbox: cfg.CodexBypassApprovalsAndSandbox,
 		Artifacts: codexexec.ArtifactPaths{
 			StdoutJSONL: paths.stdoutRel,
 			Stderr:      paths.stderrRel,

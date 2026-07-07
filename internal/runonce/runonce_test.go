@@ -922,6 +922,46 @@ func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
 	}
 }
 
+func TestRunPassesCodexBypassApprovalsAndSandbox(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-yolo", Task: "Run without permission gates"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	codexCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:                     env.workDir,
+		TaskStore:                      env.tasks,
+		LedgerStore:                    env.ledger,
+		CodexSandbox:                   "workspace-write",
+		CodexApprovalPolicy:            "never",
+		CodexBypassApprovalsAndSandbox: true,
+		DirtyCapture:                   cleanDirtyCapture,
+		ChangedCapture:                 emptyChangedCapture,
+		Clock:                          env.clock,
+		CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+			codexCalled = true
+			if !cfg.BypassApprovalsAndSandbox {
+				t.Fatal("codex bypass approvals and sandbox = false, want true")
+			}
+			if cfg.Sandbox != "workspace-write" || cfg.ApprovalPolicy != "never" {
+				t.Fatalf("codex config sandbox/policy = %q/%q, want workspace-write/never", cfg.Sandbox, cfg.ApprovalPolicy)
+			}
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if !codexCalled {
+		t.Fatal("codex runner was not called")
+	}
+	if result.Outcome != OutcomeCodexFailed {
+		t.Fatalf("outcome = %s, want codex_failed", result.Outcome)
+	}
+}
+
 type testEnv struct {
 	workDir string
 	tasks   *taskqueue.Store
