@@ -17,11 +17,13 @@ import (
 const defaultVersion = "dev"
 
 type Options struct {
-	Version string
-	Out     io.Writer
-	Err     io.Writer
-	WorkDir string
-	RunOnce RunOnceFunc
+	Version             string
+	Out                 io.Writer
+	Err                 io.Writer
+	WorkDir             string
+	RunOnce             RunOnceFunc
+	DoctorCommandRunner DoctorCommandRunner
+	ExecutableLookPath  ExecutableLookPath
 }
 
 type RunOnceFunc func(context.Context, runonce.Config) (runonce.Result, error)
@@ -57,6 +59,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newTaskCommand(opts),
 		newConfigCommand(opts),
 		newRunCommand(opts),
+		newDoctorCommand(opts),
 		newStatusCommand(opts),
 		newShowCommand(opts),
 	)

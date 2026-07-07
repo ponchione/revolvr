@@ -20,6 +20,7 @@
 - [x] Add a no-real-Codex integration smoke test for `revolvr run --once` success path using a strict fake Codex executable.
 - [x] Add a no-real-Codex integration smoke test for `revolvr run --once` verification failure path using a strict fake Codex executable.
 - [x] Make `revolvr init` locally ignore `.revolvr/` in Git worktrees so fresh dogfood repos do not start dirty.
+- [x] Add a `revolvr doctor` dogfood preflight for Codex, Git identity, clean worktree, runtime ignore state, and verification readiness.
 
 ## Blocked
 
