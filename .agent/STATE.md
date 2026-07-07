@@ -8,6 +8,17 @@ None.
 
 Task completed on 2026-07-07:
 
+- Selected task: add a targeted smoke-test note or script for exercising `init`, `task add`, `task list`, `config check`, and `status` without invoking Codex.
+- Files changed: `scripts/smoke-local.sh`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: none; development smoke-test script and documentation only.
+- Smoke test added: `scripts/smoke-local.sh` builds a temporary `revolvr` binary, runs `init`, `task add`, `task list`, `config check`, and `status` in a temporary workspace, and asserts expected outputs without invoking Codex.
+- Verification run: `bash -n scripts/smoke-local.sh`; `./scripts/smoke-local.sh`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`.
+- Verification result: all commands passed.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-07:
+
 - Selected task: add a concise README with setup, task queue, config, run, status, and show examples for the current CLI.
 - Files changed: `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`.
 - Behavior changed: none; documentation-only change.

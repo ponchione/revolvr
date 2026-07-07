@@ -133,3 +133,12 @@ go run ./cmd/revolvr --help
 go run ./cmd/revolvr config check
 go run ./cmd/revolvr status
 ```
+
+Run the local CLI smoke test without invoking Codex:
+
+```bash
+./scripts/smoke-local.sh
+```
+
+The smoke test builds a temporary binary and exercises `init`, `task add`,
+`task list`, `config check`, and `status` in a temporary workspace.
