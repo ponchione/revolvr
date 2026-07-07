@@ -88,17 +88,22 @@ runs default to Codex dangerous bypass/yolo mode for unattended local harness
 passes; set `codex.dangerously_bypass_approvals_and_sandbox: false` or
 `codex.yolo: false` to disable that default.
 
-## Dogfood Preflight
+## Dogfooding
 
-Before running real Codex, check whether the repository is ready:
+Use this short flow when exercising Revolvr against this repository:
 
 ```bash
 go run ./cmd/revolvr doctor
+go run ./cmd/revolvr task add --summary "README docs" "Add concise setup and usage docs"
+go run ./cmd/revolvr run --once
+go run ./cmd/revolvr status
+go run ./cmd/revolvr show <run-id>
 ```
 
 `doctor` reports initialized state, configured Codex and Git executables, Git
 identity, clean worktree state, `.revolvr/` ignore state, and effective
-verification coverage. It exits nonzero when a required check fails.
+verification coverage. It exits nonzero when a required check fails. Use
+`status` to find recent run IDs for `show`.
 
 ## Run
 
