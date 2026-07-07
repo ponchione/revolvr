@@ -77,17 +77,54 @@ func TestVersionOutputWorks(t *testing.T) {
 	}
 }
 
-func TestPlaceholderCommandOutput(t *testing.T) {
-	var out bytes.Buffer
-	root := NewRootCommand(Options{Version: "test", Out: &out})
-	root.SetArgs([]string{"task"})
+func TestParentCommandHelpOutput(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		args      []string
+		wantParts []string
+	}{
+		{
+			name: "task",
+			args: []string{"task"},
+			wantParts: []string{
+				"Manage tasks",
+				"Usage:\n  revolvr task [flags]\n  revolvr task [command]",
+				"Available Commands:",
+				"add",
+				"list",
+				"unblock",
+			},
+		},
+		{
+			name: "config",
+			args: []string{"config"},
+			wantParts: []string{
+				"Inspect run configuration",
+				"Usage:\n  revolvr config [flags]\n  revolvr config [command]",
+				"Available Commands:",
+				"check",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			root := NewRootCommand(Options{Version: "test", Out: &out})
+			root.SetArgs(tc.args)
 
-	if err := root.Execute(); err != nil {
-		t.Fatalf("execute task: %v", err)
-	}
+			if err := root.Execute(); err != nil {
+				t.Fatalf("execute %s: %v", strings.Join(tc.args, " "), err)
+			}
 
-	if got, want := out.String(), "revolvr task is not implemented yet.\n"; got != want {
-		t.Fatalf("placeholder output = %q, want %q", got, want)
+			help := out.String()
+			if strings.Contains(help, "is not implemented yet") {
+				t.Fatalf("help output contains placeholder:\n%s", help)
+			}
+			for _, want := range tc.wantParts {
+				if !strings.Contains(help, want) {
+					t.Fatalf("help output missing %q:\n%s", want, help)
+				}
+			}
+		})
 	}
 }
 

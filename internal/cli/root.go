@@ -96,7 +96,7 @@ func newTaskCommand(opts Options) *cobra.Command {
 		Use:   "task",
 		Short: "Manage tasks",
 		Args:  cobra.NoArgs,
-		RunE:  runPlaceholder,
+		RunE:  runHelp,
 	}
 	cmd.AddCommand(
 		newTaskAddCommand(opts),
@@ -214,7 +214,7 @@ func newConfigCommand(opts Options) *cobra.Command {
 		Use:   "config",
 		Short: "Inspect run configuration",
 		Args:  cobra.NoArgs,
-		RunE:  runPlaceholder,
+		RunE:  runHelp,
 	}
 	cmd.AddCommand(newConfigCheckCommand(opts))
 	return cmd
@@ -413,6 +413,10 @@ func newShowCommand(opts Options) *cobra.Command {
 func runPlaceholder(cmd *cobra.Command, _ []string) error {
 	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s is not implemented yet.\n", cmd.CommandPath())
 	return err
+}
+
+func runHelp(cmd *cobra.Command, _ []string) error {
+	return cmd.Help()
 }
 
 func runOnceSummary(result runonce.Result) string {
