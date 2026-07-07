@@ -94,6 +94,7 @@ type Config struct {
 	VerificationRunner VerificationRunner
 	CommitRunner       CommitRunner
 	Clock              func() time.Time
+	CodexProgress      func(codexexec.ProgressEvent)
 }
 
 type Result struct {
@@ -261,6 +262,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		RunID:         run.ID,
 		Ledger:        ledgerStore,
 		CommandRunner: codexCommandRunner(cfg.CommandRunner),
+		OnProgress:    cfg.CodexProgress,
 	})
 	if err != nil {
 		if codexResult.ExitCode == 0 {

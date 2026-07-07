@@ -64,6 +64,7 @@ func TestParseRejectsMissingRequiredSection(t *testing.T) {
 func TestParseChangedFiles(t *testing.T) {
 	body := `## Changed Files
 - ` + "`internal/receipt/types.go`" + `
+- ` + "`.agent/STATE.md`" + `
 - M internal/receipt/parser.go - updated parser
 - internal/receipt/old.go -> internal/receipt/new.go
 - None
@@ -74,6 +75,7 @@ func TestParseChangedFiles(t *testing.T) {
 	got := ParseChangedFiles(body)
 	want := []string{
 		"internal/receipt/types.go",
+		".agent/STATE.md",
 		"internal/receipt/parser.go",
 		"internal/receipt/old.go",
 		"internal/receipt/new.go",
@@ -135,6 +137,47 @@ func TestFormatFallbackReceipt(t *testing.T) {
 	}
 }
 
+func TestRewriteHarnessFieldsRefreshesHarnessOwnedBodySections(t *testing.T) {
+	updated, parsed, changed, err := RewriteHarnessFields([]byte(validReceiptContent()), HarnessFields{
+		Verdict:            VerdictCompleted,
+		CodexExitCode:      0,
+		VerificationStatus: "passed",
+		CommitSHA:          "abc123",
+		ChangedFiles:       []string{".agent/STATE.md", "README.md"},
+		Verification: []VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 0,
+			Status:   "passed",
+		}},
+		Metrics: Metrics{InputTokens: 22, OutputTokens: 9, DurationSeconds: 4},
+	})
+	if err != nil {
+		t.Fatalf("rewrite harness fields: %v", err)
+	}
+	if !changed {
+		t.Fatal("changed = false, want true")
+	}
+	body := string(updated)
+	for _, want := range []string{
+		"- `.agent/STATE.md`",
+		"- `README.md`",
+		"- `go test ./...` (passed, exit 0)",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("updated receipt missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "internal/receipt/parser.go") {
+		t.Fatalf("updated receipt kept stale changed file claim:\n%s", body)
+	}
+	if got, want := parsed.ChangedFileClaims, []string{".agent/STATE.md", "README.md"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("changed file claims = %#v, want %#v", got, want)
+	}
+	if got, want := ParseVerificationCommands(parsed.RawBody), []string{"go test ./..."}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("verification commands = %#v, want %#v", got, want)
+	}
+}
+
 func TestRewriteMetricsFromCodexJSONL(t *testing.T) {
 	jsonl := []byte(strings.Join([]string{
 		`{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":4},"duration_ms":1500}`,
@@ -156,6 +199,35 @@ func TestRewriteMetricsFromCodexJSONL(t *testing.T) {
 	}
 	if _, err := Parse(updated); err != nil {
 		t.Fatalf("updated receipt is invalid: %v", err)
+	}
+}
+
+func TestParseCodexUsageMetricsRecoversAfterMalformedJSONLines(t *testing.T) {
+	jsonl := []byte(strings.Join([]string{
+		`{"type":"item.completed","item":{"type":"command_execution","aggregated_output":"README.md`,
+		`internal/runonce/runonce.go"}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":294455,"cached_input_tokens":239360,"output_tokens":5151,"reasoning_output_tokens":2777}}`,
+	}, "\n"))
+
+	metrics, found, err := ParseCodexUsageMetrics(jsonl)
+	if err != nil {
+		t.Fatalf("parse codex usage metrics: %v", err)
+	}
+	if !found {
+		t.Fatal("found = false, want true")
+	}
+	if got, want := metrics, (Metrics{InputTokens: 294455, OutputTokens: 5151, DurationSeconds: 0}); got != want {
+		t.Fatalf("metrics = %#v, want %#v", got, want)
+	}
+}
+
+func TestParseCodexUsageMetricsReportsMalformedJSONWhenNoUsageFound(t *testing.T) {
+	_, found, err := ParseCodexUsageMetrics([]byte("not-json\n"))
+	if err == nil {
+		t.Fatal("error = nil, want malformed JSON error")
+	}
+	if found {
+		t.Fatal("found = true, want false")
 	}
 }
 

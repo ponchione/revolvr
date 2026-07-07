@@ -34,6 +34,11 @@ type ArtifactPaths struct {
 	LastMessage string `json:"last_message"`
 }
 
+type ProgressEvent struct {
+	Source  string
+	Message string
+}
+
 type Config struct {
 	Executable                string
 	WorkingDir                string
@@ -48,6 +53,7 @@ type Config struct {
 	RunID                     string
 	Ledger                    Ledger
 	CommandRunner             CommandRunner
+	OnProgress                func(ProgressEvent)
 }
 
 type CappedOutput struct {
@@ -150,14 +156,25 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			if message := finalMessageFromEvent(event); message != "" {
 				state.setFinalMessage(message)
 			}
+			if cfg.OnProgress != nil {
+				if message := progressMessageFromEvent(event); message != "" {
+					cfg.OnProgress(ProgressEvent{Source: "codex", Message: message})
+				}
+			}
 			appendLedger(ledger.EventCodexJSONEvent, summarizeEvent(lineNumber, event))
 		},
 		OnStderrLine: func(line string) {
 			if stderrFile == nil {
+				if cfg.OnProgress != nil {
+					cfg.OnProgress(ProgressEvent{Source: "codex stderr", Message: strings.TrimSpace(line)})
+				}
 				return
 			}
 			if _, err := fmt.Fprintln(stderrFile, line); err != nil {
 				state.setArtifactError(fmt.Errorf("write stderr artifact: %w", err))
+			}
+			if cfg.OnProgress != nil {
+				cfg.OnProgress(ProgressEvent{Source: "codex stderr", Message: strings.TrimSpace(line)})
 			}
 		},
 	})
@@ -460,6 +477,101 @@ func usageFromEvent(event map[string]any) (receipt.Metrics, bool) {
 		return receipt.Metrics{}, false
 	}
 	return usage, found
+}
+
+func progressMessageFromEvent(event map[string]any) string {
+	eventType := strings.TrimSpace(textFromValue(event["type"]))
+	if eventType == "" {
+		return ""
+	}
+	if errorText := errorFromEvent(event); errorText != "" {
+		return "error: " + truncateText(errorText, maxSummaryText)
+	}
+	if item, ok := mapValue(event["item"]); ok {
+		if message := progressMessageFromItem(eventType, item); message != "" {
+			return message
+		}
+	}
+	if message := finalMessageFromEvent(event); message != "" {
+		return "message: " + truncateText(message, maxSummaryText)
+	}
+	if usage, found := usageFromEvent(event); found {
+		return fmt.Sprintf("turn completed: input_tokens=%d output_tokens=%d", usage.InputTokens, usage.OutputTokens)
+	}
+	switch eventType {
+	case "thread.started":
+		if threadID := textFromValue(event["thread_id"]); threadID != "" {
+			return "thread started: " + threadID
+		}
+		return "thread started"
+	case "turn.started":
+		return "turn started"
+	case "turn.completed":
+		return "turn completed"
+	default:
+		return ""
+	}
+}
+
+func progressMessageFromItem(eventType string, item map[string]any) string {
+	itemType := strings.TrimSpace(textFromValue(item["type"]))
+	switch itemType {
+	case "agent_message", "assistant_message", "message":
+		if eventType != "item.completed" {
+			return ""
+		}
+		if text := textFromValue(item["text"]); text != "" {
+			return "message: " + truncateText(text, maxSummaryText)
+		}
+		if text := textFromValue(item["content"]); text != "" {
+			return "message: " + truncateText(text, maxSummaryText)
+		}
+	case "command_execution":
+		command := truncateText(textFromValue(item["command"]), 240)
+		switch eventType {
+		case "item.started":
+			if command == "" {
+				return "command started"
+			}
+			return "command started: " + command
+		case "item.completed":
+			status := textFromValue(item["status"])
+			exitCode := scalarIntText(item["exit_code"])
+			details := compactProgressDetails(status, exitCode)
+			if command == "" {
+				return "command completed" + details
+			}
+			return "command completed" + details + ": " + command
+		}
+	}
+	return ""
+}
+
+func compactProgressDetails(values ...string) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			parts = append(parts, value)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
+}
+
+func scalarIntText(value any) string {
+	switch typed := value.(type) {
+	case float64:
+		return fmt.Sprintf("exit %.0f", typed)
+	case int:
+		return fmt.Sprintf("exit %d", typed)
+	case int64:
+		return fmt.Sprintf("exit %d", typed)
+	default:
+		return ""
+	}
 }
 
 func copyScalar(out map[string]any, key string, value any) {

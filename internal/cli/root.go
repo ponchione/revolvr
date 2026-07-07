@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
@@ -269,6 +271,7 @@ func runSinglePass(cmd *cobra.Command, workDir string, runOnce RunOnceFunc) erro
 	if err != nil {
 		return err
 	}
+	runCfg = withRunProgress(runCfg, cmd.OutOrStdout())
 	result, err := runOnce(cmd.Context(), runCfg)
 	if err != nil {
 		return err
@@ -291,6 +294,7 @@ func runBoundedLoop(cmd *cobra.Command, workDir string, runOnce RunOnceFunc, max
 		if err != nil {
 			return err
 		}
+		runCfg = withRunProgress(runCfg, cmd.OutOrStdout())
 		result, err := runOnce(cmd.Context(), runCfg)
 		if err != nil {
 			return err
@@ -432,6 +436,27 @@ func runOnceSummary(result runonce.Result) string {
 	default:
 		return fmt.Sprintf("Run %s stopped (%s): %s\n", result.Run.ID, result.Outcome, result.Message)
 	}
+}
+
+func withRunProgress(cfg runonce.Config, out io.Writer) runonce.Config {
+	if out == nil {
+		return cfg
+	}
+	var mu sync.Mutex
+	cfg.CodexProgress = func(event codexexec.ProgressEvent) {
+		event.Source = strings.TrimSpace(event.Source)
+		event.Message = strings.TrimSpace(event.Message)
+		if event.Message == "" {
+			return
+		}
+		if event.Source == "" {
+			event.Source = "codex"
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		_, _ = fmt.Fprintf(out, "%s: %s\n", event.Source, event.Message)
+	}
+	return cfg
 }
 
 func oneLine(value string) string {

@@ -42,6 +42,7 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 	}
 	var gotCommand runner.Command
 	var gotPrompt string
+	var progressEvents []ProgressEvent
 	fakeRunner := func(_ context.Context, command runner.Command) runner.Result {
 		gotCommand = command
 		prompt, err := io.ReadAll(command.Stdin)
@@ -86,6 +87,9 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 		RunID:         run.ID,
 		Ledger:        store,
 		CommandRunner: fakeRunner,
+		OnProgress: func(event ProgressEvent) {
+			progressEvents = append(progressEvents, event)
+		},
 	})
 	if err != nil {
 		t.Fatalf("run codex exec: %v", err)
@@ -132,6 +136,15 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 	}
 	if result.Stdout.TruncatedBytes != 2 || result.Stderr.TruncatedBytes != 3 {
 		t.Fatalf("truncated bytes = stdout %d stderr %d", result.Stdout.TruncatedBytes, result.Stderr.TruncatedBytes)
+	}
+	if !containsProgress(progressEvents, ProgressEvent{Source: "codex", Message: "thread started: thread-1"}) {
+		t.Fatalf("progress events missing thread start: %#v", progressEvents)
+	}
+	if !containsProgress(progressEvents, ProgressEvent{Source: "codex", Message: "message: intermediate"}) {
+		t.Fatalf("progress events missing assistant message: %#v", progressEvents)
+	}
+	if !containsProgress(progressEvents, ProgressEvent{Source: "codex stderr", Message: "codex progress"}) {
+		t.Fatalf("progress events missing stderr line: %#v", progressEvents)
 	}
 
 	assertFile(t, result.Artifacts.StdoutJSONL, strings.Join(stdoutLines, "\n")+"\n")
@@ -307,6 +320,15 @@ func argAfter(args []string, flag string) string {
 func containsArg(args []string, value string) bool {
 	for _, arg := range args {
 		if arg == value {
+			return true
+		}
+	}
+	return false
+}
+
+func containsProgress(events []ProgressEvent, want ProgressEvent) bool {
+	for _, event := range events {
+		if event == want {
 			return true
 		}
 	}

@@ -96,6 +96,7 @@ func ParseCodexUsageMetrics(jsonl []byte) (Metrics, bool, error) {
 
 	total := Metrics{}
 	found := false
+	var firstParseErr error
 	lineNumber := 0
 	for scanner.Scan() {
 		lineNumber++
@@ -105,7 +106,10 @@ func ParseCodexUsageMetrics(jsonl []byte) (Metrics, bool, error) {
 		}
 		var event map[string]any
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			return Metrics{}, false, fmt.Errorf("receipt: parse codex jsonl line %d: %w", lineNumber, err)
+			if firstParseErr == nil {
+				firstParseErr = fmt.Errorf("receipt: parse codex jsonl line %d: %w", lineNumber, err)
+			}
+			continue
 		}
 		usage, ok := usageMap(event)
 		if !ok {
@@ -127,6 +131,9 @@ func ParseCodexUsageMetrics(jsonl []byte) (Metrics, bool, error) {
 	}
 	if err := scanner.Err(); err != nil && err != io.EOF {
 		return Metrics{}, false, fmt.Errorf("receipt: read codex jsonl: %w", err)
+	}
+	if !found && firstParseErr != nil {
+		return Metrics{}, false, firstParseErr
 	}
 	return total, found, nil
 }

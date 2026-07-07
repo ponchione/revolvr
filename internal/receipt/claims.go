@@ -133,7 +133,7 @@ func normalizeChangedFilePath(value string) string {
 	if len(fields) > 1 && strings.ContainsAny(fields[0], "/.") {
 		value = fields[0]
 	}
-	return strings.Trim(strings.TrimSpace(value), ".,;")
+	return strings.TrimRight(strings.TrimSpace(value), ".,;")
 }
 
 func parseVerificationClaim(raw string) VerificationClaim {

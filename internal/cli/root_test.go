@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/ledger"
 	"revolvr/internal/runonce"
@@ -589,6 +590,40 @@ func TestRunOnceInvokesRunnerAndPrintsSummary(t *testing.T) {
 
 	if got, want := out.String(), "Run run-1 completed task task-1; commit abc123.\n"; got != want {
 		t.Fatalf("run once output = %q, want %q", got, want)
+	}
+}
+
+func TestRunOncePrintsLiveCodexProgressBeforeSummary(t *testing.T) {
+	var out bytes.Buffer
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: "/repo",
+		RunOnce: func(_ context.Context, cfg runonce.Config) (runonce.Result, error) {
+			if cfg.CodexProgress == nil {
+				t.Fatal("codex progress callback is nil")
+			}
+			cfg.CodexProgress(codexexec.ProgressEvent{Source: "codex", Message: "message: working"})
+			cfg.CodexProgress(codexexec.ProgressEvent{Source: "codex stderr", Message: "checking status"})
+			cfg.CodexProgress(codexexec.ProgressEvent{Source: "codex", Message: "   "})
+			return runonce.Result{
+				Outcome: runonce.OutcomeCommitted,
+				Run:     ledger.Run{ID: "run-progress"},
+				Task:    taskqueue.Task{ID: "task-progress"},
+				Commit:  commit.Result{CommitSHA: "abc123"},
+			}, nil
+		},
+	})
+	root.SetArgs([]string{"run", "--once"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute run --once: %v", err)
+	}
+	want := "codex: message: working\n" +
+		"codex stderr: checking status\n" +
+		"Run run-progress completed task task-progress; commit abc123.\n"
+	if out.String() != want {
+		t.Fatalf("run output = %q, want %q", out.String(), want)
 	}
 }
 
