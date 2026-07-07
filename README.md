@@ -27,7 +27,9 @@ go run ./cmd/revolvr init
 ```
 
 This creates `.revolvr/` with task, ledger, run artifact, receipt, and lock
-state. The directory is local runtime state and is ignored by Git.
+state. The directory is local runtime state and is ignored by Git. When
+initialized from a Git worktree, `init` adds `/.revolvr/` to
+`.git/info/exclude` so tracked ignore files do not need to change.
 
 ## Task Queue
 

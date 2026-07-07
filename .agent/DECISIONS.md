@@ -8,3 +8,4 @@
 - Tests, build output, and typechecks are the source of truth.
 - `.revolvr/` is local runtime state for the Revolvr CLI and is ignored by Git.
 - CLI-initiated harness runs default to Codex dangerous bypass/yolo mode for unattended autonomy; repo config can disable it with `codex.dangerously_bypass_approvals_and_sandbox: false` or `codex.yolo: false`.
+- `revolvr init` keeps runtime state local by adding `/.revolvr/` to `.git/info/exclude` when initialized from a Git worktree, avoiding tracked `.gitignore` changes.

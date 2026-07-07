@@ -12,6 +12,7 @@ import (
 )
 
 const revolvrStateDir = ".revolvr"
+const revolvrGitExcludePattern = "/.revolvr/"
 
 type statePaths struct {
 	WorkDir      string
@@ -71,7 +72,90 @@ func initializeState(ctx context.Context, paths statePaths) error {
 	if err := runs.Close(); err != nil {
 		return fmt.Errorf("close ledger: %w", err)
 	}
+	if err := ensureStateIgnoredByGit(paths.WorkDir); err != nil {
+		return err
+	}
 	return nil
+}
+
+func ensureStateIgnoredByGit(workDir string) error {
+	excludePath, ok, err := gitExcludePath(workDir)
+	if err != nil {
+		return fmt.Errorf("initialize state: resolve git exclude: %w", err)
+	}
+	if !ok {
+		return nil
+	}
+	if err := ensureExcludePattern(excludePath, revolvrGitExcludePattern); err != nil {
+		return fmt.Errorf("initialize state: update git exclude: %w", err)
+	}
+	return nil
+}
+
+func gitExcludePath(workDir string) (string, bool, error) {
+	gitPath := filepath.Join(workDir, ".git")
+	info, err := os.Stat(gitPath)
+	if os.IsNotExist(err) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("inspect %s: %w", gitPath, err)
+	}
+	if info.IsDir() {
+		return filepath.Join(gitPath, "info", "exclude"), true, nil
+	}
+
+	content, err := os.ReadFile(gitPath)
+	if err != nil {
+		return "", false, fmt.Errorf("read %s: %w", gitPath, err)
+	}
+	firstLine := strings.TrimSpace(strings.SplitN(string(content), "\n", 2)[0])
+	const prefix = "gitdir:"
+	if !strings.HasPrefix(firstLine, prefix) {
+		return "", false, fmt.Errorf("%s is not a Git directory or worktree gitdir file", gitPath)
+	}
+	gitDir := strings.TrimSpace(strings.TrimPrefix(firstLine, prefix))
+	if gitDir == "" {
+		return "", false, fmt.Errorf("%s has an empty gitdir", gitPath)
+	}
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(workDir, gitDir)
+	}
+	return filepath.Join(filepath.Clean(gitDir), "info", "exclude"), true, nil
+}
+
+func ensureExcludePattern(path string, pattern string) error {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "" {
+		return nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if excludeContentHasPattern(string(content), pattern) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+
+	updated := string(content)
+	if updated != "" && !strings.HasSuffix(updated, "\n") {
+		updated += "\n"
+	}
+	updated += pattern + "\n"
+	return os.WriteFile(path, []byte(updated), 0o644)
+}
+
+func excludeContentHasPattern(content string, pattern string) bool {
+	pattern = strings.TrimSpace(pattern)
+	for _, line := range strings.Split(content, "\n") {
+		if strings.TrimSpace(line) == pattern {
+			return true
+		}
+	}
+	return false
 }
 
 func openTaskStore(ctx context.Context, opts Options) (*taskqueue.Store, func(), error) {

@@ -19,6 +19,7 @@
 - [x] Add a targeted smoke-test note or script for exercising `init`, `task add`, `task list`, `config check`, and `status` without invoking Codex.
 - [x] Add a no-real-Codex integration smoke test for `revolvr run --once` success path using a strict fake Codex executable.
 - [x] Add a no-real-Codex integration smoke test for `revolvr run --once` verification failure path using a strict fake Codex executable.
+- [x] Make `revolvr init` locally ignore `.revolvr/` in Git worktrees so fresh dogfood repos do not start dirty.
 
 ## Blocked
 

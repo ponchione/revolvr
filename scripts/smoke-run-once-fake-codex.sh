@@ -204,13 +204,19 @@ mkdir -p "$WORK_DIR"
 git -C "$WORK_DIR" init -q
 git -C "$WORK_DIR" config user.name "Revolvr Smoke"
 git -C "$WORK_DIR" config user.email "revolvr-smoke@example.invalid"
-printf '.revolvr/\n' >"$WORK_DIR/.gitignore"
 printf '# Smoke workspace\n' >"$WORK_DIR/README.md"
-git -C "$WORK_DIR" add .gitignore README.md
+git -C "$WORK_DIR" add README.md
 git -C "$WORK_DIR" commit -q -m "Initial smoke workspace"
 
 run_revolvr init init
 assert_contains "$TMP_ROOT/init.out" "Initialized revolvr state:"
+assert_contains "$WORK_DIR/.git/info/exclude" "/.revolvr/"
+git -C "$WORK_DIR" status --short >"$TMP_ROOT/post-init-git-status.out"
+if [[ -s "$TMP_ROOT/post-init-git-status.out" ]]; then
+  echo "Expected revolvr init to leave Git status clean" >&2
+  sed 's/^/  /' "$TMP_ROOT/post-init-git-status.out" >&2
+  exit 1
+fi
 
 cat >"$WORK_DIR/.revolvr/config.yaml" <<CONFIG_YAML
 codex:

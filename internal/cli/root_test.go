@@ -283,6 +283,27 @@ func TestInitCreatesStoresAndIsIdempotent(t *testing.T) {
 	assertLedgerStoreOpens(t, paths.LedgerDBPath)
 }
 
+func TestInitAddsStateDirToLocalGitExclude(t *testing.T) {
+	workDir := t.TempDir()
+	excludePath := filepath.Join(workDir, ".git", "info", "exclude")
+	writeCLIFile(t, excludePath, "# local excludes\n")
+
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init second time: %v", err)
+	}
+
+	content, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("read git exclude: %v", err)
+	}
+	if got := strings.Count(string(content), revolvrGitExcludePattern); got != 1 {
+		t.Fatalf("exclude pattern count = %d, want 1; content:\n%s", got, content)
+	}
+}
+
 func TestTaskAddPersistsTask(t *testing.T) {
 	workDir := t.TempDir()
 	out, err := executeCLI(t, workDir, "task", "add", "Implement the CLI slice")
