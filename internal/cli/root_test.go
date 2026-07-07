@@ -743,6 +743,36 @@ func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 	}
 }
 
+func TestConfigCheckMissingConfigPrintsDefaultVerificationCommand(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLIFile(t, filepath.Join(workDir, "go.mod"), "module example.com/revolvrtest\n")
+
+	out, err := executeCLI(t, workDir, "config", "check")
+	if err != nil {
+		t.Fatalf("execute config check: %v", err)
+	}
+	want := "Config path: " + filepath.Join(workDir, ".revolvr", "config.yaml") + "\n" +
+		"Config found: false\n" +
+		"Defaults: used\n" +
+		"Codex executable: codex\n" +
+		"Codex dangerously bypass approvals and sandbox: true\n" +
+		"Codex sandbox: workspace-write\n" +
+		"Codex approval policy: never\n" +
+		"Codex timeout: 0s\n" +
+		"Git executable: git\n" +
+		"Git timeout: 30s\n" +
+		"Verification missing policy: fail\n" +
+		"Verification command count: 1\n" +
+		"Verification command 0: name=go args=[\"test\", \"./...\"]\n" +
+		"Commit allow pre-existing dirty: false\n" +
+		"Commit allow missing verification: false\n" +
+		"Commit timeout: 30s\n" +
+		"Output caps bytes: codex_stdout=262144 codex_stderr=262144 git_stdout=262144 git_stderr=262144 verification_stdout=262144 verification_stderr=262144 commit_stdout=262144 commit_stderr=262144\n"
+	if out != want {
+		t.Fatalf("config check output = %q, want %q", out, want)
+	}
+}
+
 func TestConfigCheckValidConfigPrintsEffectiveValuesAndDoesNotRunOnce(t *testing.T) {
 	workDir := t.TempDir()
 	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
@@ -808,6 +838,7 @@ output:
 		"Git timeout: 12s\n" +
 		"Verification missing policy: pass\n" +
 		"Verification command count: 1\n" +
+		"Verification command 0: name=go args=[\"test\", \"./...\"] dir=internal timeout=9s\n" +
 		"Commit allow pre-existing dirty: true\n" +
 		"Commit allow missing verification: true\n" +
 		"Commit timeout: 30s\n" +

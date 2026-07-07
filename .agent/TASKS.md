@@ -15,7 +15,7 @@
 - [x] Replace bare parent command placeholder output for `revolvr task` and `revolvr config` with normal help output, and update focused CLI tests.
 - [x] Add Codex yolo/dangerous bypass support for autonomous harness runs, fix fresh-session wrapper flags, and update focused tests.
 - [ ] Add a concise README with setup, task queue, config, run, status, and show examples for the current CLI.
-- [ ] Expand `revolvr config check` output to show the effective verification command details, not only the command count.
+- [x] Expand `revolvr config check` output to show the effective verification command details, not only the command count.
 - [ ] Add a targeted smoke-test note or script for exercising `init`, `task add`, `task list`, `config check`, and `status` without invoking Codex.
 
 ## Blocked

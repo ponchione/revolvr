@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -128,6 +129,11 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Git timeout: %s", effectiveDuration(cfg.GitTimeout, defaultGitTimeout)),
 		fmt.Sprintf("Verification missing policy: %s", cfg.MissingVerificationPolicy),
 		fmt.Sprintf("Verification command count: %d", len(cfg.VerificationCommands)),
+	}
+	for i, command := range cfg.VerificationCommands {
+		lines = append(lines, formatVerificationCommand(i, command))
+	}
+	lines = append(lines,
 		fmt.Sprintf("Commit allow pre-existing dirty: %t", cfg.AllowPreExistingDirty),
 		fmt.Sprintf("Commit allow missing verification: %t", cfg.AllowMissingVerification),
 		fmt.Sprintf("Commit timeout: %s", effectiveDuration(cfg.CommitTimeout, defaultCommitTimeout)),
@@ -141,13 +147,38 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 			cfg.CommitStdoutCap,
 			cfg.CommitStderrCap,
 		),
-	}
+	)
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(out, line); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func formatVerificationCommand(index int, command verification.Command) string {
+	parts := []string{
+		fmt.Sprintf("Verification command %d: name=%s", index, command.Name),
+		fmt.Sprintf("args=%s", formatVerificationArgs(command.Args)),
+	}
+	if dir := strings.TrimSpace(command.Dir); dir != "" {
+		parts = append(parts, fmt.Sprintf("dir=%s", dir))
+	}
+	if command.Timeout > 0 {
+		parts = append(parts, fmt.Sprintf("timeout=%s", command.Timeout))
+	}
+	return strings.Join(parts, " ")
+}
+
+func formatVerificationArgs(args []string) string {
+	if len(args) == 0 {
+		return "[]"
+	}
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, strconv.Quote(arg))
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
 func defaultRunOnceConfig(workDir string) runonce.Config {
