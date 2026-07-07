@@ -8,6 +8,17 @@ None.
 
 Task completed on 2026-07-07:
 
+- Selected task: add a concise README with setup, task queue, config, run, status, and show examples for the current CLI.
+- Files changed: `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: none; documentation-only change.
+- Documentation added: root README covering setup/build, `init`, task queue commands, optional `.revolvr/config.yaml`, `config check`, `run --once`, `run --max-passes`, `status`, `show`, and development checks.
+- Verification run: `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add a targeted smoke-test note or script for exercising `init`, `task add`, `task list`, `config check`, and `status` without invoking Codex.
+- Blockers: none.
+
+Task completed on 2026-07-07:
+
 - Selected task: expand `revolvr config check` output to show effective verification command details, not only the command count.
 - Files changed: `internal/cli/config.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`.
 - Behavior changed: `config check` now prints one deterministic detail row per effective verification command after `Verification command count`, including command index, name, args, and optional dir/timeout fields. No detail rows are printed when the effective command list is empty.
