@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: polish TUI layout, styling, and documentation for daily use.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: TUI rendering now wraps plain content, header lines, and key help against the active terminal width before applying semantic Lip Gloss styles. Narrow layouts use a compact recent-run list, long values wrap instead of spilling, empty states distinguish unavailable runtime state from absent tasks/runs, and important states remain visible through words like `Status: failed`, `PASS`, `FAIL`, `OK`, and `! blocked`.
+- Documentation added: README now includes a `revolvr tui` section covering views, key actions, live progress, receipt validation, preflight checks, and current limitations that still require the CLI.
+- Tests added: snapshot-style wide and narrow TUI render coverage with max-width assertions for narrow output.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/tui`; `go run ./cmd/revolvr tui --help`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add a nonblocking TUI run-once action with live progress and cancellation.
 - Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: the TUI now exposes an uppercase `R` run-once action guarded by the latest ready preflight result, tracks one active run at a time, streams Codex progress into a persistent Run Progress pane, hides or blocks conflicting actions while running, and supports `c` cancellation through the run context. Run completion refreshes the status snapshot, selects and loads the completed run detail when a run ID exists, and reports terminal states for success, failure, no-task, and cancellation.

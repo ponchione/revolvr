@@ -47,7 +47,7 @@
   Acceptance: no run starts when preflight is not ready or another run is active; progress remains visible; completion refreshes status and run details; cancellation reports a clear terminal state.
   Verification: use fake app runners in TUI tests for success, failure, progress events, and cancellation; run `go test ./internal/tui`, `go test ./internal/app`, `go test ./internal/cli`, and `go test ./...`.
 
-- [ ] Polish TUI layout, styling, and documentation for daily use.
+- [x] Polish TUI layout, styling, and documentation for daily use.
   Scope: refine responsive layout, colors, key help, empty states, and README usage notes for `revolvr tui`.
   Acceptance: text does not overlap at narrow terminal widths; important states are readable without color; README explains the TUI capabilities and current limitations.
   Verification: add or update snapshot-style render tests for narrow and wide widths; run `go test ./internal/tui`, `go test ./...`, and `go run ./cmd/revolvr tui --help`.

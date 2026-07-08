@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,8 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 		"",
 		"Dashboard",
 		"State: not initialized",
+		"Tasks: unavailable",
+		"Runs: unavailable",
 		"",
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
 		"      a Add Task | R Run Once | r Refresh | q Quit",
@@ -115,7 +118,7 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"Blocked: 0",
 		"Completed: 0",
 		"Task List",
-		"None",
+		"No tasks queued.",
 		"Task Detail",
 		"No task selected.",
 		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
@@ -1425,6 +1428,139 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	}
 }
 
+func TestStatusModelWideRenderSnapshot(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks: []taskqueue.Task{
+			{
+				ID:      "task-ready",
+				Status:  taskqueue.StatusPending,
+				Summary: "write focused TUI polish",
+			},
+			{
+				ID:      "task-blocked",
+				Status:  taskqueue.StatusBlocked,
+				Summary: "blocked task",
+			},
+		},
+		RecentRuns: []ledger.Run{
+			{
+				ID:                 "run-success",
+				Status:             ledger.StatusCompleted,
+				VerificationStatus: "passed",
+				CommitSHA:          "abc123",
+				Summary:            "committed TUI polish",
+			},
+			{
+				ID:                 "run-failed",
+				Status:             ledger.StatusFailed,
+				VerificationStatus: "failed",
+				Summary:            "verification failed",
+			},
+		},
+	})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+
+	lines := normalizedViewLines(model.View())
+	want := []string{
+		"Revolvr",
+		"Views: [Dashboard] | Tasks | Runs | Run Detail | Preflight | Help",
+		"State: initialized",
+		"",
+		"Dashboard",
+		"State: initialized",
+		"",
+		"Tasks",
+		"Total: 2",
+		"Pending: 1",
+		"Blocked: 1",
+		"Completed: 0",
+		"",
+		"Latest Run",
+		"ID: run-success",
+		"Status: completed",
+		"Summary: committed TUI polish",
+		"Verification: passed",
+		"Commit: abc123",
+		"",
+		"Recent Runs",
+		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
+		"> run-success  completed  passed  abc123  committed TUI polish",
+		"  run-failed  failed  failed  none  verification failed",
+		"",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
+		"      r Refresh | q Quit",
+	}
+	if !reflect.DeepEqual(lines, want) {
+		t.Fatalf("wide view lines = %#v, want %#v", lines, want)
+	}
+	assertMaxLineWidth(t, lines, 100)
+}
+
+func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks: []taskqueue.Task{
+			{ID: "task-pending", Status: taskqueue.StatusPending},
+			{ID: "task-blocked", Status: taskqueue.StatusBlocked},
+		},
+		RecentRuns: []ledger.Run{
+			{
+				ID:                 "019f4415-40b6-7099-9d68-5f87cea67000",
+				Status:             ledger.StatusFailed,
+				VerificationStatus: "failed",
+				Summary:            "verification failed after running a very long command output",
+			},
+		},
+	})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 40, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+
+	lines := normalizedViewLines(model.View())
+	want := []string{
+		"Revolvr",
+		"View: Dashboard",
+		"State: initialized",
+		"",
+		"Dashboard",
+		"State: initialized",
+		"",
+		"Tasks",
+		"Total: 2",
+		"Pending: 1",
+		"Blocked: 1",
+		"Completed: 0",
+		"",
+		"Latest Run",
+		"ID: 019f4415-40b6-7099-9d68-5f87cea67000",
+		"Status: failed",
+		"Summary: verification failed after",
+		"  running a very long command output",
+		"Verification: failed",
+		"Commit: none",
+		"",
+		"Recent Runs",
+		"ID STATUS SUMMARY",
+		"> 019f4415-40b6-7099-9d68-5f87cea67000",
+		"  failed verification failed after",
+		"  running a very long command output",
+		"",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs",
+		"      4 Detail | 5 Preflight | ? Help",
+		"      a Add Task | R Run Once",
+		"      r Refresh | q Quit",
+	}
+	if !reflect.DeepEqual(lines, want) {
+		t.Fatalf("narrow view lines = %#v, want %#v", lines, want)
+	}
+	assertMaxLineWidth(t, lines, 40)
+}
+
 func TestStatusModelResizeUpdatesContentAreaAndWrapsFooter(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{Initialized: true})
 
@@ -1470,16 +1606,28 @@ func TestStatusModelQuitActionReturnsQuitCommand(t *testing.T) {
 	}
 }
 
+var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
 func normalizedViewLines(view string) []string {
 	rawLines := strings.Split(view, "\n")
 	lines := make([]string, 0, len(rawLines))
 	for _, line := range rawLines {
+		line = ansiEscapePattern.ReplaceAllString(line, "")
 		lines = append(lines, strings.TrimRight(line, " "))
 	}
 	for len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
 	return lines
+}
+
+func assertMaxLineWidth(t *testing.T, lines []string, maxWidth int) {
+	t.Helper()
+	for _, line := range lines {
+		if len([]rune(line)) > maxWidth {
+			t.Fatalf("line %q has width %d, want <= %d", line, len([]rune(line)), maxWidth)
+		}
+	}
 }
 
 func updateStatusModel(t *testing.T, model tea.Model, msg tea.Msg) (StatusModel, tea.Cmd) {

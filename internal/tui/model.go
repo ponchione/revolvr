@@ -24,9 +24,20 @@ const (
 	defaultViewportWidth  = 80
 	defaultViewportHeight = 24
 	maxRunLogLines        = 200
+	compactLayoutWidth    = 72
 )
 
 var _ tea.Model = StatusModel{}
+
+var (
+	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
+	sectionStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	selectedStyle = lipgloss.NewStyle().Bold(true)
+	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	warningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	dangerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	mutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+)
 
 type TUIView int
 
@@ -426,11 +437,11 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m StatusModel) View() string {
-	sections := append([]string{}, m.headerLines()...)
+	sections := append([]string{}, styleHeaderLines(m.headerDisplayLines())...)
 	sections = append(sections, "")
 	sections = append(sections, trimTrailingBlankLines(m.viewport.View()))
 	sections = append(sections, "")
-	sections = append(sections, m.footerLines()...)
+	sections = append(sections, styleFooterLines(m.footerLines())...)
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
@@ -823,12 +834,12 @@ func (m StatusModel) updateTaskEntry(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *StatusModel) updateViewportContent() {
-	m.viewport.SetContent(m.renderContent())
+	m.viewport.SetContent(m.formatContent(m.renderContent()))
 	m.viewport.GotoTop()
 }
 
 func (m *StatusModel) refreshViewportContent() {
-	m.viewport.SetContent(m.renderContent())
+	m.viewport.SetContent(m.formatContent(m.renderContent()))
 }
 
 func (m *StatusModel) switchView(view TUIView) {
@@ -903,13 +914,36 @@ func (m *StatusModel) resizeViewport() {
 	if height <= 0 {
 		height = defaultViewportHeight
 	}
-	chromeHeight := len(m.headerLines()) + len(m.footerLines()) + 2
+	chromeHeight := len(m.headerDisplayLines()) + len(m.footerLines()) + 2
 	contentHeight := height - chromeHeight
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
 	m.viewport.Width = width
 	m.viewport.Height = contentHeight
+}
+
+func (m StatusModel) contentWidth() int {
+	width := m.width
+	if width <= 0 {
+		width = defaultViewportWidth
+	}
+	if width < 1 {
+		return 1
+	}
+	return width
+}
+
+func (m StatusModel) compactLayout() bool {
+	return m.contentWidth() < compactLayoutWidth
+}
+
+func (m StatusModel) formatContent(content string) string {
+	lines := wrapPlainLines(strings.Split(content, "\n"), m.contentWidth())
+	for i, line := range lines {
+		lines[i] = styleContentLine(line)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 func (m StatusModel) renderContent() string {
@@ -957,6 +991,10 @@ func (m StatusModel) headerLines() []string {
 		views,
 		"State: " + state,
 	}
+}
+
+func (m StatusModel) headerDisplayLines() []string {
+	return wrapPlainLines(m.headerLines(), m.contentWidth())
 }
 
 func (m StatusModel) viewTabs() string {
@@ -1040,6 +1078,8 @@ func (m StatusModel) renderDashboard() string {
 		lines := []string{
 			"Dashboard",
 			"State: not initialized",
+			"Tasks: unavailable",
+			"Runs: unavailable",
 		}
 		lines = appendNotice(lines, m.message)
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -1070,7 +1110,7 @@ func (m StatusModel) renderTasks() string {
 	lines := []string{"Tasks"}
 	lines = appendNotice(lines, m.message)
 	if !m.status.Initialized {
-		lines = append(lines, "State: not initialized", "No tasks loaded.")
+		lines = append(lines, "State: not initialized", "Task List", "Unavailable until state is initialized.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 
@@ -1085,7 +1125,7 @@ func (m StatusModel) renderTasks() string {
 	)
 	if len(m.status.Tasks) == 0 {
 		lines = append(lines,
-			"None",
+			"No tasks queued.",
 			"",
 			"Task Detail",
 			"No task selected.",
@@ -1117,7 +1157,7 @@ func (m StatusModel) renderRuns() string {
 	lines := []string{"Runs"}
 	lines = appendNotice(lines, m.message)
 	if !m.status.Initialized {
-		lines = append(lines, "State: not initialized", "No runs loaded.")
+		lines = append(lines, "State: not initialized", "Recent Runs", "Unavailable until state is initialized.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 	lines = append(lines, m.recentRunLines()...)
@@ -1153,7 +1193,7 @@ func (m StatusModel) renderEmptyRunDetail() string {
 	}
 	lines = append(lines, "No run detail loaded.")
 	if len(m.status.RecentRuns) == 0 {
-		lines = append(lines, "No runs available.")
+		lines = append(lines, "No runs recorded.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 	lines = append(lines, fmt.Sprintf("Selected run: %s", optionalValue(m.selectedRunID())))
@@ -1164,7 +1204,7 @@ func (m StatusModel) renderPreflight() string {
 	lines := []string{"Preflight"}
 	lines = appendNotice(lines, m.message)
 	if !m.preflight.Checked {
-		lines = append(lines, "Status: not run")
+		lines = append(lines, "Status: not run", "No readiness result loaded.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 	if err := oneLine(m.preflight.Err); err != "" {
@@ -1328,16 +1368,24 @@ func latestRunLines(runs []ledger.Run) []string {
 func (m StatusModel) recentRunLines() []string {
 	lines := []string{"Recent Runs"}
 	if len(m.status.RecentRuns) == 0 {
-		return append(lines, "None")
+		return append(lines, "No runs recorded.")
 	}
-	lines = append(lines, "ID  STATUS  VERIFICATION  COMMIT  SUMMARY")
+	if m.compactLayout() {
+		lines = append(lines, "ID  STATUS  SUMMARY")
+	} else {
+		lines = append(lines, "ID  STATUS  VERIFICATION  COMMIT  SUMMARY")
+	}
 	selected := clampRunIndex(m.status.RecentRuns, m.selectedRun)
 	for i, run := range m.status.RecentRuns {
 		prefix := " "
 		if i == selected {
 			prefix = ">"
 		}
-		lines = append(lines, runListLine(prefix, run))
+		if m.compactLayout() {
+			lines = append(lines, runCompactListLine(prefix, run))
+		} else {
+			lines = append(lines, runListLine(prefix, run))
+		}
 	}
 	return lines
 }
@@ -1350,6 +1398,16 @@ func runListLine(prefix string, run ledger.Run) string {
 		optionalValue(run.Status),
 		optionalValue(run.VerificationStatus),
 		optionalValue(run.CommitSHA),
+		optionalValue(run.Summary),
+	)
+}
+
+func runCompactListLine(prefix string, run ledger.Run) string {
+	return fmt.Sprintf(
+		"%s %s  %s  %s",
+		prefix,
+		optionalValue(run.ID),
+		optionalValue(run.Status),
 		optionalValue(run.Summary),
 	)
 }
@@ -1902,7 +1960,211 @@ func wrapKeyLines(keys []string, width int) []string {
 		}
 		lines[len(lines)-1] += part
 	}
-	return lines
+	return wrapPlainLines(lines, width)
+}
+
+func wrapPlainLines(lines []string, width int) []string {
+	wrapped := make([]string, 0, len(lines))
+	for _, line := range lines {
+		wrapped = append(wrapped, wrapPlainLine(line, width)...)
+	}
+	return wrapped
+}
+
+func wrapPlainLine(line string, width int) []string {
+	if width <= 0 {
+		width = defaultViewportWidth
+	}
+	if width < 1 {
+		width = 1
+	}
+	if textWidth(line) <= width {
+		return []string{line}
+	}
+	if strings.TrimSpace(line) == "" {
+		return []string{""}
+	}
+
+	indent := leadingWhitespace(line)
+	if textWidth(indent) >= width {
+		indent = ""
+	}
+	continuation := indent + "  "
+	if textWidth(continuation) >= width {
+		continuation = indent
+	}
+	if textWidth(continuation) >= width {
+		continuation = ""
+	}
+
+	words := strings.Fields(strings.TrimSpace(line))
+	out := make([]string, 0, 2)
+	current := indent
+	for _, word := range words {
+		candidate := current
+		if strings.TrimSpace(candidate) != "" {
+			candidate += " "
+		}
+		candidate += word
+		if textWidth(candidate) <= width {
+			current = candidate
+			continue
+		}
+
+		if strings.TrimSpace(current) != "" {
+			out = append(out, current)
+			current = continuation
+		}
+
+		for word != "" && textWidth(current)+textWidth(word) > width {
+			available := width - textWidth(current)
+			if available <= 0 {
+				if strings.TrimSpace(current) != "" {
+					out = append(out, current)
+				}
+				current = ""
+				available = width
+			}
+			part, rest := splitRunePrefix(word, available)
+			if part == "" {
+				break
+			}
+			out = append(out, current+part)
+			word = rest
+			current = continuation
+		}
+		if word != "" {
+			current += word
+		}
+	}
+	if strings.TrimSpace(current) != "" {
+		out = append(out, current)
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
+}
+
+func styleHeaderLines(lines []string) []string {
+	styled := append([]string(nil), lines...)
+	if len(styled) == 0 {
+		return styled
+	}
+	styled[0] = titleStyle.Render(styled[0])
+	for i := 1; i < len(styled); i++ {
+		styled[i] = mutedStyle.Render(styled[i])
+	}
+	return styled
+}
+
+func styleFooterLines(lines []string) []string {
+	styled := append([]string(nil), lines...)
+	for i, line := range styled {
+		styled[i] = mutedStyle.Render(line)
+	}
+	return styled
+}
+
+func styleContentLine(line string) string {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return line
+	}
+	if isSectionHeading(trimmed) {
+		return sectionStyle.Render(line)
+	}
+	if strings.HasPrefix(trimmed, "Notice:") {
+		return warningStyle.Render(line)
+	}
+	if strings.HasPrefix(trimmed, "FAIL ") ||
+		strings.HasPrefix(trimmed, "Error:") ||
+		strings.Contains(trimmed, "! blocked") ||
+		lineStatusIn(trimmed, "failed", "error", "blocked", "cancelled") {
+		return dangerStyle.Render(line)
+	}
+	if strings.HasPrefix(trimmed, "OK ") ||
+		strings.HasPrefix(trimmed, "PASS ") ||
+		lineStatusIn(trimmed, "ready", "passed", "completed", "initialized") {
+		return successStyle.Render(line)
+	}
+	if lineStatusIn(trimmed, "not run", "running", "not initialized") ||
+		strings.HasPrefix(trimmed, "Cancellation:") ||
+		strings.HasPrefix(trimmed, "Capture error:") {
+		return warningStyle.Render(line)
+	}
+	if strings.HasPrefix(trimmed, ">") {
+		return selectedStyle.Render(line)
+	}
+	return line
+}
+
+func isSectionHeading(value string) bool {
+	switch value {
+	case "Dashboard",
+		"Tasks",
+		"Task List",
+		"Task Detail",
+		"Latest Run",
+		"Recent Runs",
+		"Runs",
+		"Run Detail",
+		"Summary",
+		"Diagnostics",
+		"Receipt Validation",
+		"Changed Files",
+		"Artifacts",
+		"Events",
+		"Preflight",
+		"Run Progress",
+		"Log",
+		"Help",
+		"Views",
+		"Add Task",
+		"Checks":
+		return true
+	default:
+		return false
+	}
+}
+
+func lineStatusIn(line string, statuses ...string) bool {
+	for _, prefix := range []string{"Status: ", "State: "} {
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		for _, status := range statuses {
+			if value == status {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func leadingWhitespace(value string) string {
+	for i, r := range value {
+		if r != ' ' && r != '\t' {
+			return value[:i]
+		}
+	}
+	return value
+}
+
+func splitRunePrefix(value string, n int) (string, string) {
+	if n <= 0 {
+		return "", value
+	}
+	runes := []rune(value)
+	if n >= len(runes) {
+		return value, ""
+	}
+	return string(runes[:n]), string(runes[n:])
+}
+
+func textWidth(value string) int {
+	return len([]rune(value))
 }
 
 func trimTrailingBlankLines(value string) string {

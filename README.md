@@ -120,6 +120,30 @@ queues one tiny file-update task, runs `revolvr run --once`, and verifies the
 receipt, ledger-backed `status`/`show` output, commit SHA, `receipt validate`,
 and final clean worktree. It creates one Git commit when the live run passes.
 
+## TUI
+
+Open the interactive terminal UI from the repository root:
+
+```bash
+go run ./cmd/revolvr tui
+```
+
+The TUI shows the same app-backed state as the CLI: task counts, task details,
+recent runs, run diagnostics, artifacts, receipt validation results, preflight
+readiness checks, and a live progress pane while a TUI-started run is active.
+Use number keys to switch views, `j`/`k` or arrow keys to move list selections,
+`a` to add a task, `p` in Preflight to check readiness, `R` to run one pass
+after preflight is ready, `c` to request cancellation of an active run, `v` in
+Run Detail to validate the loaded receipt, `r` to refresh, and `?` for in-app
+key help.
+
+Current limitations: the TUI starts at the current terminal size and wraps
+content for narrow terminals, but it is still a local terminal view over the
+same `.revolvr/` runtime state. It can add tasks, run one pass, cancel an
+active TUI-started pass, refresh state, open run details, and validate receipts;
+use the CLI for task retry/unblock, configuration changes, bounded
+`run --max-passes` loops, and receipt validation outside the loaded run detail.
+
 ## Run
 
 Run one selected pending task:
