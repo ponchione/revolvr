@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: seed the durable backlog with a TUI-readiness sequence for an `internal/app` service boundary and a future Bubble Tea frontend.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: none; durable planning state only.
+- Tasks added: extract read-only `internal/app` status/show operations; move receipt validation into app; move task add/list/retry into app; move run once/loop orchestration into app; add stable Charm dependencies and a minimal `internal/tui` model; add `revolvr tui` dashboard; add basic TUI refresh/open/quit actions.
+- Verification run: not run; durable planning state only.
+- Verification result: not run.
+- What remains: commit these planning-state updates, then run a bounded multi-pass dogfood loop starting with the first unchecked backlog item.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add a live dogfood verification script or README checklist that resets runtime state, queues a tiny task, runs once, and verifies receipt, ledger, commit, receipt validation, and clean-worktree consistency.
 - Files changed: `scripts/dogfood-live.sh`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Script added: `scripts/dogfood-live.sh` is an opt-in real-Codex dogfood check. It requires `codex`, Git identity, and a clean source worktree; builds a temporary `revolvr` binary; removes `.revolvr/`; initializes fresh runtime state; writes a one-command `go test ./...` verification config; queues a tiny single-file task; runs `revolvr run --once`; and checks the final receipt, ledger-backed `status` and `show` output, commit SHA, `receipt validate`, and final clean worktree.

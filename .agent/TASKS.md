@@ -28,6 +28,13 @@
 - [x] Add focused failure-recovery CLI support for blocked tasks, starting with one command to retry or unblock a blocked task safely.
 - [x] Add safer `run --max-passes` loop guardrails for repeated failures or blocked tasks, and show a concise final loop summary.
 - [x] Add a live dogfood verification script or README checklist that resets runtime state, queues a tiny task, runs once, and verifies receipt, ledger, commit, and clean-worktree consistency.
+- [ ] Introduce `internal/app` with read-only `Status` and `ShowRun` operations, update CLI `status` and `show` to use it without changing output, and add focused tests.
+- [ ] Move receipt validation orchestration behind `internal/app`, update CLI `receipt validate` to use it without changing output, and add focused tests.
+- [ ] Move task add/list/retry orchestration behind `internal/app`, update CLI task commands to use it without changing output, and add focused tests.
+- [ ] Move run once and run loop orchestration behind `internal/app`, preserving CLI output and `run --max-passes` guardrails.
+- [ ] Add stable Charm dependencies for Bubble Tea, Bubbles, and Lip Gloss, and create a minimal `internal/tui` model that renders a static app status snapshot in tests.
+- [ ] Add `revolvr tui` showing task counts, latest run summary, and recent runs from `internal/app`.
+- [ ] Add basic TUI actions for refresh, opening selected run details, and quit, without starting real Codex runs yet.
 
 ## Blocked
 
