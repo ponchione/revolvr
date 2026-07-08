@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: clean the completed backlog out of the active task list and seed a detailed next-phase TUI backlog.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: none; durable planning state only.
+- Task list changed: `.agent/TASKS.md` now keeps completed history as a short pointer to `.agent/STATE.md` and Git history, while the active backlog focuses on TUI workflow work: multi-view shell, Tasks view, task creation, Runs/detail views, receipt validation in details, preflight view, nonblocking run-once with cancellation, and layout/documentation polish.
+- Verification run: not run; durable planning state only.
+- Verification result: not run.
+- What remains: commit the planning-state update, then seed the runtime queue before using `revolvr run --max-passes`.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add basic TUI actions for refresh, opening selected run details, and quit, without starting real Codex runs yet.
 - Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: `internal/tui.StatusModel` now supports refresh, recent-run selection, opening selected run details, returning from details, and quit actions. `revolvr tui` passes read-only callbacks backed by `internal/app.Status` and `internal/app.ShowRun`; it still does not start Codex or invoke run orchestration.
