@@ -13,6 +13,7 @@ import (
 
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
+	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
@@ -1149,13 +1150,14 @@ func TestRunMaxPassesStopsAfterNoTask(t *testing.T) {
 		t.Fatalf("run calls = %d, want 2", calls)
 	}
 	want := "Run run-1 completed task task-1; commit abc123.\n" +
-		"No pending runnable tasks.\n"
+		"No pending runnable tasks.\n" +
+		"Loop summary: passes=2/5 completed=1 failed_or_blocked=0 no_task=true stop=no_task\n"
 	if out.String() != want {
 		t.Fatalf("loop output = %q, want %q", out.String(), want)
 	}
 }
 
-func TestRunMaxPassesStopsOnFailureWithError(t *testing.T) {
+func TestRunMaxPassesStopsAfterRepeatedFailuresWithSummary(t *testing.T) {
 	var out bytes.Buffer
 	calls := 0
 	root := NewRootCommand(Options{
@@ -1176,15 +1178,90 @@ func TestRunMaxPassesStopsOnFailureWithError(t *testing.T) {
 
 	err := root.Execute()
 	if err == nil {
-		t.Fatal("execute run --max-passes succeeded, want failure outcome error")
+		t.Fatal("execute run --max-passes succeeded, want repeated failure guardrail error")
+	}
+	if calls != 2 {
+		t.Fatalf("run calls = %d, want 2", calls)
+	}
+	if got, want := err.Error(), "run loop stopped after 2 consecutive failed or blocked passes"; got != want {
+		t.Fatalf("loop error = %q, want %q", got, want)
+	}
+	wantOut := "Run run-failed stopped (verification_failed): verification command 0 failed\n" +
+		"Run run-failed stopped (verification_failed): verification command 0 failed\n" +
+		"Loop summary: passes=2/3 completed=0 failed_or_blocked=2 no_task=false stop=failure_guardrail\n"
+	if out.String() != wantOut {
+		t.Fatalf("loop output = %q, want %q", out.String(), wantOut)
+	}
+}
+
+func TestRunMaxPassesStopsAfterBlockedOutcomeWithSummary(t *testing.T) {
+	var out bytes.Buffer
+	calls := 0
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: t.TempDir(),
+		RunOnce: func(context.Context, runonce.Config) (runonce.Result, error) {
+			calls++
+			return runonce.Result{
+				Outcome: runonce.OutcomeBlocked,
+				Run:     ledger.Run{ID: fmt.Sprintf("run-blocked-%d", calls)},
+				Task:    taskqueue.Task{ID: fmt.Sprintf("task-blocked-%d", calls)},
+				Message: "blocked by preflight",
+			}, nil
+		},
+	})
+	root.SetArgs([]string{"run", "--max-passes", "5"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("execute run --max-passes succeeded, want blocked outcome error")
 	}
 	if calls != 1 {
 		t.Fatalf("run calls = %d, want 1", calls)
 	}
-	if got, want := err.Error(), "run run-failed stopped with outcome verification_failed"; got != want {
+	if got, want := err.Error(), "run run-blocked-1 stopped with outcome blocked"; got != want {
 		t.Fatalf("loop error = %q, want %q", got, want)
 	}
-	wantOut := "Run run-failed stopped (verification_failed): verification command 0 failed\n"
+	wantOut := "Run run-blocked-1 stopped (blocked): blocked by preflight\n" +
+		"Loop summary: passes=1/5 completed=0 failed_or_blocked=1 no_task=false stop=failed_or_blocked\n"
+	if out.String() != wantOut {
+		t.Fatalf("loop output = %q, want %q", out.String(), wantOut)
+	}
+}
+
+func TestRunMaxPassesStopsAfterFailedPassWithChangedFiles(t *testing.T) {
+	var out bytes.Buffer
+	calls := 0
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: t.TempDir(),
+		RunOnce: func(context.Context, runonce.Config) (runonce.Result, error) {
+			calls++
+			return runonce.Result{
+				Outcome:        runonce.OutcomeVerificationFailed,
+				Run:            ledger.Run{ID: "run-dirty-failure"},
+				Task:           taskqueue.Task{ID: "task-dirty-failure"},
+				Message:        "verification command 0 failed",
+				PostRunChanged: gitstate.Capture{ChangedFiles: []string{"internal/feature.go"}},
+			}, nil
+		},
+	})
+	root.SetArgs([]string{"run", "--max-passes", "4"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("execute run --max-passes succeeded, want failed dirty pass error")
+	}
+	if calls != 1 {
+		t.Fatalf("run calls = %d, want 1", calls)
+	}
+	if got, want := err.Error(), "run run-dirty-failure stopped with outcome verification_failed"; got != want {
+		t.Fatalf("loop error = %q, want %q", got, want)
+	}
+	wantOut := "Run run-dirty-failure stopped (verification_failed): verification command 0 failed\n" +
+		"Loop summary: passes=1/4 completed=0 failed_or_blocked=1 no_task=false stop=failed_or_blocked\n"
 	if out.String() != wantOut {
 		t.Fatalf("loop output = %q, want %q", out.String(), wantOut)
 	}
@@ -1217,7 +1294,7 @@ func TestRunMaxPassesCapIsHonored(t *testing.T) {
 	}
 	want := "Run run-1 completed task task-1; commit abc1.\n" +
 		"Run run-2 completed task task-2; commit abc2.\n" +
-		"Reached max passes (2).\n"
+		"Loop summary: passes=2/2 completed=2 failed_or_blocked=0 no_task=false stop=max_passes\n"
 	if out.String() != want {
 		t.Fatalf("loop output = %q, want %q", out.String(), want)
 	}

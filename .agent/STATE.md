@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add safer `run --max-passes` loop guardrails for repeated failures or blocked tasks, and show a concise final loop summary.
+- Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `run --max-passes` now always prints one final `Loop summary` line for no-task, max-pass, failed, blocked, runner-error, context, and config-error exits. The bounded loop stops immediately after blocked outcomes or failed outcomes that report changed files/capture errors, and clean repeated failed outcomes trip a two-pass failure guardrail.
+- Tests added: focused CLI coverage for final summaries on no-task and max-pass exits, repeated clean failures, blocked outcomes, and failed dirty passes.
+- Documentation added: README run docs now note the final loop summary and early stop behavior for failed or blocked passes.
+- Verification run: `gofmt -w internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/cli -run 'TestRunMaxPassesStopsAfterNoTask|TestRunMaxPassesStopsAfterRepeatedFailuresWithSummary|TestRunMaxPassesStopsAfterBlockedOutcomeWithSummary|TestRunMaxPassesStopsAfterFailedPassWithChangedFiles|TestRunMaxPassesCapIsHonored'`; `go test ./internal/cli`; `git diff --check`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr run --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add a live dogfood verification script or README checklist that resets runtime state, queues a tiny task, runs once, and verifies receipt, ledger, commit, and clean-worktree consistency.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add focused failure-recovery CLI support for blocked tasks with `revolvr task retry <task-id>`.
 - Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: added `revolvr task retry <task-id>` as the recovery-oriented command for blocked tasks. It reuses the existing blocked-to-pending store update, rejects missing or non-blocked tasks, clears current blocker fields, preserves the same task ID/text/summary/created timestamp, and leaves the existing `task unblock` command available.
