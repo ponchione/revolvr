@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add stable Charm dependencies for Bubble Tea, Bubbles, and Lip Gloss, and create a minimal `internal/tui` model that renders a static app status snapshot in tests.
+- Files changed: `go.mod`, `go.sum`, `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Dependencies added: direct Charm requirements for Bubble Tea `v1.3.4`, Bubbles `v0.20.0`, and Lip Gloss `v1.1.0`. These are the newest stable tagged versions found that keep compatibility with the repo's `go 1.22` directive; newer Bubble Tea and Bubbles releases require Go 1.23+ or 1.24+.
+- Behavior changed: added `internal/tui.StatusModel`, a Bubble Tea model backed by a Bubbles viewport that renders an `internal/app.StatusResult` snapshot for initialized and uninitialized state. It currently supports static rendering, terminal resize messages, viewport updates, and quit keys without adding a CLI command.
+- Tests added: focused `internal/tui` coverage for uninitialized output and an initialized static snapshot with task counts, latest run details, and recent runs.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go`; `go mod tidy`; `go test ./internal/tui`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add `revolvr tui` showing task counts, latest run summary, and recent runs from `internal/app`.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: move run once and run loop orchestration behind `internal/app`, preserving CLI output and `run --max-passes` guardrails.
 - Files changed: `internal/app/config.go`, `internal/app/run.go`, `internal/app/app_test.go`, `internal/cli/config.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: `revolvr run --once` and `revolvr run --max-passes` now call `internal/app` for run config loading, pass execution, loop stats, stop reasons, outcome errors, and max-pass guardrail decisions. CLI rendering stays in `internal/cli`, preserving run summaries, Codex progress lines, and final loop summary output. `config check` and `doctor` now share the app-owned run config loader.
