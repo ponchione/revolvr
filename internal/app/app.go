@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"revolvr/internal/ledger"
+	"revolvr/internal/receipt"
 	"revolvr/internal/taskqueue"
 )
 
@@ -119,6 +120,44 @@ func ShowRun(ctx context.Context, cfg Config, runID string) (ledger.RunWithEvent
 		return ledger.RunWithEvents{}, fmt.Errorf("run %q not found", runID)
 	}
 	return history, nil
+}
+
+func ValidateReceipt(ctx context.Context, cfg Config, runID string) (receipt.ValidationResult, error) {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return receipt.ValidationResult{}, errors.New("receipt validate: run id is required")
+	}
+
+	paths, err := resolveStatePaths(cfg.WorkDir)
+	if err != nil {
+		return receipt.ValidationResult{}, err
+	}
+	initialized, err := ledgerInitialized(paths)
+	if err != nil {
+		return receipt.ValidationResult{}, err
+	}
+	if !initialized {
+		return receipt.ValidationResult{}, errors.New("state is not initialized; run `revolvr init` first")
+	}
+
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		return receipt.ValidationResult{}, err
+	}
+	defer runs.Close()
+
+	history, ok, err := runs.GetRunWithEvents(ctx, runID)
+	if err != nil {
+		return receipt.ValidationResult{}, err
+	}
+	if !ok {
+		return receipt.ValidationResult{}, fmt.Errorf("run %q not found", runID)
+	}
+
+	return receipt.ValidateRunReceipt(receipt.ValidationInput{
+		WorkDir: paths.WorkDir,
+		History: history,
+	})
 }
 
 type statePaths struct {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"revolvr/internal/ledger"
+	"revolvr/internal/receipt"
 	"revolvr/internal/taskqueue"
 )
 
@@ -188,6 +189,119 @@ func TestShowRunReportsUninitializedAndMissingRun(t *testing.T) {
 	}
 }
 
+func TestValidateReceiptReturnsPersistedValidationResult(t *testing.T) {
+	workDir := t.TempDir()
+	completedAt := time.Date(2026, 7, 8, 14, 0, 0, 0, time.UTC)
+	createAppValidationRun(t, workDir, appValidationRunSpec{
+		RunID:              "run-valid-receipt",
+		TaskID:             "task-valid-receipt",
+		Task:               "Validate a receipt",
+		CompletedAt:        completedAt,
+		CommitSHA:          "abc123def456",
+		ChangedFiles:       []string{"internal/feature.go"},
+		VerificationStatus: "passed",
+		Verification: []receipt.VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 0,
+			Status:   "passed",
+		}},
+		WriteArtifacts: true,
+	})
+
+	result, err := ValidateReceipt(context.Background(), Config{WorkDir: workDir}, " run-valid-receipt ")
+	if err != nil {
+		t.Fatalf("validate receipt: %v", err)
+	}
+	if got, want := result.RunID, "run-valid-receipt"; got != want {
+		t.Fatalf("run id = %q, want %q", got, want)
+	}
+	if got, want := result.ReceiptPath, filepath.Join(".revolvr", "receipts", "run-valid-receipt.md"); got != want {
+		t.Fatalf("receipt path = %q, want %q", got, want)
+	}
+	if !result.Passed() {
+		t.Fatalf("validation passed = false, checks = %#v", result.Checks)
+	}
+	wantChecks := map[string]string{
+		receipt.ValidationCheckIdentity:            "ok",
+		receipt.ValidationCheckCompletionTime:      "ok",
+		receipt.ValidationCheckCommitSHA:           "ok",
+		receipt.ValidationCheckChangedFiles:        "ok",
+		receipt.ValidationCheckVerificationResults: "ok",
+		receipt.ValidationCheckArtifacts:           "ok",
+	}
+	if got := validationCheckMessages(result); !reflect.DeepEqual(got, wantChecks) {
+		t.Fatalf("check messages = %#v, want %#v", got, wantChecks)
+	}
+}
+
+func TestValidateReceiptReturnsFailedChecksWithoutCommandError(t *testing.T) {
+	workDir := t.TempDir()
+	completedAt := time.Date(2026, 7, 8, 15, 0, 0, 0, time.UTC)
+	createAppValidationRun(t, workDir, appValidationRunSpec{
+		RunID:              "run-invalid-receipt",
+		TaskID:             "task-invalid-receipt",
+		Task:               "Validate a stale receipt",
+		CompletedAt:        completedAt,
+		CommitSHA:          "abc123def456",
+		ChangedFiles:       []string{"internal/actual.go"},
+		VerificationStatus: "passed",
+		Verification: []receipt.VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 0,
+			Status:   "passed",
+		}},
+		ReceiptTimestamp:    completedAt.Add(time.Minute),
+		ReceiptChangedFiles: []string{"internal/stale.go"},
+		WriteArtifacts:      true,
+	})
+
+	result, err := ValidateReceipt(context.Background(), Config{WorkDir: workDir}, "run-invalid-receipt")
+	if err != nil {
+		t.Fatalf("validate receipt: %v", err)
+	}
+	if result.Passed() {
+		t.Fatalf("validation passed = true, want failed checks")
+	}
+	if got, want := failedValidationCheckNames(result), []string{
+		receipt.ValidationCheckCompletionTime,
+		receipt.ValidationCheckChangedFiles,
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("failed check names = %#v, want %#v", got, want)
+	}
+}
+
+func TestValidateReceiptReportsUninitializedMissingAndEmptyRun(t *testing.T) {
+	ctx := context.Background()
+	uninitializedDir := t.TempDir()
+
+	if _, err := ValidateReceipt(ctx, Config{WorkDir: uninitializedDir}, " "); err == nil || !strings.Contains(err.Error(), "receipt validate: run id is required") {
+		t.Fatalf("validate empty run id error = %v, want required run id", err)
+	}
+	if _, err := ValidateReceipt(ctx, Config{WorkDir: uninitializedDir}, "run-missing-state"); err == nil || !strings.Contains(err.Error(), "state is not initialized") {
+		t.Fatalf("validate uninitialized error = %v, want state not initialized", err)
+	}
+	if _, err := os.Stat(filepath.Join(uninitializedDir, stateDirName)); !os.IsNotExist(err) {
+		t.Fatalf("state dir stat err = %v, want not exist", err)
+	}
+
+	workDir := t.TempDir()
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("open ledger store: %v", err)
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatalf("close ledger store: %v", err)
+	}
+
+	if _, err := ValidateReceipt(ctx, Config{WorkDir: workDir}, "missing-run"); err == nil || !strings.Contains(err.Error(), `run "missing-run" not found`) {
+		t.Fatalf("validate missing run error = %v, want not found", err)
+	}
+}
+
 func taskStatuses(tasks []taskqueue.Task) map[string]string {
 	statuses := make(map[string]string, len(tasks))
 	for _, task := range tasks {
@@ -210,4 +324,153 @@ func eventTypes(events []ledger.Event) []ledger.EventType {
 		types = append(types, event.Type)
 	}
 	return types
+}
+
+type appValidationRunSpec struct {
+	RunID               string
+	TaskID              string
+	Task                string
+	CompletedAt         time.Time
+	CommitSHA           string
+	ChangedFiles        []string
+	VerificationStatus  string
+	Verification        []receipt.VerificationEntry
+	ReceiptTimestamp    time.Time
+	ReceiptChangedFiles []string
+	WriteArtifacts      bool
+}
+
+func createAppValidationRun(t *testing.T, workDir string, spec appValidationRunSpec) {
+	t.Helper()
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	ctx := context.Background()
+	startedAt := spec.CompletedAt.Add(-time.Minute)
+	exitCode := 0
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("open ledger store: %v", err)
+	}
+	if _, err := runs.CreateRun(ctx, ledger.RunSpec{
+		ID:                 spec.RunID,
+		TaskID:             spec.TaskID,
+		Task:               spec.Task,
+		Status:             ledger.StatusCompleted,
+		Summary:            "completed",
+		StartedAt:          startedAt,
+		CompletedAt:        &spec.CompletedAt,
+		DurationSeconds:    60,
+		CodexExitCode:      &exitCode,
+		VerificationStatus: spec.VerificationStatus,
+		CommitSHA:          spec.CommitSHA,
+	}); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	artifacts := ledger.RunArtifacts{
+		PromptPath:           filepath.Join(".revolvr", "runs", spec.RunID, "prompt.md"),
+		CodexStdoutJSONLPath: filepath.Join(".revolvr", "runs", spec.RunID, "codex.jsonl"),
+		CodexStderrPath:      filepath.Join(".revolvr", "runs", spec.RunID, "codex.stderr"),
+		LastMessagePath:      filepath.Join(".revolvr", "runs", spec.RunID, "last-message.txt"),
+		ReceiptPath:          filepath.Join(".revolvr", "receipts", spec.RunID+".md"),
+	}
+	if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventRunArtifacts, artifacts); err != nil {
+		t.Fatalf("append artifact event: %v", err)
+	}
+	if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventChangedFilesCaptured, map[string]any{
+		"changed_files": spec.ChangedFiles,
+	}); err != nil {
+		t.Fatalf("append changed files event: %v", err)
+	}
+	if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventVerificationCompleted, map[string]any{
+		"status":   spec.VerificationStatus,
+		"passed":   spec.VerificationStatus == "passed",
+		"commands": appValidationCommandPayloads(spec.Verification),
+	}); err != nil {
+		t.Fatalf("append verification event: %v", err)
+	}
+	if spec.CommitSHA != "" {
+		if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventCommitCreated, map[string]any{
+			"commit_sha": spec.CommitSHA,
+		}); err != nil {
+			t.Fatalf("append commit event: %v", err)
+		}
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatalf("close ledger store: %v", err)
+	}
+
+	if spec.WriteArtifacts {
+		writeAppTestFile(t, filepath.Join(workDir, artifacts.PromptPath), "prompt")
+		writeAppTestFile(t, filepath.Join(workDir, artifacts.CodexStdoutJSONLPath), "{}\n")
+		writeAppTestFile(t, filepath.Join(workDir, artifacts.CodexStderrPath), "")
+		writeAppTestFile(t, filepath.Join(workDir, artifacts.LastMessagePath), "done")
+	}
+
+	receiptTimestamp := spec.ReceiptTimestamp
+	if receiptTimestamp.IsZero() {
+		receiptTimestamp = spec.CompletedAt
+	}
+	receiptChangedFiles := spec.ReceiptChangedFiles
+	if receiptChangedFiles == nil {
+		receiptChangedFiles = spec.ChangedFiles
+	}
+	content, _ := receipt.FormatFallbackReceipt(receipt.FallbackInput{
+		RunID:              spec.RunID,
+		PassID:             spec.RunID,
+		TaskID:             spec.TaskID,
+		Task:               spec.Task,
+		Verdict:            receipt.VerdictCompleted,
+		Timestamp:          receiptTimestamp,
+		CodexExitCode:      0,
+		VerificationStatus: spec.VerificationStatus,
+		CommitSHA:          spec.CommitSHA,
+		ChangedFiles:       receiptChangedFiles,
+		Verification:       spec.Verification,
+		Metrics:            receipt.Metrics{},
+		FinalText:          "completed",
+	})
+	writeAppTestFile(t, filepath.Join(workDir, artifacts.ReceiptPath), content)
+}
+
+func appValidationCommandPayloads(entries []receipt.VerificationEntry) []map[string]any {
+	payloads := make([]map[string]any, 0, len(entries))
+	for i, entry := range entries {
+		payloads = append(payloads, map[string]any{
+			"index":     i,
+			"command":   entry.Command,
+			"status":    entry.Status,
+			"passed":    entry.Status == "passed",
+			"exit_code": entry.ExitCode,
+		})
+	}
+	return payloads
+}
+
+func writeAppTestFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create parent for %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func validationCheckMessages(result receipt.ValidationResult) map[string]string {
+	messages := make(map[string]string, len(result.Checks))
+	for _, check := range result.Checks {
+		messages[check.Name] = check.Message()
+	}
+	return messages
+}
+
+func failedValidationCheckNames(result receipt.ValidationResult) []string {
+	failures := result.Failures()
+	names := make([]string, 0, len(failures))
+	for _, check := range failures {
+		names = append(names, check.Name)
+	}
+	return names
 }

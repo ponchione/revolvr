@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: move receipt validation orchestration behind `internal/app`, update CLI `receipt validate` to use it without changing output, and add focused tests.
+- Files changed: `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/root.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `revolvr receipt validate <run-id>` now uses `app.ValidateReceipt` for state resolution, ledger lookup, and receipt validation. CLI rendering and the failed-check command error remain in `internal/cli`, preserving existing output.
+- Tests added: focused `internal/app` coverage for consistent receipt validation, failed checks returned as a result rather than a command error, empty run IDs, uninitialized state, and missing runs.
+- Verification run: `gofmt -w internal/app/app.go internal/app/app_test.go internal/cli/root.go`; `go test ./internal/app`; `go test ./internal/cli -run 'TestReceiptValidate'`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr receipt --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `go run ./cmd/revolvr receipt validate 019f42a2-5584-7eff-827d-f4420b4e2000`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to move task add/list/retry orchestration behind `internal/app`, update CLI task commands to use it without changing output, and add focused tests.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: introduce `internal/app` with read-only `Status` and `ShowRun` operations, update CLI `status` and `show` to use it without changing output, and add focused tests.
 - Files changed: `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/root.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: `revolvr status` and `revolvr show <run-id>` now load their read-only snapshots through `internal/app`; CLI rendering remains in `internal/cli` and existing output is unchanged.

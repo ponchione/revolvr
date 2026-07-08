@@ -530,41 +530,7 @@ func newReceiptValidateCommand(opts Options) *cobra.Command {
 		Short: "Validate one run receipt against the ledger",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runID := strings.TrimSpace(args[0])
-			if runID == "" {
-				return fmt.Errorf("receipt validate: run id is required")
-			}
-
-			paths, err := resolveStatePaths(opts.WorkDir)
-			if err != nil {
-				return err
-			}
-			initialized, err := ledgerInitialized(paths)
-			if err != nil {
-				return err
-			}
-			if !initialized {
-				return fmt.Errorf("state is not initialized; run `revolvr init` first")
-			}
-
-			runs, closeRuns, err := openLedgerStore(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
-			defer closeRuns()
-
-			history, ok, err := runs.GetRunWithEvents(cmd.Context(), runID)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return fmt.Errorf("run %q not found", runID)
-			}
-
-			result, err := receipt.ValidateRunReceipt(receipt.ValidationInput{
-				WorkDir: paths.WorkDir,
-				History: history,
-			})
+			result, err := app.ValidateReceipt(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
 			if err != nil {
 				return err
 			}
@@ -572,7 +538,7 @@ func newReceiptValidateCommand(opts Options) *cobra.Command {
 				return err
 			}
 			if !result.Passed() {
-				return receiptValidationError{RunID: runID, FailureCount: len(result.Failures())}
+				return receiptValidationError{RunID: result.RunID, FailureCount: len(result.Failures())}
 			}
 			return nil
 		},
