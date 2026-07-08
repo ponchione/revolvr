@@ -8,6 +8,16 @@ None.
 
 Task completed on 2026-07-07:
 
+- Selected task: fix finalized receipt timestamps so the harness overwrites stale agent-authored timestamps with the run completion time.
+- Files changed: `internal/receipt/update.go`, `internal/receipt/receipt_test.go`, `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: receipt finalization now writes the harness completion timestamp into parsed receipts, and run completion uses the same timestamp for the ledger and final receipt.
+- Verification run: `gofmt -w internal/receipt/update.go internal/receipt/receipt_test.go internal/runonce/runonce.go internal/runonce/runonce_test.go`; `go test ./internal/receipt`; `go test ./internal/runonce`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: commit if requested, then run another real dogfood pass to confirm receipt timestamps in the live path.
+- Blockers: none.
+
+Task completed on 2026-07-07:
+
 - Selected task: add one concise README Dogfooding note that real dogfood runs should start from a clean worktree and use `status`/`show` to inspect the result.
 - Files changed: `README.md`, `.agent/STATE.md`.
 - Behavior changed: none; documentation-only change.

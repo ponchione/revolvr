@@ -138,7 +138,9 @@ func TestFormatFallbackReceipt(t *testing.T) {
 }
 
 func TestRewriteHarnessFieldsRefreshesHarnessOwnedBodySections(t *testing.T) {
+	timestamp := time.Date(2026, 7, 7, 17, 58, 10, 0, time.UTC)
 	updated, parsed, changed, err := RewriteHarnessFields([]byte(validReceiptContent()), HarnessFields{
+		Timestamp:          timestamp,
 		Verdict:            VerdictCompleted,
 		CodexExitCode:      0,
 		VerificationStatus: "passed",
@@ -172,6 +174,9 @@ func TestRewriteHarnessFieldsRefreshesHarnessOwnedBodySections(t *testing.T) {
 	}
 	if got, want := parsed.ChangedFileClaims, []string{".agent/STATE.md", "README.md"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("changed file claims = %#v, want %#v", got, want)
+	}
+	if !parsed.Timestamp.Equal(timestamp) {
+		t.Fatalf("timestamp = %s, want %s", parsed.Timestamp, timestamp)
 	}
 	if got, want := ParseVerificationCommands(parsed.RawBody), []string{"go test ./..."}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("verification commands = %#v, want %#v", got, want)

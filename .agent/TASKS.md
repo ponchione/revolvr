@@ -22,6 +22,7 @@
 - [x] Make `revolvr init` locally ignore `.revolvr/` in Git worktrees so fresh dogfood repos do not start dirty.
 - [x] Add a `revolvr doctor` dogfood preflight for Codex, Git identity, clean worktree, runtime ignore state, and verification readiness.
 - [x] Resolve dogfood run diagnostics by finalizing receipt body facts, preserving dotfile changed-file claims, recovering Codex usage metrics after malformed JSONL fragments, and streaming summarized `run` progress.
+- [x] Overwrite finalized receipt timestamps with the harness completion time instead of preserving agent-authored stale timestamps.
 
 ## Blocked
 

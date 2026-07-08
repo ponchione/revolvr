@@ -535,7 +535,8 @@ func finish(ctx context.Context, cfg Config, tasks *taskqueue.Store, runs *ledge
 	receiptWasSynthesized := result.ReceiptSynthesized
 	entries := verificationEntries(result.Verification)
 	files := changedFiles(result.PostRunChanged)
-	finalizeRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, entries, commitSHA, result.Message)
+	completedAt := cfg.Clock()
+	finalizeRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, entries, commitSHA, result.Message, completedAt)
 	if !receiptWasSynthesized && !result.ReceiptSynthesized {
 		recordReceiptWarnings(ctx, runs, result, parsedReceipt, verdict, verificationStatus, entries, files)
 	}
@@ -550,7 +551,7 @@ func finish(ctx context.Context, cfg Config, tasks *taskqueue.Store, runs *ledge
 	updatedRun, ok, err := runs.CompleteRun(ctx, result.Run.ID, ledger.RunCompletion{
 		Status:             runStatus,
 		Summary:            result.Message,
-		CompletedAt:        cfg.Clock(),
+		CompletedAt:        completedAt,
 		CodexExitCode:      &exitCode,
 		VerificationStatus: verificationStatus,
 		CommitSHA:          commitSHA,
@@ -617,10 +618,10 @@ func ensureRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, resul
 		}
 	}
 
-	writeFallbackReceipt(ctx, cfg, runs, result, verdict, verificationStatus, verificationEntries, commitSHA, finalText)
+	writeFallbackReceipt(ctx, runs, result, verdict, verificationStatus, verificationEntries, commitSHA, finalText, cfg.Clock())
 }
 
-func finalizeRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string) {
+func finalizeRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string, timestamp time.Time) {
 	if result.ReceiptPath == "" {
 		return
 	}
@@ -632,6 +633,7 @@ func finalizeRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, res
 	content, err := os.ReadFile(result.ReceiptPath)
 	if err == nil {
 		updated, parsed, changed, rewriteErr := receipt.RewriteHarnessFields(content, receipt.HarnessFields{
+			Timestamp:          timestamp,
 			Verdict:            verdict,
 			CodexExitCode:      result.Codex.ExitCode,
 			VerificationStatus: verificationStatus,
@@ -659,17 +661,17 @@ func finalizeRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, res
 		result.ReceiptError = err.Error()
 	}
 
-	writeFallbackReceipt(ctx, cfg, runs, result, verdict, verificationStatus, verificationEntries, commitSHA, finalText)
+	writeFallbackReceipt(ctx, runs, result, verdict, verificationStatus, verificationEntries, commitSHA, finalText, timestamp)
 }
 
-func writeFallbackReceipt(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string) {
+func writeFallbackReceipt(ctx context.Context, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string, timestamp time.Time) {
 	content, parsed := receipt.FormatFallbackReceipt(receipt.FallbackInput{
 		RunID:              result.Run.ID,
 		PassID:             result.Run.ID,
 		TaskID:             result.Task.ID,
 		Task:               result.Task.Task,
 		Verdict:            verdict,
-		Timestamp:          cfg.Clock(),
+		Timestamp:          timestamp,
 		CodexExitCode:      result.Codex.ExitCode,
 		VerificationStatus: verificationStatus,
 		CommitSHA:          commitSHA,

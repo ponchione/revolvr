@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 type HarnessFields struct {
+	Timestamp          time.Time
 	Verdict            Verdict
 	CodexExitCode      int
 	VerificationStatus string
@@ -25,6 +27,9 @@ func RewriteHarnessFields(content []byte, fields HarnessFields) ([]byte, Receipt
 	}
 
 	updatedReceipt := parsed
+	if !fields.Timestamp.IsZero() {
+		updatedReceipt.Timestamp = fields.Timestamp.UTC()
+	}
 	updatedReceipt.Verdict = fields.Verdict
 	updatedReceipt.CodexExitCode = fields.CodexExitCode
 	updatedReceipt.VerificationStatus = fields.VerificationStatus

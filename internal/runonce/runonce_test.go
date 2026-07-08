@@ -97,6 +97,15 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	if reparsedReceipt.CommitSHA != "abc123def456" || reparsedReceipt.VerificationStatus != "passed" {
 		t.Fatalf("final receipt = %+v, want commit sha and passed verification", reparsedReceipt)
 	}
+	if result.Run.CompletedAt == nil {
+		t.Fatal("run completed at = nil, want completion time")
+	}
+	if !result.Receipt.Timestamp.Equal(*result.Run.CompletedAt) {
+		t.Fatalf("receipt timestamp = %s, want run completed at %s", result.Receipt.Timestamp, *result.Run.CompletedAt)
+	}
+	if !reparsedReceipt.Timestamp.Equal(*result.Run.CompletedAt) {
+		t.Fatalf("final receipt timestamp = %s, want run completed at %s", reparsedReceipt.Timestamp, *result.Run.CompletedAt)
+	}
 	if containsArg(state.codexArgs, "resume") {
 		t.Fatalf("codex args include resume: %#v", state.codexArgs)
 	}
