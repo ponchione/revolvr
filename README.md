@@ -48,7 +48,7 @@ go run ./cmd/revolvr task list
 If a task is blocked and should be retried:
 
 ```bash
-go run ./cmd/revolvr task unblock <task-id>
+go run ./cmd/revolvr task retry <task-id>
 ```
 
 ## Configuration

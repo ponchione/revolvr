@@ -25,7 +25,7 @@
 - [x] Overwrite finalized receipt timestamps with the harness completion time instead of preserving agent-authored stale timestamps.
 - [x] Expand `revolvr status` to show latest run summary, verification status, commit SHA, and artifact path hints when a run exists.
 - [x] Add a first-class receipt validation command that checks a run receipt against ledger completion time, commit SHA, changed files, verification results, and artifact existence.
-- [ ] Add focused failure-recovery CLI support for blocked tasks, starting with one command to retry or unblock a blocked task safely.
+- [x] Add focused failure-recovery CLI support for blocked tasks, starting with one command to retry or unblock a blocked task safely.
 - [ ] Add safer `run --max-passes` loop guardrails for repeated failures or blocked tasks, and show a concise final loop summary.
 - [ ] Add a live dogfood verification script or README checklist that resets runtime state, queues a tiny task, runs once, and verifies receipt, ledger, commit, and clean-worktree consistency.
 

@@ -28,6 +28,7 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"task"},
 		{"task", "add"},
 		{"task", "list"},
+		{"task", "retry"},
 		{"task", "unblock"},
 		{"config"},
 		{"config", "check"},
@@ -97,6 +98,7 @@ func TestParentCommandHelpOutput(t *testing.T) {
 				"Available Commands:",
 				"add",
 				"list",
+				"retry",
 				"unblock",
 			},
 		},
@@ -440,7 +442,7 @@ func TestTaskListHandlesEmptyQueue(t *testing.T) {
 	}
 }
 
-func TestTaskUnblockMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
+func TestTaskRetryMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -451,13 +453,22 @@ func TestTaskUnblockMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
+	base := time.Date(2026, 6, 26, 11, 0, 0, 0, time.UTC)
+	now := base
+	store, err := taskqueue.OpenWithClock(ctx, paths.TaskDBPath, func() time.Time { return now })
 	if err != nil {
 		t.Fatalf("open task store: %v", err)
 	}
-	if _, err := store.AddTask(ctx, taskqueue.TaskSpec{ID: "task-blocked", Task: "retry this task"}); err != nil {
+	original, err := store.AddTask(ctx, taskqueue.TaskSpec{
+		ID:        "task-blocked",
+		Task:      "retry this task",
+		Summary:   "blocked summary",
+		CreatedAt: base,
+	})
+	if err != nil {
 		t.Fatalf("add task: %v", err)
 	}
+	now = base.Add(time.Minute)
 	if _, ok, err := store.BlockTask(ctx, "task-blocked", "verification failed"); err != nil || !ok {
 		t.Fatalf("block task: ok=%v err=%v", ok, err)
 	}
@@ -465,16 +476,23 @@ func TestTaskUnblockMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 		t.Fatalf("close task store: %v", err)
 	}
 
-	out, err := executeCLI(t, workDir, "task", "unblock", "task-blocked")
+	out, err := executeCLI(t, workDir, "task", "retry", "task-blocked")
 	if err != nil {
-		t.Fatalf("execute task unblock: %v", err)
+		t.Fatalf("execute task retry: %v", err)
 	}
-	if got, want := out, "Unblocked task task-blocked.\n"; got != want {
-		t.Fatalf("task unblock output = %q, want %q", got, want)
+	if got, want := out, "Retried task task-blocked.\n"; got != want {
+		t.Fatalf("task retry output = %q, want %q", got, want)
 	}
 	tasks := readTasks(t, workDir)
-	if len(tasks) != 1 || tasks[0].Status != taskqueue.StatusPending || tasks[0].Blocker != "" {
-		t.Fatalf("tasks after unblock = %+v, want pending unblocked task", tasks)
+	if len(tasks) != 1 {
+		t.Fatalf("tasks after retry = %+v, want one task", tasks)
+	}
+	task := tasks[0]
+	if task.ID != original.ID || task.Task != original.Task || task.Summary != original.Summary || !task.CreatedAt.Equal(original.CreatedAt) {
+		t.Fatalf("task after retry = %+v, want same persisted task identity/history as %+v", task, original)
+	}
+	if task.Status != taskqueue.StatusPending || task.Blocker != "" || task.BlockedAt != nil || task.CompletedAt != nil {
+		t.Fatalf("task after retry = %+v, want pending task with blocker state cleared", task)
 	}
 
 	var runOut bytes.Buffer
@@ -517,6 +535,58 @@ func TestTaskUnblockMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 	}
 	if got, want := runOut.String(), "Run run-selected completed task task-blocked; commit abc123.\n"; got != want {
 		t.Fatalf("run output = %q, want %q", got, want)
+	}
+}
+
+func TestTaskRetryDoesNotRevertCompletedTask(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	ctx := context.Background()
+	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
+	if err != nil {
+		t.Fatalf("open task store: %v", err)
+	}
+	if _, err := store.AddTask(ctx, taskqueue.TaskSpec{ID: "task-done", Task: "already done"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+	if _, ok, err := store.CompleteTask(ctx, "task-done", "done"); err != nil || !ok {
+		t.Fatalf("complete task: ok=%v err=%v", ok, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close task store: %v", err)
+	}
+
+	_, err = executeCLI(t, workDir, "task", "retry", "task-done")
+	if err == nil {
+		t.Fatal("task retry completed task succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), `task "task-done" is not blocked (status: completed)`) {
+		t.Fatalf("task retry error = %v, want not blocked", err)
+	}
+	tasks := readTasks(t, workDir)
+	if len(tasks) != 1 || tasks[0].Status != taskqueue.StatusCompleted || tasks[0].CompletedAt == nil {
+		t.Fatalf("tasks after completed retry = %+v, want still completed", tasks)
+	}
+}
+
+func TestTaskRetryMissingTaskReturnsClearError(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+
+	_, err := executeCLI(t, workDir, "task", "retry", "missing-task")
+	if err == nil {
+		t.Fatal("task retry missing task succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), `task "missing-task" not found`) {
+		t.Fatalf("task retry missing error = %v, want not found", err)
 	}
 }
 

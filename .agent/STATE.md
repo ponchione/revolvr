@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add focused failure-recovery CLI support for blocked tasks with `revolvr task retry <task-id>`.
+- Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added `revolvr task retry <task-id>` as the recovery-oriented command for blocked tasks. It reuses the existing blocked-to-pending store update, rejects missing or non-blocked tasks, clears current blocker fields, preserves the same task ID/text/summary/created timestamp, and leaves the existing `task unblock` command available.
+- Tests added: focused CLI coverage for command discovery/help, successful retry making the same blocked task selectable by `run --once`, completed-task rejection, and missing-task rejection.
+- Documentation added: README task queue recovery example now uses `task retry <task-id>`.
+- Verification run: `gofmt -w internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/cli -run 'TestNewRootCommandConstructsExpectedCommands|TestParentCommandHelpOutput|TestTaskRetryMakesBlockedTaskRunnableForRunOnce|TestTaskRetryDoesNotRevertCompletedTask|TestTaskRetryMissingTaskReturnsClearError|TestTaskUnblockDoesNotRevertCompletedTask|TestTaskUnblockMissingTaskReturnsClearError'`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr task --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `go run ./cmd/revolvr task retry --help`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add safer `run --max-passes` loop guardrails for repeated failures or blocked tasks, and show a concise final loop summary.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add a first-class receipt validation command that checks a run receipt against ledger completion time, commit SHA, changed files, verification results, and artifact existence.
 - Files changed: `internal/receipt/validation.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: added `revolvr receipt validate <run-id>`, which loads the run ledger history, parses the recorded receipt, compares receipt identity, finalized timestamp, commit SHA, changed files, verification results, and recorded artifact paths, prints per-check results, and exits nonzero when validation fails.

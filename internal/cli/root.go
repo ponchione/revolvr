@@ -108,6 +108,7 @@ func newTaskCommand(opts Options) *cobra.Command {
 	cmd.AddCommand(
 		newTaskAddCommand(opts),
 		newTaskListCommand(opts),
+		newTaskRetryCommand(opts),
 		newTaskUnblockCommand(opts),
 	)
 	return cmd
@@ -189,31 +190,46 @@ func newTaskUnblockCommand(opts Options) *cobra.Command {
 		Short: "Make a blocked task pending again",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			taskID := strings.TrimSpace(args[0])
-			if taskID == "" {
-				return fmt.Errorf("task unblock: task id is required")
-			}
-
-			store, closeStore, err := openTaskStore(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
-			defer closeStore()
-
-			task, changed, err := store.UnblockTask(cmd.Context(), taskID)
-			if err != nil {
-				return err
-			}
-			if !changed {
-				if task.ID == "" {
-					return fmt.Errorf("task %q not found", taskID)
-				}
-				return fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
-			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Unblocked task %s.\n", task.ID)
-			return err
+			return retryBlockedTask(cmd, opts, args[0], "task unblock", "Unblocked")
 		},
 	}
+}
+
+func newTaskRetryCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "retry <task-id>",
+		Short: "Retry a blocked task",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return retryBlockedTask(cmd, opts, args[0], "task retry", "Retried")
+		},
+	}
+}
+
+func retryBlockedTask(cmd *cobra.Command, opts Options, rawTaskID string, operation string, successVerb string) error {
+	taskID := strings.TrimSpace(rawTaskID)
+	if taskID == "" {
+		return fmt.Errorf("%s: task id is required", operation)
+	}
+
+	store, closeStore, err := openTaskStore(cmd.Context(), opts)
+	if err != nil {
+		return err
+	}
+	defer closeStore()
+
+	task, changed, err := store.UnblockTask(cmd.Context(), taskID)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		if task.ID == "" {
+			return fmt.Errorf("task %q not found", taskID)
+		}
+		return fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
+	}
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s task %s.\n", successVerb, task.ID)
+	return err
 }
 
 func newConfigCommand(opts Options) *cobra.Command {
