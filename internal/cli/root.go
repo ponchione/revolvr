@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
+	tuiapp "revolvr/internal/tui"
 )
 
 const defaultVersion = "dev"
@@ -25,11 +27,13 @@ type Options struct {
 	Err                 io.Writer
 	WorkDir             string
 	RunOnce             RunOnceFunc
+	TUIRunner           TUIRunFunc
 	DoctorCommandRunner DoctorCommandRunner
 	ExecutableLookPath  ExecutableLookPath
 }
 
 type RunOnceFunc = app.RunOnceRunner
+type TUIRunFunc func(context.Context, app.StatusResult, tuiapp.RunOptions) error
 
 func NewRootCommand(opts Options) *cobra.Command {
 	version := opts.Version
@@ -64,6 +68,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newRunCommand(opts),
 		newDoctorCommand(opts),
 		newStatusCommand(opts),
+		newTUICommand(opts),
 		newShowCommand(opts),
 		newReceiptCommand(opts),
 	)
@@ -324,6 +329,28 @@ func newStatusCommand(opts Options) *cobra.Command {
 				return err
 			}
 			return writeStatus(cmd.OutOrStdout(), status.Tasks, status.RecentRuns, status.LatestEvents)
+		},
+	}
+}
+
+func newTUICommand(opts Options) *cobra.Command {
+	runner := opts.TUIRunner
+	if runner == nil {
+		runner = tuiapp.RunStatus
+	}
+	return &cobra.Command{
+		Use:   "tui",
+		Short: "Open status TUI",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			status, err := app.Status(cmd.Context(), app.Config{WorkDir: opts.WorkDir})
+			if err != nil {
+				return err
+			}
+			return runner(cmd.Context(), status, tuiapp.RunOptions{
+				Input:  cmd.InOrStdin(),
+				Output: cmd.OutOrStdout(),
+			})
 		},
 	}
 }

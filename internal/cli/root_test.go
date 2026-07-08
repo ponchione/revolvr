@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"revolvr/internal/app"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/gitstate"
@@ -18,6 +19,7 @@ import (
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
+	tuiapp "revolvr/internal/tui"
 	"revolvr/internal/verification"
 )
 
@@ -36,6 +38,7 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"run"},
 		{"doctor"},
 		{"status"},
+		{"tui"},
 		{"show"},
 		{"receipt"},
 		{"receipt", "validate"},
@@ -63,7 +66,7 @@ func TestRootHelpWorks(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "run", "doctor", "status", "show", "receipt"} {
+	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "run", "doctor", "status", "tui", "show", "receipt"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help output missing %q:\n%s", want, help)
 		}
@@ -263,6 +266,161 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 		"receipt: .revolvr/receipts/run-new.md\n"
 	if out != want {
 		t.Fatalf("status output = %q, want %q", out, want)
+	}
+}
+
+func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T) {
+	workDir := t.TempDir()
+	var out bytes.Buffer
+	called := false
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: workDir,
+		TUIRunner: func(_ context.Context, status app.StatusResult, opts tuiapp.RunOptions) error {
+			called = true
+			if status.Initialized {
+				t.Fatalf("tui status initialized = true, want false")
+			}
+			_, err := fmt.Fprint(opts.Output, tuiapp.NewStatusModel(status).View())
+			return err
+		},
+	})
+	root.SetArgs([]string{"tui"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute tui: %v", err)
+	}
+	if !called {
+		t.Fatal("tui runner was not called")
+	}
+	if !strings.Contains(out.String(), "State: not initialized") {
+		t.Fatalf("tui output missing uninitialized state:\n%s", out.String())
+	}
+
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	if _, err := os.Stat(paths.StateDir); !os.IsNotExist(err) {
+		t.Fatalf("state dir stat err = %v, want not exist", err)
+	}
+}
+
+func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+
+	ctx := context.Background()
+	base := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+	now := base
+	tasks, err := taskqueue.OpenWithClock(ctx, paths.TaskDBPath, func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("open task store: %v", err)
+	}
+	for _, spec := range []taskqueue.TaskSpec{
+		{ID: "task-pending", Task: "pending task", CreatedAt: base},
+		{ID: "task-blocked", Task: "blocked task", CreatedAt: base.Add(time.Minute)},
+		{ID: "task-completed", Task: "completed task", CreatedAt: base.Add(2 * time.Minute)},
+	} {
+		if _, err := tasks.AddTask(ctx, spec); err != nil {
+			t.Fatalf("add %s: %v", spec.ID, err)
+		}
+	}
+	now = base.Add(3 * time.Minute)
+	if _, ok, err := tasks.BlockTask(ctx, "task-blocked", "waiting"); err != nil || !ok {
+		t.Fatalf("block task: ok=%v err=%v", ok, err)
+	}
+	now = base.Add(4 * time.Minute)
+	if _, ok, err := tasks.CompleteTask(ctx, "task-completed", "done"); err != nil || !ok {
+		t.Fatalf("complete task: ok=%v err=%v", ok, err)
+	}
+	if err := tasks.Close(); err != nil {
+		t.Fatalf("close task store: %v", err)
+	}
+
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("open ledger store: %v", err)
+	}
+	for _, spec := range []ledger.RunSpec{
+		{
+			ID:        "run-old",
+			TaskID:    "task-old",
+			Task:      "older run",
+			Status:    ledger.StatusCompleted,
+			Summary:   "older summary",
+			StartedAt: base,
+			CommitSHA: "abc123",
+		},
+		{
+			ID:                 "run-new",
+			TaskID:             "task-new",
+			Task:               "new run",
+			Status:             ledger.StatusFailed,
+			Summary:            "latest summary",
+			StartedAt:          base.Add(time.Hour),
+			VerificationStatus: "failed",
+		},
+	} {
+		if _, err := runs.CreateRun(ctx, spec); err != nil {
+			t.Fatalf("create %s: %v", spec.ID, err)
+		}
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatalf("close ledger store: %v", err)
+	}
+
+	var out bytes.Buffer
+	called := false
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: workDir,
+		TUIRunner: func(_ context.Context, status app.StatusResult, opts tuiapp.RunOptions) error {
+			called = true
+			if !status.Initialized {
+				t.Fatalf("tui status initialized = false, want true")
+			}
+			if got, want := len(status.Tasks), 3; got != want {
+				t.Fatalf("tui task count = %d, want %d", got, want)
+			}
+			if got, want := runIDs(status.RecentRuns), []string{"run-new", "run-old"}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("tui recent runs = %#v, want %#v", got, want)
+			}
+			_, err := fmt.Fprint(opts.Output, tuiapp.NewStatusModel(status).View())
+			return err
+		},
+	})
+	root.SetArgs([]string{"tui"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute tui: %v", err)
+	}
+	if !called {
+		t.Fatal("tui runner was not called")
+	}
+	for _, want := range []string{
+		"Total: 3",
+		"Pending: 1",
+		"Blocked: 1",
+		"Completed: 1",
+		"Latest Run",
+		"ID: run-new",
+		"Summary: latest summary",
+		"Recent Runs",
+		"run-new  failed  latest summary",
+		"run-old  completed  older summary",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("tui output missing %q:\n%s", want, out.String())
+		}
 	}
 }
 
@@ -2079,4 +2237,12 @@ func readTasks(t *testing.T, workDir string) []taskqueue.Task {
 		t.Fatalf("list tasks: %v", err)
 	}
 	return tasks
+}
+
+func runIDs(runs []ledger.Run) []string {
+	ids := make([]string, 0, len(runs))
+	for _, run := range runs {
+		ids = append(ids, run.ID)
+	}
+	return ids
 }

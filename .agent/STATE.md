@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add `revolvr tui` showing task counts, latest run summary, and recent runs from `internal/app`.
+- Files changed: `internal/tui/model.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added `revolvr tui`, which loads the current `internal/app.Status` snapshot and opens the Bubble Tea status model. The command renders uninitialized state, task counts, latest run summary fields, and recent runs through `internal/tui`.
+- Tests added: focused CLI coverage for command discovery/help, uninitialized TUI snapshots without creating runtime state, and populated TUI snapshots backed by app-loaded tasks and recent runs.
+- Verification run: `gofmt -w internal/tui/model.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/cli -run 'Test(NewRootCommandConstructsExpectedCommands|RootHelpWorks|TUI)'`; `go test ./internal/tui`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr status`; `go run ./cmd/revolvr tui --help`; `go run ./cmd/revolvr config check`; `git diff --check`.
+- Verification result: all commands passed. The interactive `revolvr tui` session itself was not launched as a smoke command because it waits for terminal input.
+- What remains: next unchecked backlog item is to add basic TUI actions for refresh, opening selected run details, and quit, without starting real Codex runs yet.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add stable Charm dependencies for Bubble Tea, Bubbles, and Lip Gloss, and create a minimal `internal/tui` model that renders a static app status snapshot in tests.
 - Files changed: `go.mod`, `go.sum`, `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Dependencies added: direct Charm requirements for Bubble Tea `v1.3.4`, Bubbles `v0.20.0`, and Lip Gloss `v1.1.0`. These are the newest stable tagged versions found that keep compatibility with the repo's `go 1.22` directive; newer Bubble Tea and Bubbles releases require Go 1.23+ or 1.24+.

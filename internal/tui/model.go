@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -25,6 +27,11 @@ type StatusModel struct {
 	viewport viewport.Model
 }
 
+type RunOptions struct {
+	Input  io.Reader
+	Output io.Writer
+}
+
 func NewStatusModel(status app.StatusResult) StatusModel {
 	model := StatusModel{
 		status:   status,
@@ -32,6 +39,19 @@ func NewStatusModel(status app.StatusResult) StatusModel {
 	}
 	model.viewport.SetContent(model.renderStatus())
 	return model
+}
+
+func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) error {
+	options := []tea.ProgramOption{
+		tea.WithContext(ctx),
+		tea.WithInput(opts.Input),
+	}
+	if opts.Output != nil {
+		options = append(options, tea.WithOutput(opts.Output))
+	}
+
+	_, err := tea.NewProgram(NewStatusModel(status), options...).Run()
+	return err
 }
 
 func (m StatusModel) Init() tea.Cmd {

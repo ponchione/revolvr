@@ -33,7 +33,7 @@
 - [x] Move task add/list/retry orchestration behind `internal/app`, update CLI task commands to use it without changing output, and add focused tests.
 - [x] Move run once and run loop orchestration behind `internal/app`, preserving CLI output and `run --max-passes` guardrails.
 - [x] Add stable Charm dependencies for Bubble Tea, Bubbles, and Lip Gloss, and create a minimal `internal/tui` model that renders a static app status snapshot in tests.
-- [ ] Add `revolvr tui` showing task counts, latest run summary, and recent runs from `internal/app`.
+- [x] Add `revolvr tui` showing task counts, latest run summary, and recent runs from `internal/app`.
 - [ ] Add basic TUI actions for refresh, opening selected run details, and quit, without starting real Codex runs yet.
 
 ## Blocked
