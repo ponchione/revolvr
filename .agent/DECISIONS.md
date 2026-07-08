@@ -17,3 +17,4 @@
 - The real-Codex live dogfood check is an opt-in script (`scripts/dogfood-live.sh`) because it removes local `.revolvr/` runtime state and creates a Git commit; it must require a clean source worktree before resetting state.
 - Read-only CLI inspection should move orchestration into `internal/app` while keeping exact command rendering in `internal/cli`; `status` and `show` are the first commands following this boundary.
 - Receipt validation orchestration now follows the same boundary: `internal/app` resolves state, loads run history, and invokes receipt validation, while `internal/cli` keeps exact command rendering and failed-check exit formatting.
+- Task queue command orchestration follows the same boundary: `internal/app` owns task add/list/retry/unblock state resolution, task store access, and blocked-to-pending transitions, while `internal/cli` keeps the exact command output formatting.

@@ -158,18 +158,6 @@ func excludeContentHasPattern(content string, pattern string) bool {
 	return false
 }
 
-func openTaskStore(ctx context.Context, opts Options) (*taskqueue.Store, func(), error) {
-	paths, err := resolveStatePaths(opts.WorkDir)
-	if err != nil {
-		return nil, nil, err
-	}
-	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	return store, func() { _ = store.Close() }, nil
-}
-
 func openLedgerStore(ctx context.Context, opts Options) (*ledger.Store, func(), error) {
 	paths, err := resolveStatePaths(opts.WorkDir)
 	if err != nil {

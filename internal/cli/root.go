@@ -124,20 +124,9 @@ func newTaskAddCommand(opts Options) *cobra.Command {
 		Short: "Add a task",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			taskText := strings.TrimSpace(strings.Join(args, " "))
-			if taskText == "" {
-				return fmt.Errorf("task add: task text is required")
-			}
-
-			store, closeStore, err := openTaskStore(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
-			defer closeStore()
-
-			task, err := store.AddTask(cmd.Context(), taskqueue.TaskSpec{
-				Task:    taskText,
-				Summary: strings.TrimSpace(summary),
+			task, err := app.AddTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.AddTaskInput{
+				Task:    strings.Join(args, " "),
+				Summary: summary,
 			})
 			if err != nil {
 				return err
@@ -160,13 +149,7 @@ func newTaskListCommand(opts Options) *cobra.Command {
 		Short: "List tasks",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			store, closeStore, err := openTaskStore(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
-			defer closeStore()
-
-			tasks, err := store.ListTasks(cmd.Context())
+			tasks, err := app.ListTasks(cmd.Context(), app.Config{WorkDir: opts.WorkDir})
 			if err != nil {
 				return err
 			}
@@ -210,26 +193,20 @@ func newTaskRetryCommand(opts Options) *cobra.Command {
 }
 
 func retryBlockedTask(cmd *cobra.Command, opts Options, rawTaskID string, operation string, successVerb string) error {
-	taskID := strings.TrimSpace(rawTaskID)
-	if taskID == "" {
-		return fmt.Errorf("%s: task id is required", operation)
+	var (
+		task taskqueue.Task
+		err  error
+	)
+	switch operation {
+	case "task retry":
+		task, err = app.RetryTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, rawTaskID)
+	case "task unblock":
+		task, err = app.UnblockTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, rawTaskID)
+	default:
+		err = fmt.Errorf("%s: unsupported task operation", operation)
 	}
-
-	store, closeStore, err := openTaskStore(cmd.Context(), opts)
 	if err != nil {
 		return err
-	}
-	defer closeStore()
-
-	task, changed, err := store.UnblockTask(cmd.Context(), taskID)
-	if err != nil {
-		return err
-	}
-	if !changed {
-		if task.ID == "" {
-			return fmt.Errorf("task %q not found", taskID)
-		}
-		return fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
 	}
 	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s task %s.\n", successVerb, task.ID)
 	return err

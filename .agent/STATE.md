@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: move task add/list/retry orchestration behind `internal/app`, update CLI task commands to use it without changing output, and add focused tests.
+- Files changed: `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/root.go`, `internal/cli/state.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `revolvr task add`, `revolvr task list`, `revolvr task retry`, and the shared `task unblock` recovery path now call `internal/app` task operations for state resolution, store access, persistence, and blocked-to-pending transitions. CLI rendering stays in `internal/cli`, preserving existing output.
+- Tests added: focused `internal/app` coverage for task add/list persistence, trimmed input, retrying blocked tasks, missing task IDs, missing tasks, and non-blocked task rejection.
+- Verification run: `gofmt -w internal/app/app.go internal/app/app_test.go internal/cli/root.go internal/cli/state.go`; `go test ./internal/app -run 'TestTask(Add|Operations|List|Retry)'`; `go test ./internal/cli -run 'TestTask(Add|List|Retry|Unblock)'`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr task --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to move run once and run loop orchestration behind `internal/app`, preserving CLI output and `run --max-passes` guardrails.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: move receipt validation orchestration behind `internal/app`, update CLI `receipt validate` to use it without changing output, and add focused tests.
 - Files changed: `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/root.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: `revolvr receipt validate <run-id>` now uses `app.ValidateReceipt` for state resolution, ledger lookup, and receipt validation. CLI rendering and the failed-check command error remain in `internal/cli`, preserving existing output.

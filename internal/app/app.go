@@ -23,11 +23,52 @@ type Config struct {
 	RecentRunsLimit int
 }
 
+type AddTaskInput struct {
+	Task    string
+	Summary string
+}
+
 type StatusResult struct {
 	Initialized  bool
 	Tasks        []taskqueue.Task
 	RecentRuns   []ledger.Run
 	LatestEvents []ledger.Event
+}
+
+func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskqueue.Task, error) {
+	taskText := strings.TrimSpace(input.Task)
+	if taskText == "" {
+		return taskqueue.Task{}, errors.New("task add: task text is required")
+	}
+
+	tasks, err := openTaskStore(ctx, cfg)
+	if err != nil {
+		return taskqueue.Task{}, err
+	}
+	defer tasks.Close()
+
+	return tasks.AddTask(ctx, taskqueue.TaskSpec{
+		Task:    taskText,
+		Summary: strings.TrimSpace(input.Summary),
+	})
+}
+
+func ListTasks(ctx context.Context, cfg Config) ([]taskqueue.Task, error) {
+	tasks, err := openTaskStore(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	defer tasks.Close()
+
+	return tasks.ListTasks(ctx)
+}
+
+func RetryTask(ctx context.Context, cfg Config, taskID string) (taskqueue.Task, error) {
+	return unblockBlockedTask(ctx, cfg, taskID, "task retry")
+}
+
+func UnblockTask(ctx context.Context, cfg Config, taskID string) (taskqueue.Task, error) {
+	return unblockBlockedTask(ctx, cfg, taskID, "task unblock")
 }
 
 func Status(ctx context.Context, cfg Config) (StatusResult, error) {
@@ -160,6 +201,31 @@ func ValidateReceipt(ctx context.Context, cfg Config, runID string) (receipt.Val
 	})
 }
 
+func unblockBlockedTask(ctx context.Context, cfg Config, rawTaskID string, operation string) (taskqueue.Task, error) {
+	taskID := strings.TrimSpace(rawTaskID)
+	if taskID == "" {
+		return taskqueue.Task{}, fmt.Errorf("%s: task id is required", operation)
+	}
+
+	tasks, err := openTaskStore(ctx, cfg)
+	if err != nil {
+		return taskqueue.Task{}, err
+	}
+	defer tasks.Close()
+
+	task, changed, err := tasks.UnblockTask(ctx, taskID)
+	if err != nil {
+		return taskqueue.Task{}, err
+	}
+	if !changed {
+		if task.ID == "" {
+			return taskqueue.Task{}, fmt.Errorf("task %q not found", taskID)
+		}
+		return taskqueue.Task{}, fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
+	}
+	return task, nil
+}
+
 type statePaths struct {
 	WorkDir      string
 	StateDir     string
@@ -188,6 +254,14 @@ func resolveStatePaths(workDir string) (statePaths, error) {
 		TaskDBPath:   filepath.Join(stateDir, "tasks.sqlite"),
 		LedgerDBPath: filepath.Join(stateDir, "ledger.sqlite"),
 	}, nil
+}
+
+func openTaskStore(ctx context.Context, cfg Config) (*taskqueue.Store, error) {
+	paths, err := resolveStatePaths(cfg.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+	return taskqueue.Open(ctx, paths.TaskDBPath)
 }
 
 func stateInitialized(paths statePaths) (bool, error) {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -299,6 +300,109 @@ func TestValidateReceiptReportsUninitializedMissingAndEmptyRun(t *testing.T) {
 
 	if _, err := ValidateReceipt(ctx, Config{WorkDir: workDir}, "missing-run"); err == nil || !strings.Contains(err.Error(), `run "missing-run" not found`) {
 		t.Fatalf("validate missing run error = %v, want not found", err)
+	}
+}
+
+func TestTaskAddListAndRetryOperations(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	task, err := AddTask(ctx, Config{WorkDir: workDir}, AddTaskInput{
+		Task:    "  Implement app task operations  ",
+		Summary: "  app boundary  ",
+	})
+	if err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+	if task.ID == "" {
+		t.Fatal("added task id is empty")
+	}
+	if got, want := task.Task, "Implement app task operations"; got != want {
+		t.Fatalf("task text = %q, want %q", got, want)
+	}
+	if got, want := task.Summary, "app boundary"; got != want {
+		t.Fatalf("task summary = %q, want %q", got, want)
+	}
+	if got, want := task.Status, taskqueue.StatusPending; got != want {
+		t.Fatalf("task status = %q, want %q", got, want)
+	}
+
+	tasks, err := ListTasks(ctx, Config{WorkDir: workDir})
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != task.ID {
+		t.Fatalf("listed tasks = %+v, want added task %s", tasks, task.ID)
+	}
+
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
+	if err != nil {
+		t.Fatalf("open task store: %v", err)
+	}
+	if _, ok, err := store.BlockTask(ctx, task.ID, "verification failed"); err != nil || !ok {
+		t.Fatalf("block task: ok=%v err=%v", ok, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close task store: %v", err)
+	}
+
+	retried, err := RetryTask(ctx, Config{WorkDir: workDir}, " "+task.ID+" ")
+	if err != nil {
+		t.Fatalf("retry task: %v", err)
+	}
+	if retried.ID != task.ID || retried.Task != task.Task || retried.Summary != task.Summary {
+		t.Fatalf("retried task = %+v, want same identity/text/summary as %+v", retried, task)
+	}
+	if retried.Status != taskqueue.StatusPending || retried.Blocker != "" || retried.BlockedAt != nil {
+		t.Fatalf("retried task = %+v, want pending with blocker state cleared", retried)
+	}
+}
+
+func TestTaskOperationsReportClearErrors(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	if _, err := AddTask(ctx, Config{WorkDir: workDir}, AddTaskInput{Task: "   "}); err == nil || !strings.Contains(err.Error(), "task add: task text is required") {
+		t.Fatalf("add empty task error = %v, want required task text", err)
+	}
+	if _, err := RetryTask(ctx, Config{WorkDir: workDir}, " "); err == nil || !strings.Contains(err.Error(), "task retry: task id is required") {
+		t.Fatalf("retry empty task error = %v, want required task id", err)
+	}
+	if _, err := UnblockTask(ctx, Config{WorkDir: workDir}, " "); err == nil || !strings.Contains(err.Error(), "task unblock: task id is required") {
+		t.Fatalf("unblock empty task error = %v, want required task id", err)
+	}
+	if _, err := RetryTask(ctx, Config{WorkDir: workDir}, "missing-task"); err == nil || !strings.Contains(err.Error(), `task "missing-task" not found`) {
+		t.Fatalf("retry missing task error = %v, want not found", err)
+	}
+
+	task, err := AddTask(ctx, Config{WorkDir: workDir}, AddTaskInput{Task: "already done"})
+	if err != nil {
+		t.Fatalf("add completed task: %v", err)
+	}
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
+	if err != nil {
+		t.Fatalf("open task store: %v", err)
+	}
+	if _, ok, err := store.CompleteTask(ctx, task.ID, "done"); err != nil || !ok {
+		t.Fatalf("complete task: ok=%v err=%v", ok, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close task store: %v", err)
+	}
+
+	if _, err := RetryTask(ctx, Config{WorkDir: workDir}, task.ID); err == nil || !strings.Contains(err.Error(), fmt.Sprintf(`task %q is not blocked (status: completed)`, task.ID)) {
+		t.Fatalf("retry completed task error = %v, want not blocked", err)
+	}
+	if _, err := UnblockTask(ctx, Config{WorkDir: workDir}, task.ID); err == nil || !strings.Contains(err.Error(), fmt.Sprintf(`task %q is not blocked (status: completed)`, task.ID)) {
+		t.Fatalf("unblock completed task error = %v, want not blocked", err)
 	}
 }
 
