@@ -129,7 +129,7 @@ recorded without pushing branches. While Codex runs, `revolvr run` streams
 concise progress messages to stdout; the full Codex JSONL and stderr streams
 remain captured as run artifacts.
 
-## Status And Show
+## Status, Show, And Receipt Validation
 
 Show aggregate task and run state:
 
@@ -145,6 +145,15 @@ go run ./cmd/revolvr show <run-id>
 
 `show` prints the run summary, timestamps, Codex and verification diagnostics,
 commit SHA when present, artifact paths, and event timeline.
+
+Validate one recorded run receipt against the ledger and artifact files:
+
+```bash
+go run ./cmd/revolvr receipt validate <run-id>
+```
+
+Receipt validation checks the finalized receipt timestamp, commit SHA, changed
+files, verification results, and recorded artifact paths.
 
 ## Development Checks
 

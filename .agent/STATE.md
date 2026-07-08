@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add a first-class receipt validation command that checks a run receipt against ledger completion time, commit SHA, changed files, verification results, and artifact existence.
+- Files changed: `internal/receipt/validation.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added `revolvr receipt validate <run-id>`, which loads the run ledger history, parses the recorded receipt, compares receipt identity, finalized timestamp, commit SHA, changed files, verification results, and recorded artifact paths, prints per-check results, and exits nonzero when validation fails.
+- Tests added: focused CLI coverage for a fully consistent receipt and for mismatched timestamp, changed files, verification results, and a missing artifact.
+- Documentation added: README now documents `receipt validate <run-id>` in the status/show inspection flow.
+- Verification run: `gofmt -w internal/receipt/validation.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/receipt`; `go test ./internal/cli`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr receipt --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `git diff --check`; final `go test ./...`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add focused failure-recovery CLI support for blocked tasks, starting with one command to retry or unblock a blocked task safely.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: expand `revolvr status` to show latest run summary, verification status, commit SHA, and artifact path hints when a run exists.
 - Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`.
 - Behavior changed: `status` now loads the latest run's event history and prints the latest summary, verification status, commit SHA, and artifact paths after the existing latest run line. Missing latest-run fields render as `none`; artifact paths reuse the same order as `show`.

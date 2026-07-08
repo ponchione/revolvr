@@ -12,6 +12,7 @@ import (
 
 	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
+	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
 )
@@ -64,6 +65,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newDoctorCommand(opts),
 		newStatusCommand(opts),
 		newShowCommand(opts),
+		newReceiptCommand(opts),
 	)
 
 	return root
@@ -427,6 +429,72 @@ func newShowCommand(opts Options) *cobra.Command {
 	}
 }
 
+func newReceiptCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "receipt",
+		Short: "Inspect and validate receipts",
+		Args:  cobra.NoArgs,
+		RunE:  runHelp,
+	}
+	cmd.AddCommand(newReceiptValidateCommand(opts))
+	return cmd
+}
+
+func newReceiptValidateCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate <run-id>",
+		Short: "Validate one run receipt against the ledger",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID := strings.TrimSpace(args[0])
+			if runID == "" {
+				return fmt.Errorf("receipt validate: run id is required")
+			}
+
+			paths, err := resolveStatePaths(opts.WorkDir)
+			if err != nil {
+				return err
+			}
+			initialized, err := ledgerInitialized(paths)
+			if err != nil {
+				return err
+			}
+			if !initialized {
+				return fmt.Errorf("state is not initialized; run `revolvr init` first")
+			}
+
+			runs, closeRuns, err := openLedgerStore(cmd.Context(), opts)
+			if err != nil {
+				return err
+			}
+			defer closeRuns()
+
+			history, ok, err := runs.GetRunWithEvents(cmd.Context(), runID)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return fmt.Errorf("run %q not found", runID)
+			}
+
+			result, err := receipt.ValidateRunReceipt(receipt.ValidationInput{
+				WorkDir: paths.WorkDir,
+				History: history,
+			})
+			if err != nil {
+				return err
+			}
+			if err := writeReceiptValidation(cmd.OutOrStdout(), result); err != nil {
+				return err
+			}
+			if !result.Passed() {
+				return receiptValidationError{RunID: runID, FailureCount: len(result.Failures())}
+			}
+			return nil
+		},
+	}
+}
+
 func runPlaceholder(cmd *cobra.Command, _ []string) error {
 	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s is not implemented yet.\n", cmd.CommandPath())
 	return err
@@ -658,4 +726,38 @@ func writeArtifactPathLines(out io.Writer, artifacts ledger.RunArtifacts) error 
 
 func cliTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
+}
+
+type receiptValidationError struct {
+	RunID        string
+	FailureCount int
+}
+
+func (e receiptValidationError) Error() string {
+	return fmt.Sprintf("receipt validation failed for run %s (%d failed checks)", e.RunID, e.FailureCount)
+}
+
+func writeReceiptValidation(out io.Writer, result receipt.ValidationResult) error {
+	status := "passed"
+	if !result.Passed() {
+		status = "failed"
+	}
+	if _, err := fmt.Fprintf(out, "Receipt validation: %s\n", status); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(out, "Run ID: %s\n", result.RunID); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(out, "Receipt: %s\n", result.ReceiptPath); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(out, "Checks:\n"); err != nil {
+		return err
+	}
+	for _, check := range result.Checks {
+		if _, err := fmt.Fprintf(out, "%s: %s\n", check.Name, check.Message()); err != nil {
+			return err
+		}
+	}
+	return nil
 }

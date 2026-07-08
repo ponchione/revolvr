@@ -14,6 +14,7 @@ import (
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/ledger"
+	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
 	"revolvr/internal/verification"
@@ -34,6 +35,8 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"doctor"},
 		{"status"},
 		{"show"},
+		{"receipt"},
+		{"receipt", "validate"},
 	} {
 		cmd, remaining, err := root.Find(args)
 		if err != nil {
@@ -58,7 +61,7 @@ func TestRootHelpWorks(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "run", "doctor", "status", "show"} {
+	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "run", "doctor", "status", "show", "receipt"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help output missing %q:\n%s", want, help)
 		}
@@ -1571,6 +1574,102 @@ func TestShowRequiresRunID(t *testing.T) {
 	}
 }
 
+func TestReceiptValidatePassesForConsistentRun(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+
+	completedAt := time.Date(2026, 7, 8, 14, 0, 0, 0, time.UTC)
+	createValidationRun(t, workDir, validationRunSpec{
+		RunID:              "run-valid-receipt",
+		TaskID:             "task-valid-receipt",
+		Task:               "Validate a receipt",
+		CompletedAt:        completedAt,
+		CommitSHA:          "abc123def456",
+		ChangedFiles:       []string{"internal/feature.go"},
+		VerificationStatus: "passed",
+		Verification: []receipt.VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 0,
+			Status:   "passed",
+		}},
+		WriteArtifacts: true,
+	})
+
+	out, err := executeCLI(t, workDir, "receipt", "validate", "run-valid-receipt")
+	if err != nil {
+		t.Fatalf("execute receipt validate: %v\n%s", err, out)
+	}
+	want := "Receipt validation: passed\n" +
+		"Run ID: run-valid-receipt\n" +
+		"Receipt: .revolvr/receipts/run-valid-receipt.md\n" +
+		"Checks:\n" +
+		"identity: ok\n" +
+		"completion_time: ok\n" +
+		"commit_sha: ok\n" +
+		"changed_files: ok\n" +
+		"verification_results: ok\n" +
+		"artifacts: ok\n"
+	if out != want {
+		t.Fatalf("receipt validate output = %q, want %q", out, want)
+	}
+}
+
+func TestReceiptValidateReportsMismatches(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+
+	completedAt := time.Date(2026, 7, 8, 15, 0, 0, 0, time.UTC)
+	createValidationRun(t, workDir, validationRunSpec{
+		RunID:              "run-invalid-receipt",
+		TaskID:             "task-invalid-receipt",
+		Task:               "Validate a stale receipt",
+		CompletedAt:        completedAt,
+		CommitSHA:          "abc123def456",
+		ChangedFiles:       []string{"internal/actual.go"},
+		VerificationStatus: "passed",
+		Verification: []receipt.VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 0,
+			Status:   "passed",
+		}},
+		ReceiptTimestamp: completedAt.Add(time.Minute),
+		ReceiptChangedFiles: []string{
+			"internal/stale.go",
+		},
+		ReceiptVerificationStatus: "failed",
+		ReceiptVerification: []receipt.VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 1,
+			Status:   "failed",
+		}},
+		WriteArtifacts:          true,
+		SkipCodexStderrArtifact: true,
+	})
+
+	out, err := executeCLI(t, workDir, "receipt", "validate", "run-invalid-receipt")
+	if err == nil {
+		t.Fatalf("execute receipt validate succeeded, want validation error\n%s", out)
+	}
+	if got, want := err.Error(), "receipt validation failed for run run-invalid-receipt (4 failed checks)"; got != want {
+		t.Fatalf("receipt validate error = %q, want %q", got, want)
+	}
+	for _, want := range []string{
+		"Receipt validation: failed\n",
+		"completion_time: failed - receipt timestamp 2026-07-08T15:01:00Z does not match ledger completed_at 2026-07-08T15:00:00Z\n",
+		"changed_files: failed - body changed files got [internal/stale.go], want [internal/actual.go]; frontmatter changed_files got [internal/stale.go], want [internal/actual.go]\n",
+		"verification_results: failed - body verification[0] exit_code got 1, want 0; body verification[0] status got \"failed\", want \"passed\"; frontmatter verification[0] got go test ./... (failed, exit 1), want go test ./... (passed, exit 0); receipt verification_status \"failed\" does not match ledger verification_status \"passed\"\n",
+		"artifacts: failed - codex stderr artifact does not exist: .revolvr/runs/run-invalid-receipt/codex.stderr\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("receipt validate output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func executeCLI(t *testing.T, workDir string, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
@@ -1644,6 +1743,141 @@ func writeCLIFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(strings.TrimPrefix(content, "\n")), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+type validationRunSpec struct {
+	RunID                     string
+	TaskID                    string
+	Task                      string
+	CompletedAt               time.Time
+	CommitSHA                 string
+	ChangedFiles              []string
+	VerificationStatus        string
+	Verification              []receipt.VerificationEntry
+	ReceiptTimestamp          time.Time
+	ReceiptChangedFiles       []string
+	ReceiptVerificationStatus string
+	ReceiptVerification       []receipt.VerificationEntry
+	WriteArtifacts            bool
+	SkipCodexStderrArtifact   bool
+}
+
+func createValidationRun(t *testing.T, workDir string, spec validationRunSpec) {
+	t.Helper()
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	ctx := context.Background()
+	startedAt := spec.CompletedAt.Add(-time.Minute)
+	exitCode := 0
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("open ledger store: %v", err)
+	}
+	if _, err := runs.CreateRun(ctx, ledger.RunSpec{
+		ID:                 spec.RunID,
+		TaskID:             spec.TaskID,
+		Task:               spec.Task,
+		Status:             ledger.StatusCompleted,
+		Summary:            "completed",
+		StartedAt:          startedAt,
+		CompletedAt:        &spec.CompletedAt,
+		DurationSeconds:    60,
+		CodexExitCode:      &exitCode,
+		VerificationStatus: spec.VerificationStatus,
+		CommitSHA:          spec.CommitSHA,
+	}); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	artifactPaths := ledger.RunArtifacts{
+		PromptPath:           filepath.Join(".revolvr", "runs", spec.RunID, "prompt.md"),
+		CodexStdoutJSONLPath: filepath.Join(".revolvr", "runs", spec.RunID, "codex.jsonl"),
+		CodexStderrPath:      filepath.Join(".revolvr", "runs", spec.RunID, "codex.stderr"),
+		LastMessagePath:      filepath.Join(".revolvr", "runs", spec.RunID, "last-message.txt"),
+		ReceiptPath:          filepath.Join(".revolvr", "receipts", spec.RunID+".md"),
+	}
+	if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventRunArtifacts, artifactPaths); err != nil {
+		t.Fatalf("append artifact event: %v", err)
+	}
+	if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventChangedFilesCaptured, map[string]any{
+		"changed_files": spec.ChangedFiles,
+	}); err != nil {
+		t.Fatalf("append changed files event: %v", err)
+	}
+	if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventVerificationCompleted, map[string]any{
+		"status":   spec.VerificationStatus,
+		"passed":   spec.VerificationStatus == "passed",
+		"commands": validationCommandPayloads(spec.Verification),
+	}); err != nil {
+		t.Fatalf("append verification event: %v", err)
+	}
+	if spec.CommitSHA != "" {
+		if _, err := runs.AppendEvent(ctx, spec.RunID, ledger.EventCommitCreated, map[string]any{
+			"commit_sha": spec.CommitSHA,
+		}); err != nil {
+			t.Fatalf("append commit event: %v", err)
+		}
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatalf("close ledger store: %v", err)
+	}
+
+	if spec.WriteArtifacts {
+		writeCLIFile(t, filepath.Join(workDir, artifactPaths.PromptPath), "prompt")
+		writeCLIFile(t, filepath.Join(workDir, artifactPaths.CodexStdoutJSONLPath), "{}\n")
+		if !spec.SkipCodexStderrArtifact {
+			writeCLIFile(t, filepath.Join(workDir, artifactPaths.CodexStderrPath), "")
+		}
+		writeCLIFile(t, filepath.Join(workDir, artifactPaths.LastMessagePath), "done")
+	}
+
+	receiptTimestamp := spec.ReceiptTimestamp
+	if receiptTimestamp.IsZero() {
+		receiptTimestamp = spec.CompletedAt
+	}
+	receiptChangedFiles := spec.ReceiptChangedFiles
+	if receiptChangedFiles == nil {
+		receiptChangedFiles = spec.ChangedFiles
+	}
+	receiptVerificationStatus := spec.ReceiptVerificationStatus
+	if receiptVerificationStatus == "" {
+		receiptVerificationStatus = spec.VerificationStatus
+	}
+	receiptVerification := spec.ReceiptVerification
+	if receiptVerification == nil {
+		receiptVerification = spec.Verification
+	}
+	content, _ := receipt.FormatFallbackReceipt(receipt.FallbackInput{
+		RunID:              spec.RunID,
+		PassID:             spec.RunID,
+		TaskID:             spec.TaskID,
+		Task:               spec.Task,
+		Verdict:            receipt.VerdictCompleted,
+		Timestamp:          receiptTimestamp,
+		CodexExitCode:      0,
+		VerificationStatus: receiptVerificationStatus,
+		CommitSHA:          spec.CommitSHA,
+		ChangedFiles:       receiptChangedFiles,
+		Verification:       receiptVerification,
+		Metrics:            receipt.Metrics{},
+		FinalText:          "completed",
+	})
+	writeCLIFile(t, filepath.Join(workDir, artifactPaths.ReceiptPath), content)
+}
+
+func validationCommandPayloads(entries []receipt.VerificationEntry) []map[string]any {
+	payloads := make([]map[string]any, 0, len(entries))
+	for i, entry := range entries {
+		payloads = append(payloads, map[string]any{
+			"index":     i,
+			"command":   entry.Command,
+			"status":    entry.Status,
+			"passed":    entry.Status == "passed",
+			"exit_code": entry.ExitCode,
+		})
+	}
+	return payloads
 }
 
 func readTasks(t *testing.T, workDir string) []taskqueue.Task {
