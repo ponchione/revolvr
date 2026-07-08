@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -84,8 +85,9 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 		"Commit: none",
 		"",
 		"Recent Runs",
-		"> run-new  failed  verification failed",
-		"  run-old  completed  committed change",
+		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
+		"> run-new  failed  failed  none  verification failed",
+		"  run-old  completed  none  abc123  committed change",
 		"",
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task | r Refresh | q Quit",
 	}
@@ -301,7 +303,7 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 	}
 	requireLines(t, normalizedViewLines(cancelled.View()),
 		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
-		"> run-one  completed  done",
+		"> run-one  completed  none  none  done",
 	)
 }
 
@@ -461,9 +463,289 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("runs view cmd = %v, want nil", cmd)
 	}
-	if !containsLine(normalizedViewLines(runsView.View()), "> run-new  failed  new summary") {
+	if !containsLine(normalizedViewLines(runsView.View()), "> run-new  failed  none  none  new summary") {
 		t.Fatalf("refreshed runs view missing run line:\n%s", runsView.View())
 	}
+}
+
+func TestStatusModelRunsViewNavigatesRecentRunsWithMetadata(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		RecentRuns: []ledger.Run{
+			{
+				ID:                 "run-new",
+				Status:             ledger.StatusFailed,
+				VerificationStatus: "failed",
+				Summary:            "verification failed",
+			},
+			{
+				ID:                 "run-mid",
+				Status:             ledger.StatusCompleted,
+				VerificationStatus: "passed",
+				CommitSHA:          "abc123",
+				Summary:            "committed change",
+			},
+			{
+				ID:      "run-old",
+				Status:  ledger.StatusRunning,
+				Summary: "still running",
+			},
+		},
+	})
+	runsView := openRunsView(t, model)
+
+	requireLines(t, normalizedViewLines(runsView.View()),
+		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
+		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
+		"> run-new  failed  failed  none  verification failed",
+		"  run-mid  completed  passed  abc123  committed change",
+		"  run-old  running  none  none  still running",
+	)
+
+	afterDown, cmd := updateStatusModel(t, runsView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(afterDown.View()),
+		"  run-new  failed  failed  none  verification failed",
+		"> run-mid  completed  passed  abc123  committed change",
+	)
+}
+
+func TestStatusModelRunsViewOpensSelectedRunDetail(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 12, 30, 0, 0, time.UTC)
+	completedAt := startedAt.Add(time.Minute)
+	openedRunID := ""
+	model := NewStatusModelWithActions(app.StatusResult{
+		Initialized: true,
+		RecentRuns: []ledger.Run{
+			{ID: "run-new", Status: ledger.StatusCompleted, Summary: "new summary"},
+			{ID: "run-old", Status: ledger.StatusFailed, Summary: "old summary"},
+		},
+	}, StatusActions{
+		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+			openedRunID = runID
+			return ledger.RunWithEvents{
+				Run: ledger.Run{
+					ID:                 runID,
+					TaskID:             "task-open",
+					Task:               "Open selected run",
+					Status:             ledger.StatusFailed,
+					Summary:            "opened detail",
+					StartedAt:          startedAt,
+					CompletedAt:        &completedAt,
+					VerificationStatus: "failed",
+				},
+				Events: []ledger.Event{
+					{ID: 1, RunID: runID, Type: ledger.EventRunStarted, CreatedAt: startedAt},
+				},
+			}, nil
+		},
+	})
+	runsView := openRunsView(t, model)
+	selected, cmd := updateStatusModel(t, runsView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+
+	afterOpenKey, cmd := updateStatusModel(t, selected, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("open key returned nil cmd")
+	}
+	if openedRunID != "" {
+		t.Fatal("open callback ran before command execution")
+	}
+
+	afterOpen, cmd := runStatusModelCmd(t, afterOpenKey, cmd)
+	if cmd != nil {
+		t.Fatalf("open message cmd = %v, want nil", cmd)
+	}
+	if openedRunID != "run-old" {
+		t.Fatalf("opened run id = %q, want run-old", openedRunID)
+	}
+	if afterOpen.view != viewRunDetail {
+		t.Fatalf("view = %v, want run detail", afterOpen.view)
+	}
+	requireLines(t, normalizedViewLines(afterOpen.View()),
+		"Run Detail",
+		"Summary",
+		"ID: run-old",
+		"Task ID: task-open",
+		"Task: Open selected run",
+	)
+}
+
+func TestStatusModelRunDetailRendersDiagnosticsAndChangedFiles(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 13, 0, 0, 0, time.UTC)
+	completedAt := startedAt.Add(45 * time.Second)
+	exitCode := 0
+	failedIndex := 0
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:                 "run-diagnostics",
+			TaskID:             "task-diagnostics",
+			Task:               "Surface run diagnostics",
+			Status:             ledger.StatusFailed,
+			Summary:            "verification command 0 failed",
+			StartedAt:          startedAt,
+			CompletedAt:        &completedAt,
+			CodexExitCode:      &exitCode,
+			VerificationStatus: "failed",
+		},
+		Events: []ledger.Event{
+			{
+				ID:        1,
+				RunID:     "run-diagnostics",
+				Type:      ledger.EventCodexCompleted,
+				Payload:   jsonPayload(t, map[string]any{"exit_code": 0, "timed_out": false}),
+				CreatedAt: startedAt.Add(time.Second),
+			},
+			{
+				ID:    2,
+				RunID: "run-diagnostics",
+				Type:  ledger.EventChangedFilesCaptured,
+				Payload: jsonPayload(t, map[string]any{
+					"changed_files": []string{"internal/broken.go", "internal/broken.go", " docs/readme.md "},
+				}),
+				CreatedAt: startedAt.Add(2 * time.Second),
+			},
+			{
+				ID:    3,
+				RunID: "run-diagnostics",
+				Type:  ledger.EventVerificationCompleted,
+				Payload: jsonPayload(t, map[string]any{
+					"status":               "failed",
+					"failed_command_index": failedIndex,
+					"commands": []map[string]any{{
+						"index":     0,
+						"command":   "go test ./...",
+						"status":    "failed",
+						"passed":    false,
+						"exit_code": 1,
+					}},
+				}),
+				CreatedAt: startedAt.Add(3 * time.Second),
+			},
+			{
+				ID:    4,
+				RunID: "run-diagnostics",
+				Type:  ledger.EventReceiptSynthesized,
+				Payload: jsonPayload(t, map[string]any{
+					"receipt_path": ".revolvr/receipts/run-diagnostics.md",
+					"verdict":      "verification_failed",
+				}),
+				CreatedAt: startedAt.Add(4 * time.Second),
+			},
+			{
+				ID:    5,
+				RunID: "run-diagnostics",
+				Type:  ledger.EventReceiptWarning,
+				Payload: jsonPayload(t, map[string]any{
+					"warning_type": "changed_files_mismatch",
+					"message":      "receipt changed files differ from harness captured changed files",
+					"receipt_path": ".revolvr/receipts/run-diagnostics.md",
+				}),
+				CreatedAt: startedAt.Add(5 * time.Second),
+			},
+			{
+				ID:    6,
+				RunID: "run-diagnostics",
+				Type:  ledger.EventRunFailed,
+				Payload: jsonPayload(t, map[string]any{
+					"outcome": "verification_failed",
+					"message": "verification command 0 failed",
+				}),
+				CreatedAt: completedAt,
+			},
+		},
+	}
+	view := runDetailView(t, history, 140, 60)
+
+	requireLines(t, normalizedViewLines(view.View()),
+		"Diagnostics",
+		"outcome: verification_failed",
+		"message: verification command 0 failed",
+		"codex: exit_code=0, timed_out=false",
+		"verification: failed",
+		"failed verification: go test ./... (exit_code=1)",
+		"receipt: verification_failed (.revolvr/receipts/run-diagnostics.md)",
+		"warning: changed_files_mismatch: receipt changed files differ from harness captured changed files (.revolvr/receipts/run-diagnostics.md)",
+		"Changed Files",
+		"internal/broken.go",
+		"docs/readme.md",
+	)
+}
+
+func TestStatusModelRunDetailRendersArtifactsAndMissingArtifacts(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 13, 10, 0, 0, time.UTC)
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:        "run-artifacts",
+			TaskID:    "task-artifacts",
+			Task:      "Render artifacts",
+			Status:    ledger.StatusFailed,
+			StartedAt: startedAt,
+		},
+		Events: []ledger.Event{
+			{
+				ID:    1,
+				RunID: "run-artifacts",
+				Type:  ledger.EventRunArtifacts,
+				Payload: jsonPayload(t, ledger.RunArtifacts{
+					PromptPath:  ".revolvr/runs/run-artifacts/prompt.md",
+					ReceiptPath: ".revolvr/receipts/run-artifacts.md",
+				}),
+				CreatedAt: startedAt,
+			},
+		},
+	}
+	view := runDetailView(t, history, 140, 60)
+
+	requireLines(t, normalizedViewLines(view.View()),
+		"Artifacts",
+		"prompt: .revolvr/runs/run-artifacts/prompt.md",
+		"codex stdout jsonl: missing",
+		"codex stderr: missing",
+		"last message: missing",
+		"receipt: .revolvr/receipts/run-artifacts.md",
+	)
+}
+
+func TestStatusModelRunDetailScrollsLongEventOutput(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 13, 20, 0, 0, time.UTC)
+	events := make([]ledger.Event, 0, 80)
+	for i := 1; i <= 80; i++ {
+		events = append(events, ledger.Event{
+			ID:        int64(i),
+			RunID:     "run-long-events",
+			Type:      ledger.EventCodexJSONEvent,
+			CreatedAt: startedAt.Add(time.Duration(i-1) * time.Second),
+		})
+	}
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:        "run-long-events",
+			TaskID:    "task-long-events",
+			Task:      "Render long event output",
+			Status:    ledger.StatusRunning,
+			StartedAt: startedAt,
+		},
+		Events: events,
+	}
+	view := runDetailView(t, history, 160, 12)
+	topLines := normalizedViewLines(view.View())
+	if containsLine(topLines, "80  codex_json_event  2026-07-08T13:21:19Z") {
+		t.Fatalf("top of long detail already showed last event: %#v", topLines)
+	}
+
+	bottom, cmd := updateStatusModel(t, view, tea.KeyMsg{Type: tea.KeyEnd})
+	if cmd != nil {
+		t.Fatalf("end key cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(bottom.View()),
+		"76  codex_json_event  2026-07-08T13:21:15Z",
+		"80  codex_json_event  2026-07-08T13:21:19Z",
+	)
 }
 
 func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
@@ -518,7 +800,7 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("selection move cmd = %v, want nil", cmd)
 	}
-	if !containsLine(normalizedViewLines(afterDown.View()), "> run-old  failed  old summary") {
+	if !containsLine(normalizedViewLines(afterDown.View()), "> run-old  failed  none  none  old summary") {
 		t.Fatalf("selected run marker missing after down:\n%s", afterDown.View())
 	}
 
@@ -729,6 +1011,44 @@ func openTasksView(t *testing.T, model StatusModel) StatusModel {
 		t.Fatalf("tasks view cmd = %v, want nil", cmd)
 	}
 	return tasksView
+}
+
+func openRunsView(t *testing.T, model StatusModel) StatusModel {
+	t.Helper()
+	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 140, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+	runsView, cmd := updateStatusModel(t, resized, keyRunes("3"))
+	if cmd != nil {
+		t.Fatalf("runs view cmd = %v, want nil", cmd)
+	}
+	return runsView
+}
+
+func runDetailView(t *testing.T, history ledger.RunWithEvents, width int, height int) StatusModel {
+	t.Helper()
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		RecentRuns:  []ledger.Run{history.Run},
+	})
+	model.view = viewRunDetail
+	model.previous = viewRuns
+	model.runDetails = &history
+	model.width = width
+	model.height = height
+	model.resizeViewport()
+	model.updateViewportContent()
+	return model
+}
+
+func jsonPayload(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	return payload
 }
 
 func sampleTasks() []taskqueue.Task {

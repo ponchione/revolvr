@@ -427,8 +427,8 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 		"ID: run-new",
 		"Summary: latest summary",
 		"Recent Runs",
-		"run-new  failed  latest summary",
-		"run-old  completed  older summary",
+		"run-new  failed  failed  none  latest summary",
+		"run-old  completed  none  abc123  older summary",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("tui output missing %q:\n%s", want, out.String())

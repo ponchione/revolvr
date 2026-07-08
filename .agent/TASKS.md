@@ -27,7 +27,7 @@
   Acceptance: empty task text is rejected with an inline message; cancel returns to the previous view without writes; successful add selects or surfaces the new pending task.
   Verification: add model tests using stubbed app callbacks for submit, validation, cancel, and refresh; add CLI wiring coverage if command setup changes; run focused tests plus `go test ./...`.
 
-- [ ] Add a dedicated TUI Runs view and richer Run Detail view.
+- [x] Add a dedicated TUI Runs view and richer Run Detail view.
   Scope: list recent runs with status, verification, commit, and summary; allow selecting a run and opening a detail view backed by `internal/app.ShowRun`; show summary, diagnostics, artifacts, changed files, and events in separate sections or tabs.
   Acceptance: run details are useful without falling back to `revolvr show`; long event lists remain scrollable; missing artifacts or warnings are visible.
   Verification: add focused tests for recent-run navigation, detail opening, diagnostics rendering, artifact rendering, and long event output; run `go test ./internal/tui` and `go test ./...`.

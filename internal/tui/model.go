@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -271,6 +272,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				return m, cmd
+			case "home":
+				m.viewport.GotoTop()
+				return m, nil
+			case "end":
+				m.viewport.GotoBottom()
+				return m, nil
 			}
 		}
 	}
@@ -572,7 +579,7 @@ func (m StatusModel) footerLines() []string {
 	case viewRuns:
 		keys = append(keys, "j/k Select", "enter Open")
 	case viewRunDetail:
-		keys = append(keys, "enter Reload", "esc Runs")
+		keys = append(keys, "up/down Scroll", "home/end Jump", "enter Reload", "esc Runs")
 	case viewHelp:
 		keys = append(keys, "esc Back")
 	case viewTaskEntry:
@@ -672,22 +679,15 @@ func (m StatusModel) renderRuns() string {
 }
 
 func (m StatusModel) renderRunDetails(history ledger.RunWithEvents) string {
-	run := history.Run
-	lines := []string{
-		"Run Detail",
-		fmt.Sprintf("ID: %s", optionalValue(run.ID)),
-		fmt.Sprintf("Task ID: %s", optionalValue(run.TaskID)),
-		fmt.Sprintf("Task: %s", optionalValue(run.Task)),
-		fmt.Sprintf("Status: %s", optionalValue(run.Status)),
-		fmt.Sprintf("Summary: %s", optionalValue(run.Summary)),
-		fmt.Sprintf("Started: %s", optionalTime(run.StartedAt)),
-		fmt.Sprintf("Completed: %s", optionalTimePtr(run.CompletedAt)),
-		fmt.Sprintf("Codex exit code: %s", optionalIntPtr(run.CodexExitCode)),
-		fmt.Sprintf("Verification: %s", optionalValue(run.VerificationStatus)),
-		fmt.Sprintf("Commit: %s", optionalValue(run.CommitSHA)),
-		"",
-	}
-
+	diagnostics := runDetailDiagnosticsFromHistory(history)
+	lines := []string{"Run Detail"}
+	lines = appendNotice(lines, m.message)
+	lines = append(lines, runSummaryLines(history.Run)...)
+	lines = append(lines, "")
+	lines = append(lines, runDiagnosticLines(diagnostics)...)
+	lines = append(lines, "")
+	lines = append(lines, runChangedFileLines(diagnostics)...)
+	lines = append(lines, "")
 	lines = append(lines, runArtifactLines(history.Events)...)
 	lines = append(lines, "")
 	lines = append(lines, runEventLines(history.Events)...)
@@ -729,6 +729,7 @@ func (m StatusModel) renderHelp() string {
 		"",
 		"Tasks: j/k Move selection",
 		"Runs: j/k Move selection",
+		"Run Detail: up/down Scroll, home/end Jump",
 		"enter or o  Open selected run",
 		"esc  Back from help or run detail",
 	}
@@ -825,27 +826,51 @@ func (m StatusModel) recentRunLines() []string {
 	if len(m.status.RecentRuns) == 0 {
 		return append(lines, "None")
 	}
+	lines = append(lines, "ID  STATUS  VERIFICATION  COMMIT  SUMMARY")
 	selected := clampRunIndex(m.status.RecentRuns, m.selectedRun)
 	for i, run := range m.status.RecentRuns {
 		prefix := " "
 		if i == selected {
 			prefix = ">"
 		}
-		summary := oneLine(run.Summary)
-		if summary == "" {
-			lines = append(lines, fmt.Sprintf("%s %s  %s", prefix, optionalValue(run.ID), optionalValue(run.Status)))
-			continue
-		}
-		lines = append(lines, fmt.Sprintf("%s %s  %s  %s", prefix, optionalValue(run.ID), optionalValue(run.Status), summary))
+		lines = append(lines, runListLine(prefix, run))
 	}
 	return lines
+}
+
+func runListLine(prefix string, run ledger.Run) string {
+	return fmt.Sprintf(
+		"%s %s  %s  %s  %s  %s",
+		prefix,
+		optionalValue(run.ID),
+		optionalValue(run.Status),
+		optionalValue(run.VerificationStatus),
+		optionalValue(run.CommitSHA),
+		optionalValue(run.Summary),
+	)
+}
+
+func runSummaryLines(run ledger.Run) []string {
+	return []string{
+		"Summary",
+		fmt.Sprintf("ID: %s", optionalValue(run.ID)),
+		fmt.Sprintf("Task ID: %s", optionalValue(run.TaskID)),
+		fmt.Sprintf("Task: %s", optionalValue(run.Task)),
+		fmt.Sprintf("Status: %s", optionalValue(run.Status)),
+		fmt.Sprintf("Summary: %s", optionalValue(run.Summary)),
+		fmt.Sprintf("Started: %s", optionalTime(run.StartedAt)),
+		fmt.Sprintf("Completed: %s", optionalTimePtr(run.CompletedAt)),
+		fmt.Sprintf("Codex exit code: %s", optionalIntPtr(run.CodexExitCode)),
+		fmt.Sprintf("Verification: %s", optionalValue(run.VerificationStatus)),
+		fmt.Sprintf("Commit: %s", optionalValue(run.CommitSHA)),
+	}
 }
 
 func runArtifactLines(events []ledger.Event) []string {
 	lines := []string{"Artifacts"}
 	artifacts, found := ledger.RunArtifactsFromEvents(events)
-	if !found || artifacts.Empty() {
-		return append(lines, "None")
+	if !found {
+		return append(lines, "No artifact event found.")
 	}
 	for _, artifact := range []struct {
 		label string
@@ -857,12 +882,391 @@ func runArtifactLines(events []ledger.Event) []string {
 		{label: "last message", path: artifacts.LastMessagePath},
 		{label: "receipt", path: artifacts.ReceiptPath},
 	} {
-		if strings.TrimSpace(artifact.path) == "" {
+		path := strings.TrimSpace(artifact.path)
+		if path == "" {
+			lines = append(lines, fmt.Sprintf("%s: missing", artifact.label))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("%s: %s", artifact.label, artifact.path))
+		lines = append(lines, fmt.Sprintf("%s: %s", artifact.label, path))
 	}
 	return lines
+}
+
+type runDetailDiagnostics struct {
+	Outcome                    string
+	Message                    string
+	CodexSeen                  bool
+	CodexExitCode              int
+	CodexTimedOut              bool
+	CodexError                 string
+	VerificationStatus         string
+	FailedVerificationCommand  string
+	FailedVerificationExitCode *int
+	CommitSHA                  string
+	CommitStatus               string
+	CommitRefusal              string
+	CommitMessage              string
+	ReceiptVerdict             string
+	ReceiptPath                string
+	ChangedFiles               []string
+	ChangedFilesCaptured       bool
+	ChangedFilesCaptureError   string
+	Warnings                   []runDetailWarning
+	commitSHAFromRun           string
+}
+
+type runDetailWarning struct {
+	WarningType string
+	Message     string
+	ReceiptPath string
+}
+
+type runDetailVerificationCommand struct {
+	Index    int    `json:"index"`
+	Command  string `json:"command"`
+	Status   string `json:"status"`
+	Passed   bool   `json:"passed"`
+	ExitCode int    `json:"exit_code"`
+}
+
+func runDetailDiagnosticsFromHistory(history ledger.RunWithEvents) runDetailDiagnostics {
+	diagnostics := runDetailDiagnostics{commitSHAFromRun: strings.TrimSpace(history.Run.CommitSHA)}
+	for _, event := range history.Events {
+		switch event.Type {
+		case ledger.EventRunCompleted, ledger.EventRunFailed:
+			diagnostics.applyRunFinished(event)
+		case ledger.EventCodexCompleted:
+			diagnostics.applyCodexCompleted(event)
+		case ledger.EventVerificationCompleted:
+			diagnostics.applyVerificationCompleted(event)
+		case ledger.EventCommitCreated:
+			diagnostics.applyCommitCreated(event)
+		case ledger.EventReceiptParsed, ledger.EventReceiptSynthesized:
+			diagnostics.applyReceipt(event)
+		case ledger.EventReceiptWarning:
+			diagnostics.applyReceiptWarning(event)
+		case ledger.EventChangedFilesCaptured:
+			diagnostics.applyChangedFiles(event)
+		}
+	}
+	if diagnostics.CommitSHA == "" && diagnostics.usefulWithoutRunCommit() {
+		diagnostics.CommitSHA = diagnostics.commitSHAFromRun
+	}
+	return diagnostics
+}
+
+func (d runDetailDiagnostics) empty() bool {
+	return !d.usefulWithoutRunCommit() && strings.TrimSpace(d.CommitSHA) == ""
+}
+
+func (d runDetailDiagnostics) usefulWithoutRunCommit() bool {
+	return strings.TrimSpace(d.Outcome) != "" ||
+		strings.TrimSpace(d.Message) != "" ||
+		d.CodexSeen ||
+		strings.TrimSpace(d.VerificationStatus) != "" ||
+		strings.TrimSpace(d.FailedVerificationCommand) != "" ||
+		strings.TrimSpace(d.CommitStatus) != "" ||
+		strings.TrimSpace(d.CommitRefusal) != "" ||
+		strings.TrimSpace(d.CommitMessage) != "" ||
+		strings.TrimSpace(d.ReceiptVerdict) != "" ||
+		strings.TrimSpace(d.ReceiptPath) != "" ||
+		len(d.Warnings) > 0
+}
+
+func (d *runDetailDiagnostics) applyRunFinished(event ledger.Event) {
+	var payload struct {
+		Outcome       string `json:"outcome"`
+		Message       string `json:"message"`
+		CommitSHA     string `json:"commit_sha"`
+		CommitStatus  string `json:"commit_status"`
+		CommitRefusal string `json:"commit_refusal"`
+		CommitMessage string `json:"commit_message"`
+	}
+	if !decodeRunDetailPayload(event, &payload) {
+		return
+	}
+	if value := oneLine(payload.Outcome); value != "" {
+		d.Outcome = value
+	}
+	if value := oneLine(payload.Message); value != "" {
+		d.Message = value
+	}
+	if value := oneLine(payload.CommitSHA); value != "" {
+		d.CommitSHA = value
+	}
+	if value := oneLine(payload.CommitStatus); value != "" {
+		d.CommitStatus = value
+	}
+	if value := oneLine(payload.CommitRefusal); value != "" {
+		d.CommitRefusal = value
+	}
+	if value := oneLine(payload.CommitMessage); value != "" {
+		d.CommitMessage = value
+	}
+}
+
+func (d *runDetailDiagnostics) applyCodexCompleted(event ledger.Event) {
+	var payload struct {
+		ExitCode int    `json:"exit_code"`
+		TimedOut bool   `json:"timed_out"`
+		Error    string `json:"error"`
+	}
+	if !decodeRunDetailPayload(event, &payload) {
+		return
+	}
+	d.CodexSeen = true
+	d.CodexExitCode = payload.ExitCode
+	d.CodexTimedOut = payload.TimedOut
+	d.CodexError = oneLine(payload.Error)
+}
+
+func (d *runDetailDiagnostics) applyVerificationCompleted(event ledger.Event) {
+	var payload struct {
+		Status             string                         `json:"status"`
+		FailedCommandIndex *int                           `json:"failed_command_index"`
+		Commands           []runDetailVerificationCommand `json:"commands"`
+	}
+	if !decodeRunDetailPayload(event, &payload) {
+		return
+	}
+	if value := oneLine(payload.Status); value != "" {
+		d.VerificationStatus = value
+	}
+	if command, ok := failedRunDetailVerificationCommand(payload.FailedCommandIndex, payload.Commands); ok {
+		d.FailedVerificationCommand = command.Command
+		exitCode := command.ExitCode
+		d.FailedVerificationExitCode = &exitCode
+	}
+}
+
+func failedRunDetailVerificationCommand(failedIndex *int, commands []runDetailVerificationCommand) (runDetailVerificationCommand, bool) {
+	if failedIndex != nil {
+		for _, command := range commands {
+			if command.Index == *failedIndex && strings.TrimSpace(command.Command) != "" {
+				command.Command = oneLine(command.Command)
+				return command, true
+			}
+		}
+	}
+	for _, command := range commands {
+		status := oneLine(command.Status)
+		if strings.TrimSpace(command.Command) == "" {
+			continue
+		}
+		if status == "failed" || (status != "" && !command.Passed) {
+			command.Command = oneLine(command.Command)
+			return command, true
+		}
+	}
+	return runDetailVerificationCommand{}, false
+}
+
+func (d *runDetailDiagnostics) applyCommitCreated(event ledger.Event) {
+	var payload struct {
+		CommitSHA string `json:"commit_sha"`
+	}
+	if !decodeRunDetailPayload(event, &payload) {
+		return
+	}
+	if value := oneLine(payload.CommitSHA); value != "" {
+		d.CommitSHA = value
+	}
+}
+
+func (d *runDetailDiagnostics) applyReceipt(event ledger.Event) {
+	var payload struct {
+		ReceiptPath string `json:"receipt_path"`
+		Verdict     string `json:"verdict"`
+	}
+	if !decodeRunDetailPayload(event, &payload) {
+		return
+	}
+	if value := oneLine(payload.ReceiptPath); value != "" {
+		d.ReceiptPath = value
+	}
+	if value := oneLine(payload.Verdict); value != "" {
+		d.ReceiptVerdict = value
+	}
+}
+
+func (d *runDetailDiagnostics) applyReceiptWarning(event ledger.Event) {
+	var payload struct {
+		WarningType string `json:"warning_type"`
+		Message     string `json:"message"`
+		ReceiptPath string `json:"receipt_path"`
+	}
+	if !decodeRunDetailPayload(event, &payload) {
+		return
+	}
+	warning := runDetailWarning{
+		WarningType: oneLine(payload.WarningType),
+		Message:     oneLine(payload.Message),
+		ReceiptPath: oneLine(payload.ReceiptPath),
+	}
+	if warning.WarningType == "" && warning.Message == "" {
+		return
+	}
+	d.Warnings = append(d.Warnings, warning)
+}
+
+func (d *runDetailDiagnostics) applyChangedFiles(event ledger.Event) {
+	d.ChangedFilesCaptured = true
+	var payload struct {
+		ChangedFiles []string `json:"changed_files"`
+		CaptureError string   `json:"capture_error"`
+	}
+	if !decodeRunDetailPayload(event, &payload) {
+		d.ChangedFilesCaptureError = "unreadable changed-files event"
+		return
+	}
+	d.ChangedFiles = compactRunDetailStrings(payload.ChangedFiles)
+	d.ChangedFilesCaptureError = oneLine(payload.CaptureError)
+}
+
+func runDiagnosticLines(diagnostics runDetailDiagnostics) []string {
+	lines := []string{"Diagnostics"}
+	if diagnostics.empty() {
+		return append(lines, "None")
+	}
+	if value := oneLine(diagnostics.Outcome); value != "" {
+		lines = append(lines, "outcome: "+value)
+	}
+	if value := oneLine(diagnostics.Message); value != "" {
+		lines = append(lines, "message: "+value)
+	}
+	if diagnostics.CodexSeen {
+		parts := []string{
+			fmt.Sprintf("exit_code=%d", diagnostics.CodexExitCode),
+			fmt.Sprintf("timed_out=%t", diagnostics.CodexTimedOut),
+		}
+		if value := oneLine(diagnostics.CodexError); value != "" {
+			parts = append(parts, "error="+value)
+		}
+		lines = append(lines, "codex: "+strings.Join(parts, ", "))
+	}
+	if value := oneLine(diagnostics.VerificationStatus); value != "" {
+		lines = append(lines, "verification: "+value)
+	}
+	if value := oneLine(diagnostics.FailedVerificationCommand); value != "" {
+		line := "failed verification: " + value
+		if diagnostics.FailedVerificationExitCode != nil {
+			line += fmt.Sprintf(" (exit_code=%d)", *diagnostics.FailedVerificationExitCode)
+		}
+		lines = append(lines, line)
+	}
+	if line := runDetailCommitLine(diagnostics); line != "" {
+		lines = append(lines, line)
+	}
+	if line := runDetailReceiptLine(diagnostics); line != "" {
+		lines = append(lines, line)
+	}
+	for _, warning := range diagnostics.Warnings {
+		if line := runDetailWarningLine(warning); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+func runChangedFileLines(diagnostics runDetailDiagnostics) []string {
+	lines := []string{"Changed Files"}
+	if !diagnostics.ChangedFilesCaptured {
+		return append(lines, "No changed-files event found.")
+	}
+	if value := oneLine(diagnostics.ChangedFilesCaptureError); value != "" {
+		lines = append(lines, "Capture error: "+value)
+	}
+	if len(diagnostics.ChangedFiles) == 0 {
+		return append(lines, "None")
+	}
+	return append(lines, diagnostics.ChangedFiles...)
+}
+
+func runDetailCommitLine(d runDetailDiagnostics) string {
+	if value := oneLine(d.CommitSHA); value != "" {
+		return "commit: " + value
+	}
+	if value := oneLine(d.CommitRefusal); value != "" {
+		line := "commit: refused " + value
+		if message := oneLine(d.CommitMessage); message != "" {
+			line += ": " + message
+		}
+		return line
+	}
+	status := oneLine(d.CommitStatus)
+	message := oneLine(d.CommitMessage)
+	if status == "" {
+		if message == "" {
+			return ""
+		}
+		return "commit: " + message
+	}
+	if status == "committed" {
+		return ""
+	}
+	line := "commit: " + status
+	if message != "" {
+		line += ": " + message
+	}
+	return line
+}
+
+func runDetailReceiptLine(d runDetailDiagnostics) string {
+	verdict := oneLine(d.ReceiptVerdict)
+	path := oneLine(d.ReceiptPath)
+	if verdict == "" && path == "" {
+		return ""
+	}
+	if verdict == "" {
+		verdict = "recorded"
+	}
+	if path == "" {
+		return "receipt: " + verdict
+	}
+	return fmt.Sprintf("receipt: %s (%s)", verdict, path)
+}
+
+func runDetailWarningLine(warning runDetailWarning) string {
+	warningType := oneLine(warning.WarningType)
+	message := oneLine(warning.Message)
+	if warningType == "" {
+		if message == "" {
+			return ""
+		}
+		return "warning: " + message
+	}
+	line := "warning: " + warningType
+	if message != "" {
+		line += ": " + message
+	}
+	if path := oneLine(warning.ReceiptPath); path != "" {
+		line += " (" + path + ")"
+	}
+	return line
+}
+
+func decodeRunDetailPayload(event ledger.Event, target any) bool {
+	if len(event.Payload) == 0 {
+		return false
+	}
+	return json.Unmarshal(event.Payload, target) == nil
+}
+
+func compactRunDetailStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func runEventLines(events []ledger.Event) []string {

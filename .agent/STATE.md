@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add a dedicated TUI Runs view and richer Run Detail view.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the TUI Runs view now lists recent runs with status, verification status, commit SHA, and summary. Opening a selected run still uses the app-backed `ShowRun` callback and now renders Run Detail as separate Summary, Diagnostics, Changed Files, Artifacts, and Events sections. Run Detail supports explicit `home`/`end` jumps alongside viewport scrolling, artifact sections show missing paths, changed-file capture gaps are visible, and receipt warnings are surfaced in diagnostics.
+- Tests added: focused TUI model coverage for recent-run navigation, opening the selected run detail, diagnostics and receipt warning rendering, artifact and missing-artifact rendering, and scrolling long event output.
+- CLI test update: the existing TUI CLI snapshot assertion now expects the richer recent-run row format.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root_test.go`; `go test ./internal/tui`; `go test ./...`; `git diff --check`.
+- Verification result: all final commands passed. An initial `go test ./...` run failed only because `internal/cli/root_test.go` still expected the old TUI run row text; the expectation was updated and the full suite then passed.
+- What remains: next unchecked backlog item is to add receipt validation status to the TUI Run Detail view.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add a TUI task creation flow backed by `internal/app.AddTask`.
 - Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: the TUI now supports an `a` action that opens Add Task mode with task text and summary fields. Empty task text is rejected inline without calling app callbacks, `esc` cancels back to the previous view without writing, and successful submit calls the app-backed add callback, refreshes status, switches to Tasks, and selects the added task when it is present in the refreshed snapshot.
