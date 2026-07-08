@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add a live dogfood verification script or README checklist that resets runtime state, queues a tiny task, runs once, and verifies receipt, ledger, commit, receipt validation, and clean-worktree consistency.
+- Files changed: `scripts/dogfood-live.sh`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Script added: `scripts/dogfood-live.sh` is an opt-in real-Codex dogfood check. It requires `codex`, Git identity, and a clean source worktree; builds a temporary `revolvr` binary; removes `.revolvr/`; initializes fresh runtime state; writes a one-command `go test ./...` verification config; queues a tiny single-file task; runs `revolvr run --once`; and checks the final receipt, ledger-backed `status` and `show` output, commit SHA, `receipt validate`, and final clean worktree.
+- Documentation added: README Dogfooding and Development Checks sections now point to the live dogfood script and warn that it resets local `.revolvr/` state and creates a commit on success.
+- Verification run: `bash -n scripts/dogfood-live.sh`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `go test ./...`.
+- Verification result: all commands passed. The live script itself was not executed in this pass because the selected run rules prohibit launching nested Codex runs.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add safer `run --max-passes` loop guardrails for repeated failures or blocked tasks, and show a concise final loop summary.
 - Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: `run --max-passes` now always prints one final `Loop summary` line for no-task, max-pass, failed, blocked, runner-error, context, and config-error exits. The bounded loop stops immediately after blocked outcomes or failed outcomes that report changed files/capture errors, and clean repeated failed outcomes trip a two-pass failure guardrail.

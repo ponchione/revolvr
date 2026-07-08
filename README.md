@@ -108,6 +108,18 @@ verification coverage. It exits nonzero when a required check fails. Use
 Note: Real dogfood runs should start from a clean worktree and use `status` and
 `show <run-id>` to inspect the recorded result.
 
+For a fuller live check against real Codex, run:
+
+```bash
+./scripts/dogfood-live.sh
+```
+
+This script is intentionally destructive to local Revolvr runtime state: it
+requires a clean source worktree, removes `.revolvr/`, initializes fresh state,
+queues one tiny file-update task, runs `revolvr run --once`, and verifies the
+receipt, ledger-backed `status`/`show` output, commit SHA, `receipt validate`,
+and final clean worktree. It creates one Git commit when the live run passes.
+
 ## Run
 
 Run one selected pending task:
@@ -198,3 +210,13 @@ This smoke test uses a strict fake Codex executable that makes a deterministic
 file change, then intentionally fails local verification. It checks that the run
 fails cleanly, the task is blocked, no commit is created, and run diagnostics
 and artifacts are still recorded.
+
+Run the opt-in live dogfood check with real Codex:
+
+```bash
+./scripts/dogfood-live.sh
+```
+
+This resets `.revolvr/`, queues a tiny task, runs one real Codex pass, and
+checks the finalized receipt, ledger output, commit, receipt validation command,
+and clean-worktree consistency.

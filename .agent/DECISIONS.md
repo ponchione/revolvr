@@ -14,3 +14,4 @@
 - `revolvr receipt validate <run-id>` treats the ledger run row plus run events as the source of truth for finalized receipt validation, and recorded artifact paths must exist on disk.
 - `revolvr task retry <task-id>` is the preferred blocked-task recovery command; it reuses the same blocked-to-pending task update as `task unblock` so task identity and prior run history remain intact.
 - `revolvr run --max-passes` must print one concise final loop summary and stop before a failed dirty pass or blocked outcome can cascade into blocking unrelated tasks; only clean failed outcomes may repeat, and those stop after two consecutive failures.
+- The real-Codex live dogfood check is an opt-in script (`scripts/dogfood-live.sh`) because it removes local `.revolvr/` runtime state and creates a Git commit; it must require a clean source worktree before resetting state.
