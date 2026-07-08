@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: move doctor/preflight orchestration behind `internal/app` and add a TUI Preflight view.
+- Files changed: `internal/app/preflight.go`, `internal/app/app_test.go`, `internal/cli/doctor.go`, `internal/cli/doctor_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: existing doctor checks now run through `internal/app.Preflight`, which returns structured readiness checks and preserves the same check order, status labels, and detail strings. `revolvr doctor` remains a thin CLI renderer over that app result. The TUI now has a `5 Preflight` view with a `p` rerun action, displays ready/failed/error preflight states, and shows each check detail inline.
+- Tests added: app-level preflight snapshot tests for ready and failed checks, a deterministic byte-for-byte CLI doctor output test, CLI TUI wiring coverage for the preflight callback, and TUI model tests for ready and failed preflight views.
+- Verification run: `gofmt -w internal/app/preflight.go internal/app/app_test.go internal/cli/doctor.go internal/cli/doctor_test.go internal/cli/root.go internal/cli/root_test.go internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/app -run 'TestPreflight'`; `go test ./internal/cli -run 'TestDoctor|TestTUIRunnerReceivesRefreshOpenAndAddActions'`; `go test ./internal/tui`; `go test ./internal/app`; `go test ./internal/cli -run 'TestDoctor|TestTUI'`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr tui --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `git diff --check`; `go test ./...`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add a nonblocking TUI run-once action with live progress and cancellation.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add receipt validation status to the TUI Run Detail view.
 - Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: the TUI Run Detail view now exposes a `v` validation action backed by a `ValidateReceipt` callback wired from `revolvr tui` to `internal/app.ValidateReceipt`. Run Detail renders a dedicated Receipt Validation section showing not-run, passed, failed, and error states, and each returned validation check is shown with explicit `PASS` or `FAIL` messaging. Opening or reloading a run resets stale validation state for that run.

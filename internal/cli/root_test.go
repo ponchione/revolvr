@@ -19,6 +19,7 @@ import (
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
 	tuiapp "revolvr/internal/tui"
@@ -441,6 +442,15 @@ func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  executable: codex-test
+git:
+  executable: git-test
+verification:
+  commands:
+    - name: go
+`)
 
 	base := time.Date(2026, 7, 8, 13, 0, 0, 0, time.UTC)
 	createValidationRun(t, workDir, validationRunSpec{
@@ -469,6 +479,31 @@ func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 			t.Fatal("tui invoked run once hook")
 			return runonce.Result{}, nil
 		},
+		DoctorCommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			switch strings.Join(command.Args, "\x00") {
+			case "config\x00--get\x00user.name":
+				return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
+			case "config\x00--get\x00user.email":
+				return runner.Result{ExitCode: 0, Stdout: "doctor@example.invalid\n"}
+			case "status\x00--short\x00--untracked-files=all":
+				return runner.Result{ExitCode: 0}
+			case "check-ignore\x00--quiet\x00.revolvr/":
+				return runner.Result{ExitCode: 0}
+			default:
+				t.Fatalf("unexpected preflight command: %s %v", command.Name, command.Args)
+				return runner.Result{ExitCode: 1}
+			}
+		},
+		ExecutableLookPath: func(name string) (string, error) {
+			switch name {
+			case "codex-test":
+				return "/fake/bin/codex-test", nil
+			case "git-test":
+				return "/fake/bin/git-test", nil
+			default:
+				return "", fmt.Errorf("executable %s not found", name)
+			}
+		},
 		TUIRunner: func(_ context.Context, status app.StatusResult, opts tuiapp.RunOptions) error {
 			called = true
 			if !status.Initialized {
@@ -485,6 +520,9 @@ func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 			}
 			if opts.ValidateReceipt == nil {
 				t.Fatal("validate receipt callback is nil")
+			}
+			if opts.Preflight == nil {
+				t.Fatal("preflight callback is nil")
 			}
 
 			refreshed, err := opts.RefreshStatus()
@@ -517,6 +555,14 @@ func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 			}
 			if !validation.Passed() {
 				t.Fatalf("receipt validation failed: %#v", validation.Failures())
+			}
+
+			preflight, err := opts.Preflight()
+			if err != nil {
+				return err
+			}
+			if !preflight.Ready {
+				t.Fatalf("preflight ready = false, checks = %#v", preflight.Checks)
 			}
 
 			added, err := opts.AddTask(app.AddTaskInput{

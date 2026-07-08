@@ -22,14 +22,14 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 	lines := normalizedViewLines(model.View())
 	want := []string{
 		"Revolvr",
-		"Views: [Dashboard] | Tasks | Runs | Run Detail | Help",
+		"Views: [Dashboard] | Tasks | Runs | Run Detail | Preflight | Help",
 		"State: not initialized",
 		"",
 		"Dashboard",
 		"State: not initialized",
 		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task",
-		"      r Refresh | q Quit",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
+		"      a Add Task | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -67,7 +67,7 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 	lines := normalizedViewLines(updated.View())
 	want := []string{
 		"Revolvr",
-		"Views: [Dashboard] | Tasks | Runs | Run Detail | Help",
+		"Views: [Dashboard] | Tasks | Runs | Run Detail | Preflight | Help",
 		"State: initialized",
 		"",
 		"Dashboard",
@@ -91,7 +91,8 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 		"> run-new  failed  failed  none  verification failed",
 		"  run-old  completed  none  abc123  committed change",
 		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task | r Refresh | q Quit",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | r Refresh",
+		"      q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -104,7 +105,7 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 
 	lines := normalizedViewLines(tasksView.View())
 	requireLines(t, lines,
-		"Views: Dashboard | [Tasks] | Runs | Run Detail | Help",
+		"Views: Dashboard | [Tasks] | Runs | Run Detail | Preflight | Help",
 		"Tasks",
 		"Total: 0",
 		"Pending: 0",
@@ -114,7 +115,7 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"None",
 		"Task Detail",
 		"No task selected.",
-		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task | r Refresh | q Quit",
+		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | r Refresh | q Quit",
 	)
 }
 
@@ -304,7 +305,7 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 		t.Fatalf("task entry state = %+v, want cleared", cancelled.taskEntry)
 	}
 	requireLines(t, normalizedViewLines(cancelled.View()),
-		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
+		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
 		"> run-one  completed  none  none  done",
 	)
 }
@@ -470,6 +471,89 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 	}
 }
 
+func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
+	called := false
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		Preflight: func() (app.PreflightResult, error) {
+			called = true
+			return app.PreflightResult{
+				Ready: true,
+				Checks: []app.PreflightCheck{
+					{Status: app.PreflightOK, Name: "state", Detail: "initialized at /work/.revolvr"},
+					{Status: app.PreflightOK, Name: "verification commands", Detail: "1 command configured"},
+				},
+			}, nil
+		},
+	})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 140, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+
+	preflightView, cmd := updateStatusModel(t, model, keyRunes("5"))
+	if cmd == nil {
+		t.Fatal("preflight key returned nil cmd")
+	}
+	if called {
+		t.Fatal("preflight callback ran before command execution")
+	}
+	afterPreflight, cmd := runStatusModelCmd(t, preflightView, cmd)
+	if cmd != nil {
+		t.Fatalf("preflight message cmd = %v, want nil", cmd)
+	}
+	if !called {
+		t.Fatal("preflight callback was not called")
+	}
+
+	lines := normalizedViewLines(afterPreflight.View())
+	requireLines(t, lines,
+		"Views: Dashboard | Tasks | Runs | Run Detail | [Preflight] | Help",
+		"Notice: Preflight ready.",
+		"Preflight",
+		"Status: ready",
+		"Ready: true",
+		"Checks",
+		"OK state: initialized at /work/.revolvr",
+		"OK verification commands: 1 command configured",
+		"Keys: p Check | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | r Refresh | q Quit",
+	)
+}
+
+func TestStatusModelPreflightViewShowsFailedChecks(t *testing.T) {
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		Preflight: func() (app.PreflightResult, error) {
+			return app.PreflightResult{
+				Ready: false,
+				Checks: []app.PreflightCheck{
+					{Status: app.PreflightFail, Name: "codex executable", Detail: `"codex" not found: executable file not found`},
+					{Status: app.PreflightFail, Name: "verification commands", Detail: "no verification commands configured"},
+				},
+			}, nil
+		},
+	})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 140, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+
+	preflightView, cmd := updateStatusModel(t, model, keyRunes("5"))
+	if cmd == nil {
+		t.Fatal("preflight key returned nil cmd")
+	}
+	afterPreflight, cmd := runStatusModelCmd(t, preflightView, cmd)
+	if cmd != nil {
+		t.Fatalf("preflight message cmd = %v, want nil", cmd)
+	}
+
+	requireLines(t, normalizedViewLines(afterPreflight.View()),
+		"Notice: Preflight failed.",
+		"Status: failed",
+		"Ready: false",
+		`FAIL codex executable: "codex" not found: executable file not found`,
+		"FAIL verification commands: no verification commands configured",
+	)
+}
+
 func TestStatusModelRunsViewNavigatesRecentRunsWithMetadata(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{
 		Initialized: true,
@@ -497,7 +581,7 @@ func TestStatusModelRunsViewNavigatesRecentRunsWithMetadata(t *testing.T) {
 	runsView := openRunsView(t, model)
 
 	requireLines(t, normalizedViewLines(runsView.View()),
-		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
+		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
 		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
 		"> run-new  failed  failed  none  verification failed",
 		"  run-mid  completed  passed  abc123  committed change",
@@ -963,7 +1047,7 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 
 	lines := normalizedViewLines(afterOpen.View())
 	for _, want := range []string{
-		"Views: Dashboard | Tasks | Runs | [Run Detail] | Help",
+		"Views: Dashboard | Tasks | Runs | [Run Detail] | Preflight | Help",
 		"Run Detail",
 		"ID: run-old",
 		"Task ID: task-old",
@@ -1026,9 +1110,9 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	}
 	runsLines := normalizedViewLines(runsView.View())
 	for _, want := range []string{
-		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
+		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
 		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
-		"      ? Help | a Add Task | r Refresh | q Quit",
+		"      5 Preflight | ? Help | a Add Task | r Refresh | q Quit",
 	} {
 		if !containsLine(runsLines, want) {
 			t.Fatalf("runs footer/header missing %q: %#v", want, runsLines)
@@ -1041,12 +1125,12 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	}
 	helpLines := normalizedViewLines(helpView.View())
 	for _, want := range []string{
-		"Views: Dashboard | Tasks | Runs | Run Detail | [Help]",
+		"Views: Dashboard | Tasks | Runs | Run Detail | Preflight | [Help]",
 		"Help",
 		"1  Dashboard",
 		"enter or o  Open selected run",
-		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task",
-		"      r Refresh | q Quit",
+		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight",
+		"      ? Help | a Add Task | r Refresh | q Quit",
 	} {
 		if !containsLine(helpLines, want) {
 			t.Fatalf("help view missing %q: %#v", want, helpLines)
@@ -1083,7 +1167,8 @@ func TestStatusModelResizeUpdatesContentAreaAndWrapsFooter(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Keys: 1 Dashboard | 2 Tasks",
-		"      3 Runs | 4 Detail | ? Help",
+		"      3 Runs | 4 Detail",
+		"      5 Preflight | ? Help",
 		"      a Add Task | r Refresh",
 		"      q Quit",
 	} {

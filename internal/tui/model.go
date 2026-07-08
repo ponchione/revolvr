@@ -32,6 +32,7 @@ const (
 	viewTasks
 	viewRuns
 	viewRunDetail
+	viewPreflight
 	viewHelp
 	viewTaskEntry
 )
@@ -44,6 +45,7 @@ type StatusModel struct {
 	selectedTask int
 	selectedRun  int
 	runDetails   *ledger.RunWithEvents
+	preflight    preflightState
 	validation   receiptValidationState
 	taskEntry    taskEntryState
 	message      string
@@ -56,12 +58,14 @@ type RefreshStatusFunc func() (app.StatusResult, error)
 type OpenRunFunc func(runID string) (ledger.RunWithEvents, error)
 type AddTaskFunc func(input app.AddTaskInput) (taskqueue.Task, error)
 type ValidateReceiptFunc func(runID string) (receipt.ValidationResult, error)
+type PreflightFunc func() (app.PreflightResult, error)
 
 type StatusActions struct {
 	RefreshStatus   RefreshStatusFunc
 	OpenRun         OpenRunFunc
 	AddTask         AddTaskFunc
 	ValidateReceipt ValidateReceiptFunc
+	Preflight       PreflightFunc
 }
 
 type RunOptions struct {
@@ -71,6 +75,7 @@ type RunOptions struct {
 	OpenRun         OpenRunFunc
 	AddTask         AddTaskFunc
 	ValidateReceipt ValidateReceiptFunc
+	Preflight       PreflightFunc
 }
 
 type taskEntryField int
@@ -92,6 +97,12 @@ type receiptValidationState struct {
 	RunID   string
 	Checked bool
 	Result  receipt.ValidationResult
+	Err     string
+}
+
+type preflightState struct {
+	Checked bool
+	Result  app.PreflightResult
 	Err     string
 }
 
@@ -130,6 +141,7 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 		OpenRun:         opts.OpenRun,
 		AddTask:         opts.AddTask,
 		ValidateReceipt: opts.ValidateReceipt,
+		Preflight:       opts.Preflight,
 	}), options...).Run()
 	return err
 }
@@ -209,6 +221,21 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.updateViewportContent()
 		return m, nil
+	case preflightMsg:
+		m.preflight = preflightState{
+			Checked: true,
+			Result:  msg.result,
+		}
+		if msg.err != nil {
+			m.preflight.Err = msg.err.Error()
+			m.message = "Preflight error."
+		} else if msg.result.Ready {
+			m.message = "Preflight ready."
+		} else {
+			m.message = "Preflight failed."
+		}
+		m.updateViewportContent()
+		return m, nil
 	case tea.KeyMsg:
 		if m.view == viewTaskEntry {
 			return m.updateTaskEntry(msg)
@@ -229,6 +256,14 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "4":
 			m.switchView(viewRunDetail)
 			return m, nil
+		case "5":
+			m.switchView(viewPreflight)
+			if m.actions.Preflight == nil {
+				m.message = "Preflight is unavailable."
+				m.updateViewportContent()
+				return m, nil
+			}
+			return m, m.preflightCmd()
 		case "?":
 			m.switchView(viewHelp)
 			return m, nil
@@ -324,6 +359,16 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.GotoBottom()
 				return m, nil
 			}
+		case viewPreflight:
+			switch msg.String() {
+			case "p":
+				if m.actions.Preflight == nil {
+					m.message = "Preflight is unavailable."
+					m.updateViewportContent()
+					return m, nil
+				}
+				return m, m.preflightCmd()
+			}
 		}
 	}
 
@@ -360,6 +405,11 @@ type addTaskMsg struct {
 type validateReceiptMsg struct {
 	runID  string
 	result receipt.ValidationResult
+	err    error
+}
+
+type preflightMsg struct {
+	result app.PreflightResult
 	err    error
 }
 
@@ -410,6 +460,13 @@ func (m StatusModel) validateRunReceiptCmd() tea.Cmd {
 	return func() tea.Msg {
 		result, err := m.actions.ValidateReceipt(runID)
 		return validateReceiptMsg{runID: runID, result: result, err: err}
+	}
+}
+
+func (m StatusModel) preflightCmd() tea.Cmd {
+	return func() tea.Msg {
+		result, err := m.actions.Preflight()
+		return preflightMsg{result: result, err: err}
 	}
 }
 
@@ -569,6 +626,8 @@ func (m StatusModel) renderContent() string {
 			return m.renderRunDetails(*m.runDetails)
 		}
 		return m.renderEmptyRunDetail()
+	case viewPreflight:
+		return m.renderPreflight()
 	case viewHelp:
 		return m.renderHelp()
 	case viewTaskEntry:
@@ -606,6 +665,7 @@ func (m StatusModel) viewTabs() string {
 		{view: viewTasks, label: "Tasks"},
 		{view: viewRuns, label: "Runs"},
 		{view: viewRunDetail, label: "Run Detail"},
+		{view: viewPreflight, label: "Preflight"},
 		{view: viewHelp, label: "Help"},
 	}
 	parts := make([]string, 0, len(labels))
@@ -627,6 +687,8 @@ func (m StatusModel) viewLabel() string {
 		return "Runs"
 	case viewRunDetail:
 		return "Run Detail"
+	case viewPreflight:
+		return "Preflight"
 	case viewHelp:
 		return "Help"
 	case viewTaskEntry:
@@ -645,12 +707,14 @@ func (m StatusModel) footerLines() []string {
 		keys = append(keys, "j/k Select", "enter Open")
 	case viewRunDetail:
 		keys = append(keys, "up/down Scroll", "home/end Jump", "enter Reload", "v Validate", "esc Runs")
+	case viewPreflight:
+		keys = append(keys, "p Check")
 	case viewHelp:
 		keys = append(keys, "esc Back")
 	case viewTaskEntry:
 		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
 	}
-	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "? Help", "a Add Task", "r Refresh", "q Quit")
+	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "r Refresh", "q Quit")
 	return wrapKeyLines(keys, m.width)
 }
 
@@ -779,6 +843,36 @@ func (m StatusModel) renderEmptyRunDetail() string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
+func (m StatusModel) renderPreflight() string {
+	lines := []string{"Preflight"}
+	lines = appendNotice(lines, m.message)
+	if !m.preflight.Checked {
+		lines = append(lines, "Status: not run")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	if err := oneLine(m.preflight.Err); err != "" {
+		lines = append(lines, "Status: error", "Error: "+err)
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	status := "failed"
+	if m.preflight.Result.Ready {
+		status = "ready"
+	}
+	lines = append(lines,
+		"Status: "+status,
+		fmt.Sprintf("Ready: %t", m.preflight.Result.Ready),
+		"Checks",
+	)
+	if len(m.preflight.Result.Checks) == 0 {
+		lines = append(lines, "No checks returned.")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	for _, check := range m.preflight.Result.Checks {
+		lines = append(lines, preflightCheckLine(check))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
 func (m StatusModel) renderHelp() string {
 	lines := []string{
 		"Help",
@@ -787,9 +881,8 @@ func (m StatusModel) renderHelp() string {
 		"2  Tasks",
 		"3  Runs",
 		"4  Run Detail",
+		"5  Preflight",
 		"?  Help",
-		"",
-		"Actions",
 		"a  Add task",
 		"r  Refresh status",
 		"q  Quit",
@@ -797,6 +890,7 @@ func (m StatusModel) renderHelp() string {
 		"Tasks: j/k Move selection",
 		"Runs: j/k Move selection",
 		"Run Detail: up/down Scroll, home/end Jump, v Validate receipt",
+		"Preflight: p Run readiness checks",
 		"enter or o  Open selected run",
 		"esc  Back from help or run detail",
 	}
@@ -1270,6 +1364,10 @@ func receiptValidationCheckLine(check receipt.ValidationCheck) string {
 		status = "FAIL"
 	}
 	return fmt.Sprintf("%s %s: %s", status, optionalValue(check.Name), oneLine(check.Message()))
+}
+
+func preflightCheckLine(check app.PreflightCheck) string {
+	return fmt.Sprintf("%s %s: %s", optionalValue(string(check.Status)), optionalValue(check.Name), oneLine(check.Detail))
 }
 
 func runChangedFileLines(diagnostics runDetailDiagnostics) []string {

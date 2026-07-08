@@ -364,6 +364,12 @@ func newTUICommand(opts Options) *cobra.Command {
 				ValidateReceipt: func(runID string) (receipt.ValidationResult, error) {
 					return app.ValidateReceipt(ctx, cfg, runID)
 				},
+				Preflight: func() (app.PreflightResult, error) {
+					return app.Preflight(ctx, cfg, app.PreflightInput{
+						CommandRunner: opts.DoctorCommandRunner,
+						LookPath:      opts.ExecutableLookPath,
+					})
+				},
 			})
 		},
 	}

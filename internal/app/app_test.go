@@ -15,6 +15,7 @@ import (
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
 	"revolvr/internal/verification"
@@ -305,6 +306,87 @@ func TestValidateReceiptReportsUninitializedMissingAndEmptyRun(t *testing.T) {
 
 	if _, err := ValidateReceipt(ctx, Config{WorkDir: workDir}, "missing-run"); err == nil || !strings.Contains(err.Error(), `run "missing-run" not found`) {
 		t.Fatalf("validate missing run error = %v, want not found", err)
+	}
+}
+
+func TestPreflightReturnsReadySnapshot(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	createAppPreflightState(t, workDir)
+	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  executable: codex-test
+git:
+  executable: git-test
+verification:
+  commands:
+    - name: go
+`)
+
+	result, err := Preflight(ctx, Config{WorkDir: workDir}, PreflightInput{
+		CommandRunner: readyPreflightCommandRunner(t),
+		LookPath: preflightLookPath(map[string]string{
+			"codex-test": "/fake/bin/codex-test",
+			"git-test":   "/fake/bin/git-test",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	if !result.Ready {
+		t.Fatalf("preflight ready = false, checks = %#v", result.Checks)
+	}
+	want := []PreflightCheck{
+		{Status: PreflightOK, Name: "state", Detail: "initialized at " + filepath.Join(workDir, ".revolvr")},
+		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
+		{Status: PreflightOK, Name: "codex executable", Detail: "/fake/bin/codex-test"},
+		{Status: PreflightOK, Name: "git executable", Detail: "/fake/bin/git-test"},
+		{Status: PreflightOK, Name: "git identity", Detail: "Revolvr Doctor <doctor@example.invalid>"},
+		{Status: PreflightOK, Name: "worktree clean", Detail: "no changes"},
+		{Status: PreflightOK, Name: "runtime state ignored", Detail: ".revolvr/ ignored by Git"},
+		{Status: PreflightOK, Name: "verification commands", Detail: "1 command configured"},
+	}
+	if !reflect.DeepEqual(result.Checks, want) {
+		t.Fatalf("preflight checks = %#v, want %#v", result.Checks, want)
+	}
+}
+
+func TestPreflightReturnsFailedSnapshotWithActionableDetails(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  executable: missing-codex
+git:
+  executable: git-test
+verification:
+  missing_policy: fail
+`)
+
+	result, err := Preflight(ctx, Config{WorkDir: workDir}, PreflightInput{
+		CommandRunner: failedPreflightCommandRunner(t),
+		LookPath: preflightLookPath(map[string]string{
+			"git-test": "/fake/bin/git-test",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	if result.Ready {
+		t.Fatalf("preflight ready = true, want false")
+	}
+	want := []PreflightCheck{
+		{Status: PreflightFail, Name: "state", Detail: "not initialized; run `revolvr init`"},
+		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
+		{Status: PreflightFail, Name: "codex executable", Detail: `"missing-codex" not found: executable missing-codex not found`},
+		{Status: PreflightOK, Name: "git executable", Detail: "/fake/bin/git-test"},
+		{Status: PreflightFail, Name: "git identity", Detail: "missing user.name and user.email"},
+		{Status: PreflightFail, Name: "worktree clean", Detail: "dirty files: internal/app/preflight.go, scratch.txt"},
+		{Status: PreflightFail, Name: "runtime state ignored", Detail: ".revolvr/ is not ignored; run `revolvr init`"},
+		{Status: PreflightFail, Name: "verification commands", Detail: "no verification commands configured"},
+	}
+	if !reflect.DeepEqual(result.Checks, want) {
+		t.Fatalf("preflight checks = %#v, want %#v", result.Checks, want)
 	}
 }
 
@@ -820,6 +902,74 @@ func writeAppTestFile(t *testing.T, path string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func createAppPreflightState(t *testing.T, workDir string) {
+	t.Helper()
+	ctx := context.Background()
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	tasks, err := taskqueue.Open(ctx, paths.TaskDBPath)
+	if err != nil {
+		t.Fatalf("open task store: %v", err)
+	}
+	if err := tasks.Close(); err != nil {
+		t.Fatalf("close task store: %v", err)
+	}
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("open ledger store: %v", err)
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatalf("close ledger store: %v", err)
+	}
+}
+
+func preflightLookPath(paths map[string]string) ExecutableLookPath {
+	return func(name string) (string, error) {
+		if path, ok := paths[name]; ok {
+			return path, nil
+		}
+		return "", fmt.Errorf("executable %s not found", name)
+	}
+}
+
+func readyPreflightCommandRunner(t *testing.T) PreflightCommandRunner {
+	t.Helper()
+	return func(_ context.Context, command runner.Command) runner.Result {
+		switch strings.Join(command.Args, "\x00") {
+		case "config\x00--get\x00user.name":
+			return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
+		case "config\x00--get\x00user.email":
+			return runner.Result{ExitCode: 0, Stdout: "doctor@example.invalid\n"}
+		case "status\x00--short\x00--untracked-files=all":
+			return runner.Result{ExitCode: 0}
+		case "check-ignore\x00--quiet\x00.revolvr/":
+			return runner.Result{ExitCode: 0}
+		default:
+			t.Fatalf("unexpected preflight command: %s %v", command.Name, command.Args)
+			return runner.Result{ExitCode: 1}
+		}
+	}
+}
+
+func failedPreflightCommandRunner(t *testing.T) PreflightCommandRunner {
+	t.Helper()
+	return func(_ context.Context, command runner.Command) runner.Result {
+		switch strings.Join(command.Args, "\x00") {
+		case "config\x00--get\x00user.name", "config\x00--get\x00user.email":
+			return runner.Result{ExitCode: 1}
+		case "status\x00--short\x00--untracked-files=all":
+			return runner.Result{ExitCode: 0, Stdout: " M internal/app/preflight.go\n?? scratch.txt\n"}
+		case "check-ignore\x00--quiet\x00.revolvr/":
+			return runner.Result{ExitCode: 1}
+		default:
+			t.Fatalf("unexpected preflight command: %s %v", command.Name, command.Args)
+			return runner.Result{ExitCode: 1}
+		}
 	}
 }
 

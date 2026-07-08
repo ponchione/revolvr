@@ -1,12 +1,17 @@
 package cli
 
 import (
+	"bytes"
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"revolvr/internal/runner"
 )
 
 func TestDoctorReportsReadyForDogfood(t *testing.T) {
@@ -46,6 +51,72 @@ verification:
 		if !strings.Contains(out, want) {
 			t.Fatalf("doctor output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestDoctorOutputPreservedWithStructuredPreflight(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  executable: codex-test
+git:
+  executable: git-test
+verification:
+  commands:
+    - name: go
+`)
+
+	var out bytes.Buffer
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: workDir,
+		DoctorCommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			switch strings.Join(command.Args, "\x00") {
+			case "config\x00--get\x00user.name":
+				return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
+			case "config\x00--get\x00user.email":
+				return runner.Result{ExitCode: 0, Stdout: "doctor@example.invalid\n"}
+			case "status\x00--short\x00--untracked-files=all":
+				return runner.Result{ExitCode: 0}
+			case "check-ignore\x00--quiet\x00.revolvr/":
+				return runner.Result{ExitCode: 0}
+			default:
+				t.Fatalf("unexpected doctor command: %s %v", command.Name, command.Args)
+				return runner.Result{ExitCode: 1}
+			}
+		},
+		ExecutableLookPath: func(name string) (string, error) {
+			switch name {
+			case "codex-test":
+				return "/fake/bin/codex-test", nil
+			case "git-test":
+				return "/fake/bin/git-test", nil
+			default:
+				return "", fmt.Errorf("executable %s not found", name)
+			}
+		},
+	})
+	root.SetArgs([]string{"doctor"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute doctor: %v\n%s", err, out.String())
+	}
+	want := "Dogfood preflight:\n" +
+		"OK state: initialized at " + filepath.Join(workDir, ".revolvr") + "\n" +
+		"OK config: loaded " + filepath.Join(workDir, ".revolvr", "config.yaml") + "\n" +
+		"OK codex executable: /fake/bin/codex-test\n" +
+		"OK git executable: /fake/bin/git-test\n" +
+		"OK git identity: Revolvr Doctor <doctor@example.invalid>\n" +
+		"OK worktree clean: no changes\n" +
+		"OK runtime state ignored: .revolvr/ ignored by Git\n" +
+		"OK verification commands: 1 command configured\n" +
+		"Ready: true\n"
+	if got := out.String(); got != want {
+		t.Fatalf("doctor output = %q, want %q", got, want)
 	}
 }
 

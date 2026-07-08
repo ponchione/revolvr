@@ -37,7 +37,7 @@
   Acceptance: a fully valid receipt shows all checks passing; validation failures are visible in the detail view; validation errors do not crash the TUI.
   Verification: add model tests for valid receipts, failed validation checks, missing receipts, and validation callback errors; run focused tests plus `go test ./...`.
 
-- [ ] Move doctor/preflight orchestration behind `internal/app` and add a TUI Preflight view.
+- [x] Move doctor/preflight orchestration behind `internal/app` and add a TUI Preflight view.
   Scope: expose the existing doctor checks as structured app data, keep CLI doctor output unchanged, and render readiness checks in the TUI.
   Acceptance: users can inspect readiness before running Codex; failed checks show enough detail to act on; CLI `doctor` remains byte-for-byte compatible where tests assert output.
   Verification: add `internal/app` tests for preflight snapshots and CLI tests for preserved doctor output; add TUI tests for ready and failed preflight views; run focused tests plus `go test ./...`.
