@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -11,8 +12,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"revolvr/internal/app"
+	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
 )
 
@@ -29,7 +32,7 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 		"State: not initialized",
 		"",
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
-		"      a Add Task | r Refresh | q Quit",
+		"      a Add Task | R Run Once | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -91,8 +94,8 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 		"> run-new  failed  failed  none  verification failed",
 		"  run-old  completed  none  abc123  committed change",
 		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | r Refresh",
-		"      q Quit",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
+		"      r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -115,7 +118,8 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"None",
 		"Task Detail",
 		"No task selected.",
-		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | r Refresh | q Quit",
+		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
+		"      r Refresh | q Quit",
 	)
 }
 
@@ -515,7 +519,7 @@ func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
 		"Checks",
 		"OK state: initialized at /work/.revolvr",
 		"OK verification commands: 1 command configured",
-		"Keys: p Check | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | r Refresh | q Quit",
+		"Keys: p Check | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once | r Refresh | q Quit",
 	)
 }
 
@@ -551,6 +555,277 @@ func TestStatusModelPreflightViewShowsFailedChecks(t *testing.T) {
 		"Ready: false",
 		`FAIL codex executable: "codex" not found: executable file not found`,
 		"FAIL verification commands: no verification commands configured",
+	)
+}
+
+func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.T) {
+	calls := 0
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		RunOnce: func(context.Context, app.RunProgress) (runonce.Result, error) {
+			calls++
+			return runonce.Result{}, nil
+		},
+	})
+
+	afterBlocked, cmd := updateStatusModel(t, model, keyRunes("R"))
+	if cmd != nil {
+		t.Fatalf("run without preflight cmd = %v, want nil", cmd)
+	}
+	if calls != 0 {
+		t.Fatalf("run calls = %d, want 0", calls)
+	}
+	requireLines(t, normalizedViewLines(afterBlocked.View()),
+		"Notice: Run blocked: preflight is not ready.",
+	)
+
+	afterBlocked.preflight = preflightState{
+		Checked: true,
+		Result:  app.PreflightResult{Ready: false},
+	}
+	afterFailedPreflight, cmd := updateStatusModel(t, afterBlocked, keyRunes("R"))
+	if cmd != nil {
+		t.Fatalf("run with failed preflight cmd = %v, want nil", cmd)
+	}
+	if calls != 0 {
+		t.Fatalf("run calls = %d, want 0", calls)
+	}
+
+	afterFailedPreflight.preflight = preflightState{
+		Checked: true,
+		Result:  app.PreflightResult{Ready: true},
+	}
+	active, cmd := updateStatusModel(t, afterFailedPreflight, keyRunes("R"))
+	if cmd == nil {
+		t.Fatal("run with ready preflight returned nil cmd")
+	}
+	if !active.runOnce.Active {
+		t.Fatal("run active = false, want true")
+	}
+	again, secondCmd := updateStatusModel(t, active, keyRunes("R"))
+	if secondCmd != nil {
+		t.Fatalf("second run cmd = %v, want nil", secondCmd)
+	}
+	if calls != 0 {
+		t.Fatalf("run calls before command execution = %d, want 0", calls)
+	}
+	if !again.runOnce.Active {
+		t.Fatal("run active after second run key = false, want true")
+	}
+
+	afterAdd, addCmd := updateStatusModel(t, again, keyRunes("a"))
+	if addCmd != nil {
+		t.Fatalf("add while running cmd = %v, want nil", addCmd)
+	}
+	if afterAdd.view == viewTaskEntry {
+		t.Fatal("add task entry opened while run was active")
+	}
+	requireLines(t, normalizedViewLines(afterAdd.View()),
+		"Notice: Run is active; cancel or wait before starting another action.",
+		"Run Progress",
+		"Status: running",
+	)
+}
+
+func TestStatusModelRunOnceStreamsProgressAndRefreshesCompletion(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 15, 0, 0, 0, time.UTC)
+	completedAt := startedAt.Add(time.Minute)
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:          "run-success",
+			TaskID:      "task-success",
+			Task:        "Run from TUI",
+			Status:      ledger.StatusCompleted,
+			Summary:     "committed",
+			StartedAt:   startedAt,
+			CompletedAt: &completedAt,
+			CommitSHA:   "abc123",
+		},
+		Events: []ledger.Event{
+			{ID: 1, RunID: "run-success", Type: ledger.EventRunStarted, CreatedAt: startedAt},
+			{ID: 2, RunID: "run-success", Type: ledger.EventRunCompleted, CreatedAt: completedAt},
+		},
+	}
+	var calls []string
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		RunOnce: func(_ context.Context, progress app.RunProgress) (runonce.Result, error) {
+			calls = append(calls, "run")
+			progress(codexexec.ProgressEvent{Source: "codex", Message: "thread started"})
+			progress(codexexec.ProgressEvent{Source: "codex stderr", Message: "checking worktree"})
+			return runonce.Result{
+				Outcome: runonce.OutcomeCommitted,
+				Run:     history.Run,
+				Task:    taskqueue.Task{ID: "task-success"},
+			}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			calls = append(calls, "refresh")
+			return app.StatusResult{
+				Initialized: true,
+				RecentRuns:  []ledger.Run{history.Run},
+			}, nil
+		},
+		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+			calls = append(calls, "open:"+runID)
+			return history, nil
+		},
+	})
+	model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 140, Height: 60})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("R"))
+	if cmd == nil {
+		t.Fatal("run key returned nil cmd")
+	}
+	if len(calls) != 0 {
+		t.Fatalf("run callbacks ran before command execution: %#v", calls)
+	}
+
+	afterRun := drainStatusModelCmds(t, afterKey, cmd)
+	if !reflect.DeepEqual(calls, []string{"run", "refresh", "open:run-success"}) {
+		t.Fatalf("callback order = %#v, want run refresh open", calls)
+	}
+	if afterRun.runOnce.Active {
+		t.Fatal("run active = true after completion")
+	}
+	if afterRun.runDetails == nil || afterRun.runDetails.Run.ID != "run-success" {
+		t.Fatalf("run detail = %+v, want run-success", afterRun.runDetails)
+	}
+	if got, want := afterRun.selectedRunID(), "run-success"; got != want {
+		t.Fatalf("selected run = %q, want %q", got, want)
+	}
+
+	requireLines(t, normalizedViewLines(afterRun.View()),
+		"Notice: Run completed. run-success.",
+		"Run Progress",
+		"Status: completed",
+		"Run ID: run-success",
+		"Outcome: committed",
+		"Log",
+		"system: run started",
+		"codex: thread started",
+		"codex stderr: checking worktree",
+		"system: terminal state: completed",
+		"Latest Run",
+		"ID: run-success",
+	)
+}
+
+func TestStatusModelRunOnceFailureReportsTerminalState(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 15, 10, 0, 0, time.UTC)
+	run := ledger.Run{
+		ID:        "run-failed",
+		TaskID:    "task-failed",
+		Task:      "Run from TUI and fail",
+		Status:    ledger.StatusFailed,
+		Summary:   "verification failed",
+		StartedAt: startedAt,
+	}
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		RunOnce: func(_ context.Context, progress app.RunProgress) (runonce.Result, error) {
+			progress(codexexec.ProgressEvent{Source: "codex", Message: "message: working"})
+			return runonce.Result{
+				Outcome: runonce.OutcomeVerificationFailed,
+				Run:     run,
+				Task:    taskqueue.Task{ID: "task-failed"},
+				Message: "verification command 0 failed",
+			}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			return app.StatusResult{
+				Initialized: true,
+				RecentRuns:  []ledger.Run{run},
+			}, nil
+		},
+		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+			return ledger.RunWithEvents{Run: run}, nil
+		},
+	})
+	model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("R"))
+	if cmd == nil {
+		t.Fatal("run key returned nil cmd")
+	}
+	afterRun := drainStatusModelCmds(t, afterKey, cmd)
+
+	requireLines(t, normalizedViewLines(afterRun.View()),
+		"Notice: Run failed. run-failed.",
+		"Run Progress",
+		"Status: failed",
+		"Run ID: run-failed",
+		"Outcome: verification_failed",
+		"codex: message: working",
+		"system: terminal state: failed",
+	)
+}
+
+func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 15, 20, 0, 0, time.UTC)
+	run := ledger.Run{
+		ID:        "run-cancelled",
+		TaskID:    "task-cancelled",
+		Task:      "Cancel a TUI run",
+		Status:    ledger.StatusFailed,
+		StartedAt: startedAt,
+	}
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		RunOnce: func(ctx context.Context, progress app.RunProgress) (runonce.Result, error) {
+			progress(codexexec.ProgressEvent{Source: "codex", Message: "started"})
+			<-ctx.Done()
+			return runonce.Result{
+				Outcome: runonce.OutcomeBlocked,
+				Run:     run,
+				Task:    taskqueue.Task{ID: "task-cancelled"},
+				Message: "context canceled",
+			}, ctx.Err()
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			return app.StatusResult{
+				Initialized: true,
+				RecentRuns:  []ledger.Run{run},
+			}, nil
+		},
+		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+			return ledger.RunWithEvents{Run: run}, nil
+		},
+	})
+	model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("R"))
+	if cmd == nil {
+		t.Fatal("run key returned nil cmd")
+	}
+	afterProgress, waitCmd := runStatusModelCmd(t, afterKey, cmd)
+	if waitCmd == nil {
+		t.Fatal("progress update returned nil wait command")
+	}
+
+	cancelled, cancelCmd := updateStatusModel(t, afterProgress, keyRunes("c"))
+	if cancelCmd != nil {
+		t.Fatalf("cancel key cmd = %v, want nil", cancelCmd)
+	}
+	if !cancelled.runOnce.CancelRequested {
+		t.Fatal("cancel requested = false, want true")
+	}
+	requireLines(t, normalizedViewLines(cancelled.View()),
+		"Notice: Cancellation requested.",
+		"Status: running",
+		"Cancellation: requested",
+		"system: cancellation requested",
+	)
+
+	afterCancel := drainStatusModelCmds(t, cancelled, waitCmd)
+	requireLines(t, normalizedViewLines(afterCancel.View()),
+		"Notice: Run cancelled. run-cancelled.",
+		"Run Progress",
+		"Status: cancelled",
+		"Run ID: run-cancelled",
+		"Outcome: blocked",
+		"Error: context canceled",
+		"system: terminal state: cancelled",
 	)
 }
 
@@ -1103,6 +1378,10 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 			Summary: "done",
 		}},
 	})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
 
 	runsView, cmd := updateStatusModel(t, model, keyRunes("3"))
 	if cmd != nil {
@@ -1112,7 +1391,7 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	for _, want := range []string{
 		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
 		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
-		"      5 Preflight | ? Help | a Add Task | r Refresh | q Quit",
+		"      5 Preflight | ? Help | a Add Task | R Run Once | r Refresh | q Quit",
 	} {
 		if !containsLine(runsLines, want) {
 			t.Fatalf("runs footer/header missing %q: %#v", want, runsLines)
@@ -1130,7 +1409,7 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 		"1  Dashboard",
 		"enter or o  Open selected run",
 		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight",
-		"      ? Help | a Add Task | r Refresh | q Quit",
+		"      ? Help | a Add Task | R Run Once | r Refresh | q Quit",
 	} {
 		if !containsLine(helpLines, want) {
 			t.Fatalf("help view missing %q: %#v", want, helpLines)
@@ -1169,8 +1448,8 @@ func TestStatusModelResizeUpdatesContentAreaAndWrapsFooter(t *testing.T) {
 		"Keys: 1 Dashboard | 2 Tasks",
 		"      3 Runs | 4 Detail",
 		"      5 Preflight | ? Help",
-		"      a Add Task | r Refresh",
-		"      q Quit",
+		"      a Add Task | R Run Once",
+		"      r Refresh | q Quit",
 	} {
 		if !containsLine(lines, want) {
 			t.Fatalf("wrapped footer missing %q: %#v", want, lines)
@@ -1219,6 +1498,17 @@ func runStatusModelCmd(t *testing.T, model StatusModel, cmd tea.Cmd) (StatusMode
 		t.Fatal("cmd is nil")
 	}
 	return updateStatusModel(t, model, cmd())
+}
+
+func drainStatusModelCmds(t *testing.T, model StatusModel, cmd tea.Cmd) StatusModel {
+	t.Helper()
+	for i := 0; i < 20 && cmd != nil; i++ {
+		model, cmd = runStatusModelCmd(t, model, cmd)
+	}
+	if cmd != nil {
+		t.Fatal("command stream did not finish")
+	}
+	return model
 }
 
 func typeIntoStatusModel(t *testing.T, model StatusModel, value string) (StatusModel, tea.Cmd) {

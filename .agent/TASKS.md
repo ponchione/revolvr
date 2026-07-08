@@ -42,7 +42,7 @@
   Acceptance: users can inspect readiness before running Codex; failed checks show enough detail to act on; CLI `doctor` remains byte-for-byte compatible where tests assert output.
   Verification: add `internal/app` tests for preflight snapshots and CLI tests for preserved doctor output; add TUI tests for ready and failed preflight views; run focused tests plus `go test ./...`.
 
-- [ ] Add a nonblocking TUI run-once action with live progress and cancellation.
+- [x] Add a nonblocking TUI run-once action with live progress and cancellation.
   Scope: add a guarded run action that starts `internal/app.RunOnce` from a Bubble Tea command, streams Codex progress into a progress/log pane, disables conflicting actions while running, and supports cancellation.
   Acceptance: no run starts when preflight is not ready or another run is active; progress remains visible; completion refreshes status and run details; cancellation reports a clear terminal state.
   Verification: use fake app runners in TUI tests for success, failure, progress events, and cancellation; run `go test ./internal/tui`, `go test ./internal/app`, `go test ./internal/cli`, and `go test ./...`.

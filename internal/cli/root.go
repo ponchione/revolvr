@@ -370,6 +370,12 @@ func newTUICommand(opts Options) *cobra.Command {
 						LookPath:      opts.ExecutableLookPath,
 					})
 				},
+				RunOnce: func(runCtx context.Context, progress app.RunProgress) (runonce.Result, error) {
+					return app.RunOnce(runCtx, cfg, app.RunOnceInput{
+						Runner:   opts.RunOnce,
+						Progress: progress,
+					})
+				},
 			})
 		},
 	}

@@ -475,9 +475,17 @@ verification:
 		Version: "test",
 		Out:     &out,
 		WorkDir: workDir,
-		RunOnce: func(context.Context, runonce.Config) (runonce.Result, error) {
-			t.Fatal("tui invoked run once hook")
-			return runonce.Result{}, nil
+		RunOnce: func(_ context.Context, cfg runonce.Config) (runonce.Result, error) {
+			if cfg.CodexProgress == nil {
+				t.Fatal("tui run once config progress callback is nil")
+			}
+			cfg.CodexProgress(codexexec.ProgressEvent{Source: "codex", Message: "tui running"})
+			return runonce.Result{
+				Outcome: runonce.OutcomeCommitted,
+				Run:     ledger.Run{ID: "run-tui"},
+				Task:    taskqueue.Task{ID: "task-tui"},
+				Commit:  commit.Result{CommitSHA: "abc123"},
+			}, nil
 		},
 		DoctorCommandRunner: func(_ context.Context, command runner.Command) runner.Result {
 			switch strings.Join(command.Args, "\x00") {
@@ -524,6 +532,9 @@ verification:
 			if opts.Preflight == nil {
 				t.Fatal("preflight callback is nil")
 			}
+			if opts.RunOnce == nil {
+				t.Fatal("run once callback is nil")
+			}
 
 			refreshed, err := opts.RefreshStatus()
 			if err != nil {
@@ -563,6 +574,20 @@ verification:
 			}
 			if !preflight.Ready {
 				t.Fatalf("preflight ready = false, checks = %#v", preflight.Checks)
+			}
+
+			var progress []codexexec.ProgressEvent
+			runResult, err := opts.RunOnce(context.Background(), func(event codexexec.ProgressEvent) {
+				progress = append(progress, event)
+			})
+			if err != nil {
+				return err
+			}
+			if got, want := runResult.Run.ID, "run-tui"; got != want {
+				t.Fatalf("tui run result id = %q, want %q", got, want)
+			}
+			if len(progress) != 1 || progress[0].Message != "tui running" {
+				t.Fatalf("tui run progress = %#v, want one event", progress)
 			}
 
 			added, err := opts.AddTask(app.AddTaskInput{

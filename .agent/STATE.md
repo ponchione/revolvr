@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add a nonblocking TUI run-once action with live progress and cancellation.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the TUI now exposes an uppercase `R` run-once action guarded by the latest ready preflight result, tracks one active run at a time, streams Codex progress into a persistent Run Progress pane, hides or blocks conflicting actions while running, and supports `c` cancellation through the run context. Run completion refreshes the status snapshot, selects and loads the completed run detail when a run ID exists, and reports terminal states for success, failure, no-task, and cancellation.
+- CLI wiring changed: `revolvr tui` now passes a `RunOnce` callback that invokes `internal/app.RunOnce` with the same fakeable runner hook used by `revolvr run --once`.
+- Tests added: focused TUI model coverage for preflight and active-run guards, progress streaming, successful completion refresh, failed outcomes, and cancellation. CLI TUI wiring coverage now verifies the run callback and progress callback are available.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/tui`; `go test ./internal/app`; `go test ./internal/cli`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr tui --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to polish TUI layout, styling, and documentation for daily use.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: move doctor/preflight orchestration behind `internal/app` and add a TUI Preflight view.
 - Files changed: `internal/app/preflight.go`, `internal/app/app_test.go`, `internal/cli/doctor.go`, `internal/cli/doctor_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: existing doctor checks now run through `internal/app.Preflight`, which returns structured readiness checks and preserves the same check order, status labels, and detail strings. `revolvr doctor` remains a thin CLI renderer over that app result. The TUI now has a `5 Preflight` view with a `p` rerun action, displays ready/failed/error preflight states, and shows each check detail inline.

@@ -13,14 +13,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"revolvr/internal/app"
+	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
 )
 
 const (
 	defaultViewportWidth  = 80
 	defaultViewportHeight = 24
+	maxRunLogLines        = 200
 )
 
 var _ tea.Model = StatusModel{}
@@ -45,6 +48,7 @@ type StatusModel struct {
 	selectedTask int
 	selectedRun  int
 	runDetails   *ledger.RunWithEvents
+	runOnce      runOnceState
 	preflight    preflightState
 	validation   receiptValidationState
 	taskEntry    taskEntryState
@@ -59,13 +63,16 @@ type OpenRunFunc func(runID string) (ledger.RunWithEvents, error)
 type AddTaskFunc func(input app.AddTaskInput) (taskqueue.Task, error)
 type ValidateReceiptFunc func(runID string) (receipt.ValidationResult, error)
 type PreflightFunc func() (app.PreflightResult, error)
+type RunOnceFunc func(context.Context, app.RunProgress) (runonce.Result, error)
 
 type StatusActions struct {
+	Context         context.Context
 	RefreshStatus   RefreshStatusFunc
 	OpenRun         OpenRunFunc
 	AddTask         AddTaskFunc
 	ValidateReceipt ValidateReceiptFunc
 	Preflight       PreflightFunc
+	RunOnce         RunOnceFunc
 }
 
 type RunOptions struct {
@@ -76,6 +83,7 @@ type RunOptions struct {
 	AddTask         AddTaskFunc
 	ValidateReceipt ValidateReceiptFunc
 	Preflight       PreflightFunc
+	RunOnce         RunOnceFunc
 }
 
 type taskEntryField int
@@ -104,6 +112,20 @@ type preflightState struct {
 	Checked bool
 	Result  app.PreflightResult
 	Err     string
+}
+
+type runOnceState struct {
+	Active          bool
+	Started         bool
+	CancelRequested bool
+	Token           int
+	Cancel          context.CancelFunc
+	Messages        <-chan tea.Msg
+	Status          string
+	RunID           string
+	Outcome         string
+	Err             string
+	Logs            []string
 }
 
 func NewStatusModel(status app.StatusResult) StatusModel {
@@ -137,11 +159,13 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 	}
 
 	_, err := tea.NewProgram(NewStatusModelWithActions(status, StatusActions{
+		Context:         ctx,
 		RefreshStatus:   opts.RefreshStatus,
 		OpenRun:         opts.OpenRun,
 		AddTask:         opts.AddTask,
 		ValidateReceipt: opts.ValidateReceipt,
 		Preflight:       opts.Preflight,
+		RunOnce:         opts.RunOnce,
 	}), options...).Run()
 	return err
 }
@@ -236,9 +260,27 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.updateViewportContent()
 		return m, nil
+	case runOnceProgressMsg:
+		if msg.token != m.runOnce.Token || !m.runOnce.Started {
+			return m, nil
+		}
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, runProgressLine(msg.event))
+		m.message = "Run in progress."
+		m.updateViewportContent()
+		return m, m.waitRunOnceMsgCmd()
+	case runOnceDoneMsg:
+		if msg.token != m.runOnce.Token || !m.runOnce.Started {
+			return m, nil
+		}
+		m.applyRunOnceDone(msg)
+		m.updateViewportContent()
+		return m, nil
 	case tea.KeyMsg:
 		if m.view == viewTaskEntry {
 			return m.updateTaskEntry(msg)
+		}
+		if handled, cmd := m.updateActiveRunKeys(msg); handled {
+			return m, cmd
 		}
 
 		switch msg.String() {
@@ -258,6 +300,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "5":
 			m.switchView(viewPreflight)
+			if m.runOnce.Active {
+				return m, nil
+			}
 			if m.actions.Preflight == nil {
 				m.message = "Preflight is unavailable."
 				m.updateViewportContent()
@@ -270,6 +315,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			m.startTaskEntry()
 			return m, nil
+		case "R":
+			cmd := m.startRunOnce()
+			return m, cmd
 		case "r":
 			if m.actions.RefreshStatus == nil {
 				m.message = "Refresh is unavailable."
@@ -413,6 +461,23 @@ type preflightMsg struct {
 	err    error
 }
 
+type runOnceProgressMsg struct {
+	token int
+	event codexexec.ProgressEvent
+}
+
+type runOnceDoneMsg struct {
+	token         int
+	result        runonce.Result
+	err           error
+	cancelled     bool
+	status        app.StatusResult
+	statusErr     error
+	history       ledger.RunWithEvents
+	historyLoaded bool
+	historyErr    error
+}
+
 func (m StatusModel) refreshStatusCmd() tea.Cmd {
 	return func() tea.Msg {
 		status, err := m.actions.RefreshStatus()
@@ -467,6 +532,238 @@ func (m StatusModel) preflightCmd() tea.Cmd {
 	return func() tea.Msg {
 		result, err := m.actions.Preflight()
 		return preflightMsg{result: result, err: err}
+	}
+}
+
+func (m *StatusModel) startRunOnce() tea.Cmd {
+	if message := m.runStartBlocker(); message != "" {
+		m.message = message
+		m.updateViewportContent()
+		return nil
+	}
+
+	baseCtx := m.actions.Context
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(baseCtx)
+	token := m.runOnce.Token + 1
+	messages := make(chan tea.Msg, 128)
+	m.runOnce = runOnceState{
+		Active:   true,
+		Started:  true,
+		Token:    token,
+		Cancel:   cancel,
+		Messages: messages,
+		Status:   "running",
+		Logs:     []string{"system: run started"},
+	}
+	m.message = "Run started."
+	m.updateViewportContent()
+	return m.startRunOnceCmd(token, runCtx, messages)
+}
+
+func (m StatusModel) startRunOnceCmd(token int, ctx context.Context, messages chan tea.Msg) tea.Cmd {
+	actions := m.actions
+	return func() tea.Msg {
+		go func() {
+			result, err := actions.RunOnce(ctx, func(event codexexec.ProgressEvent) {
+				line := runProgressLine(event)
+				if line == "" {
+					return
+				}
+				select {
+				case messages <- runOnceProgressMsg{token: token, event: event}:
+				case <-ctx.Done():
+				}
+			})
+
+			done := runOnceDoneMsg{
+				token:     token,
+				result:    result,
+				err:       err,
+				cancelled: ctx.Err() != nil,
+			}
+			if actions.RefreshStatus != nil {
+				done.status, done.statusErr = actions.RefreshStatus()
+			} else {
+				done.statusErr = fmt.Errorf("refresh is unavailable")
+			}
+			runID := strings.TrimSpace(result.Run.ID)
+			if runID != "" {
+				if actions.OpenRun != nil {
+					done.history, done.historyErr = actions.OpenRun(runID)
+					done.historyLoaded = done.historyErr == nil
+				} else {
+					done.historyErr = fmt.Errorf("open run is unavailable")
+				}
+			}
+			messages <- done
+			close(messages)
+		}()
+
+		msg, ok := <-messages
+		if !ok {
+			return runOnceDoneMsg{
+				token:     token,
+				err:       fmt.Errorf("run event stream closed"),
+				cancelled: ctx.Err() != nil,
+			}
+		}
+		return msg
+	}
+}
+
+func (m StatusModel) waitRunOnceMsgCmd() tea.Cmd {
+	messages := m.runOnce.Messages
+	token := m.runOnce.Token
+	if messages == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		msg, ok := <-messages
+		if !ok {
+			return runOnceDoneMsg{token: token, err: fmt.Errorf("run event stream closed")}
+		}
+		return msg
+	}
+}
+
+func (m StatusModel) runStartBlocker() string {
+	switch {
+	case m.runOnce.Active:
+		return "Run already active."
+	case m.actions.RunOnce == nil:
+		return "Run is unavailable."
+	case !m.preflight.Checked:
+		return "Run blocked: preflight is not ready."
+	case strings.TrimSpace(m.preflight.Err) != "":
+		return "Run blocked: preflight error: " + oneLine(m.preflight.Err)
+	case !m.preflight.Result.Ready:
+		return "Run blocked: preflight is not ready."
+	default:
+		return ""
+	}
+}
+
+func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if !m.runOnce.Active {
+		return false, nil
+	}
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.requestRunCancel()
+		return true, tea.Quit
+	case "c":
+		m.requestRunCancel()
+		return true, nil
+	case "R", "r", "a":
+		m.message = "Run is active; cancel or wait before starting another action."
+		m.updateViewportContent()
+		return true, nil
+	case "p":
+		if m.view == viewPreflight {
+			m.message = "Run is active; cancel or wait before starting another action."
+			m.updateViewportContent()
+			return true, nil
+		}
+	case "v":
+		if m.view == viewRunDetail {
+			m.message = "Run is active; cancel or wait before starting another action."
+			m.updateViewportContent()
+			return true, nil
+		}
+	case "enter", "o":
+		if m.view == viewRuns || m.view == viewRunDetail {
+			m.message = "Run is active; cancel or wait before starting another action."
+			m.updateViewportContent()
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *StatusModel) requestRunCancel() {
+	if m.runOnce.CancelRequested {
+		m.message = "Cancellation already requested."
+		m.updateViewportContent()
+		return
+	}
+	m.runOnce.CancelRequested = true
+	if m.runOnce.Cancel != nil {
+		m.runOnce.Cancel()
+	}
+	m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: cancellation requested")
+	m.message = "Cancellation requested."
+	m.updateViewportContent()
+}
+
+func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
+	runID := strings.TrimSpace(msg.result.Run.ID)
+	outcome := strings.TrimSpace(string(msg.result.Outcome))
+	terminal := runTerminalStatus(msg.result, msg.err, msg.cancelled)
+
+	m.runOnce.Active = false
+	m.runOnce.Cancel = nil
+	m.runOnce.Messages = nil
+	m.runOnce.Status = terminal
+	m.runOnce.RunID = runID
+	m.runOnce.Outcome = outcome
+	m.runOnce.Err = ""
+	if msg.err != nil {
+		m.runOnce.Err = msg.err.Error()
+	}
+	m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: terminal state: "+terminal)
+
+	switch terminal {
+	case "cancelled":
+		m.message = "Run cancelled."
+	case "completed":
+		m.message = "Run completed."
+	case "no_task":
+		m.message = "Run finished: no pending runnable tasks."
+	default:
+		m.message = "Run failed."
+	}
+	if runID != "" {
+		m.message += " " + runID + "."
+	}
+
+	m.applyRunCompletionStatus(msg, runID)
+	m.applyRunCompletionDetail(msg, runID)
+}
+
+func (m *StatusModel) applyRunCompletionStatus(msg runOnceDoneMsg, runID string) {
+	if msg.statusErr != nil {
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: refresh failed: "+oneLine(msg.statusErr.Error()))
+		return
+	}
+	selectedTaskID := m.selectedTaskID()
+	selectedRunID := m.selectedRunID()
+	if runID != "" {
+		selectedRunID = runID
+	}
+	m.status = msg.status
+	m.selectedTask = selectedTaskIndex(m.status.Tasks, selectedTaskID)
+	m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
+	if !m.status.Initialized {
+		m.runDetails = nil
+		m.validation = receiptValidationState{}
+	}
+}
+
+func (m *StatusModel) applyRunCompletionDetail(msg runOnceDoneMsg, runID string) {
+	if runID == "" {
+		return
+	}
+	if msg.historyLoaded {
+		m.runDetails = &msg.history
+		m.validation = receiptValidationState{RunID: runID}
+		return
+	}
+	m.runDetails = nil
+	if msg.historyErr != nil {
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: run detail refresh failed: "+oneLine(msg.historyErr.Error()))
 	}
 }
 
@@ -616,25 +913,31 @@ func (m *StatusModel) resizeViewport() {
 }
 
 func (m StatusModel) renderContent() string {
+	var content string
 	switch m.view {
 	case viewTasks:
-		return m.renderTasks()
+		content = m.renderTasks()
 	case viewRuns:
-		return m.renderRuns()
+		content = m.renderRuns()
 	case viewRunDetail:
 		if m.runDetails != nil {
-			return m.renderRunDetails(*m.runDetails)
+			content = m.renderRunDetails(*m.runDetails)
+			break
 		}
-		return m.renderEmptyRunDetail()
+		content = m.renderEmptyRunDetail()
 	case viewPreflight:
-		return m.renderPreflight()
+		content = m.renderPreflight()
 	case viewHelp:
-		return m.renderHelp()
+		content = m.renderHelp()
 	case viewTaskEntry:
-		return m.renderTaskEntry()
+		content = m.renderTaskEntry()
 	default:
-		return m.renderDashboard()
+		content = m.renderDashboard()
 	}
+	if m.runOnce.Started && m.view != viewHelp && m.view != viewTaskEntry {
+		return lipgloss.JoinVertical(lipgloss.Left, m.renderRunProgress(), "", content)
+	}
+	return content
 }
 
 func (m StatusModel) headerLines() []string {
@@ -700,6 +1003,20 @@ func (m StatusModel) viewLabel() string {
 
 func (m StatusModel) footerLines() []string {
 	keys := []string{}
+	if m.runOnce.Active {
+		switch m.view {
+		case viewTasks, viewRuns:
+			keys = append(keys, "j/k Select")
+		case viewRunDetail:
+			keys = append(keys, "up/down Scroll", "home/end Jump")
+		case viewHelp:
+			keys = append(keys, "esc Back")
+		case viewTaskEntry:
+			return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
+		}
+		keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "c Cancel Run", "q Quit")
+		return wrapKeyLines(keys, m.width)
+	}
 	switch m.view {
 	case viewTasks:
 		keys = append(keys, "j/k Select")
@@ -714,7 +1031,7 @@ func (m StatusModel) footerLines() []string {
 	case viewTaskEntry:
 		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
 	}
-	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "r Refresh", "q Quit")
+	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "R Run Once", "r Refresh", "q Quit")
 	return wrapKeyLines(keys, m.width)
 }
 
@@ -873,6 +1190,30 @@ func (m StatusModel) renderPreflight() string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
+func (m StatusModel) renderRunProgress() string {
+	lines := []string{"Run Progress"}
+	lines = appendNotice(lines, m.message)
+	lines = append(lines, "Status: "+optionalValue(m.runOnce.Status))
+	if m.runOnce.RunID != "" {
+		lines = append(lines, "Run ID: "+m.runOnce.RunID)
+	}
+	if m.runOnce.Outcome != "" {
+		lines = append(lines, "Outcome: "+m.runOnce.Outcome)
+	}
+	if m.runOnce.CancelRequested && m.runOnce.Active {
+		lines = append(lines, "Cancellation: requested")
+	}
+	if m.runOnce.Err != "" {
+		lines = append(lines, "Error: "+oneLine(m.runOnce.Err))
+	}
+	lines = append(lines, "Log")
+	if len(m.runOnce.Logs) == 0 {
+		return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No progress yet.")...)
+	}
+	lines = append(lines, m.runOnce.Logs...)
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
 func (m StatusModel) renderHelp() string {
 	lines := []string{
 		"Help",
@@ -884,7 +1225,9 @@ func (m StatusModel) renderHelp() string {
 		"5  Preflight",
 		"?  Help",
 		"a  Add task",
+		"R  Run once",
 		"r  Refresh status",
+		"c  Cancel active run",
 		"q  Quit",
 		"",
 		"Tasks: j/k Move selection",
@@ -1370,6 +1713,35 @@ func preflightCheckLine(check app.PreflightCheck) string {
 	return fmt.Sprintf("%s %s: %s", optionalValue(string(check.Status)), optionalValue(check.Name), oneLine(check.Detail))
 }
 
+func runProgressLine(event codexexec.ProgressEvent) string {
+	source := oneLine(event.Source)
+	message := oneLine(event.Message)
+	if message == "" {
+		return ""
+	}
+	if source == "" {
+		source = "codex"
+	}
+	return source + ": " + message
+}
+
+func runTerminalStatus(result runonce.Result, err error, cancelled bool) string {
+	switch {
+	case cancelled:
+		return "cancelled"
+	case err != nil:
+		return "failed"
+	case result.NoTask || result.Outcome == runonce.OutcomeNoTask:
+		return "no_task"
+	case result.Outcome == runonce.OutcomeCommitted:
+		return "completed"
+	case app.RunOnceOutcomeError(result) != nil:
+		return "failed"
+	default:
+		return "completed"
+	}
+}
+
 func runChangedFileLines(diagnostics runDetailDiagnostics) []string {
 	lines := []string{"Changed Files"}
 	if !diagnostics.ChangedFilesCaptured {
@@ -1488,6 +1860,18 @@ func appendNotice(lines []string, message string) []string {
 		return lines
 	}
 	return append(lines, "Notice: "+message, "")
+}
+
+func appendRunLog(logs []string, line string) []string {
+	line = oneLine(line)
+	if line == "" {
+		return logs
+	}
+	logs = append(logs, line)
+	if len(logs) <= maxRunLogLines {
+		return logs
+	}
+	return append([]string(nil), logs[len(logs)-maxRunLogLines:]...)
 }
 
 func taskEntryLine(active bool, label string, value string) string {
