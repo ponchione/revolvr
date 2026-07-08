@@ -10,6 +10,17 @@ None.
 
 ## Last Run
 
+Task completed on 2026-07-08:
+
+- Selected task: document the next harness-usefulness improvements in the durable task backlog for continued dogfooding.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: none; durable planning state only.
+- Tasks added: richer latest-run `status` output; receipt validation command; blocked-task retry/unblock support; `run --max-passes` guardrails and loop summary; live dogfood verification script/checklist.
+- Verification run: not run; durable planning state only.
+- Verification result: not run.
+- What remains: start the first unchecked backlog item with a fresh dogfood pass.
+- Blockers: none.
+
 Task completed on 2026-07-07:
 
 - Selected task: fix finalized receipt timestamps so the harness overwrites stale agent-authored timestamps with the run completion time.
