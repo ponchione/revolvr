@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add a dedicated TUI Tasks view with selection and task detail rendering.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the TUI Tasks view now keeps an independent selected task, supports `j/k` and arrow-key movement, renders pending, blocked, and completed tasks in a scannable list, and shows an inline detail section for the selected task with ID, status, summary, task text, blocker, and present timestamps. Blocked tasks use a visible `! blocked` list marker without relying on color.
+- Tests added: focused TUI coverage for populated task lists, empty task state, pending task details, blocked task details, and completed task details.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/tui`; `go test ./...`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add a TUI task creation flow backed by `internal/app.AddTask`.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add a multi-view TUI shell with explicit Dashboard, Tasks, Runs, Run Detail, and Help/keys areas.
 - Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: `internal/tui.StatusModel` now has an explicit read-only view model for Dashboard, Tasks, Runs, Run Detail, and Help. Number keys switch views, Runs keeps selection/open actions, Run Detail preserves loaded details while switching away and back, and the shell renders header/footer key help with resize-aware content sizing.

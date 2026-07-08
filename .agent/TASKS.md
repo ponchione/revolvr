@@ -17,7 +17,7 @@
   Acceptance: users can switch views without losing loaded state; the footer shows available keys for the active view; empty/uninitialized state still renders coherently.
   Verification: add focused `internal/tui` tests for view switching, help/footer rendering, and resize behavior; run `go test ./internal/tui`, `go test ./internal/cli -run 'TestTUI'`, and `go test ./...`.
 
-- [ ] Add a dedicated TUI Tasks view with selection and task detail rendering.
+- [x] Add a dedicated TUI Tasks view with selection and task detail rendering.
   Scope: show pending, blocked, and completed tasks in a scannable list or table; allow moving the selection; render details for the selected task including ID, status, summary, task text, blocker, and timestamps when present.
   Acceptance: task details are visible without leaving the TUI; blocked tasks are visually distinguishable; there is no task mutation yet.
   Verification: add focused tests for populated, empty, pending, blocked, and completed task states; run `go test ./internal/tui` and `go test ./...`.

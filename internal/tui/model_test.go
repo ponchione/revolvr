@@ -93,6 +93,120 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 	}
 }
 
+func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	tasksView := openTasksView(t, model)
+
+	lines := normalizedViewLines(tasksView.View())
+	requireLines(t, lines,
+		"Views: Dashboard | [Tasks] | Runs | Run Detail | Help",
+		"Tasks",
+		"Total: 0",
+		"Pending: 0",
+		"Blocked: 0",
+		"Completed: 0",
+		"Task List",
+		"None",
+		"Task Detail",
+		"No task selected.",
+		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh | q Quit",
+	)
+}
+
+func TestStatusModelTasksViewRendersPopulatedTaskList(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks:       sampleTasks(),
+	})
+	tasksView := openTasksView(t, model)
+
+	lines := normalizedViewLines(tasksView.View())
+	requireLines(t, lines,
+		"Task List",
+		"> task-pending  pending  write focused tests",
+		"  task-blocked  ! blocked  blocked task",
+		"  task-completed  completed  finished task",
+	)
+}
+
+func TestStatusModelTasksViewRendersPendingTaskDetails(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks:       sampleTasks(),
+	})
+	tasksView := openTasksView(t, model)
+
+	lines := normalizedViewLines(tasksView.View())
+	requireLines(t, lines,
+		"Task Detail",
+		"ID: task-pending",
+		"Status: pending",
+		"Summary: write focused tests",
+		"Task: Add focused task view tests",
+		"Blocker: none",
+		"Created: 2026-07-08T10:00:00Z",
+		"Updated: 2026-07-08T10:00:00Z",
+	)
+	requireNoLine(t, lines, "Blocked: 2026-07-08T10:02:00Z")
+	requireNoLine(t, lines, "Completed: 2026-07-08T10:04:00Z")
+}
+
+func TestStatusModelTasksViewRendersBlockedTaskDetails(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks:       sampleTasks(),
+	})
+	tasksView := openTasksView(t, model)
+
+	blockedView, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+
+	lines := normalizedViewLines(blockedView.View())
+	requireLines(t, lines,
+		"> task-blocked  ! blocked  blocked task",
+		"ID: task-blocked",
+		"Status: blocked",
+		"Summary: none",
+		"Task: blocked task",
+		"Blocker: waiting on access",
+		"Created: 2026-07-08T10:01:00Z",
+		"Updated: 2026-07-08T10:02:00Z",
+		"Blocked: 2026-07-08T10:02:00Z",
+	)
+}
+
+func TestStatusModelTasksViewRendersCompletedTaskDetails(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks:       sampleTasks(),
+	})
+	tasksView := openTasksView(t, model)
+
+	completedView, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("first move selection cmd = %v, want nil", cmd)
+	}
+	completedView, cmd = updateStatusModel(t, completedView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("second move selection cmd = %v, want nil", cmd)
+	}
+
+	lines := normalizedViewLines(completedView.View())
+	requireLines(t, lines,
+		"> task-completed  completed  finished task",
+		"ID: task-completed",
+		"Status: completed",
+		"Summary: finished task",
+		"Task: completed task",
+		"Blocker: none",
+		"Created: 2026-07-08T10:03:00Z",
+		"Updated: 2026-07-08T10:04:00Z",
+		"Completed: 2026-07-08T10:04:00Z",
+	)
+}
+
 func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 	refreshed := false
 	model := NewStatusModelWithActions(app.StatusResult{
@@ -408,6 +522,56 @@ func runStatusModelCmd(t *testing.T, model StatusModel, cmd tea.Cmd) (StatusMode
 	return updateStatusModel(t, model, cmd())
 }
 
+func openTasksView(t *testing.T, model StatusModel) StatusModel {
+	t.Helper()
+	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 120, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+	tasksView, cmd := updateStatusModel(t, resized, keyRunes("2"))
+	if cmd != nil {
+		t.Fatalf("tasks view cmd = %v, want nil", cmd)
+	}
+	return tasksView
+}
+
+func sampleTasks() []taskqueue.Task {
+	createdPending := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
+	createdBlocked := createdPending.Add(time.Minute)
+	blockedAt := createdPending.Add(2 * time.Minute)
+	completedCreated := createdPending.Add(3 * time.Minute)
+	completedAt := createdPending.Add(4 * time.Minute)
+
+	return []taskqueue.Task{
+		{
+			ID:        "task-pending",
+			Status:    taskqueue.StatusPending,
+			Summary:   "write focused tests",
+			Task:      "Add focused task view tests",
+			CreatedAt: createdPending,
+			UpdatedAt: createdPending,
+		},
+		{
+			ID:        "task-blocked",
+			Status:    taskqueue.StatusBlocked,
+			Task:      "blocked task",
+			Blocker:   "waiting on access",
+			CreatedAt: createdBlocked,
+			UpdatedAt: blockedAt,
+			BlockedAt: &blockedAt,
+		},
+		{
+			ID:          "task-completed",
+			Status:      taskqueue.StatusCompleted,
+			Summary:     "finished task",
+			Task:        "completed task",
+			CreatedAt:   completedCreated,
+			UpdatedAt:   completedAt,
+			CompletedAt: &completedAt,
+		},
+	}
+}
+
 func keyRunes(value string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)}
 }
@@ -419,4 +583,20 @@ func containsLine(lines []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func requireLines(t *testing.T, lines []string, wants ...string) {
+	t.Helper()
+	for _, want := range wants {
+		if !containsLine(lines, want) {
+			t.Fatalf("view missing %q: %#v", want, lines)
+		}
+	}
+}
+
+func requireNoLine(t *testing.T, lines []string, want string) {
+	t.Helper()
+	if containsLine(lines, want) {
+		t.Fatalf("view unexpectedly contained %q: %#v", want, lines)
+	}
 }

@@ -34,16 +34,17 @@ const (
 )
 
 type StatusModel struct {
-	status      app.StatusResult
-	actions     StatusActions
-	view        TUIView
-	previous    TUIView
-	selectedRun int
-	runDetails  *ledger.RunWithEvents
-	message     string
-	width       int
-	height      int
-	viewport    viewport.Model
+	status       app.StatusResult
+	actions      StatusActions
+	view         TUIView
+	previous     TUIView
+	selectedTask int
+	selectedRun  int
+	runDetails   *ledger.RunWithEvents
+	message      string
+	width        int
+	height       int
+	viewport     viewport.Model
 }
 
 type RefreshStatusFunc func() (app.StatusResult, error)
@@ -67,14 +68,15 @@ func NewStatusModel(status app.StatusResult) StatusModel {
 
 func NewStatusModelWithActions(status app.StatusResult, actions StatusActions) StatusModel {
 	model := StatusModel{
-		status:      status,
-		actions:     actions,
-		view:        viewDashboard,
-		previous:    viewDashboard,
-		selectedRun: clampRunIndex(status.RecentRuns, 0),
-		width:       defaultViewportWidth,
-		height:      defaultViewportHeight,
-		viewport:    viewport.New(defaultViewportWidth, defaultViewportHeight),
+		status:       status,
+		actions:      actions,
+		view:         viewDashboard,
+		previous:     viewDashboard,
+		selectedTask: clampTaskIndex(status.Tasks, 0),
+		selectedRun:  clampRunIndex(status.RecentRuns, 0),
+		width:        defaultViewportWidth,
+		height:       defaultViewportHeight,
+		viewport:     viewport.New(defaultViewportWidth, defaultViewportHeight),
 	}
 	model.resizeViewport()
 	model.updateViewportContent()
@@ -112,8 +114,10 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.message = fmt.Sprintf("Refresh failed: %s", msg.err)
 		} else {
+			selectedTaskID := m.selectedTaskID()
 			selectedID := m.selectedRunID()
 			m.status = msg.status
+			m.selectedTask = selectedTaskIndex(m.status.Tasks, selectedTaskID)
 			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedID)
 			if !m.status.Initialized {
 				m.runDetails = nil
@@ -171,6 +175,17 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch m.view {
+		case viewTasks:
+			switch msg.String() {
+			case "up", "k":
+				m.moveSelectedTask(-1)
+				m.updateViewportContent()
+				return m, nil
+			case "down", "j":
+				m.moveSelectedTask(1)
+				m.updateViewportContent()
+				return m, nil
+			}
 		case viewRuns:
 			switch msg.String() {
 			case "enter", "o":
@@ -373,6 +388,8 @@ func (m StatusModel) viewLabel() string {
 func (m StatusModel) footerLines() []string {
 	keys := []string{}
 	switch m.view {
+	case viewTasks:
+		keys = append(keys, "j/k Select")
 	case viewRuns:
 		keys = append(keys, "j/k Select", "enter Open")
 	case viewRunDetail:
@@ -433,20 +450,32 @@ func (m StatusModel) renderTasks() string {
 		"Task List",
 	)
 	if len(m.status.Tasks) == 0 {
-		lines = append(lines, "None")
+		lines = append(lines,
+			"None",
+			"",
+			"Task Detail",
+			"No task selected.",
+		)
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
-	for _, task := range m.status.Tasks {
+	selected := clampTaskIndex(m.status.Tasks, m.selectedTask)
+	for i, task := range m.status.Tasks {
+		prefix := " "
+		if i == selected {
+			prefix = ">"
+		}
 		summary := oneLine(task.Summary)
 		if summary == "" {
 			summary = oneLine(task.Task)
 		}
 		if summary == "" {
-			lines = append(lines, fmt.Sprintf("- %s  %s", optionalValue(task.ID), optionalValue(task.Status)))
+			lines = append(lines, fmt.Sprintf("%s %s  %s", prefix, optionalValue(task.ID), taskListStatus(task.Status)))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("- %s  %s  %s", optionalValue(task.ID), optionalValue(task.Status), summary))
+		lines = append(lines, fmt.Sprintf("%s %s  %s  %s", prefix, optionalValue(task.ID), taskListStatus(task.Status), summary))
 	}
+	lines = append(lines, "")
+	lines = append(lines, renderTaskDetailLines(m.status.Tasks[selected])...)
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
@@ -516,8 +545,8 @@ func (m StatusModel) renderHelp() string {
 		"r  Refresh status",
 		"q  Quit",
 		"",
-		"Runs",
-		"j/k  Move selection",
+		"Tasks: j/k Move selection",
+		"Runs: j/k Move selection",
 		"enter or o  Open selected run",
 		"esc  Back from help or run detail",
 	}
@@ -544,6 +573,41 @@ func countTasks(tasks []taskqueue.Task) taskCounts {
 		}
 	}
 	return counts
+}
+
+func renderTaskDetailLines(task taskqueue.Task) []string {
+	lines := []string{
+		"Task Detail",
+		fmt.Sprintf("ID: %s", optionalValue(task.ID)),
+		fmt.Sprintf("Status: %s", optionalValue(task.Status)),
+		fmt.Sprintf("Summary: %s", optionalValue(task.Summary)),
+		fmt.Sprintf("Task: %s", optionalValue(task.Task)),
+		fmt.Sprintf("Blocker: %s", optionalValue(task.Blocker)),
+	}
+	if !task.CreatedAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("Created: %s", optionalTime(task.CreatedAt)))
+	}
+	if !task.UpdatedAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("Updated: %s", optionalTime(task.UpdatedAt)))
+	}
+	if task.BlockedAt != nil {
+		lines = append(lines, fmt.Sprintf("Blocked: %s", optionalTimePtr(task.BlockedAt)))
+	}
+	if task.CompletedAt != nil {
+		lines = append(lines, fmt.Sprintf("Completed: %s", optionalTimePtr(task.CompletedAt)))
+	}
+	return lines
+}
+
+func taskListStatus(status string) string {
+	switch status {
+	case taskqueue.StatusBlocked:
+		return "! blocked"
+	case "":
+		return "none"
+	default:
+		return status
+	}
 }
 
 func latestRunLines(runs []ledger.Run) []string {
@@ -654,6 +718,21 @@ func trimTrailingBlankLines(value string) string {
 	return strings.Join(lines, "\n")
 }
 
+func (m *StatusModel) moveSelectedTask(delta int) {
+	if len(m.status.Tasks) == 0 {
+		m.selectedTask = 0
+		return
+	}
+	m.selectedTask = clampTaskIndex(m.status.Tasks, m.selectedTask+delta)
+}
+
+func (m StatusModel) selectedTaskID() string {
+	if len(m.status.Tasks) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTask)].ID)
+}
+
 func (m *StatusModel) moveSelectedRun(delta int) {
 	if len(m.status.RecentRuns) == 0 {
 		m.selectedRun = 0
@@ -667,6 +746,28 @@ func (m StatusModel) selectedRunID() string {
 		return ""
 	}
 	return strings.TrimSpace(m.status.RecentRuns[clampRunIndex(m.status.RecentRuns, m.selectedRun)].ID)
+}
+
+func selectedTaskIndex(tasks []taskqueue.Task, taskID string) int {
+	taskID = strings.TrimSpace(taskID)
+	if taskID != "" {
+		for i, task := range tasks {
+			if strings.TrimSpace(task.ID) == taskID {
+				return i
+			}
+		}
+	}
+	return clampTaskIndex(tasks, 0)
+}
+
+func clampTaskIndex(tasks []taskqueue.Task, index int) int {
+	if len(tasks) == 0 || index < 0 {
+		return 0
+	}
+	if index >= len(tasks) {
+		return len(tasks) - 1
+	}
+	return index
 }
 
 func selectedRunIndex(runs []ledger.Run, runID string) int {
