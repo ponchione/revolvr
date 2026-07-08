@@ -214,14 +214,24 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 	}
 	for _, spec := range []ledger.RunSpec{
 		{ID: "run-old", TaskID: "task-old", Task: "old run", Status: ledger.StatusCompleted, StartedAt: base},
-		{ID: "run-new", TaskID: "task-new", Task: "new run", Status: ledger.StatusFailed, StartedAt: base.Add(time.Hour)},
+		{
+			ID:                 "run-new",
+			TaskID:             "task-new",
+			Task:               "new run",
+			Status:             ledger.StatusFailed,
+			Summary:            "verification command 0 failed",
+			StartedAt:          base.Add(time.Hour),
+			VerificationStatus: "failed",
+			CommitSHA:          "abc123",
+		},
 	} {
 		if _, err := runs.CreateRun(ctx, spec); err != nil {
 			t.Fatalf("create %s: %v", spec.ID, err)
 		}
 	}
 	if _, err := runs.AppendEvent(ctx, "run-new", ledger.EventRunArtifacts, ledger.RunArtifacts{
-		PromptPath: ".revolvr/runs/run-new/prompt.md",
+		PromptPath:  ".revolvr/runs/run-new/prompt.md",
+		ReceiptPath: ".revolvr/receipts/run-new.md",
 	}); err != nil {
 		t.Fatalf("append artifact event: %v", err)
 	}
@@ -238,7 +248,13 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 		"Blocked tasks: 1\n" +
 		"Completed tasks: 1\n" +
 		"Recent runs: 2\n" +
-		"Latest run: run-new (failed)\n"
+		"Latest run: run-new (failed)\n" +
+		"Latest summary: verification command 0 failed\n" +
+		"Latest verification: failed\n" +
+		"Latest commit: abc123\n" +
+		"Latest artifacts:\n" +
+		"prompt: .revolvr/runs/run-new/prompt.md\n" +
+		"receipt: .revolvr/receipts/run-new.md\n"
 	if out != want {
 		t.Fatalf("status output = %q, want %q", out, want)
 	}

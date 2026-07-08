@@ -12,6 +12,16 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: expand `revolvr status` to show latest run summary, verification status, commit SHA, and artifact path hints when a run exists.
+- Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: `status` now loads the latest run's event history and prints the latest summary, verification status, commit SHA, and artifact paths after the existing latest run line. Missing latest-run fields render as `none`; artifact paths reuse the same order as `show`.
+- Verification run: `gofmt -w internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/cli`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add a first-class receipt validation command.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: document the next harness-usefulness improvements in the durable task backlog for continued dogfooding.
 - Files changed: `.agent/TASKS.md`, `.agent/STATE.md`.
 - Behavior changed: none; durable planning state only.

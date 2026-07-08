@@ -371,7 +371,17 @@ func newStatusCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeStatus(cmd.OutOrStdout(), taskList, recentRuns)
+			var latestEvents []ledger.Event
+			if len(recentRuns) > 0 {
+				latestHistory, ok, err := runs.GetRunWithEvents(cmd.Context(), recentRuns[0].ID)
+				if err != nil {
+					return err
+				}
+				if ok {
+					latestEvents = latestHistory.Events
+				}
+			}
+			return writeStatus(cmd.OutOrStdout(), taskList, recentRuns, latestEvents)
 		},
 	}
 }
@@ -470,7 +480,7 @@ type taskCounts struct {
 	completed int
 }
 
-func writeStatus(out io.Writer, tasks []taskqueue.Task, recentRuns []ledger.Run) error {
+func writeStatus(out io.Writer, tasks []taskqueue.Task, recentRuns []ledger.Run, latestEvents []ledger.Event) error {
 	counts := countTasks(tasks)
 	if _, err := fmt.Fprintf(out, "Total tasks: %d\n", counts.total); err != nil {
 		return err
@@ -491,8 +501,43 @@ func writeStatus(out io.Writer, tasks []taskqueue.Task, recentRuns []ledger.Run)
 		_, err := fmt.Fprint(out, "Latest run: none\n")
 		return err
 	}
-	_, err := fmt.Fprintf(out, "Latest run: %s (%s)\n", recentRuns[0].ID, recentRuns[0].Status)
-	return err
+	return writeLatestRunStatus(out, recentRuns[0], latestEvents)
+}
+
+func writeLatestRunStatus(out io.Writer, run ledger.Run, events []ledger.Event) error {
+	if _, err := fmt.Fprintf(out, "Latest run: %s (%s)\n", run.ID, run.Status); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(out, "Latest summary: %s\n", optionalStatusValue(run.Summary)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(out, "Latest verification: %s\n", optionalStatusValue(run.VerificationStatus)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(out, "Latest commit: %s\n", optionalStatusValue(run.CommitSHA)); err != nil {
+		return err
+	}
+	return writeLatestArtifacts(out, events)
+}
+
+func optionalStatusValue(value string) string {
+	value = oneLine(value)
+	if value == "" {
+		return "none"
+	}
+	return value
+}
+
+func writeLatestArtifacts(out io.Writer, events []ledger.Event) error {
+	artifacts, found := ledger.RunArtifactsFromEvents(events)
+	if !found || artifacts.Empty() {
+		_, err := fmt.Fprint(out, "Latest artifacts: none\n")
+		return err
+	}
+	if _, err := fmt.Fprint(out, "Latest artifacts:\n"); err != nil {
+		return err
+	}
+	return writeArtifactPathLines(out, artifacts)
 }
 
 func countTasks(tasks []taskqueue.Task) taskCounts {
@@ -587,6 +632,10 @@ func writeArtifacts(out io.Writer, artifacts ledger.RunArtifacts) error {
 		_, err := fmt.Fprint(out, "none\n")
 		return err
 	}
+	return writeArtifactPathLines(out, artifacts)
+}
+
+func writeArtifactPathLines(out io.Writer, artifacts ledger.RunArtifacts) error {
 	for _, artifact := range []struct {
 		label string
 		path  string
