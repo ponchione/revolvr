@@ -12,7 +12,7 @@
 
 ## Current Backlog
 
-- [ ] Add a multi-view TUI shell with explicit Dashboard, Tasks, Runs, Run Detail, and Help/keys areas.
+- [x] Add a multi-view TUI shell with explicit Dashboard, Tasks, Runs, Run Detail, and Help/keys areas.
   Scope: replace the current single-window feel with a view model and predictable navigation keys. Keep the TUI read-only for this task.
   Acceptance: users can switch views without losing loaded state; the footer shows available keys for the active view; empty/uninitialized state still renders coherently.
   Verification: add focused `internal/tui` tests for view switching, help/footer rendering, and resize behavior; run `go test ./internal/tui`, `go test ./internal/cli -run 'TestTUI'`, and `go test ./...`.

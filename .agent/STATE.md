@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add a multi-view TUI shell with explicit Dashboard, Tasks, Runs, Run Detail, and Help/keys areas.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `internal/tui.StatusModel` now has an explicit read-only view model for Dashboard, Tasks, Runs, Run Detail, and Help. Number keys switch views, Runs keeps selection/open actions, Run Detail preserves loaded details while switching away and back, and the shell renders header/footer key help with resize-aware content sizing.
+- Tests added: focused TUI coverage for explicit shell rendering, refresh with view switching, loaded run detail preservation, Help/footer rendering, and narrow resize behavior. CLI TUI tests now size the model before snapshot assertions.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root_test.go`; `go test ./internal/tui`; `go test ./internal/cli -run TestTUI`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr tui --help`; `go run ./cmd/revolvr status`; `go run ./cmd/revolvr config check`; `git diff --check`.
+- Verification result: all commands passed. The interactive `revolvr tui` session itself was not launched because it waits for terminal input.
+- What remains: next unchecked backlog item is to add a dedicated TUI Tasks view with selection and task detail rendering.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: clean the completed backlog out of the active task list and seed a detailed next-phase TUI backlog.
 - Files changed: `.agent/TASKS.md`, `.agent/STATE.md`.
 - Behavior changed: none; durable planning state only.

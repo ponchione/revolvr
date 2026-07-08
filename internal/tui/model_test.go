@@ -19,10 +19,16 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 	lines := normalizedViewLines(model.View())
 	want := []string{
 		"Revolvr",
+		"Views: [Dashboard] | Tasks | Runs | Run Detail | Help",
 		"State: not initialized",
+		"",
+		"Dashboard",
+		"State: not initialized",
+		"",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh | q Quit",
 	}
-	if !reflect.DeepEqual(lines[:len(want)], want) {
-		t.Fatalf("view lines = %#v, want prefix %#v", lines, want)
+	if !reflect.DeepEqual(lines, want) {
+		t.Fatalf("view lines = %#v, want %#v", lines, want)
 	}
 }
 
@@ -49,7 +55,7 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 			},
 		},
 	})
-	updated, cmd := model.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	updated, cmd := model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
@@ -57,6 +63,10 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 	lines := normalizedViewLines(updated.View())
 	want := []string{
 		"Revolvr",
+		"Views: [Dashboard] | Tasks | Runs | Run Detail | Help",
+		"State: initialized",
+		"",
+		"Dashboard",
 		"State: initialized",
 		"",
 		"Tasks",
@@ -75,6 +85,8 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 		"Recent Runs",
 		"> run-new  failed  verification failed",
 		"  run-old  completed  committed change",
+		"",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -107,8 +119,12 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 			}, nil
 		},
 	})
+	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("r"))
+	afterKey, cmd := updateStatusModel(t, resized, keyRunes("r"))
 	if cmd == nil {
 		t.Fatal("refresh key returned nil cmd")
 	}
@@ -131,15 +147,22 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 		"Pending: 1",
 		"Completed: 1",
 		"ID: run-new",
-		"> run-new  failed  new summary",
 	} {
 		if !containsLine(lines, want) {
 			t.Fatalf("refreshed view missing %q: %#v", want, lines)
 		}
 	}
+
+	runsView, cmd := updateStatusModel(t, afterRefresh, keyRunes("3"))
+	if cmd != nil {
+		t.Fatalf("runs view cmd = %v, want nil", cmd)
+	}
+	if !containsLine(normalizedViewLines(runsView.View()), "> run-new  failed  new summary") {
+		t.Fatalf("refreshed runs view missing run line:\n%s", runsView.View())
+	}
 }
 
-func TestStatusModelOpenActionRendersSelectedRunDetails(t *testing.T) {
+func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 	startedAt := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
 	completedAt := startedAt.Add(2 * time.Minute)
 	exitCode := 1
@@ -174,8 +197,20 @@ func TestStatusModelOpenActionRendersSelectedRunDetails(t *testing.T) {
 			}, nil
 		},
 	})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
 
-	afterDown, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+	runsView, cmd := updateStatusModel(t, model, keyRunes("3"))
+	if cmd != nil {
+		t.Fatalf("runs view cmd = %v, want nil", cmd)
+	}
+	if runsView.view != viewRuns {
+		t.Fatalf("view = %v, want runs", runsView.view)
+	}
+
+	afterDown, cmd := updateStatusModel(t, runsView, tea.KeyMsg{Type: tea.KeyDown})
 	if cmd != nil {
 		t.Fatalf("selection move cmd = %v, want nil", cmd)
 	}
@@ -201,7 +236,8 @@ func TestStatusModelOpenActionRendersSelectedRunDetails(t *testing.T) {
 
 	lines := normalizedViewLines(afterOpen.View())
 	for _, want := range []string{
-		"Run Details",
+		"Views: Dashboard | Tasks | Runs | [Run Detail] | Help",
+		"Run Detail",
 		"ID: run-old",
 		"Task ID: task-old",
 		"Task: Inspect selected run",
@@ -218,6 +254,113 @@ func TestStatusModelOpenActionRendersSelectedRunDetails(t *testing.T) {
 	} {
 		if !containsLine(lines, want) {
 			t.Fatalf("detail view missing %q: %#v", want, lines)
+		}
+	}
+
+	tasksView, cmd := updateStatusModel(t, afterOpen, keyRunes("2"))
+	if cmd != nil {
+		t.Fatalf("tasks view cmd = %v, want nil", cmd)
+	}
+	if tasksView.view != viewTasks {
+		t.Fatalf("view = %v, want tasks", tasksView.view)
+	}
+	if tasksView.runDetails == nil {
+		t.Fatal("run details were cleared after switching views")
+	}
+	if !containsLine(normalizedViewLines(tasksView.View()), "Tasks") {
+		t.Fatalf("tasks view missing heading:\n%s", tasksView.View())
+	}
+
+	backToDetail, cmd := updateStatusModel(t, tasksView, keyRunes("4"))
+	if cmd != nil {
+		t.Fatalf("run detail view cmd = %v, want nil", cmd)
+	}
+	if backToDetail.runDetails == nil {
+		t.Fatal("run details were cleared after returning to detail view")
+	}
+	if !containsLine(normalizedViewLines(backToDetail.View()), "ID: run-old") {
+		t.Fatalf("run detail was not preserved:\n%s", backToDetail.View())
+	}
+}
+
+func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		RecentRuns: []ledger.Run{{
+			ID:      "run-one",
+			Status:  ledger.StatusCompleted,
+			Summary: "done",
+		}},
+	})
+
+	runsView, cmd := updateStatusModel(t, model, keyRunes("3"))
+	if cmd != nil {
+		t.Fatalf("runs view cmd = %v, want nil", cmd)
+	}
+	runsLines := normalizedViewLines(runsView.View())
+	for _, want := range []string{
+		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
+		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
+		"      ? Help | r Refresh | q Quit",
+	} {
+		if !containsLine(runsLines, want) {
+			t.Fatalf("runs footer/header missing %q: %#v", want, runsLines)
+		}
+	}
+
+	helpView, cmd := updateStatusModel(t, runsView, keyRunes("?"))
+	if cmd != nil {
+		t.Fatalf("help view cmd = %v, want nil", cmd)
+	}
+	helpLines := normalizedViewLines(helpView.View())
+	for _, want := range []string{
+		"Views: Dashboard | Tasks | Runs | Run Detail | [Help]",
+		"Help",
+		"1  Dashboard",
+		"enter or o  Open selected run",
+		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh",
+		"      q Quit",
+	} {
+		if !containsLine(helpLines, want) {
+			t.Fatalf("help view missing %q: %#v", want, helpLines)
+		}
+	}
+
+	back, cmd := updateStatusModel(t, helpView, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil {
+		t.Fatalf("escape help cmd = %v, want nil", cmd)
+	}
+	if back.view != viewRuns {
+		t.Fatalf("view after help escape = %v, want runs", back.view)
+	}
+}
+
+func TestStatusModelResizeUpdatesContentAreaAndWrapsFooter(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+
+	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 32, Height: 8})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+	if resized.viewport.Width != 32 {
+		t.Fatalf("viewport width = %d, want 32", resized.viewport.Width)
+	}
+	if resized.viewport.Height != 1 {
+		t.Fatalf("viewport height = %d, want 1", resized.viewport.Height)
+	}
+	lines := normalizedViewLines(resized.View())
+	for _, line := range lines {
+		if len(line) > 32 {
+			t.Fatalf("line %q has len %d, want <= 32", line, len(line))
+		}
+	}
+	for _, want := range []string{
+		"Keys: 1 Dashboard | 2 Tasks",
+		"      3 Runs | 4 Detail | ? Help",
+		"      r Refresh | q Quit",
+	} {
+		if !containsLine(lines, want) {
+			t.Fatalf("wrapped footer missing %q: %#v", want, lines)
 		}
 	}
 }

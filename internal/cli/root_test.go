@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"revolvr/internal/app"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
@@ -282,7 +284,12 @@ func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T)
 			if status.Initialized {
 				t.Fatalf("tui status initialized = true, want false")
 			}
-			_, err := fmt.Fprint(opts.Output, tuiapp.NewStatusModel(status).View())
+			model := tuiapp.NewStatusModel(status)
+			updated, cmd := model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+			if cmd != nil {
+				t.Fatalf("window size update cmd = %v, want nil", cmd)
+			}
+			_, err := fmt.Fprint(opts.Output, updated.View())
 			return err
 		},
 	})
@@ -394,7 +401,12 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 			if got, want := runIDs(status.RecentRuns), []string{"run-new", "run-old"}; !reflect.DeepEqual(got, want) {
 				t.Fatalf("tui recent runs = %#v, want %#v", got, want)
 			}
-			_, err := fmt.Fprint(opts.Output, tuiapp.NewStatusModel(status).View())
+			model := tuiapp.NewStatusModel(status)
+			updated, cmd := model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+			if cmd != nil {
+				t.Fatalf("window size update cmd = %v, want nil", cmd)
+			}
+			_, err := fmt.Fprint(opts.Output, updated.View())
 			return err
 		},
 	})

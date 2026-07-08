@@ -23,12 +23,26 @@ const (
 
 var _ tea.Model = StatusModel{}
 
+type TUIView int
+
+const (
+	viewDashboard TUIView = iota
+	viewTasks
+	viewRuns
+	viewRunDetail
+	viewHelp
+)
+
 type StatusModel struct {
 	status      app.StatusResult
 	actions     StatusActions
+	view        TUIView
+	previous    TUIView
 	selectedRun int
 	runDetails  *ledger.RunWithEvents
 	message     string
+	width       int
+	height      int
 	viewport    viewport.Model
 }
 
@@ -55,9 +69,14 @@ func NewStatusModelWithActions(status app.StatusResult, actions StatusActions) S
 	model := StatusModel{
 		status:      status,
 		actions:     actions,
+		view:        viewDashboard,
+		previous:    viewDashboard,
 		selectedRun: clampRunIndex(status.RecentRuns, 0),
+		width:       defaultViewportWidth,
+		height:      defaultViewportHeight,
 		viewport:    viewport.New(defaultViewportWidth, defaultViewportHeight),
 	}
+	model.resizeViewport()
 	model.updateViewportContent()
 	return model
 }
@@ -85,8 +104,10 @@ func (m StatusModel) Init() tea.Cmd {
 func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height
+		m.width = msg.Width
+		m.height = msg.Height
+		m.resizeViewport()
+		m.refreshViewportContent()
 	case refreshStatusMsg:
 		if msg.err != nil {
 			m.message = fmt.Sprintf("Refresh failed: %s", msg.err)
@@ -94,7 +115,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selectedID := m.selectedRunID()
 			m.status = msg.status
 			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedID)
-			m.runDetails = nil
+			if !m.status.Initialized {
+				m.runDetails = nil
+			}
 			m.message = "Refreshed."
 		}
 		m.updateViewportContent()
@@ -104,14 +127,31 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = fmt.Sprintf("Open failed: %s", msg.err)
 		} else {
 			m.runDetails = &msg.history
+			m.view = viewRunDetail
 			m.message = ""
 		}
+		m.resizeViewport()
 		m.updateViewportContent()
 		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "1":
+			m.switchView(viewDashboard)
+			return m, nil
+		case "2":
+			m.switchView(viewTasks)
+			return m, nil
+		case "3":
+			m.switchView(viewRuns)
+			return m, nil
+		case "4":
+			m.switchView(viewRunDetail)
+			return m, nil
+		case "?":
+			m.switchView(viewHelp)
+			return m, nil
 		case "r":
 			if m.actions.RefreshStatus == nil {
 				m.message = "Refresh is unavailable."
@@ -119,34 +159,57 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, m.refreshStatusCmd()
-		case "enter", "o":
-			if m.actions.OpenRun == nil {
-				m.message = "Open is unavailable."
-				m.updateViewportContent()
-				return m, nil
-			}
-			cmd := m.openSelectedRunCmd()
-			if cmd == nil {
-				m.message = "No run selected."
-				m.updateViewportContent()
-				return m, nil
-			}
-			return m, cmd
-		case "up", "k":
-			m.moveSelectedRun(-1)
-			m.runDetails = nil
-			m.updateViewportContent()
-			return m, nil
-		case "down", "j":
-			m.moveSelectedRun(1)
-			m.runDetails = nil
-			m.updateViewportContent()
-			return m, nil
 		case "esc", "backspace":
-			if m.runDetails != nil {
-				m.runDetails = nil
+			switch m.view {
+			case viewHelp:
+				m.switchView(m.previous)
+				return m, nil
+			case viewRunDetail:
+				m.switchView(viewRuns)
+				return m, nil
+			}
+		}
+
+		switch m.view {
+		case viewRuns:
+			switch msg.String() {
+			case "enter", "o":
+				if m.actions.OpenRun == nil {
+					m.message = "Open is unavailable."
+					m.updateViewportContent()
+					return m, nil
+				}
+				cmd := m.openSelectedRunCmd()
+				if cmd == nil {
+					m.message = "No run selected."
+					m.updateViewportContent()
+					return m, nil
+				}
+				return m, cmd
+			case "up", "k":
+				m.moveSelectedRun(-1)
 				m.updateViewportContent()
 				return m, nil
+			case "down", "j":
+				m.moveSelectedRun(1)
+				m.updateViewportContent()
+				return m, nil
+			}
+		case viewRunDetail:
+			switch msg.String() {
+			case "enter", "o":
+				if m.actions.OpenRun == nil {
+					m.message = "Open is unavailable."
+					m.updateViewportContent()
+					return m, nil
+				}
+				cmd := m.openSelectedRunCmd()
+				if cmd == nil {
+					m.message = "No run selected."
+					m.updateViewportContent()
+					return m, nil
+				}
+				return m, cmd
 			}
 		}
 	}
@@ -157,7 +220,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m StatusModel) View() string {
-	return m.viewport.View()
+	sections := append([]string{}, m.headerLines()...)
+	sections = append(sections, "")
+	sections = append(sections, trimTrailingBlankLines(m.viewport.View()))
+	sections = append(sections, "")
+	sections = append(sections, m.footerLines()...)
+	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
 type refreshStatusMsg struct {
@@ -193,21 +261,133 @@ func (m StatusModel) openSelectedRunCmd() tea.Cmd {
 }
 
 func (m *StatusModel) updateViewportContent() {
-	m.viewport.SetContent(m.render())
+	m.viewport.SetContent(m.renderContent())
 	m.viewport.GotoTop()
 }
 
-func (m StatusModel) render() string {
-	if m.runDetails != nil {
-		return m.renderRunDetails(*m.runDetails)
-	}
-	return m.renderStatus()
+func (m *StatusModel) refreshViewportContent() {
+	m.viewport.SetContent(m.renderContent())
 }
 
-func (m StatusModel) renderStatus() string {
+func (m *StatusModel) switchView(view TUIView) {
+	if m.view != view && view != viewHelp {
+		m.previous = m.view
+	}
+	if view == viewHelp && m.view != viewHelp {
+		m.previous = m.view
+	}
+	m.view = view
+	m.resizeViewport()
+	m.updateViewportContent()
+}
+
+func (m *StatusModel) resizeViewport() {
+	width := m.width
+	if width <= 0 {
+		width = defaultViewportWidth
+	}
+	height := m.height
+	if height <= 0 {
+		height = defaultViewportHeight
+	}
+	chromeHeight := len(m.headerLines()) + len(m.footerLines()) + 2
+	contentHeight := height - chromeHeight
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+	m.viewport.Width = width
+	m.viewport.Height = contentHeight
+}
+
+func (m StatusModel) renderContent() string {
+	switch m.view {
+	case viewTasks:
+		return m.renderTasks()
+	case viewRuns:
+		return m.renderRuns()
+	case viewRunDetail:
+		if m.runDetails != nil {
+			return m.renderRunDetails(*m.runDetails)
+		}
+		return m.renderEmptyRunDetail()
+	case viewHelp:
+		return m.renderHelp()
+	default:
+		return m.renderDashboard()
+	}
+}
+
+func (m StatusModel) headerLines() []string {
+	state := "not initialized"
+	if m.status.Initialized {
+		state = "initialized"
+	}
+	views := "Views: " + m.viewTabs()
+	if m.width > 0 && len(views) > m.width {
+		views = "View: " + m.viewLabel()
+	}
+	return []string{
+		"Revolvr",
+		views,
+		"State: " + state,
+	}
+}
+
+func (m StatusModel) viewTabs() string {
+	labels := []struct {
+		view  TUIView
+		label string
+	}{
+		{view: viewDashboard, label: "Dashboard"},
+		{view: viewTasks, label: "Tasks"},
+		{view: viewRuns, label: "Runs"},
+		{view: viewRunDetail, label: "Run Detail"},
+		{view: viewHelp, label: "Help"},
+	}
+	parts := make([]string, 0, len(labels))
+	for _, item := range labels {
+		if m.view == item.view {
+			parts = append(parts, "["+item.label+"]")
+			continue
+		}
+		parts = append(parts, item.label)
+	}
+	return strings.Join(parts, " | ")
+}
+
+func (m StatusModel) viewLabel() string {
+	switch m.view {
+	case viewTasks:
+		return "Tasks"
+	case viewRuns:
+		return "Runs"
+	case viewRunDetail:
+		return "Run Detail"
+	case viewHelp:
+		return "Help"
+	default:
+		return "Dashboard"
+	}
+}
+
+func (m StatusModel) footerLines() []string {
+	keys := []string{}
+	switch m.view {
+	case viewRuns:
+		keys = append(keys, "j/k Select", "enter Open")
+	case viewRunDetail:
+		keys = append(keys, "enter Reload", "esc Runs")
+	case viewHelp:
+		keys = append(keys, "esc Back")
+	}
+	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "? Help", "r Refresh", "q Quit")
+	return wrapKeyLines(keys, m.width)
+}
+
+func (m StatusModel) renderDashboard() string {
 	if !m.status.Initialized {
 		lines := []string{
-			"Revolvr",
+			"Dashboard",
 			"State: not initialized",
 		}
 		lines = appendNotice(lines, m.message)
@@ -216,7 +396,7 @@ func (m StatusModel) renderStatus() string {
 
 	counts := countTasks(m.status.Tasks)
 	lines := []string{
-		"Revolvr",
+		"Dashboard",
 		"State: initialized",
 		"",
 		"Tasks",
@@ -235,10 +415,56 @@ func (m StatusModel) renderStatus() string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
+func (m StatusModel) renderTasks() string {
+	lines := []string{"Tasks"}
+	lines = appendNotice(lines, m.message)
+	if !m.status.Initialized {
+		lines = append(lines, "State: not initialized", "No tasks loaded.")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+
+	counts := countTasks(m.status.Tasks)
+	lines = append(lines,
+		fmt.Sprintf("Total: %d", counts.total),
+		fmt.Sprintf("Pending: %d", counts.pending),
+		fmt.Sprintf("Blocked: %d", counts.blocked),
+		fmt.Sprintf("Completed: %d", counts.completed),
+		"",
+		"Task List",
+	)
+	if len(m.status.Tasks) == 0 {
+		lines = append(lines, "None")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	for _, task := range m.status.Tasks {
+		summary := oneLine(task.Summary)
+		if summary == "" {
+			summary = oneLine(task.Task)
+		}
+		if summary == "" {
+			lines = append(lines, fmt.Sprintf("- %s  %s", optionalValue(task.ID), optionalValue(task.Status)))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("- %s  %s  %s", optionalValue(task.ID), optionalValue(task.Status), summary))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m StatusModel) renderRuns() string {
+	lines := []string{"Runs"}
+	lines = appendNotice(lines, m.message)
+	if !m.status.Initialized {
+		lines = append(lines, "State: not initialized", "No runs loaded.")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	lines = append(lines, m.recentRunLines()...)
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
 func (m StatusModel) renderRunDetails(history ledger.RunWithEvents) string {
 	run := history.Run
 	lines := []string{
-		"Run Details",
+		"Run Detail",
 		fmt.Sprintf("ID: %s", optionalValue(run.ID)),
 		fmt.Sprintf("Task ID: %s", optionalValue(run.TaskID)),
 		fmt.Sprintf("Task: %s", optionalValue(run.Task)),
@@ -255,6 +481,46 @@ func (m StatusModel) renderRunDetails(history ledger.RunWithEvents) string {
 	lines = append(lines, runArtifactLines(history.Events)...)
 	lines = append(lines, "")
 	lines = append(lines, runEventLines(history.Events)...)
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m StatusModel) renderEmptyRunDetail() string {
+	lines := []string{
+		"Run Detail",
+	}
+	lines = appendNotice(lines, m.message)
+	if !m.status.Initialized {
+		lines = append(lines, "State: not initialized", "No run detail loaded.")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	lines = append(lines, "No run detail loaded.")
+	if len(m.status.RecentRuns) == 0 {
+		lines = append(lines, "No runs available.")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	lines = append(lines, fmt.Sprintf("Selected run: %s", optionalValue(m.selectedRunID())))
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m StatusModel) renderHelp() string {
+	lines := []string{
+		"Help",
+		"Views",
+		"1  Dashboard",
+		"2  Tasks",
+		"3  Runs",
+		"4  Run Detail",
+		"?  Help",
+		"",
+		"Actions",
+		"r  Refresh status",
+		"q  Quit",
+		"",
+		"Runs",
+		"j/k  Move selection",
+		"enter or o  Open selected run",
+		"esc  Back from help or run detail",
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
@@ -358,6 +624,34 @@ func appendNotice(lines []string, message string) []string {
 		return lines
 	}
 	return append(lines, "Notice: "+message, "")
+}
+
+func wrapKeyLines(keys []string, width int) []string {
+	const prefix = "Keys: "
+	if width <= 0 {
+		width = defaultViewportWidth
+	}
+	lines := []string{prefix}
+	for _, key := range keys {
+		part := key
+		if lines[len(lines)-1] != prefix {
+			part = " | " + key
+		}
+		if len(lines[len(lines)-1])+len(part) > width && lines[len(lines)-1] != prefix {
+			lines = append(lines, strings.Repeat(" ", len(prefix))+key)
+			continue
+		}
+		lines[len(lines)-1] += part
+	}
+	return lines
+}
+
+func trimTrailingBlankLines(value string) string {
+	lines := strings.Split(value, "\n")
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *StatusModel) moveSelectedRun(delta int) {
