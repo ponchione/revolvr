@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -20,8 +19,6 @@ import (
 
 const defaultVersion = "dev"
 
-const loopFailureGuardrailLimit = 2
-
 type Options struct {
 	Version             string
 	Out                 io.Writer
@@ -32,7 +29,7 @@ type Options struct {
 	ExecutableLookPath  ExecutableLookPath
 }
 
-type RunOnceFunc func(context.Context, runonce.Config) (runonce.Result, error)
+type RunOnceFunc = app.RunOnceRunner
 
 func NewRootCommand(opts Options) *cobra.Command {
 	version := opts.Version
@@ -265,156 +262,38 @@ func newRunCommand(opts Options) *cobra.Command {
 }
 
 func runSinglePass(cmd *cobra.Command, workDir string, runOnce RunOnceFunc) error {
-	runCfg, err := loadRunOnceConfig(workDir, defaultRunOnceConfig(workDir))
-	if err != nil {
-		return err
-	}
-	runCfg = withRunProgress(runCfg, cmd.OutOrStdout())
-	result, err := runOnce(cmd.Context(), runCfg)
+	result, err := app.RunOnce(cmd.Context(), app.Config{WorkDir: workDir}, app.RunOnceInput{
+		Runner:   runOnce,
+		Progress: runProgress(cmd.OutOrStdout()),
+	})
 	if err != nil {
 		return err
 	}
 	if _, err := fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result)); err != nil {
 		return err
 	}
-	return runOnceOutcomeError(result)
+	return app.RunOnceOutcomeError(result)
 }
 
 func runBoundedLoop(cmd *cobra.Command, workDir string, runOnce RunOnceFunc, maxPasses int) error {
-	if maxPasses <= 0 {
-		return fmt.Errorf("run: --max-passes must be greater than 0")
-	}
-	stats := runLoopStats{MaxPasses: maxPasses}
-	for pass := 0; pass < maxPasses; pass++ {
-		if err := cmd.Context().Err(); err != nil {
-			stats.StopReason = "context_cancelled"
-			if writeErr := writeRunLoopSummary(cmd.OutOrStdout(), stats); writeErr != nil {
-				return writeErr
-			}
+	result, err := app.RunLoop(cmd.Context(), app.Config{WorkDir: workDir}, app.RunLoopInput{
+		MaxPasses: maxPasses,
+		Runner:    runOnce,
+		Progress:  runProgress(cmd.OutOrStdout()),
+		OnPass: func(result runonce.Result) error {
+			_, err := fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result))
 			return err
+		},
+	})
+	if strings.TrimSpace(result.Stats.StopReason) != "" {
+		if writeErr := writeRunLoopSummary(cmd.OutOrStdout(), result.Stats); writeErr != nil {
+			return writeErr
 		}
-		runCfg, err := loadRunOnceConfig(workDir, defaultRunOnceConfig(workDir))
-		if err != nil {
-			stats.StopReason = "config_error"
-			if writeErr := writeRunLoopSummary(cmd.OutOrStdout(), stats); writeErr != nil {
-				return writeErr
-			}
-			return err
-		}
-		runCfg = withRunProgress(runCfg, cmd.OutOrStdout())
-		result, err := runOnce(cmd.Context(), runCfg)
-		if err != nil {
-			stats.Passes++
-			stats.FailedOrBlocked++
-			stats.ConsecutiveFailedOrBlocked++
-			stats.StopReason = "runner_error"
-			if resultHasRunSummary(result) {
-				if _, writeErr := fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result)); writeErr != nil {
-					return writeErr
-				}
-			}
-			if writeErr := writeRunLoopSummary(cmd.OutOrStdout(), stats); writeErr != nil {
-				return writeErr
-			}
-			return err
-		}
-		stats.Passes++
-		if _, err := fmt.Fprint(cmd.OutOrStdout(), runOnceSummary(result)); err != nil {
-			return err
-		}
-		if result.NoTask || result.Outcome == runonce.OutcomeNoTask {
-			stats.NoTask = true
-			stats.ConsecutiveFailedOrBlocked = 0
-			stats.StopReason = "no_task"
-			if err := writeRunLoopSummary(cmd.OutOrStdout(), stats); err != nil {
-				return err
-			}
-			return runLoopFailureError(stats)
-		}
-		if err := runOnceOutcomeError(result); err != nil {
-			stats.FailedOrBlocked++
-			stats.ConsecutiveFailedOrBlocked++
-			if loopFailureRequiresInspection(result) {
-				stats.StopReason = "failed_or_blocked"
-				if writeErr := writeRunLoopSummary(cmd.OutOrStdout(), stats); writeErr != nil {
-					return writeErr
-				}
-				return err
-			}
-			if stats.ConsecutiveFailedOrBlocked >= loopFailureGuardrailLimit {
-				stats.StopReason = "failure_guardrail"
-				if writeErr := writeRunLoopSummary(cmd.OutOrStdout(), stats); writeErr != nil {
-					return writeErr
-				}
-				return runLoopGuardrailError{ConsecutiveFailedOrBlocked: stats.ConsecutiveFailedOrBlocked}
-			}
-			continue
-		}
-		if result.Outcome == runonce.OutcomeCommitted {
-			stats.Completed++
-		}
-		stats.ConsecutiveFailedOrBlocked = 0
 	}
-	stats.StopReason = "max_passes"
-	if err := writeRunLoopSummary(cmd.OutOrStdout(), stats); err != nil {
-		return err
-	}
-	return runLoopFailureError(stats)
+	return err
 }
 
-type runOnceError struct {
-	RunID   string
-	Outcome runonce.Outcome
-}
-
-func (e runOnceError) Error() string {
-	if e.RunID == "" {
-		return fmt.Sprintf("run stopped with outcome %s", e.Outcome)
-	}
-	return fmt.Sprintf("run %s stopped with outcome %s", e.RunID, e.Outcome)
-}
-
-func runOnceOutcomeError(result runonce.Result) error {
-	if result.NoTask || result.Outcome == runonce.OutcomeNoTask || result.Outcome == runonce.OutcomeCommitted || result.Outcome == "" {
-		return nil
-	}
-	return runOnceError{RunID: result.Run.ID, Outcome: result.Outcome}
-}
-
-type runLoopStats struct {
-	MaxPasses                  int
-	Passes                     int
-	Completed                  int
-	FailedOrBlocked            int
-	NoTask                     bool
-	StopReason                 string
-	ConsecutiveFailedOrBlocked int
-}
-
-type runLoopError struct {
-	FailedOrBlocked int
-}
-
-func (e runLoopError) Error() string {
-	return fmt.Sprintf("run loop completed with %d failed or blocked %s", e.FailedOrBlocked, pluralPass(e.FailedOrBlocked))
-}
-
-type runLoopGuardrailError struct {
-	ConsecutiveFailedOrBlocked int
-}
-
-func (e runLoopGuardrailError) Error() string {
-	return fmt.Sprintf("run loop stopped after %d consecutive failed or blocked %s", e.ConsecutiveFailedOrBlocked, pluralPass(e.ConsecutiveFailedOrBlocked))
-}
-
-func runLoopFailureError(stats runLoopStats) error {
-	if stats.FailedOrBlocked == 0 {
-		return nil
-	}
-	return runLoopError{FailedOrBlocked: stats.FailedOrBlocked}
-}
-
-func writeRunLoopSummary(out io.Writer, stats runLoopStats) error {
+func writeRunLoopSummary(out io.Writer, stats app.RunLoopStats) error {
 	if strings.TrimSpace(stats.StopReason) == "" {
 		stats.StopReason = "unknown"
 	}
@@ -428,27 +307,6 @@ func writeRunLoopSummary(out io.Writer, stats runLoopStats) error {
 		stats.StopReason,
 	)
 	return err
-}
-
-func resultHasRunSummary(result runonce.Result) bool {
-	return result.NoTask || result.Outcome != "" || result.Run.ID != "" || result.Task.ID != "" || strings.TrimSpace(result.Message) != ""
-}
-
-func loopFailureRequiresInspection(result runonce.Result) bool {
-	if result.Outcome == runonce.OutcomeBlocked {
-		return true
-	}
-	if strings.TrimSpace(result.PostRunChanged.CaptureError) != "" {
-		return true
-	}
-	return len(result.PostRunChanged.ChangedFiles) > 0 || len(result.PostRunChanged.Paths) > 0
-}
-
-func pluralPass(count int) string {
-	if count == 1 {
-		return "pass"
-	}
-	return "passes"
 }
 
 func newStatusCommand(opts Options) *cobra.Command {
@@ -543,12 +401,12 @@ func runOnceSummary(result runonce.Result) string {
 	}
 }
 
-func withRunProgress(cfg runonce.Config, out io.Writer) runonce.Config {
+func runProgress(out io.Writer) app.RunProgress {
 	if out == nil {
-		return cfg
+		return nil
 	}
 	var mu sync.Mutex
-	cfg.CodexProgress = func(event codexexec.ProgressEvent) {
+	return func(event codexexec.ProgressEvent) {
 		event.Source = strings.TrimSpace(event.Source)
 		event.Message = strings.TrimSpace(event.Message)
 		if event.Message == "" {
@@ -561,7 +419,6 @@ func withRunProgress(cfg runonce.Config, out io.Writer) runonce.Config {
 		defer mu.Unlock()
 		_, _ = fmt.Fprintf(out, "%s: %s\n", event.Source, event.Message)
 	}
-	return cfg
 }
 
 func oneLine(value string) string {

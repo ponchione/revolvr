@@ -1300,6 +1300,42 @@ func TestRunMaxPassesCapIsHonored(t *testing.T) {
 	}
 }
 
+func TestRunMaxPassesInvalidConfigPrintsConfigErrorSummary(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+verification:
+  missing_policy: maybe
+`)
+
+	var out bytes.Buffer
+	called := false
+	root := NewRootCommand(Options{
+		Version: "test",
+		Out:     &out,
+		WorkDir: workDir,
+		RunOnce: func(context.Context, runonce.Config) (runonce.Result, error) {
+			called = true
+			return runonce.Result{}, nil
+		},
+	})
+	root.SetArgs([]string{"run", "--max-passes", "2"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("execute run --max-passes succeeded, want config error")
+	}
+	if called {
+		t.Fatal("run once runner was called after invalid config")
+	}
+	if !strings.Contains(err.Error(), "invalid verification missing_policy") {
+		t.Fatalf("loop error = %v, want invalid missing_policy", err)
+	}
+	want := "Loop summary: passes=0/2 completed=0 failed_or_blocked=0 no_task=false stop=config_error\n"
+	if out.String() != want {
+		t.Fatalf("loop output = %q, want %q", out.String(), want)
+	}
+}
+
 func TestShowRunPrintsPersistedRunAndEvents(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {

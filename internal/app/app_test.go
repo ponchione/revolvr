@@ -10,9 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"revolvr/internal/codexexec"
+	"revolvr/internal/commit"
+	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/runonce"
 	"revolvr/internal/taskqueue"
+	"revolvr/internal/verification"
 )
 
 func TestStatusUninitializedDoesNotCreateState(t *testing.T) {
@@ -403,6 +408,262 @@ func TestTaskOperationsReportClearErrors(t *testing.T) {
 	}
 	if _, err := UnblockTask(ctx, Config{WorkDir: workDir}, task.ID); err == nil || !strings.Contains(err.Error(), fmt.Sprintf(`task %q is not blocked (status: completed)`, task.ID)) {
 		t.Fatalf("unblock completed task error = %v, want not blocked", err)
+	}
+}
+
+func TestRunOnceLoadsConfigAndProgressCallback(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  executable: codex-custom
+  sandbox: danger-full-access
+  approval_policy: on-request
+  yolo: false
+  timeout_seconds: 45
+git:
+  executable: git-custom
+  timeout_seconds: 12
+verification:
+  missing_policy: pass
+  commands:
+    - name: go
+      args: ["test", "./..."]
+      dir: internal
+      timeout_seconds: 9
+commit:
+  allow_pre_existing_dirty: true
+  allow_missing_verification: true
+  timeout_seconds: 30
+output:
+  codex_stdout_cap_bytes: 101
+  codex_stderr_cap_bytes: 102
+  git_stdout_cap_bytes: 103
+  git_stderr_cap_bytes: 104
+  verification_stdout_cap_bytes: 105
+  verification_stderr_cap_bytes: 106
+  commit_stdout_cap_bytes: 107
+  commit_stderr_cap_bytes: 108
+`)
+
+	var got runonce.Config
+	var progress []codexexec.ProgressEvent
+	result, err := RunOnce(ctx, Config{WorkDir: workDir}, RunOnceInput{
+		Runner: func(_ context.Context, cfg runonce.Config) (runonce.Result, error) {
+			got = cfg
+			if cfg.CodexProgress == nil {
+				t.Fatal("codex progress callback is nil")
+			}
+			cfg.CodexProgress(codexexec.ProgressEvent{Source: "codex", Message: "working"})
+			return runonce.Result{
+				Outcome: runonce.OutcomeCommitted,
+				Run:     ledger.Run{ID: "run-config"},
+				Task:    taskqueue.Task{ID: "task-config"},
+				Commit:  commit.Result{CommitSHA: "abc123"},
+			}, nil
+		},
+		Progress: func(event codexexec.ProgressEvent) {
+			progress = append(progress, event)
+		},
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if err := RunOnceOutcomeError(result); err != nil {
+		t.Fatalf("run once outcome error = %v, want nil", err)
+	}
+	if got.WorkingDir != workDir {
+		t.Fatalf("working dir = %q, want %q", got.WorkingDir, workDir)
+	}
+	if got.CodexExecutable != "codex-custom" || got.CodexSandbox != "danger-full-access" || got.CodexApprovalPolicy != "on-request" || got.CodexBypassApprovalsAndSandbox || got.CodexTimeout != 45*time.Second {
+		t.Fatalf("codex config = %+v, want config overrides", got)
+	}
+	if got.GitExecutable != "git-custom" || got.GitTimeout != 12*time.Second {
+		t.Fatalf("git config = %+v, want config overrides", got)
+	}
+	if got.MissingVerificationPolicy != verification.MissingCommandsPass {
+		t.Fatalf("missing policy = %q, want pass", got.MissingVerificationPolicy)
+	}
+	wantCommands := []verification.Command{{
+		Name:    "go",
+		Args:    []string{"test", "./..."},
+		Dir:     "internal",
+		Timeout: 9 * time.Second,
+	}}
+	if !reflect.DeepEqual(got.VerificationCommands, wantCommands) {
+		t.Fatalf("verification commands = %#v, want %#v", got.VerificationCommands, wantCommands)
+	}
+	if !got.AllowPreExistingDirty || !got.AllowMissingVerification || got.CommitTimeout != 30*time.Second {
+		t.Fatalf("commit config = %+v, want config overrides", got)
+	}
+	if got.CodexStdoutCap != 101 || got.CodexStderrCap != 102 ||
+		got.GitStdoutCap != 103 || got.GitStderrCap != 104 ||
+		got.VerificationStdoutCap != 105 || got.VerificationStderrCap != 106 ||
+		got.CommitStdoutCap != 107 || got.CommitStderrCap != 108 {
+		t.Fatalf("output caps = %+v, want config overrides", got)
+	}
+	if len(progress) != 1 || progress[0].Source != "codex" || progress[0].Message != "working" {
+		t.Fatalf("progress events = %#v, want codex working event", progress)
+	}
+}
+
+func TestRunOnceInvalidConfigDoesNotInvokeRunner(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+verification:
+  missing_policy: maybe
+`)
+
+	called := false
+	_, err := RunOnce(ctx, Config{WorkDir: workDir}, RunOnceInput{
+		Runner: func(context.Context, runonce.Config) (runonce.Result, error) {
+			called = true
+			return runonce.Result{}, nil
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid verification missing_policy") {
+		t.Fatalf("run once error = %v, want invalid missing_policy", err)
+	}
+	if called {
+		t.Fatal("runner was called after invalid config")
+	}
+}
+
+func TestRunLoopStopsAfterRepeatedFailuresWithGuardrail(t *testing.T) {
+	ctx := context.Background()
+	calls := 0
+	var passIDs []string
+
+	result, err := RunLoop(ctx, Config{WorkDir: t.TempDir()}, RunLoopInput{
+		MaxPasses: 3,
+		Runner: func(context.Context, runonce.Config) (runonce.Result, error) {
+			calls++
+			return runonce.Result{
+				Outcome: runonce.OutcomeVerificationFailed,
+				Run:     ledger.Run{ID: fmt.Sprintf("run-failed-%d", calls)},
+				Task:    taskqueue.Task{ID: "task-failed"},
+				Message: "verification command 0 failed",
+			}, nil
+		},
+		OnPass: func(result runonce.Result) error {
+			passIDs = append(passIDs, result.Run.ID)
+			return nil
+		},
+	})
+	if err == nil || err.Error() != "run loop stopped after 2 consecutive failed or blocked passes" {
+		t.Fatalf("run loop error = %v, want guardrail error", err)
+	}
+	if calls != 2 {
+		t.Fatalf("run calls = %d, want 2", calls)
+	}
+	if got, want := passIDs, []string{"run-failed-1", "run-failed-2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pass ids = %#v, want %#v", got, want)
+	}
+	wantStats := RunLoopStats{
+		MaxPasses:                  3,
+		Passes:                     2,
+		FailedOrBlocked:            2,
+		StopReason:                 "failure_guardrail",
+		ConsecutiveFailedOrBlocked: 2,
+	}
+	if !reflect.DeepEqual(result.Stats, wantStats) {
+		t.Fatalf("loop stats = %#v, want %#v", result.Stats, wantStats)
+	}
+}
+
+func TestRunLoopStopsImmediatelyWhenOutcomeNeedsInspection(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result runonce.Result
+	}{
+		{
+			name: "blocked",
+			result: runonce.Result{
+				Outcome: runonce.OutcomeBlocked,
+				Run:     ledger.Run{ID: "run-blocked"},
+				Task:    taskqueue.Task{ID: "task-blocked"},
+				Message: "blocked by preflight",
+			},
+		},
+		{
+			name: "dirty verification failure",
+			result: runonce.Result{
+				Outcome:        runonce.OutcomeVerificationFailed,
+				Run:            ledger.Run{ID: "run-dirty-failure"},
+				Task:           taskqueue.Task{ID: "task-dirty-failure"},
+				Message:        "verification command 0 failed",
+				PostRunChanged: gitstate.Capture{ChangedFiles: []string{"internal/feature.go"}},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			calls := 0
+			passCalled := false
+
+			result, err := RunLoop(ctx, Config{WorkDir: t.TempDir()}, RunLoopInput{
+				MaxPasses: 5,
+				Runner: func(context.Context, runonce.Config) (runonce.Result, error) {
+					calls++
+					return tc.result, nil
+				},
+				OnPass: func(runonce.Result) error {
+					passCalled = true
+					return nil
+				},
+			})
+			if err == nil || err.Error() != fmt.Sprintf("run %s stopped with outcome %s", tc.result.Run.ID, tc.result.Outcome) {
+				t.Fatalf("run loop error = %v, want outcome error", err)
+			}
+			if calls != 1 {
+				t.Fatalf("run calls = %d, want 1", calls)
+			}
+			if !passCalled {
+				t.Fatal("pass callback was not called")
+			}
+			wantStats := RunLoopStats{
+				MaxPasses:                  5,
+				Passes:                     1,
+				FailedOrBlocked:            1,
+				StopReason:                 "failed_or_blocked",
+				ConsecutiveFailedOrBlocked: 1,
+			}
+			if !reflect.DeepEqual(result.Stats, wantStats) {
+				t.Fatalf("loop stats = %#v, want %#v", result.Stats, wantStats)
+			}
+		})
+	}
+}
+
+func TestRunLoopConfigErrorStopsBeforePass(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+codex:
+  typo: codex
+`)
+
+	called := false
+	result, err := RunLoop(ctx, Config{WorkDir: workDir}, RunLoopInput{
+		MaxPasses: 2,
+		Runner: func(context.Context, runonce.Config) (runonce.Result, error) {
+			called = true
+			return runonce.Result{}, nil
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "field typo not found") {
+		t.Fatalf("run loop error = %v, want unknown field error", err)
+	}
+	if called {
+		t.Fatal("runner was called after invalid config")
+	}
+	wantStats := RunLoopStats{
+		MaxPasses:  2,
+		StopReason: "config_error",
+	}
+	if !reflect.DeepEqual(result.Stats, wantStats) {
+		t.Fatalf("loop stats = %#v, want %#v", result.Stats, wantStats)
 	}
 }
 

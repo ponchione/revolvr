@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: move run once and run loop orchestration behind `internal/app`, preserving CLI output and `run --max-passes` guardrails.
+- Files changed: `internal/app/config.go`, `internal/app/run.go`, `internal/app/app_test.go`, `internal/cli/config.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `revolvr run --once` and `revolvr run --max-passes` now call `internal/app` for run config loading, pass execution, loop stats, stop reasons, outcome errors, and max-pass guardrail decisions. CLI rendering stays in `internal/cli`, preserving run summaries, Codex progress lines, and final loop summary output. `config check` and `doctor` now share the app-owned run config loader.
+- Tests added: focused `internal/app` coverage for run config loading, progress callback wiring, invalid config short-circuiting, repeated-failure guardrails, immediate stop for blocked or dirty failed outcomes, and config-error loop stats. Focused CLI coverage was added for `run --max-passes` config-error summary output.
+- Verification run: `gofmt -w internal/app/config.go internal/app/run.go internal/app/app_test.go internal/cli/config.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/app -run 'TestRun(Once|Loop)'`; `go test ./internal/cli -run 'TestRun(Once|MaxPasses)'`; `go test ./internal/app ./internal/cli`; `go test ./...`; `git diff --check`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr run --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add stable Charm dependencies for Bubble Tea, Bubbles, and Lip Gloss, and create a minimal `internal/tui` model that renders a static app status snapshot in tests.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: move task add/list/retry orchestration behind `internal/app`, update CLI task commands to use it without changing output, and add focused tests.
 - Files changed: `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/root.go`, `internal/cli/state.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: `revolvr task add`, `revolvr task list`, `revolvr task retry`, and the shared `task unblock` recovery path now call `internal/app` task operations for state resolution, store access, persistence, and blocked-to-pending transitions. CLI rendering stays in `internal/cli`, preserving existing output.
