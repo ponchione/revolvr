@@ -32,7 +32,7 @@
   Acceptance: run details are useful without falling back to `revolvr show`; long event lists remain scrollable; missing artifacts or warnings are visible.
   Verification: add focused tests for recent-run navigation, detail opening, diagnostics rendering, artifact rendering, and long event output; run `go test ./internal/tui` and `go test ./...`.
 
-- [ ] Add receipt validation status to the TUI Run Detail view.
+- [x] Add receipt validation status to the TUI Run Detail view.
   Scope: use `internal/app.ValidateReceipt` from the selected run detail, either automatically on open or through a `v` action, and render each validation check result with clear pass/fail messaging.
   Acceptance: a fully valid receipt shows all checks passing; validation failures are visible in the detail view; validation errors do not crash the TUI.
   Verification: add model tests for valid receipts, failed validation checks, missing receipts, and validation callback errors; run focused tests plus `go test ./...`.

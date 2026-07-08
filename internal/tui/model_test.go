@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"revolvr/internal/app"
 	"revolvr/internal/ledger"
+	"revolvr/internal/receipt"
 	"revolvr/internal/taskqueue"
 )
 
@@ -711,6 +713,145 @@ func TestStatusModelRunDetailRendersArtifactsAndMissingArtifacts(t *testing.T) {
 	)
 }
 
+func TestStatusModelRunDetailValidatesValidReceipt(t *testing.T) {
+	history := validationDetailHistory("run-valid-receipt")
+	view := runDetailView(t, history, 140, 60)
+	calledRunID := ""
+	view.actions.ValidateReceipt = func(runID string) (receipt.ValidationResult, error) {
+		calledRunID = runID
+		return receipt.ValidationResult{
+			RunID:       runID,
+			ReceiptPath: ".revolvr/receipts/run-valid-receipt.md",
+			Checks: []receipt.ValidationCheck{
+				{Name: receipt.ValidationCheckIdentity, Passed: true},
+				{Name: receipt.ValidationCheckCompletionTime, Passed: true},
+				{Name: receipt.ValidationCheckCommitSHA, Passed: true},
+				{Name: receipt.ValidationCheckChangedFiles, Passed: true},
+				{Name: receipt.ValidationCheckVerificationResults, Passed: true},
+				{Name: receipt.ValidationCheckArtifacts, Passed: true},
+			},
+		}, nil
+	}
+
+	afterKey, cmd := updateStatusModel(t, view, keyRunes("v"))
+	if cmd == nil {
+		t.Fatal("validate key returned nil cmd")
+	}
+	if calledRunID != "" {
+		t.Fatal("validation callback ran before command execution")
+	}
+
+	afterValidation, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd != nil {
+		t.Fatalf("validation message cmd = %v, want nil", cmd)
+	}
+	if calledRunID != "run-valid-receipt" {
+		t.Fatalf("validated run id = %q, want run-valid-receipt", calledRunID)
+	}
+	requireLines(t, normalizedViewLines(afterValidation.View()),
+		"Notice: Receipt validation passed.",
+		"Receipt Validation",
+		"Status: passed",
+		"Run ID: run-valid-receipt",
+		"Receipt: .revolvr/receipts/run-valid-receipt.md",
+		"Checks:",
+		"PASS identity: ok",
+		"PASS completion_time: ok",
+		"PASS commit_sha: ok",
+		"PASS changed_files: ok",
+		"PASS verification_results: ok",
+		"PASS artifacts: ok",
+	)
+}
+
+func TestStatusModelRunDetailShowsFailedValidationChecks(t *testing.T) {
+	history := validationDetailHistory("run-invalid-receipt")
+	view := runDetailView(t, history, 140, 60)
+	view.actions.ValidateReceipt = func(runID string) (receipt.ValidationResult, error) {
+		return receipt.ValidationResult{
+			RunID:       runID,
+			ReceiptPath: ".revolvr/receipts/run-invalid-receipt.md",
+			Checks: []receipt.ValidationCheck{
+				{Name: receipt.ValidationCheckIdentity, Passed: true},
+				{
+					Name:   receipt.ValidationCheckChangedFiles,
+					Passed: false,
+					Details: []string{
+						"frontmatter changed_files got [internal/stale.go], want [internal/actual.go]",
+					},
+				},
+			},
+		}, nil
+	}
+
+	afterKey, cmd := updateStatusModel(t, view, keyRunes("v"))
+	if cmd == nil {
+		t.Fatal("validate key returned nil cmd")
+	}
+	afterValidation, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd != nil {
+		t.Fatalf("validation message cmd = %v, want nil", cmd)
+	}
+
+	requireLines(t, normalizedViewLines(afterValidation.View()),
+		"Notice: Receipt validation failed.",
+		"Receipt Validation",
+		"Status: failed",
+		"PASS identity: ok",
+		"FAIL changed_files: failed - frontmatter changed_files got [internal/stale.go], want [internal/actual.go]",
+	)
+}
+
+func TestStatusModelRunDetailShowsMissingReceiptValidationError(t *testing.T) {
+	history := validationDetailHistory("run-missing-receipt")
+	view := runDetailView(t, history, 140, 60)
+	view.actions.ValidateReceipt = func(runID string) (receipt.ValidationResult, error) {
+		return receipt.ValidationResult{}, errors.New("validate receipt: read .revolvr/receipts/run-missing-receipt.md: no such file or directory")
+	}
+
+	afterKey, cmd := updateStatusModel(t, view, keyRunes("v"))
+	if cmd == nil {
+		t.Fatal("validate key returned nil cmd")
+	}
+	afterValidation, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd != nil {
+		t.Fatalf("validation message cmd = %v, want nil", cmd)
+	}
+	if afterValidation.view != viewRunDetail {
+		t.Fatalf("view = %v, want run detail", afterValidation.view)
+	}
+	requireLines(t, normalizedViewLines(afterValidation.View()),
+		"Notice: Receipt validation error.",
+		"Receipt Validation",
+		"Status: error",
+		"Error: validate receipt: read .revolvr/receipts/run-missing-receipt.md: no such file or directory",
+	)
+}
+
+func TestStatusModelRunDetailShowsValidationCallbackErrors(t *testing.T) {
+	history := validationDetailHistory("run-validation-error")
+	view := runDetailView(t, history, 140, 60)
+	view.actions.ValidateReceipt = func(runID string) (receipt.ValidationResult, error) {
+		return receipt.ValidationResult{}, errors.New("validation callback failed")
+	}
+
+	afterKey, cmd := updateStatusModel(t, view, keyRunes("v"))
+	if cmd == nil {
+		t.Fatal("validate key returned nil cmd")
+	}
+	afterValidation, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd != nil {
+		t.Fatalf("validation message cmd = %v, want nil", cmd)
+	}
+
+	requireLines(t, normalizedViewLines(afterValidation.View()),
+		"Notice: Receipt validation error.",
+		"Receipt Validation",
+		"Status: error",
+		"Error: validation callback failed",
+	)
+}
+
 func TestStatusModelRunDetailScrollsLongEventOutput(t *testing.T) {
 	startedAt := time.Date(2026, 7, 8, 13, 20, 0, 0, time.UTC)
 	events := make([]ledger.Event, 0, 80)
@@ -1049,6 +1190,39 @@ func jsonPayload(t *testing.T, value any) json.RawMessage {
 		t.Fatalf("marshal payload: %v", err)
 	}
 	return payload
+}
+
+func validationDetailHistory(runID string) ledger.RunWithEvents {
+	startedAt := time.Date(2026, 7, 8, 13, 30, 0, 0, time.UTC)
+	completedAt := startedAt.Add(time.Minute)
+	return ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:                 runID,
+			TaskID:             "task-" + runID,
+			Task:               "Validate receipt in TUI",
+			Status:             ledger.StatusCompleted,
+			Summary:            "completed",
+			StartedAt:          startedAt,
+			CompletedAt:        &completedAt,
+			VerificationStatus: "passed",
+			CommitSHA:          "abc123",
+		},
+		Events: []ledger.Event{
+			{
+				ID:    1,
+				RunID: runID,
+				Type:  ledger.EventRunArtifacts,
+				Payload: json.RawMessage(`{
+					"prompt_path": ".revolvr/runs/` + runID + `/prompt.md",
+					"codex_stdout_jsonl_path": ".revolvr/runs/` + runID + `/codex.jsonl",
+					"codex_stderr_path": ".revolvr/runs/` + runID + `/codex.stderr",
+					"last_message_path": ".revolvr/runs/` + runID + `/last-message.txt",
+					"receipt_path": ".revolvr/receipts/` + runID + `.md"
+				}`),
+				CreatedAt: completedAt,
+			},
+		},
+	}
 }
 
 func sampleTasks() []taskqueue.Task {

@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add receipt validation status to the TUI Run Detail view.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the TUI Run Detail view now exposes a `v` validation action backed by a `ValidateReceipt` callback wired from `revolvr tui` to `internal/app.ValidateReceipt`. Run Detail renders a dedicated Receipt Validation section showing not-run, passed, failed, and error states, and each returned validation check is shown with explicit `PASS` or `FAIL` messaging. Opening or reloading a run resets stale validation state for that run.
+- Tests added: focused TUI model coverage for fully valid receipts, failed validation checks, missing receipt errors, and validation callback errors. CLI TUI wiring coverage now verifies the ValidateReceipt callback is present and works against a ledger-backed valid receipt.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/tui`; `go test ./internal/cli -run TestTUI`; `go test ./...`; `git diff --check`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr tui --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`.
+- Verification result: all commands passed. The interactive `revolvr tui` session itself was not launched because it waits for terminal input.
+- What remains: next unchecked backlog item is to move doctor/preflight orchestration behind `internal/app` and add a TUI Preflight view.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add a dedicated TUI Runs view and richer Run Detail view.
 - Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: the TUI Runs view now lists recent runs with status, verification status, commit SHA, and summary. Opening a selected run still uses the app-backed `ShowRun` callback and now renders Run Detail as separate Summary, Diagnostics, Changed Files, Artifacts, and Events sections. Run Detail supports explicit `home`/`end` jumps alongside viewport scrolling, artifact sections show missing paths, changed-file capture gaps are visible, and receipt warnings are surfaced in diagnostics.

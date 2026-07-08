@@ -14,6 +14,7 @@ import (
 
 	"revolvr/internal/app"
 	"revolvr/internal/ledger"
+	"revolvr/internal/receipt"
 	"revolvr/internal/taskqueue"
 )
 
@@ -43,6 +44,7 @@ type StatusModel struct {
 	selectedTask int
 	selectedRun  int
 	runDetails   *ledger.RunWithEvents
+	validation   receiptValidationState
 	taskEntry    taskEntryState
 	message      string
 	width        int
@@ -53,19 +55,22 @@ type StatusModel struct {
 type RefreshStatusFunc func() (app.StatusResult, error)
 type OpenRunFunc func(runID string) (ledger.RunWithEvents, error)
 type AddTaskFunc func(input app.AddTaskInput) (taskqueue.Task, error)
+type ValidateReceiptFunc func(runID string) (receipt.ValidationResult, error)
 
 type StatusActions struct {
-	RefreshStatus RefreshStatusFunc
-	OpenRun       OpenRunFunc
-	AddTask       AddTaskFunc
+	RefreshStatus   RefreshStatusFunc
+	OpenRun         OpenRunFunc
+	AddTask         AddTaskFunc
+	ValidateReceipt ValidateReceiptFunc
 }
 
 type RunOptions struct {
-	Input         io.Reader
-	Output        io.Writer
-	RefreshStatus RefreshStatusFunc
-	OpenRun       OpenRunFunc
-	AddTask       AddTaskFunc
+	Input           io.Reader
+	Output          io.Writer
+	RefreshStatus   RefreshStatusFunc
+	OpenRun         OpenRunFunc
+	AddTask         AddTaskFunc
+	ValidateReceipt ValidateReceiptFunc
 }
 
 type taskEntryField int
@@ -81,6 +86,13 @@ type taskEntryState struct {
 	taskText string
 	summary  string
 	message  string
+}
+
+type receiptValidationState struct {
+	RunID   string
+	Checked bool
+	Result  receipt.ValidationResult
+	Err     string
 }
 
 func NewStatusModel(status app.StatusResult) StatusModel {
@@ -114,9 +126,10 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 	}
 
 	_, err := tea.NewProgram(NewStatusModelWithActions(status, StatusActions{
-		RefreshStatus: opts.RefreshStatus,
-		OpenRun:       opts.OpenRun,
-		AddTask:       opts.AddTask,
+		RefreshStatus:   opts.RefreshStatus,
+		OpenRun:         opts.OpenRun,
+		AddTask:         opts.AddTask,
+		ValidateReceipt: opts.ValidateReceipt,
 	}), options...).Run()
 	return err
 }
@@ -143,6 +156,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedID)
 			if !m.status.Initialized {
 				m.runDetails = nil
+				m.validation = receiptValidationState{}
 			}
 			m.message = "Refreshed."
 		}
@@ -153,6 +167,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = fmt.Sprintf("Open failed: %s", msg.err)
 		} else {
 			m.runDetails = &msg.history
+			m.validation = receiptValidationState{RunID: strings.TrimSpace(msg.history.Run.ID)}
 			m.view = viewRunDetail
 			m.message = ""
 		}
@@ -169,12 +184,29 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
 			if !m.status.Initialized {
 				m.runDetails = nil
+				m.validation = receiptValidationState{}
 			}
 			m.view = viewTasks
 			m.taskEntry = taskEntryState{}
 			m.message = fmt.Sprintf("Added task %s.", optionalValue(msg.task.ID))
 		}
 		m.resizeViewport()
+		m.updateViewportContent()
+		return m, nil
+	case validateReceiptMsg:
+		m.validation = receiptValidationState{
+			RunID:   msg.runID,
+			Checked: true,
+			Result:  msg.result,
+		}
+		if msg.err != nil {
+			m.validation.Err = msg.err.Error()
+			m.message = "Receipt validation error."
+		} else if msg.result.Passed() {
+			m.message = "Receipt validation passed."
+		} else {
+			m.message = "Receipt validation failed."
+		}
 		m.updateViewportContent()
 		return m, nil
 	case tea.KeyMsg:
@@ -272,6 +304,19 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				return m, cmd
+			case "v":
+				if m.actions.ValidateReceipt == nil {
+					m.message = "Receipt validation is unavailable."
+					m.updateViewportContent()
+					return m, nil
+				}
+				cmd := m.validateRunReceiptCmd()
+				if cmd == nil {
+					m.message = "No run detail loaded."
+					m.updateViewportContent()
+					return m, nil
+				}
+				return m, cmd
 			case "home":
 				m.viewport.GotoTop()
 				return m, nil
@@ -312,6 +357,12 @@ type addTaskMsg struct {
 	err    error
 }
 
+type validateReceiptMsg struct {
+	runID  string
+	result receipt.ValidationResult
+	err    error
+}
+
 func (m StatusModel) refreshStatusCmd() tea.Cmd {
 	return func() tea.Msg {
 		status, err := m.actions.RefreshStatus()
@@ -345,6 +396,20 @@ func (m StatusModel) addTaskCmd(input app.AddTaskInput) tea.Cmd {
 			return addTaskMsg{task: task, err: fmt.Errorf("refresh after add: %w", err)}
 		}
 		return addTaskMsg{task: task, status: status}
+	}
+}
+
+func (m StatusModel) validateRunReceiptCmd() tea.Cmd {
+	if m.runDetails == nil {
+		return nil
+	}
+	runID := strings.TrimSpace(m.runDetails.Run.ID)
+	if runID == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		result, err := m.actions.ValidateReceipt(runID)
+		return validateReceiptMsg{runID: runID, result: result, err: err}
 	}
 }
 
@@ -579,7 +644,7 @@ func (m StatusModel) footerLines() []string {
 	case viewRuns:
 		keys = append(keys, "j/k Select", "enter Open")
 	case viewRunDetail:
-		keys = append(keys, "up/down Scroll", "home/end Jump", "enter Reload", "esc Runs")
+		keys = append(keys, "up/down Scroll", "home/end Jump", "enter Reload", "v Validate", "esc Runs")
 	case viewHelp:
 		keys = append(keys, "esc Back")
 	case viewTaskEntry:
@@ -686,6 +751,8 @@ func (m StatusModel) renderRunDetails(history ledger.RunWithEvents) string {
 	lines = append(lines, "")
 	lines = append(lines, runDiagnosticLines(diagnostics)...)
 	lines = append(lines, "")
+	lines = append(lines, runReceiptValidationLines(m.validation, history.Run.ID)...)
+	lines = append(lines, "")
 	lines = append(lines, runChangedFileLines(diagnostics)...)
 	lines = append(lines, "")
 	lines = append(lines, runArtifactLines(history.Events)...)
@@ -729,7 +796,7 @@ func (m StatusModel) renderHelp() string {
 		"",
 		"Tasks: j/k Move selection",
 		"Runs: j/k Move selection",
-		"Run Detail: up/down Scroll, home/end Jump",
+		"Run Detail: up/down Scroll, home/end Jump, v Validate receipt",
 		"enter or o  Open selected run",
 		"esc  Back from help or run detail",
 	}
@@ -1166,6 +1233,43 @@ func runDiagnosticLines(diagnostics runDetailDiagnostics) []string {
 		}
 	}
 	return lines
+}
+
+func runReceiptValidationLines(state receiptValidationState, runID string) []string {
+	lines := []string{"Receipt Validation"}
+	runID = strings.TrimSpace(runID)
+	if !state.Checked || strings.TrimSpace(state.RunID) != runID {
+		return append(lines, "Status: not run")
+	}
+	if err := oneLine(state.Err); err != "" {
+		lines = append(lines, "Status: error")
+		return append(lines, "Error: "+err)
+	}
+	status := "passed"
+	if !state.Result.Passed() {
+		status = "failed"
+	}
+	lines = append(lines,
+		"Status: "+status,
+		fmt.Sprintf("Run ID: %s", optionalValue(state.Result.RunID)),
+		fmt.Sprintf("Receipt: %s", optionalValue(state.Result.ReceiptPath)),
+		"Checks:",
+	)
+	if len(state.Result.Checks) == 0 {
+		return append(lines, "No checks returned.")
+	}
+	for _, check := range state.Result.Checks {
+		lines = append(lines, receiptValidationCheckLine(check))
+	}
+	return lines
+}
+
+func receiptValidationCheckLine(check receipt.ValidationCheck) string {
+	status := "PASS"
+	if !check.Passed {
+		status = "FAIL"
+	}
+	return fmt.Sprintf("%s %s: %s", status, optionalValue(check.Name), oneLine(check.Message()))
 }
 
 func runChangedFileLines(diagnostics runDetailDiagnostics) []string {

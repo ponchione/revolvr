@@ -441,33 +441,23 @@ func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
-	paths, err := resolveStatePaths(workDir)
-	if err != nil {
-		t.Fatalf("resolve state paths: %v", err)
-	}
 
-	ctx := context.Background()
 	base := time.Date(2026, 7, 8, 13, 0, 0, 0, time.UTC)
-	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
-	if err != nil {
-		t.Fatalf("open ledger store: %v", err)
-	}
-	if _, err := runs.CreateRun(ctx, ledger.RunSpec{
-		ID:        "run-new",
-		TaskID:    "task-new",
-		Task:      "new run",
-		Status:    ledger.StatusCompleted,
-		Summary:   "completed summary",
-		StartedAt: base,
-	}); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if _, err := runs.AppendEvent(ctx, "run-new", ledger.EventRunStarted, map[string]any{"run_id": "run-new"}); err != nil {
-		t.Fatalf("append run event: %v", err)
-	}
-	if err := runs.Close(); err != nil {
-		t.Fatalf("close ledger store: %v", err)
-	}
+	createValidationRun(t, workDir, validationRunSpec{
+		RunID:              "run-new",
+		TaskID:             "task-new",
+		Task:               "new run",
+		CompletedAt:        base.Add(time.Minute),
+		CommitSHA:          "abc123",
+		ChangedFiles:       []string{"internal/tui/model.go"},
+		VerificationStatus: "passed",
+		Verification: []receipt.VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 0,
+			Status:   "passed",
+		}},
+		WriteArtifacts: true,
+	})
 
 	var out bytes.Buffer
 	called := false
@@ -493,6 +483,9 @@ func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 			if opts.AddTask == nil {
 				t.Fatal("add task callback is nil")
 			}
+			if opts.ValidateReceipt == nil {
+				t.Fatal("validate receipt callback is nil")
+			}
 
 			refreshed, err := opts.RefreshStatus()
 			if err != nil {
@@ -509,8 +502,21 @@ func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 			if history.Run.ID != "run-new" {
 				t.Fatalf("opened run id = %q, want run-new", history.Run.ID)
 			}
-			if got, want := eventTypes(history.Events), []ledger.EventType{ledger.EventRunStarted}; !reflect.DeepEqual(got, want) {
+			if got, want := eventTypes(history.Events), []ledger.EventType{
+				ledger.EventRunArtifacts,
+				ledger.EventChangedFilesCaptured,
+				ledger.EventVerificationCompleted,
+				ledger.EventCommitCreated,
+			}; !reflect.DeepEqual(got, want) {
 				t.Fatalf("opened event types = %#v, want %#v", got, want)
+			}
+
+			validation, err := opts.ValidateReceipt("run-new")
+			if err != nil {
+				return err
+			}
+			if !validation.Passed() {
+				t.Fatalf("receipt validation failed: %#v", validation.Failures())
 			}
 
 			added, err := opts.AddTask(app.AddTaskInput{
