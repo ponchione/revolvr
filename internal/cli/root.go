@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"revolvr/internal/app"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
@@ -479,50 +480,15 @@ func newStatusCommand(opts Options) *cobra.Command {
 		Short: "Show harness status",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			paths, err := resolveStatePaths(opts.WorkDir)
+			status, err := app.Status(cmd.Context(), app.Config{WorkDir: opts.WorkDir})
 			if err != nil {
 				return err
 			}
-			initialized, err := stateInitialized(paths)
-			if err != nil {
-				return err
-			}
-			if !initialized {
+			if !status.Initialized {
 				_, err = fmt.Fprint(cmd.OutOrStdout(), "Not initialized. Run `revolvr init` first.\n")
 				return err
 			}
-
-			tasks, closeTasks, err := openTaskStore(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
-			defer closeTasks()
-
-			runs, closeRuns, err := openLedgerStore(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
-			defer closeRuns()
-
-			taskList, err := tasks.ListTasks(cmd.Context())
-			if err != nil {
-				return err
-			}
-			recentRuns, err := runs.ListRecentRuns(cmd.Context(), 20)
-			if err != nil {
-				return err
-			}
-			var latestEvents []ledger.Event
-			if len(recentRuns) > 0 {
-				latestHistory, ok, err := runs.GetRunWithEvents(cmd.Context(), recentRuns[0].ID)
-				if err != nil {
-					return err
-				}
-				if ok {
-					latestEvents = latestHistory.Events
-				}
-			}
-			return writeStatus(cmd.OutOrStdout(), taskList, recentRuns, latestEvents)
+			return writeStatus(cmd.OutOrStdout(), status.Tasks, status.RecentRuns, status.LatestEvents)
 		},
 	}
 }
@@ -538,30 +504,9 @@ func newShowCommand(opts Options) *cobra.Command {
 				return fmt.Errorf("show: run id is required")
 			}
 
-			paths, err := resolveStatePaths(opts.WorkDir)
+			history, err := app.ShowRun(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, runID)
 			if err != nil {
 				return err
-			}
-			initialized, err := ledgerInitialized(paths)
-			if err != nil {
-				return err
-			}
-			if !initialized {
-				return fmt.Errorf("state is not initialized; run `revolvr init` first")
-			}
-
-			runs, closeRuns, err := openLedgerStore(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
-			defer closeRuns()
-
-			history, ok, err := runs.GetRunWithEvents(cmd.Context(), runID)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				return fmt.Errorf("run %q not found", runID)
 			}
 			return writeRun(cmd.OutOrStdout(), history)
 		},
