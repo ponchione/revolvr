@@ -436,7 +436,7 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 	}
 }
 
-func TestTUIRunnerReceivesReadOnlyRefreshAndOpenActions(t *testing.T) {
+func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -490,6 +490,9 @@ func TestTUIRunnerReceivesReadOnlyRefreshAndOpenActions(t *testing.T) {
 			if opts.OpenRun == nil {
 				t.Fatal("open run callback is nil")
 			}
+			if opts.AddTask == nil {
+				t.Fatal("add task callback is nil")
+			}
 
 			refreshed, err := opts.RefreshStatus()
 			if err != nil {
@@ -508,6 +511,34 @@ func TestTUIRunnerReceivesReadOnlyRefreshAndOpenActions(t *testing.T) {
 			}
 			if got, want := eventTypes(history.Events), []ledger.EventType{ledger.EventRunStarted}; !reflect.DeepEqual(got, want) {
 				t.Fatalf("opened event types = %#v, want %#v", got, want)
+			}
+
+			added, err := opts.AddTask(app.AddTaskInput{
+				Task:    "  Add from TUI  ",
+				Summary: "  tui add  ",
+			})
+			if err != nil {
+				return err
+			}
+			if added.ID == "" {
+				t.Fatal("added task id is empty")
+			}
+			if got, want := added.Task, "Add from TUI"; got != want {
+				t.Fatalf("added task text = %q, want %q", got, want)
+			}
+			if got, want := added.Summary, "tui add"; got != want {
+				t.Fatalf("added task summary = %q, want %q", got, want)
+			}
+
+			refreshedAfterAdd, err := opts.RefreshStatus()
+			if err != nil {
+				return err
+			}
+			if got, want := len(refreshedAfterAdd.Tasks), 1; got != want {
+				t.Fatalf("refreshed task count = %d, want %d", got, want)
+			}
+			if got, want := refreshedAfterAdd.Tasks[0].ID, added.ID; got != want {
+				t.Fatalf("refreshed task id = %q, want %q", got, want)
 			}
 
 			_, err = fmt.Fprint(opts.Output, "tui actions ok\n")

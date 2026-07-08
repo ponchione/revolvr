@@ -22,7 +22,7 @@
   Acceptance: task details are visible without leaving the TUI; blocked tasks are visually distinguishable; there is no task mutation yet.
   Verification: add focused tests for populated, empty, pending, blocked, and completed task states; run `go test ./internal/tui` and `go test ./...`.
 
-- [ ] Add a TUI task creation flow backed by `internal/app.AddTask`.
+- [x] Add a TUI task creation flow backed by `internal/app.AddTask`.
   Scope: add an `a` action that opens a task-entry mode with required task text and optional summary, supports submit/cancel, persists the task through `internal/app`, and refreshes the status snapshot after success.
   Acceptance: empty task text is rejected with an inline message; cancel returns to the previous view without writes; successful add selects or surfaces the new pending task.
   Verification: add model tests using stubbed app callbacks for submit, validation, cancel, and refresh; add CLI wiring coverage if command setup changes; run focused tests plus `go test ./...`.

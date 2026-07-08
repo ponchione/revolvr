@@ -358,6 +358,9 @@ func newTUICommand(opts Options) *cobra.Command {
 				OpenRun: func(runID string) (ledger.RunWithEvents, error) {
 					return app.ShowRun(ctx, cfg, runID)
 				},
+				AddTask: func(input app.AddTaskInput) (taskqueue.Task, error) {
+					return app.AddTask(ctx, cfg, input)
+				},
 			})
 		},
 	}

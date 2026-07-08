@@ -31,6 +31,7 @@ const (
 	viewRuns
 	viewRunDetail
 	viewHelp
+	viewTaskEntry
 )
 
 type StatusModel struct {
@@ -41,6 +42,7 @@ type StatusModel struct {
 	selectedTask int
 	selectedRun  int
 	runDetails   *ledger.RunWithEvents
+	taskEntry    taskEntryState
 	message      string
 	width        int
 	height       int
@@ -49,10 +51,12 @@ type StatusModel struct {
 
 type RefreshStatusFunc func() (app.StatusResult, error)
 type OpenRunFunc func(runID string) (ledger.RunWithEvents, error)
+type AddTaskFunc func(input app.AddTaskInput) (taskqueue.Task, error)
 
 type StatusActions struct {
 	RefreshStatus RefreshStatusFunc
 	OpenRun       OpenRunFunc
+	AddTask       AddTaskFunc
 }
 
 type RunOptions struct {
@@ -60,6 +64,22 @@ type RunOptions struct {
 	Output        io.Writer
 	RefreshStatus RefreshStatusFunc
 	OpenRun       OpenRunFunc
+	AddTask       AddTaskFunc
+}
+
+type taskEntryField int
+
+const (
+	taskEntryTaskField taskEntryField = iota
+	taskEntrySummaryField
+)
+
+type taskEntryState struct {
+	previous TUIView
+	field    taskEntryField
+	taskText string
+	summary  string
+	message  string
 }
 
 func NewStatusModel(status app.StatusResult) StatusModel {
@@ -95,6 +115,7 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 	_, err := tea.NewProgram(NewStatusModelWithActions(status, StatusActions{
 		RefreshStatus: opts.RefreshStatus,
 		OpenRun:       opts.OpenRun,
+		AddTask:       opts.AddTask,
 	}), options...).Run()
 	return err
 }
@@ -137,7 +158,29 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeViewport()
 		m.updateViewportContent()
 		return m, nil
+	case addTaskMsg:
+		if msg.err != nil {
+			m.taskEntry.message = fmt.Sprintf("Add failed: %s", msg.err)
+		} else {
+			selectedRunID := m.selectedRunID()
+			m.status = msg.status
+			m.selectedTask = selectedTaskIndex(m.status.Tasks, msg.task.ID)
+			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
+			if !m.status.Initialized {
+				m.runDetails = nil
+			}
+			m.view = viewTasks
+			m.taskEntry = taskEntryState{}
+			m.message = fmt.Sprintf("Added task %s.", optionalValue(msg.task.ID))
+		}
+		m.resizeViewport()
+		m.updateViewportContent()
+		return m, nil
 	case tea.KeyMsg:
+		if m.view == viewTaskEntry {
+			return m.updateTaskEntry(msg)
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -155,6 +198,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "?":
 			m.switchView(viewHelp)
+			return m, nil
+		case "a":
+			m.startTaskEntry()
 			return m, nil
 		case "r":
 			if m.actions.RefreshStatus == nil {
@@ -253,6 +299,12 @@ type openRunMsg struct {
 	err     error
 }
 
+type addTaskMsg struct {
+	task   taskqueue.Task
+	status app.StatusResult
+	err    error
+}
+
 func (m StatusModel) refreshStatusCmd() tea.Cmd {
 	return func() tea.Msg {
 		status, err := m.actions.RefreshStatus()
@@ -275,6 +327,75 @@ func (m StatusModel) openSelectedRunCmd() tea.Cmd {
 	}
 }
 
+func (m StatusModel) addTaskCmd(input app.AddTaskInput) tea.Cmd {
+	return func() tea.Msg {
+		task, err := m.actions.AddTask(input)
+		if err != nil {
+			return addTaskMsg{err: err}
+		}
+		status, err := m.actions.RefreshStatus()
+		if err != nil {
+			return addTaskMsg{task: task, err: fmt.Errorf("refresh after add: %w", err)}
+		}
+		return addTaskMsg{task: task, status: status}
+	}
+}
+
+func (m StatusModel) updateTaskEntry(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.cancelTaskEntry()
+		return m, nil
+	case "enter":
+		input := app.AddTaskInput{
+			Task:    strings.TrimSpace(m.taskEntry.taskText),
+			Summary: strings.TrimSpace(m.taskEntry.summary),
+		}
+		if input.Task == "" {
+			m.taskEntry.message = "Task text is required."
+			m.updateViewportContent()
+			return m, nil
+		}
+		if m.actions.AddTask == nil {
+			m.taskEntry.message = "Add task is unavailable."
+			m.updateViewportContent()
+			return m, nil
+		}
+		if m.actions.RefreshStatus == nil {
+			m.taskEntry.message = "Refresh is unavailable."
+			m.updateViewportContent()
+			return m, nil
+		}
+		m.taskEntry.message = ""
+		m.updateViewportContent()
+		return m, m.addTaskCmd(input)
+	case "tab", "shift+tab":
+		m.toggleTaskEntryField()
+		m.taskEntry.message = ""
+		m.updateViewportContent()
+		return m, nil
+	case "backspace":
+		m.backspaceTaskEntry()
+		m.taskEntry.message = ""
+		m.updateViewportContent()
+		return m, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyRunes:
+		m.appendTaskEntryRunes(msg.Runes)
+	case tea.KeySpace:
+		m.appendTaskEntryRunes([]rune(" "))
+	default:
+		return m, nil
+	}
+	m.taskEntry.message = ""
+	m.updateViewportContent()
+	return m, nil
+}
+
 func (m *StatusModel) updateViewportContent() {
 	m.viewport.SetContent(m.renderContent())
 	m.viewport.GotoTop()
@@ -294,6 +415,57 @@ func (m *StatusModel) switchView(view TUIView) {
 	m.view = view
 	m.resizeViewport()
 	m.updateViewportContent()
+}
+
+func (m *StatusModel) startTaskEntry() {
+	m.taskEntry = taskEntryState{
+		previous: m.view,
+		field:    taskEntryTaskField,
+	}
+	m.view = viewTaskEntry
+	m.message = ""
+	m.resizeViewport()
+	m.updateViewportContent()
+}
+
+func (m *StatusModel) cancelTaskEntry() {
+	previous := m.taskEntry.previous
+	if previous == viewTaskEntry {
+		previous = viewTasks
+	}
+	m.view = previous
+	m.taskEntry = taskEntryState{}
+	m.resizeViewport()
+	m.updateViewportContent()
+}
+
+func (m *StatusModel) toggleTaskEntryField() {
+	if m.taskEntry.field == taskEntryTaskField {
+		m.taskEntry.field = taskEntrySummaryField
+		return
+	}
+	m.taskEntry.field = taskEntryTaskField
+}
+
+func (m *StatusModel) appendTaskEntryRunes(runes []rune) {
+	if len(runes) == 0 {
+		return
+	}
+	switch m.taskEntry.field {
+	case taskEntrySummaryField:
+		m.taskEntry.summary += string(runes)
+	default:
+		m.taskEntry.taskText += string(runes)
+	}
+}
+
+func (m *StatusModel) backspaceTaskEntry() {
+	switch m.taskEntry.field {
+	case taskEntrySummaryField:
+		m.taskEntry.summary = trimLastRune(m.taskEntry.summary)
+	default:
+		m.taskEntry.taskText = trimLastRune(m.taskEntry.taskText)
+	}
 }
 
 func (m *StatusModel) resizeViewport() {
@@ -327,6 +499,8 @@ func (m StatusModel) renderContent() string {
 		return m.renderEmptyRunDetail()
 	case viewHelp:
 		return m.renderHelp()
+	case viewTaskEntry:
+		return m.renderTaskEntry()
 	default:
 		return m.renderDashboard()
 	}
@@ -338,6 +512,9 @@ func (m StatusModel) headerLines() []string {
 		state = "initialized"
 	}
 	views := "Views: " + m.viewTabs()
+	if m.view == viewTaskEntry {
+		views = "View: Add Task"
+	}
 	if m.width > 0 && len(views) > m.width {
 		views = "View: " + m.viewLabel()
 	}
@@ -380,6 +557,8 @@ func (m StatusModel) viewLabel() string {
 		return "Run Detail"
 	case viewHelp:
 		return "Help"
+	case viewTaskEntry:
+		return "Add Task"
 	default:
 		return "Dashboard"
 	}
@@ -396,8 +575,10 @@ func (m StatusModel) footerLines() []string {
 		keys = append(keys, "enter Reload", "esc Runs")
 	case viewHelp:
 		keys = append(keys, "esc Back")
+	case viewTaskEntry:
+		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
 	}
-	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "? Help", "r Refresh", "q Quit")
+	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "? Help", "a Add Task", "r Refresh", "q Quit")
 	return wrapKeyLines(keys, m.width)
 }
 
@@ -542,6 +723,7 @@ func (m StatusModel) renderHelp() string {
 		"?  Help",
 		"",
 		"Actions",
+		"a  Add task",
 		"r  Refresh status",
 		"q  Quit",
 		"",
@@ -549,6 +731,18 @@ func (m StatusModel) renderHelp() string {
 		"Runs: j/k Move selection",
 		"enter or o  Open selected run",
 		"esc  Back from help or run detail",
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m StatusModel) renderTaskEntry() string {
+	lines := []string{
+		"Add Task",
+		taskEntryLine(m.taskEntry.field == taskEntryTaskField, "Task", m.taskEntry.taskText),
+		taskEntryLine(m.taskEntry.field == taskEntrySummaryField, "Summary", m.taskEntry.summary),
+	}
+	if message := oneLine(m.taskEntry.message); message != "" {
+		lines = append(lines, "", "Error: "+message)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
@@ -690,6 +884,17 @@ func appendNotice(lines []string, message string) []string {
 	return append(lines, "Notice: "+message, "")
 }
 
+func taskEntryLine(active bool, label string, value string) string {
+	prefix := " "
+	if active {
+		prefix = ">"
+	}
+	if value == "" {
+		return fmt.Sprintf("%s %s:", prefix, label)
+	}
+	return fmt.Sprintf("%s %s: %s", prefix, label, value)
+}
+
 func wrapKeyLines(keys []string, width int) []string {
 	const prefix = "Keys: "
 	if width <= 0 {
@@ -823,4 +1028,12 @@ func optionalIntPtr(value *int) string {
 
 func oneLine(value string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+}
+
+func trimLastRune(value string) string {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return ""
+	}
+	return string(runes[:len(runes)-1])
 }

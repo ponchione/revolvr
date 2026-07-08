@@ -25,7 +25,8 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 		"Dashboard",
 		"State: not initialized",
 		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh | q Quit",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task",
+		"      r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -86,7 +87,7 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 		"> run-new  failed  verification failed",
 		"  run-old  completed  committed change",
 		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh | q Quit",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -109,7 +110,7 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"None",
 		"Task Detail",
 		"No task selected.",
-		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh | q Quit",
+		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task | r Refresh | q Quit",
 	)
 }
 
@@ -204,6 +205,195 @@ func TestStatusModelTasksViewRendersCompletedTaskDetails(t *testing.T) {
 		"Created: 2026-07-08T10:03:00Z",
 		"Updated: 2026-07-08T10:04:00Z",
 		"Completed: 2026-07-08T10:04:00Z",
+	)
+}
+
+func TestStatusModelTaskEntryRejectsEmptyTaskTextInline(t *testing.T) {
+	addCalled := false
+	refreshCalled := false
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		AddTask: func(app.AddTaskInput) (taskqueue.Task, error) {
+			addCalled = true
+			return taskqueue.Task{}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			refreshCalled = true
+			return app.StatusResult{}, nil
+		},
+	})
+	tasksView := openTasksView(t, model)
+
+	entryView, cmd := updateStatusModel(t, tasksView, keyRunes("a"))
+	if cmd != nil {
+		t.Fatalf("add key cmd = %v, want nil", cmd)
+	}
+	if entryView.view != viewTaskEntry {
+		t.Fatalf("view = %v, want task entry", entryView.view)
+	}
+
+	afterSubmit, cmd := updateStatusModel(t, entryView, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("empty submit cmd = %v, want nil", cmd)
+	}
+	if addCalled {
+		t.Fatal("add callback ran for empty task text")
+	}
+	if refreshCalled {
+		t.Fatal("refresh callback ran for empty task text")
+	}
+
+	lines := normalizedViewLines(afterSubmit.View())
+	requireLines(t, lines,
+		"View: Add Task",
+		"Add Task",
+		"> Task:",
+		"  Summary:",
+		"Error: Task text is required.",
+		"Keys: tab Field | enter Submit | esc Cancel | ctrl+c Quit",
+	)
+}
+
+func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.T) {
+	addCalled := false
+	model := NewStatusModelWithActions(app.StatusResult{
+		Initialized: true,
+		RecentRuns: []ledger.Run{{
+			ID:      "run-one",
+			Status:  ledger.StatusCompleted,
+			Summary: "done",
+		}},
+	}, StatusActions{
+		AddTask: func(app.AddTaskInput) (taskqueue.Task, error) {
+			addCalled = true
+			return taskqueue.Task{}, nil
+		},
+	})
+	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+	runsView, cmd := updateStatusModel(t, resized, keyRunes("3"))
+	if cmd != nil {
+		t.Fatalf("runs view cmd = %v, want nil", cmd)
+	}
+
+	entryView, cmd := updateStatusModel(t, runsView, keyRunes("a"))
+	if cmd != nil {
+		t.Fatalf("add key cmd = %v, want nil", cmd)
+	}
+	entryView, cmd = typeIntoStatusModel(t, entryView, "do not persist")
+	if cmd != nil {
+		t.Fatalf("typing cmd = %v, want nil", cmd)
+	}
+
+	cancelled, cmd := updateStatusModel(t, entryView, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil {
+		t.Fatalf("cancel cmd = %v, want nil", cmd)
+	}
+	if addCalled {
+		t.Fatal("add callback ran after cancel")
+	}
+	if cancelled.view != viewRuns {
+		t.Fatalf("view = %v, want runs", cancelled.view)
+	}
+	if cancelled.taskEntry.taskText != "" || cancelled.taskEntry.summary != "" {
+		t.Fatalf("task entry state = %+v, want cleared", cancelled.taskEntry)
+	}
+	requireLines(t, normalizedViewLines(cancelled.View()),
+		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
+		"> run-one  completed  done",
+	)
+}
+
+func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) {
+	base := time.Date(2026, 7, 8, 11, 0, 0, 0, time.UTC)
+	existing := taskqueue.Task{
+		ID:        "task-old",
+		Status:    taskqueue.StatusPending,
+		Task:      "existing task",
+		CreatedAt: base,
+		UpdatedAt: base,
+	}
+	added := taskqueue.Task{
+		ID:        "task-new",
+		Status:    taskqueue.StatusPending,
+		Task:      "Implement add flow",
+		Summary:   "TUI add",
+		CreatedAt: base.Add(time.Minute),
+		UpdatedAt: base.Add(time.Minute),
+	}
+	var input app.AddTaskInput
+	var calls []string
+	model := NewStatusModelWithActions(app.StatusResult{
+		Initialized: true,
+		Tasks:       []taskqueue.Task{existing},
+	}, StatusActions{
+		AddTask: func(got app.AddTaskInput) (taskqueue.Task, error) {
+			calls = append(calls, "add")
+			input = got
+			return added, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			calls = append(calls, "refresh")
+			return app.StatusResult{
+				Initialized: true,
+				Tasks:       []taskqueue.Task{existing, added},
+			}, nil
+		},
+	})
+	tasksView := openTasksView(t, model)
+	entryView, cmd := updateStatusModel(t, tasksView, keyRunes("a"))
+	if cmd != nil {
+		t.Fatalf("add key cmd = %v, want nil", cmd)
+	}
+	entryView, cmd = typeIntoStatusModel(t, entryView, "  Implement add flow  ")
+	if cmd != nil {
+		t.Fatalf("task typing cmd = %v, want nil", cmd)
+	}
+	entryView, cmd = updateStatusModel(t, entryView, tea.KeyMsg{Type: tea.KeyTab})
+	if cmd != nil {
+		t.Fatalf("tab cmd = %v, want nil", cmd)
+	}
+	entryView, cmd = typeIntoStatusModel(t, entryView, "  TUI add  ")
+	if cmd != nil {
+		t.Fatalf("summary typing cmd = %v, want nil", cmd)
+	}
+
+	afterSubmit, cmd := updateStatusModel(t, entryView, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("submit returned nil cmd")
+	}
+	if len(calls) != 0 {
+		t.Fatalf("callbacks ran before command execution: %#v", calls)
+	}
+
+	afterAdd, cmd := runStatusModelCmd(t, afterSubmit, cmd)
+	if cmd != nil {
+		t.Fatalf("add message cmd = %v, want nil", cmd)
+	}
+	if !reflect.DeepEqual(calls, []string{"add", "refresh"}) {
+		t.Fatalf("callback order = %#v, want add then refresh", calls)
+	}
+	if got, want := input.Task, "Implement add flow"; got != want {
+		t.Fatalf("add input task = %q, want %q", got, want)
+	}
+	if got, want := input.Summary, "TUI add"; got != want {
+		t.Fatalf("add input summary = %q, want %q", got, want)
+	}
+	if afterAdd.view != viewTasks {
+		t.Fatalf("view = %v, want tasks", afterAdd.view)
+	}
+	if got, want := afterAdd.selectedTaskID(), "task-new"; got != want {
+		t.Fatalf("selected task = %q, want %q", got, want)
+	}
+
+	lines := normalizedViewLines(afterAdd.View())
+	requireLines(t, lines,
+		"Notice: Added task task-new.",
+		"> task-new  pending  TUI add",
+		"ID: task-new",
+		"Status: pending",
+		"Task: Implement add flow",
 	)
 }
 
@@ -415,7 +605,7 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	for _, want := range []string{
 		"Views: Dashboard | Tasks | [Runs] | Run Detail | Help",
 		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
-		"      ? Help | r Refresh | q Quit",
+		"      ? Help | a Add Task | r Refresh | q Quit",
 	} {
 		if !containsLine(runsLines, want) {
 			t.Fatalf("runs footer/header missing %q: %#v", want, runsLines)
@@ -432,8 +622,8 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 		"Help",
 		"1  Dashboard",
 		"enter or o  Open selected run",
-		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | r Refresh",
-		"      q Quit",
+		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | ? Help | a Add Task",
+		"      r Refresh | q Quit",
 	} {
 		if !containsLine(helpLines, want) {
 			t.Fatalf("help view missing %q: %#v", want, helpLines)
@@ -471,7 +661,8 @@ func TestStatusModelResizeUpdatesContentAreaAndWrapsFooter(t *testing.T) {
 	for _, want := range []string{
 		"Keys: 1 Dashboard | 2 Tasks",
 		"      3 Runs | 4 Detail | ? Help",
-		"      r Refresh | q Quit",
+		"      a Add Task | r Refresh",
+		"      q Quit",
 	} {
 		if !containsLine(lines, want) {
 			t.Fatalf("wrapped footer missing %q: %#v", want, lines)
@@ -520,6 +711,11 @@ func runStatusModelCmd(t *testing.T, model StatusModel, cmd tea.Cmd) (StatusMode
 		t.Fatal("cmd is nil")
 	}
 	return updateStatusModel(t, model, cmd())
+}
+
+func typeIntoStatusModel(t *testing.T, model StatusModel, value string) (StatusModel, tea.Cmd) {
+	t.Helper()
+	return updateStatusModel(t, model, keyRunes(value))
 }
 
 func openTasksView(t *testing.T, model StatusModel) StatusModel {

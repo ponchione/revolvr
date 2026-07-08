@@ -12,6 +12,18 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add a TUI task creation flow backed by `internal/app.AddTask`.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the TUI now supports an `a` action that opens Add Task mode with task text and summary fields. Empty task text is rejected inline without calling app callbacks, `esc` cancels back to the previous view without writing, and successful submit calls the app-backed add callback, refreshes status, switches to Tasks, and selects the added task when it is present in the refreshed snapshot.
+- CLI wiring changed: `revolvr tui` now passes `internal/app.AddTask` through `internal/tui.RunOptions` alongside the existing status refresh and run open callbacks.
+- Tests added: focused TUI model coverage for empty validation, cancel without writes, submit with add/refresh callback order, trimmed task and summary input, and selecting the new pending task. CLI TUI wiring coverage now verifies refresh, open, and add callbacks through the command setup.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/tui`; `go test ./internal/cli -run TestTUI`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr tui --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add a dedicated TUI Runs view and richer Run Detail view.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add a dedicated TUI Tasks view with selection and task detail rendering.
 - Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: the TUI Tasks view now keeps an independent selected task, supports `j/k` and arrow-key movement, renders pending, blocked, and completed tasks in a scannable list, and shows an inline detail section for the selected task with ID, status, summary, task text, blocker, and present timestamps. Blocked tasks use a visible `! blocked` list marker without relying on color.
