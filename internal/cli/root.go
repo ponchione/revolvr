@@ -343,13 +343,21 @@ func newTUICommand(opts Options) *cobra.Command {
 		Short: "Open status TUI",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			status, err := app.Status(cmd.Context(), app.Config{WorkDir: opts.WorkDir})
+			cfg := app.Config{WorkDir: opts.WorkDir}
+			ctx := cmd.Context()
+			status, err := app.Status(ctx, cfg)
 			if err != nil {
 				return err
 			}
 			return runner(cmd.Context(), status, tuiapp.RunOptions{
 				Input:  cmd.InOrStdin(),
 				Output: cmd.OutOrStdout(),
+				RefreshStatus: func() (app.StatusResult, error) {
+					return app.Status(ctx, cfg)
+				},
+				OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+					return app.ShowRun(ctx, cfg, runID)
+				},
 			})
 		},
 	}

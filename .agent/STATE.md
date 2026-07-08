@@ -12,6 +12,17 @@ None.
 
 Task completed on 2026-07-08:
 
+- Selected task: add basic TUI actions for refresh, opening selected run details, and quit, without starting real Codex runs yet.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `internal/tui.StatusModel` now supports refresh, recent-run selection, opening selected run details, returning from details, and quit actions. `revolvr tui` passes read-only callbacks backed by `internal/app.Status` and `internal/app.ShowRun`; it still does not start Codex or invoke run orchestration.
+- Tests added: focused TUI coverage for refresh reloading a status snapshot, selecting/opening a run detail view, and quit command behavior. Focused CLI coverage verifies the TUI runner receives refresh/open callbacks and that the run hook is not invoked.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/tui`; `go test ./internal/cli -run 'TestTUI'`; `go test ./internal/tui ./internal/cli`; `go test ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr tui --help`; `go run ./cmd/revolvr status`; `go run ./cmd/revolvr config check`; `git diff --check`.
+- Verification result: all commands passed. The interactive `revolvr tui` session itself was not launched as a smoke command because it waits for terminal input.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-08:
+
 - Selected task: add `revolvr tui` showing task counts, latest run summary, and recent runs from `internal/app`.
 - Files changed: `internal/tui/model.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
 - Behavior changed: added `revolvr tui`, which loads the current `internal/app.Status` snapshot and opens the Bubble Tea status model. The command renders uninitialized state, task counts, latest run summary fields, and recent runs through `internal/tui`.
