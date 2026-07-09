@@ -12,7 +12,7 @@
 
 ## Current Backlog
 
-- [ ] Add a Markdown spec-to-task parser that preserves human-readable acceptance and verification notes.
+- [x] Add a Markdown spec-to-task parser that preserves human-readable acceptance and verification notes.
   Scope: create a small internal parser for a documented Markdown task format without adding dependencies. Support repeated task sections with a required task body and optional summary, acceptance, and verification notes; preserve unknown section text in the generated task body.
   Acceptance: parser returns ordered task specs suitable for `internal/app.AddTask`; empty task text and malformed sections produce clear errors with line context; multiline task text remains readable in Codex prompts.
   Verification: add focused parser tests; run `go test ./internal/taskimport` and `go test ./...`.

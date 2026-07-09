@@ -2,13 +2,24 @@
 
 ## Current Focus
 
-Backlog seeded for next-phase development; no task is currently in progress.
+No task is currently in progress. The next unchecked backlog item is to add an app-level task import and dry-run operation.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-09:
+
+- Selected task: add a Markdown spec-to-task parser that preserves human-readable acceptance and verification notes.
+- Files changed: `internal/taskimport/parser.go`, `internal/taskimport/parser_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added `internal/taskimport`, a dependency-free Markdown parser for repeated `## Task` sections. It returns ordered task specs with `Task` and `Summary`, preserves acceptance and verification notes in task text, keeps unknown subsections in task text, supports explicit task body subsections, and reports parse errors with line context.
+- Tests added: focused parser tests for ordered repeated tasks, multiline task body readability, explicit task body sections, preserved acceptance/verification/unknown notes, empty task text, malformed pre-task sections, duplicate known sections, and empty input.
+- Verification run: `gofmt -w internal/taskimport/parser.go internal/taskimport/parser_test.go`; `go test ./internal/taskimport`; `go test ./...`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add an app-level task import and dry-run operation.
+- Blockers: none.
 
 Planning update on 2026-07-09:
 
