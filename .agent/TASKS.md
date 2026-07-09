@@ -12,49 +12,54 @@
 
 ## Current Backlog
 
-- [x] Add a multi-view TUI shell with explicit Dashboard, Tasks, Runs, Run Detail, and Help/keys areas.
-  Scope: replace the current single-window feel with a view model and predictable navigation keys. Keep the TUI read-only for this task.
-  Acceptance: users can switch views without losing loaded state; the footer shows available keys for the active view; empty/uninitialized state still renders coherently.
-  Verification: add focused `internal/tui` tests for view switching, help/footer rendering, and resize behavior; run `go test ./internal/tui`, `go test ./internal/cli -run 'TestTUI'`, and `go test ./...`.
+- [ ] Add a Markdown spec-to-task parser that preserves human-readable acceptance and verification notes.
+  Scope: create a small internal parser for a documented Markdown task format without adding dependencies. Support repeated task sections with a required task body and optional summary, acceptance, and verification notes; preserve unknown section text in the generated task body.
+  Acceptance: parser returns ordered task specs suitable for `internal/app.AddTask`; empty task text and malformed sections produce clear errors with line context; multiline task text remains readable in Codex prompts.
+  Verification: add focused parser tests; run `go test ./internal/taskimport` and `go test ./...`.
 
-- [x] Add a dedicated TUI Tasks view with selection and task detail rendering.
-  Scope: show pending, blocked, and completed tasks in a scannable list or table; allow moving the selection; render details for the selected task including ID, status, summary, task text, blocker, and timestamps when present.
-  Acceptance: task details are visible without leaving the TUI; blocked tasks are visually distinguishable; there is no task mutation yet.
-  Verification: add focused tests for populated, empty, pending, blocked, and completed task states; run `go test ./internal/tui` and `go test ./...`.
+- [ ] Add an app-level task import and dry-run operation.
+  Scope: expose parsed task imports through `internal/app`, with dry-run and write modes. Validate all parsed tasks before writing; write mode creates tasks in input order and returns created IDs.
+  Acceptance: dry-run reports the tasks that would be created without mutating `.revolvr/`; write mode persists every valid task in order; parse and validation errors do not partially write tasks.
+  Verification: add `internal/app` tests for dry-run, ordered import, validation failure, parse failure, and empty import; run `go test ./internal/app` and `go test ./...`.
 
-- [x] Add a TUI task creation flow backed by `internal/app.AddTask`.
-  Scope: add an `a` action that opens a task-entry mode with required task text and optional summary, supports submit/cancel, persists the task through `internal/app`, and refreshes the status snapshot after success.
-  Acceptance: empty task text is rejected with an inline message; cancel returns to the previous view without writes; successful add selects or surfaces the new pending task.
-  Verification: add model tests using stubbed app callbacks for submit, validation, cancel, and refresh; add CLI wiring coverage if command setup changes; run focused tests plus `go test ./...`.
+- [ ] Add `revolvr task import <path>` with `--dry-run`.
+  Scope: wire the CLI to the app import operation. Print numbered dry-run rows and created task IDs, while keeping existing `task add` and `task list` output unchanged.
+  Acceptance: `--dry-run` does not mutate task state; import creates tasks in parsed order; unreadable files and parse failures return clear command errors.
+  Verification: add focused CLI tests for help, dry-run, successful import, parse errors, and unreadable paths; run `go test ./internal/cli -run 'TestTaskImport|TestTask(Add|List)'`, `go test ./...`, and `go run ./cmd/revolvr task import --help`.
 
-- [x] Add a dedicated TUI Runs view and richer Run Detail view.
-  Scope: list recent runs with status, verification, commit, and summary; allow selecting a run and opening a detail view backed by `internal/app.ShowRun`; show summary, diagnostics, artifacts, changed files, and events in separate sections or tabs.
-  Acceptance: run details are useful without falling back to `revolvr show`; long event lists remain scrollable; missing artifacts or warnings are visible.
-  Verification: add focused tests for recent-run navigation, detail opening, diagnostics rendering, artifact rendering, and long event output; run `go test ./internal/tui` and `go test ./...`.
+- [ ] Document the chat/spec-to-task workflow and import format.
+  Scope: add README guidance for using web chat to design specs, saving a Markdown task file, dry-running/importing it, refreshing the TUI, and running one pass from the TUI. Include the caution that chat and TUI can share task state, but concurrent code edits against the same repo should be avoided.
+  Acceptance: docs include a minimal import-file example with summary, acceptance, and verification notes, plus commands for dry-run, import, TUI refresh, preflight, and run-once.
+  Verification: run `go test ./...` and `go run ./cmd/revolvr task import --help`.
 
-- [x] Add receipt validation status to the TUI Run Detail view.
-  Scope: use `internal/app.ValidateReceipt` from the selected run detail, either automatically on open or through a `v` action, and render each validation check result with clear pass/fail messaging.
-  Acceptance: a fully valid receipt shows all checks passing; validation failures are visible in the detail view; validation errors do not crash the TUI.
-  Verification: add model tests for valid receipts, failed validation checks, missing receipts, and validation callback errors; run focused tests plus `go test ./...`.
+- [ ] Surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
+  Scope: highlight the first pending task, show pending/blocked/completed counts near the task area, and distinguish `ready to run` from `nothing runnable` without relying on color.
+  Acceptance: Dashboard shows the next task ID and summary when present; Tasks view marks both the current selection and the next runnable task; uninitialized and empty states still render coherently.
+  Verification: add focused `internal/tui` render tests for pending, blocked-only, completed-only, and empty queues; run `go test ./internal/tui` and `go test ./...`.
 
-- [x] Move doctor/preflight orchestration behind `internal/app` and add a TUI Preflight view.
-  Scope: expose the existing doctor checks as structured app data, keep CLI doctor output unchanged, and render readiness checks in the TUI.
-  Acceptance: users can inspect readiness before running Codex; failed checks show enough detail to act on; CLI `doctor` remains byte-for-byte compatible where tests assert output.
-  Verification: add `internal/app` tests for preflight snapshots and CLI tests for preserved doctor output; add TUI tests for ready and failed preflight views; run focused tests plus `go test ./...`.
+- [ ] Add TUI blocked-task retry for the selected task.
+  Scope: add a Tasks-view action backed by `internal/app.RetryTask`, refresh after success, and display clear inline messages for non-blocked tasks, missing callbacks, and retry errors.
+  Acceptance: a blocked selected task can be returned to pending without leaving the TUI; pending and completed selected tasks are not mutated; the footer/help reflects when retry is available.
+  Verification: add TUI model tests for successful retry, non-blocked rejection, callback error, and refresh failure; add CLI wiring coverage if command setup changes; run `go test ./internal/tui ./internal/cli ./internal/app` and `go test ./...`.
 
-- [x] Add a nonblocking TUI run-once action with live progress and cancellation.
-  Scope: add a guarded run action that starts `internal/app.RunOnce` from a Bubble Tea command, streams Codex progress into a progress/log pane, disables conflicting actions while running, and supports cancellation.
-  Acceptance: no run starts when preflight is not ready or another run is active; progress remains visible; completion refreshes status and run details; cancellation reports a clear terminal state.
-  Verification: use fake app runners in TUI tests for success, failure, progress events, and cancellation; run `go test ./internal/tui`, `go test ./internal/app`, `go test ./internal/cli`, and `go test ./...`.
+- [ ] Add an app-level run timeline projection from ledger events.
+  Scope: build a reusable `internal/app` projection that converts a run history into ordered human-readable timeline rows for prompt creation, Codex start/progress/completion, verification, commit, receipt, and terminal outcome.
+  Acceptance: timeline rows include timestamp, phase, status, and concise detail; completed, failed-verification, Codex-failed, blocked, and missing-artifact histories degrade gracefully without panics.
+  Verification: add `internal/app` tests for completed, failed verification, Codex failed, blocked, and missing-event histories; run `go test ./internal/app` and `go test ./...`.
 
-- [x] Polish TUI layout, styling, and documentation for daily use.
-  Scope: refine responsive layout, colors, key help, empty states, and README usage notes for `revolvr tui`.
-  Acceptance: text does not overlap at narrow terminal widths; important states are readable without color; README explains the TUI capabilities and current limitations.
-  Verification: add or update snapshot-style render tests for narrow and wide widths; run `go test ./internal/tui`, `go test ./...`, and `go run ./cmd/revolvr tui --help`.
+- [ ] Render the run timeline in CLI `show` and TUI Run Detail.
+  Scope: surface the app timeline in `revolvr show <run-id>` and the TUI Run Detail view, while keeping raw event visibility available in the TUI when practical.
+  Acceptance: users can understand the run flow without reading raw JSON or ledger payloads; long timelines remain scrollable; CLI output remains deterministic in tests.
+  Verification: add focused CLI and TUI tests for timeline rendering and long timeline scrolling; run `go test ./internal/cli ./internal/tui` and `go test ./...`.
+
+- [ ] Add a controlled TUI run-next-N flow backed by `internal/app.RunLoop`.
+  Scope: add a bounded multi-pass action in the TUI that runs up to a small user-selected pass count, reuses preflight readiness and cancellation controls, and streams pass summaries into the progress pane.
+  Acceptance: users can run multiple passes without leaving the TUI; the TUI honors the same stop reasons and guardrails as `run --max-passes`; cancellation reports a clear terminal state and refreshes state.
+  Verification: add fake-runner TUI tests for max-pass completion, no-task stop, failure guardrail, blocked stop, and cancellation; run `go test ./internal/tui ./internal/app ./internal/cli` and `go test ./...`.
 
 ## Completed History
 
-The previous harness, app-boundary, and initial TUI tasks were completed on 2026-07-08. Details are preserved in `.agent/STATE.md` and the Git history.
+The previous harness, app-boundary, and TUI operator-console tasks were completed on 2026-07-08. Details are preserved in `.agent/STATE.md` and the Git history.
 
 ## Blocked
 

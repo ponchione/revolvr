@@ -2,13 +2,25 @@
 
 ## Current Focus
 
-None.
+Backlog seeded for next-phase development; no task is currently in progress.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Planning update on 2026-07-09:
+
+- Selected task: clean the completed TUI backlog out of the active task list and seed next-phase development tasks from the current design discussion.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: none; durable planning state only.
+- Task list changed: `.agent/TASKS.md` now starts with a Markdown spec-to-task import workflow, then TUI next-task visibility, blocked-task retry, human-readable run timelines, and a bounded multi-pass TUI flow.
+- Runtime queue changed: preserved the existing `.revolvr/` completed run history and added 9 new pending tasks in the same order as `.agent/TASKS.md`.
+- Verification run: not run; durable planning state only.
+- Verification result: not run.
+- What remains: first unchecked backlog item is to add a Markdown spec-to-task parser.
+- Blockers: none.
 
 Task completed on 2026-07-08:
 
