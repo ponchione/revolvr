@@ -85,6 +85,30 @@ func TestListTasksDeterministically(t *testing.T) {
 	}
 }
 
+func TestListTasksOrdersNanosecondTimestampsChronologically(t *testing.T) {
+	ctx := context.Background()
+	base := time.Date(2026, 6, 25, 10, 0, 0, 900000000, time.UTC)
+	store := openTestStore(t, func() time.Time { return base })
+	defer store.Close()
+
+	for _, spec := range []TaskSpec{
+		{ID: "task-first", Task: "first", CreatedAt: base},
+		{ID: "task-second", Task: "second", CreatedAt: base.Add(time.Nanosecond)},
+	} {
+		if _, err := store.AddTask(ctx, spec); err != nil {
+			t.Fatalf("add %s: %v", spec.ID, err)
+		}
+	}
+
+	tasks, err := store.ListTasks(ctx)
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if got, want := taskIDs(tasks), []string{"task-first", "task-second"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("task order = %v, want %v", got, want)
+	}
+}
+
 func TestSelectNextReturnsFirstPendingUnblockedTask(t *testing.T) {
 	ctx := context.Background()
 	base := time.Date(2026, 6, 25, 10, 0, 0, 0, time.UTC)

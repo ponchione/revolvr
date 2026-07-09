@@ -17,6 +17,7 @@ import (
 
 const (
 	driverName = "sqlite"
+	timeLayout = "2006-01-02T15:04:05.000000000Z07:00"
 
 	StatusPending   = "pending"
 	StatusCompleted = "completed"
@@ -484,7 +485,7 @@ func scanTask(row scanner) (Task, error) {
 }
 
 func formatTime(t time.Time) string {
-	return t.UTC().Format(time.RFC3339Nano)
+	return t.UTC().Format(timeLayout)
 }
 
 func parseTime(value string) (time.Time, error) {
