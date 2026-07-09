@@ -493,6 +493,153 @@ func TestTaskOperationsReportClearErrors(t *testing.T) {
 	}
 }
 
+func TestTaskImportDryRunReportsTasksWithoutCreatingState(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	result, err := ImportTasksFromMarkdown(ctx, Config{WorkDir: workDir}, ImportTasksFromMarkdownInput{
+		DryRun: true,
+		Markdown: []byte(`## Task: First import
+Create the first task.
+
+### Acceptance
+- dry-run reports this task
+
+## Task
+Create the second task.
+
+### Summary
+Second import
+`),
+	})
+	if err != nil {
+		t.Fatalf("import dry-run: %v", err)
+	}
+	if !result.DryRun {
+		t.Fatal("dry-run result flag = false, want true")
+	}
+	want := []ImportedTask{
+		{
+			Task:    "Create the first task.\n\n### Acceptance\n- dry-run reports this task",
+			Summary: "First import",
+		},
+		{
+			Task:    "Create the second task.",
+			Summary: "Second import",
+		},
+	}
+	if !reflect.DeepEqual(result.Tasks, want) {
+		t.Fatalf("dry-run tasks = %#v, want %#v", result.Tasks, want)
+	}
+	assertNoAppStateDir(t, workDir)
+}
+
+func TestTaskImportWritePersistsTasksInOrderAndReturnsIDs(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	result, err := ImportTasksFromMarkdown(ctx, Config{WorkDir: workDir}, ImportTasksFromMarkdownInput{
+		Markdown: []byte(`## Task: First
+Create first.
+
+## Task: Second
+Create second.
+
+## Task: Third
+Create third.
+`),
+	})
+	if err != nil {
+		t.Fatalf("import tasks: %v", err)
+	}
+	if result.DryRun {
+		t.Fatal("dry-run result flag = true, want false")
+	}
+	if got, want := len(result.Tasks), 3; got != want {
+		t.Fatalf("created tasks = %d, want %d", got, want)
+	}
+	for i, task := range result.Tasks {
+		if task.ID == "" {
+			t.Fatalf("created task %d id is empty", i+1)
+		}
+	}
+	if got, want := importTaskSummaries(result.Tasks), []string{"First", "Second", "Third"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("result task summaries = %#v, want %#v", got, want)
+	}
+
+	tasks, err := ListTasks(ctx, Config{WorkDir: workDir})
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if got, want := taskIDs(tasks), importedTaskIDs(result.Tasks); !reflect.DeepEqual(got, want) {
+		t.Fatalf("persisted task ids = %#v, want result ids %#v", got, want)
+	}
+	if got, want := taskSummaries(tasks), []string{"First", "Second", "Third"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("persisted summaries = %#v, want %#v", got, want)
+	}
+	if got, want := taskTexts(tasks), []string{"Create first.", "Create second.", "Create third."}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("persisted task text = %#v, want %#v", got, want)
+	}
+}
+
+func TestTaskImportValidationFailureDoesNotPartiallyWrite(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	_, err := ImportTasks(ctx, Config{WorkDir: workDir}, ImportTasksInput{
+		Tasks: []TaskImport{
+			{Task: "valid first task", Summary: "first"},
+			{Task: "   ", Summary: "invalid"},
+			{Task: "valid third task", Summary: "third"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "task import: task 2: task text is required") {
+		t.Fatalf("validation error = %v, want task 2 required text", err)
+	}
+	assertNoAppStateDir(t, workDir)
+}
+
+func TestTaskImportParseFailureDoesNotPartiallyWrite(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	_, err := ImportTasksFromMarkdown(ctx, Config{WorkDir: workDir}, ImportTasksFromMarkdownInput{
+		Markdown: []byte(`## Task: First
+Create first.
+
+## Task: Invalid
+Create invalid.
+
+### Acceptance
+- first acceptance
+
+### Acceptance
+- duplicate acceptance
+`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "task import: parse:") || !strings.Contains(err.Error(), "duplicate Acceptance") {
+		t.Fatalf("parse error = %v, want duplicate Acceptance parse error", err)
+	}
+	assertNoAppStateDir(t, workDir)
+}
+
+func TestTaskImportEmptyImportDoesNotCreateState(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	result, err := ImportTasks(ctx, Config{WorkDir: workDir}, ImportTasksInput{})
+	if err != nil {
+		t.Fatalf("empty import: %v", err)
+	}
+	if result.DryRun {
+		t.Fatal("empty import dry-run flag = true, want false")
+	}
+	if len(result.Tasks) != 0 {
+		t.Fatalf("empty import tasks = %#v, want none", result.Tasks)
+	}
+	assertNoAppStateDir(t, workDir)
+}
+
 func TestRunOnceLoadsConfigAndProgressCallback(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()
@@ -755,6 +902,53 @@ func taskStatuses(tasks []taskqueue.Task) map[string]string {
 		statuses[task.ID] = task.Status
 	}
 	return statuses
+}
+
+func taskIDs(tasks []taskqueue.Task) []string {
+	ids := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		ids = append(ids, task.ID)
+	}
+	return ids
+}
+
+func taskTexts(tasks []taskqueue.Task) []string {
+	texts := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		texts = append(texts, task.Task)
+	}
+	return texts
+}
+
+func taskSummaries(tasks []taskqueue.Task) []string {
+	summaries := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		summaries = append(summaries, task.Summary)
+	}
+	return summaries
+}
+
+func importedTaskIDs(tasks []ImportedTask) []string {
+	ids := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		ids = append(ids, task.ID)
+	}
+	return ids
+}
+
+func importTaskSummaries(tasks []ImportedTask) []string {
+	summaries := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		summaries = append(summaries, task.Summary)
+	}
+	return summaries
+}
+
+func assertNoAppStateDir(t *testing.T, workDir string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(workDir, stateDirName)); !os.IsNotExist(err) {
+		t.Fatalf("state dir stat err = %v, want not exist", err)
+	}
 }
 
 func runIDs(runs []ledger.Run) []string {

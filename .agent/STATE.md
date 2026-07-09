@@ -2,13 +2,24 @@
 
 ## Current Focus
 
-No task is currently in progress. The next unchecked backlog item is to add an app-level task import and dry-run operation.
+No task is currently in progress. The next unchecked backlog item is to add `revolvr task import <path>` with `--dry-run`.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-09:
+
+- Selected task: add an app-level task import and dry-run operation.
+- Files changed: `internal/app/app.go`, `internal/app/app_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added app-level Markdown task import parsing and import execution. `internal/app.ParseTaskImport` exposes normalized parsed tasks, `ImportTasksFromMarkdown` parses and imports in one call, and `ImportTasks` supports dry-run and write modes over parsed tasks. Dry-run returns the tasks that would be created without opening or mutating `.revolvr/`; write mode validates every task before opening the store, creates tasks in input order, and returns created IDs.
+- Tests added: focused app tests for dry-run reporting without state mutation, ordered write/import ID returns, validation failure without partial writes, parse failure without partial writes, and empty parsed imports without state creation.
+- Verification run: `gofmt -w internal/app/app.go internal/app/app_test.go`; `go test ./internal/app`; `go test ./...`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add `revolvr task import <path>` with `--dry-run`.
+- Blockers: none.
 
 Task completed on 2026-07-09:
 

@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/taskimport"
 	"revolvr/internal/taskqueue"
 )
 
@@ -28,6 +30,32 @@ type AddTaskInput struct {
 	Summary string
 }
 
+type TaskImport struct {
+	Task    string
+	Summary string
+}
+
+type ImportTasksInput struct {
+	Tasks  []TaskImport
+	DryRun bool
+}
+
+type ImportTasksFromMarkdownInput struct {
+	Markdown []byte
+	DryRun   bool
+}
+
+type ImportTasksResult struct {
+	DryRun bool
+	Tasks  []ImportedTask
+}
+
+type ImportedTask struct {
+	ID      string
+	Task    string
+	Summary string
+}
+
 type StatusResult struct {
 	Initialized  bool
 	Tasks        []taskqueue.Task
@@ -36,9 +64,9 @@ type StatusResult struct {
 }
 
 func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskqueue.Task, error) {
-	taskText := strings.TrimSpace(input.Task)
-	if taskText == "" {
-		return taskqueue.Task{}, errors.New("task add: task text is required")
+	validated, err := validateTaskInput(input.Task, input.Summary, "task add")
+	if err != nil {
+		return taskqueue.Task{}, err
 	}
 
 	tasks, err := openTaskStore(ctx, cfg)
@@ -48,9 +76,77 @@ func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskqueue.Tas
 	defer tasks.Close()
 
 	return tasks.AddTask(ctx, taskqueue.TaskSpec{
-		Task:    taskText,
-		Summary: strings.TrimSpace(input.Summary),
+		Task:    validated.Task,
+		Summary: validated.Summary,
 	})
+}
+
+func ParseTaskImport(markdown []byte) ([]TaskImport, error) {
+	specs, err := taskimport.Parse(markdown)
+	if err != nil {
+		return nil, fmt.Errorf("task import: parse: %w", err)
+	}
+
+	tasks := make([]TaskImport, 0, len(specs))
+	for _, spec := range specs {
+		tasks = append(tasks, TaskImport{
+			Task:    spec.Task,
+			Summary: spec.Summary,
+		})
+	}
+	return tasks, nil
+}
+
+func ImportTasksFromMarkdown(ctx context.Context, cfg Config, input ImportTasksFromMarkdownInput) (ImportTasksResult, error) {
+	tasks, err := ParseTaskImport(input.Markdown)
+	if err != nil {
+		return ImportTasksResult{}, err
+	}
+	return ImportTasks(ctx, cfg, ImportTasksInput{
+		Tasks:  tasks,
+		DryRun: input.DryRun,
+	})
+}
+
+func ImportTasks(ctx context.Context, cfg Config, input ImportTasksInput) (ImportTasksResult, error) {
+	tasks, err := validateTaskImports(input.Tasks)
+	if err != nil {
+		return ImportTasksResult{}, err
+	}
+
+	result := ImportTasksResult{
+		DryRun: input.DryRun,
+		Tasks:  make([]ImportedTask, 0, len(tasks)),
+	}
+	for _, task := range tasks {
+		result.Tasks = append(result.Tasks, ImportedTask{
+			Task:    task.Task,
+			Summary: task.Summary,
+		})
+	}
+	if input.DryRun || len(tasks) == 0 {
+		return result, nil
+	}
+
+	store, err := openTaskStore(ctx, cfg)
+	if err != nil {
+		return ImportTasksResult{}, err
+	}
+	defer store.Close()
+
+	baseCreatedAt := time.Now().UTC()
+	for i, task := range tasks {
+		created, err := store.AddTask(ctx, taskqueue.TaskSpec{
+			Task:      task.Task,
+			Summary:   task.Summary,
+			CreatedAt: baseCreatedAt.Add(time.Duration(i) * time.Nanosecond),
+		})
+		if err != nil {
+			return ImportTasksResult{}, fmt.Errorf("task import: create task %d: %w", i+1, err)
+		}
+		result.Tasks[i].ID = created.ID
+	}
+	return result, nil
 }
 
 func ListTasks(ctx context.Context, cfg Config) ([]taskqueue.Task, error) {
@@ -224,6 +320,29 @@ func unblockBlockedTask(ctx context.Context, cfg Config, rawTaskID string, opera
 		return taskqueue.Task{}, fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
 	}
 	return task, nil
+}
+
+func validateTaskImports(tasks []TaskImport) ([]AddTaskInput, error) {
+	validated := make([]AddTaskInput, 0, len(tasks))
+	for i, task := range tasks {
+		input, err := validateTaskInput(task.Task, task.Summary, fmt.Sprintf("task import: task %d", i+1))
+		if err != nil {
+			return nil, err
+		}
+		validated = append(validated, input)
+	}
+	return validated, nil
+}
+
+func validateTaskInput(task string, summary string, operation string) (AddTaskInput, error) {
+	task = strings.TrimSpace(task)
+	if task == "" {
+		return AddTaskInput{}, fmt.Errorf("%s: task text is required", operation)
+	}
+	return AddTaskInput{
+		Task:    task,
+		Summary: strings.TrimSpace(summary),
+	}, nil
 }
 
 type statePaths struct {

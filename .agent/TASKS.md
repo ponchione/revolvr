@@ -17,7 +17,7 @@
   Acceptance: parser returns ordered task specs suitable for `internal/app.AddTask`; empty task text and malformed sections produce clear errors with line context; multiline task text remains readable in Codex prompts.
   Verification: add focused parser tests; run `go test ./internal/taskimport` and `go test ./...`.
 
-- [ ] Add an app-level task import and dry-run operation.
+- [x] Add an app-level task import and dry-run operation.
   Scope: expose parsed task imports through `internal/app`, with dry-run and write modes. Validate all parsed tasks before writing; write mode creates tasks in input order and returns created IDs.
   Acceptance: dry-run reports the tasks that would be created without mutating `.revolvr/`; write mode persists every valid task in order; parse and validation errors do not partially write tasks.
   Verification: add `internal/app` tests for dry-run, ordered import, validation failure, parse failure, and empty import; run `go test ./internal/app` and `go test ./...`.
