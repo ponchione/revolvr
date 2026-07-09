@@ -2,13 +2,24 @@
 
 ## Current Focus
 
-No task is currently in progress. The next unchecked backlog item is to add `revolvr task import <path>` with `--dry-run`.
+No task is currently in progress. The next unchecked backlog item is to document the chat/spec-to-task workflow and import format.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-09:
+
+- Selected task: add `revolvr task import <path>` with `--dry-run`.
+- Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added a `revolvr task import <path>` command with `--dry-run`. The CLI reads the Markdown file, calls the app-level import operation, prints numbered dry-run rows without creating `.revolvr/`, and prints created task IDs in parsed order for write imports. Existing `task add` and `task list` output remains unchanged.
+- Tests added: focused CLI tests for import help, dry-run/no-mutation output, successful ordered import and ID output, parse errors without mutation, and unreadable paths without mutation.
+- Verification run: `gofmt -w internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/cli -run 'TestTaskImport|TestTask(Add|List)'`; `go test ./internal/cli -run 'TestNewRootCommandConstructsExpectedCommands|TestParentCommandHelpOutput'`; `go test ./...`; `go run ./cmd/revolvr task import --help`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to document the chat/spec-to-task workflow and import format.
+- Blockers: none.
 
 Task completed on 2026-07-09:
 

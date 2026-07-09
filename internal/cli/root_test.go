@@ -33,6 +33,7 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"init"},
 		{"task"},
 		{"task", "add"},
+		{"task", "import"},
 		{"task", "list"},
 		{"task", "retry"},
 		{"task", "unblock"},
@@ -104,6 +105,7 @@ func TestParentCommandHelpOutput(t *testing.T) {
 				"Usage:\n  revolvr task [flags]\n  revolvr task [command]",
 				"Available Commands:",
 				"add",
+				"import",
 				"list",
 				"retry",
 				"unblock",
@@ -759,6 +761,123 @@ func TestTaskAddRejectsEmptyInput(t *testing.T) {
 	if !strings.Contains(err.Error(), "task text is required") {
 		t.Fatalf("task add empty error = %v, want task text required", err)
 	}
+}
+
+func TestTaskImportHelpWorks(t *testing.T) {
+	out, err := executeCLI(t, t.TempDir(), "task", "import", "--help")
+	if err != nil {
+		t.Fatalf("execute task import --help: %v", err)
+	}
+
+	for _, want := range []string{
+		"Import tasks from a Markdown file",
+		"Usage:\n  revolvr task import <path> [flags]",
+		"--dry-run",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("task import help missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestTaskImportDryRunReportsNumberedRowsWithoutMutatingState(t *testing.T) {
+	workDir := t.TempDir()
+	importPath := filepath.Join(workDir, "tasks.md")
+	writeCLIFile(t, importPath, `
+## Task: First import
+Draft first task.
+
+### Acceptance
+- dry-run reports this row
+
+## Task
+Draft second task.
+
+### Summary
+Second import
+`)
+
+	out, err := executeCLI(t, workDir, "task", "import", "--dry-run", importPath)
+	if err != nil {
+		t.Fatalf("execute task import --dry-run: %v", err)
+	}
+	want := "Dry run: 2 task(s) would be imported.\n" +
+		"1. First import - Draft first task. ### Acceptance - dry-run reports this row\n" +
+		"2. Second import - Draft second task.\n"
+	if out != want {
+		t.Fatalf("task import dry-run output = %q, want %q", out, want)
+	}
+	assertNoCLIStateDir(t, workDir)
+}
+
+func TestTaskImportCreatesTasksInParsedOrderAndPrintsIDs(t *testing.T) {
+	workDir := t.TempDir()
+	importPath := filepath.Join(workDir, "tasks.md")
+	writeCLIFile(t, importPath, `
+## Task: First import
+Create first task.
+
+## Task: Second import
+Create second task.
+`)
+
+	out, err := executeCLI(t, workDir, "task", "import", importPath)
+	if err != nil {
+		t.Fatalf("execute task import: %v", err)
+	}
+
+	tasks := readTasks(t, workDir)
+	if got, want := len(tasks), 2; got != want {
+		t.Fatalf("imported task count = %d, want %d", got, want)
+	}
+	if got, want := []string{tasks[0].Task, tasks[1].Task}, []string{"Create first task.", "Create second task."}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("imported task text = %#v, want %#v", got, want)
+	}
+	if got, want := []string{tasks[0].Summary, tasks[1].Summary}, []string{"First import", "Second import"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("imported summaries = %#v, want %#v", got, want)
+	}
+	want := fmt.Sprintf("Imported 2 task(s).\n1. %s\n2. %s\n", tasks[0].ID, tasks[1].ID)
+	if out != want {
+		t.Fatalf("task import output = %q, want %q", out, want)
+	}
+}
+
+func TestTaskImportParseErrorReturnsClearErrorWithoutMutatingState(t *testing.T) {
+	workDir := t.TempDir()
+	importPath := filepath.Join(workDir, "invalid.md")
+	writeCLIFile(t, importPath, `
+## Task: Invalid import
+Create invalid task.
+
+### Acceptance
+- first acceptance
+
+### Acceptance
+- duplicate acceptance
+`)
+
+	_, err := executeCLI(t, workDir, "task", "import", importPath)
+	if err == nil {
+		t.Fatal("task import parse failure succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), "task import: parse:") || !strings.Contains(err.Error(), "duplicate Acceptance") {
+		t.Fatalf("task import parse error = %v, want duplicate Acceptance parse error", err)
+	}
+	assertNoCLIStateDir(t, workDir)
+}
+
+func TestTaskImportUnreadablePathReturnsClearErrorWithoutMutatingState(t *testing.T) {
+	workDir := t.TempDir()
+	missingPath := filepath.Join(workDir, "missing.md")
+
+	_, err := executeCLI(t, workDir, "task", "import", missingPath)
+	if err == nil {
+		t.Fatal("task import unreadable path succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), "task import: read "+missingPath) {
+		t.Fatalf("task import unreadable path error = %v, want read error with path", err)
+	}
+	assertNoCLIStateDir(t, workDir)
 }
 
 func TestTaskListShowsPersistedTasks(t *testing.T) {
@@ -2448,6 +2567,17 @@ func readTasks(t *testing.T, workDir string) []taskqueue.Task {
 		t.Fatalf("list tasks: %v", err)
 	}
 	return tasks
+}
+
+func assertNoCLIStateDir(t *testing.T, workDir string) {
+	t.Helper()
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	if _, err := os.Stat(paths.StateDir); !os.IsNotExist(err) {
+		t.Fatalf("state dir stat err = %v, want not exist", err)
+	}
 }
 
 func runIDs(runs []ledger.Run) []string {

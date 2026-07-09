@@ -22,7 +22,7 @@
   Acceptance: dry-run reports the tasks that would be created without mutating `.revolvr/`; write mode persists every valid task in order; parse and validation errors do not partially write tasks.
   Verification: add `internal/app` tests for dry-run, ordered import, validation failure, parse failure, and empty import; run `go test ./internal/app` and `go test ./...`.
 
-- [ ] Add `revolvr task import <path>` with `--dry-run`.
+- [x] Add `revolvr task import <path>` with `--dry-run`.
   Scope: wire the CLI to the app import operation. Print numbered dry-run rows and created task IDs, while keeping existing `task add` and `task list` output unchanged.
   Acceptance: `--dry-run` does not mutate task state; import creates tasks in parsed order; unreadable files and parse failures return clear command errors.
   Verification: add focused CLI tests for help, dry-run, successful import, parse errors, and unreadable paths; run `go test ./internal/cli -run 'TestTaskImport|TestTask(Add|List)'`, `go test ./...`, and `go run ./cmd/revolvr task import --help`.

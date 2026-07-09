@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -112,6 +113,7 @@ func newTaskCommand(opts Options) *cobra.Command {
 	}
 	cmd.AddCommand(
 		newTaskAddCommand(opts),
+		newTaskImportCommand(opts),
 		newTaskListCommand(opts),
 		newTaskRetryCommand(opts),
 		newTaskUnblockCommand(opts),
@@ -145,6 +147,40 @@ func newTaskAddCommand(opts Options) *cobra.Command {
 	return cmd
 }
 
+func newTaskImportCommand(opts Options) *cobra.Command {
+	var dryRun bool
+	cmd := &cobra.Command{
+		Use:   "import <path>",
+		Short: "Import tasks from a Markdown file",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := strings.TrimSpace(args[0])
+			if path == "" {
+				return fmt.Errorf("task import: path is required")
+			}
+
+			markdown, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("task import: read %s: %w", path, err)
+			}
+
+			result, err := app.ImportTasksFromMarkdown(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.ImportTasksFromMarkdownInput{
+				Markdown: markdown,
+				DryRun:   dryRun,
+			})
+			if err != nil {
+				return err
+			}
+			if result.DryRun {
+				return writeTaskImportDryRun(cmd.OutOrStdout(), result.Tasks)
+			}
+			return writeTaskImportCreated(cmd.OutOrStdout(), result.Tasks)
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print tasks without creating them")
+	return cmd
+}
+
 func newTaskListCommand(opts Options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
@@ -170,6 +206,42 @@ func newTaskListCommand(opts Options) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func writeTaskImportDryRun(out io.Writer, tasks []app.ImportedTask) error {
+	if _, err := fmt.Fprintf(out, "Dry run: %d task(s) would be imported.\n", len(tasks)); err != nil {
+		return err
+	}
+	for i, task := range tasks {
+		if _, err := fmt.Fprintf(out, "%d. %s\n", i+1, importTaskDescription(task)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeTaskImportCreated(out io.Writer, tasks []app.ImportedTask) error {
+	if _, err := fmt.Fprintf(out, "Imported %d task(s).\n", len(tasks)); err != nil {
+		return err
+	}
+	for i, task := range tasks {
+		if _, err := fmt.Fprintf(out, "%d. %s\n", i+1, task.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func importTaskDescription(task app.ImportedTask) string {
+	taskText := oneLine(task.Task)
+	summary := oneLine(task.Summary)
+	if summary == "" {
+		return taskText
+	}
+	if taskText == "" {
+		return summary
+	}
+	return fmt.Sprintf("%s - %s", summary, taskText)
 }
 
 func newTaskUnblockCommand(opts Options) *cobra.Command {
