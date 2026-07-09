@@ -72,6 +72,7 @@ type StatusModel struct {
 type RefreshStatusFunc func() (app.StatusResult, error)
 type OpenRunFunc func(runID string) (ledger.RunWithEvents, error)
 type AddTaskFunc func(input app.AddTaskInput) (taskqueue.Task, error)
+type RetryTaskFunc func(taskID string) (taskqueue.Task, error)
 type ValidateReceiptFunc func(runID string) (receipt.ValidationResult, error)
 type PreflightFunc func() (app.PreflightResult, error)
 type RunOnceFunc func(context.Context, app.RunProgress) (runonce.Result, error)
@@ -81,6 +82,7 @@ type StatusActions struct {
 	RefreshStatus   RefreshStatusFunc
 	OpenRun         OpenRunFunc
 	AddTask         AddTaskFunc
+	RetryTask       RetryTaskFunc
 	ValidateReceipt ValidateReceiptFunc
 	Preflight       PreflightFunc
 	RunOnce         RunOnceFunc
@@ -92,6 +94,7 @@ type RunOptions struct {
 	RefreshStatus   RefreshStatusFunc
 	OpenRun         OpenRunFunc
 	AddTask         AddTaskFunc
+	RetryTask       RetryTaskFunc
 	ValidateReceipt ValidateReceiptFunc
 	Preflight       PreflightFunc
 	RunOnce         RunOnceFunc
@@ -174,6 +177,7 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 		RefreshStatus:   opts.RefreshStatus,
 		OpenRun:         opts.OpenRun,
 		AddTask:         opts.AddTask,
+		RetryTask:       opts.RetryTask,
 		ValidateReceipt: opts.ValidateReceipt,
 		Preflight:       opts.Preflight,
 		RunOnce:         opts.RunOnce,
@@ -236,6 +240,27 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.view = viewTasks
 			m.taskEntry = taskEntryState{}
 			m.message = fmt.Sprintf("Added task %s.", optionalValue(msg.task.ID))
+		}
+		m.resizeViewport()
+		m.updateViewportContent()
+		return m, nil
+	case retryTaskMsg:
+		if msg.err != nil {
+			if msg.refreshFailed {
+				m.message = fmt.Sprintf("Retry refresh failed: %s", msg.err)
+			} else {
+				m.message = fmt.Sprintf("Retry failed: %s", msg.err)
+			}
+		} else {
+			selectedRunID := m.selectedRunID()
+			m.status = msg.status
+			m.selectedTask = selectedTaskIndex(m.status.Tasks, msg.task.ID)
+			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
+			if !m.status.Initialized {
+				m.runDetails = nil
+				m.validation = receiptValidationState{}
+			}
+			m.message = fmt.Sprintf("Retried task %s.", optionalValue(msg.task.ID))
 		}
 		m.resizeViewport()
 		m.updateViewportContent()
@@ -358,6 +383,8 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.moveSelectedTask(1)
 				m.updateViewportContent()
 				return m, nil
+			case "u":
+				return m, m.startRetrySelectedTask()
 			}
 		case viewRuns:
 			switch msg.String() {
@@ -461,6 +488,13 @@ type addTaskMsg struct {
 	err    error
 }
 
+type retryTaskMsg struct {
+	task          taskqueue.Task
+	status        app.StatusResult
+	err           error
+	refreshFailed bool
+}
+
 type validateReceiptMsg struct {
 	runID  string
 	result receipt.ValidationResult
@@ -522,6 +556,47 @@ func (m StatusModel) addTaskCmd(input app.AddTaskInput) tea.Cmd {
 			return addTaskMsg{task: task, err: fmt.Errorf("refresh after add: %w", err)}
 		}
 		return addTaskMsg{task: task, status: status}
+	}
+}
+
+func (m *StatusModel) startRetrySelectedTask() tea.Cmd {
+	task, ok := m.selectedTaskValue()
+	if !ok {
+		m.message = "No task selected."
+		m.updateViewportContent()
+		return nil
+	}
+	if task.Status != taskqueue.StatusBlocked {
+		m.message = fmt.Sprintf("Retry unavailable: selected task %s is not blocked (status: %s).", optionalValue(task.ID), optionalValue(task.Status))
+		m.updateViewportContent()
+		return nil
+	}
+	if m.actions.RetryTask == nil {
+		m.message = "Retry is unavailable."
+		m.updateViewportContent()
+		return nil
+	}
+	if m.actions.RefreshStatus == nil {
+		m.message = "Retry is unavailable: refresh callback is missing."
+		m.updateViewportContent()
+		return nil
+	}
+	m.message = ""
+	m.updateViewportContent()
+	return m.retryTaskCmd(task.ID)
+}
+
+func (m StatusModel) retryTaskCmd(taskID string) tea.Cmd {
+	return func() tea.Msg {
+		task, err := m.actions.RetryTask(taskID)
+		if err != nil {
+			return retryTaskMsg{err: err}
+		}
+		status, err := m.actions.RefreshStatus()
+		if err != nil {
+			return retryTaskMsg{task: task, err: err, refreshFailed: true}
+		}
+		return retryTaskMsg{task: task, status: status}
 	}
 }
 
@@ -668,7 +743,7 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	case "c":
 		m.requestRunCancel()
 		return true, nil
-	case "R", "r", "a":
+	case "R", "r", "a", "u":
 		m.message = "Run is active; cancel or wait before starting another action."
 		m.updateViewportContent()
 		return true, nil
@@ -1058,6 +1133,9 @@ func (m StatusModel) footerLines() []string {
 	switch m.view {
 	case viewTasks:
 		keys = append(keys, "j/k Select")
+		if m.retrySelectedTaskAvailable() {
+			keys = append(keys, "u Retry")
+		}
 	case viewRuns:
 		keys = append(keys, "j/k Select", "enter Open")
 	case viewRunDetail:
@@ -1271,7 +1349,7 @@ func (m StatusModel) renderHelp() string {
 		"c  Cancel active run",
 		"q  Quit",
 		"",
-		"Tasks: j/k Move selection",
+		"Tasks: j/k Move selection, u Retry blocked selected task",
 		"Runs: j/k Move selection",
 		"Run Detail: up/down Scroll, home/end Jump, v Validate receipt",
 		"Preflight: p Run readiness checks",
@@ -2234,6 +2312,21 @@ func (m StatusModel) selectedTaskID() string {
 		return ""
 	}
 	return strings.TrimSpace(m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTask)].ID)
+}
+
+func (m StatusModel) selectedTaskValue() (taskqueue.Task, bool) {
+	if len(m.status.Tasks) == 0 {
+		return taskqueue.Task{}, false
+	}
+	return m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTask)], true
+}
+
+func (m StatusModel) retrySelectedTaskAvailable() bool {
+	task, ok := m.selectedTaskValue()
+	return ok &&
+		task.Status == taskqueue.StatusBlocked &&
+		m.actions.RetryTask != nil &&
+		m.actions.RefreshStatus != nil
 }
 
 func (m *StatusModel) moveSelectedRun(delta int) {

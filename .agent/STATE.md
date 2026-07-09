@@ -2,13 +2,25 @@
 
 ## Current Focus
 
-No task is currently in progress. The next unchecked backlog item is to add TUI blocked-task retry for the selected task.
+No task is currently in progress. The next unchecked backlog item is to add an app-level run timeline projection from ledger events.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-09:
+
+- Selected task: add TUI blocked-task retry for the selected task.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the TUI Tasks view now supports `u` retry for the selected blocked task. The action calls the app-wired retry callback, refreshes the status snapshot after success, keeps the retried task selected, and reports inline notices for successful retry, non-blocked selections, missing callbacks, retry callback errors, and refresh failures. The Tasks footer shows `u Retry` only when the selected task is blocked and retry/refresh callbacks are available, while Help documents the retry key.
+- CLI wiring changed: `revolvr tui` now passes `internal/app.RetryTask` into the TUI action callbacks.
+- Tests added: focused TUI model coverage for successful blocked-task retry, pending/completed non-blocked rejection without mutation, missing retry/refresh callbacks, retry callback error, and refresh failure after retry. CLI TUI wiring coverage now verifies the retry callback can return a blocked task to pending through the command setup.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root.go internal/cli/root_test.go`; `go test ./internal/tui`; `go test ./internal/tui ./internal/cli ./internal/app`; `go test ./...`; `go run ./cmd/revolvr tui --help`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add an app-level run timeline projection from ledger events.
+- Blockers: none.
 
 Task completed on 2026-07-09:
 

@@ -349,6 +349,247 @@ func TestStatusModelTasksViewRendersCompletedTaskDetails(t *testing.T) {
 	)
 }
 
+func TestStatusModelTasksViewRetriesBlockedTaskRefreshesAndSelects(t *testing.T) {
+	tasks := sampleTasks()
+	retried := tasks[1]
+	retried.Status = taskqueue.StatusPending
+	retried.Blocker = ""
+	retried.BlockedAt = nil
+	retried.UpdatedAt = retried.UpdatedAt.Add(time.Minute)
+
+	var calls []string
+	model := NewStatusModelWithActions(app.StatusResult{
+		Initialized: true,
+		Tasks:       tasks,
+	}, StatusActions{
+		RetryTask: func(taskID string) (taskqueue.Task, error) {
+			calls = append(calls, "retry:"+taskID)
+			if taskID != "task-blocked" {
+				t.Fatalf("retry task id = %q, want task-blocked", taskID)
+			}
+			return retried, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			calls = append(calls, "refresh")
+			return app.StatusResult{
+				Initialized: true,
+				Tasks:       []taskqueue.Task{tasks[0], retried, tasks[2]},
+			}, nil
+		},
+	})
+	tasksView := openTasksView(t, model)
+	blockedView, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(blockedView.View()),
+		"Keys: j/k Select | u Retry | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
+	)
+
+	afterKey, cmd := updateStatusModel(t, blockedView, keyRunes("u"))
+	if cmd == nil {
+		t.Fatal("retry key returned nil cmd")
+	}
+	if len(calls) != 0 {
+		t.Fatalf("callbacks ran before command execution: %#v", calls)
+	}
+
+	afterRetry, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd != nil {
+		t.Fatalf("retry message cmd = %v, want nil", cmd)
+	}
+	if !reflect.DeepEqual(calls, []string{"retry:task-blocked", "refresh"}) {
+		t.Fatalf("callback order = %#v, want retry then refresh", calls)
+	}
+	if got, want := afterRetry.selectedTaskID(), "task-blocked"; got != want {
+		t.Fatalf("selected task = %q, want %q", got, want)
+	}
+
+	lines := normalizedViewLines(afterRetry.View())
+	requireLines(t, lines,
+		"Notice: Retried task task-blocked.",
+		"> - task-blocked  pending  blocked task",
+		"ID: task-blocked",
+		"Status: pending",
+		"Blocker: none",
+	)
+	requireNoLine(t, lines, "Blocked: 2026-07-08T10:02:00Z")
+}
+
+func TestStatusModelTasksViewRejectsNonBlockedRetryWithoutMutation(t *testing.T) {
+	calls := 0
+	model := NewStatusModelWithActions(app.StatusResult{
+		Initialized: true,
+		Tasks:       sampleTasks(),
+	}, StatusActions{
+		RetryTask: func(string) (taskqueue.Task, error) {
+			calls++
+			return taskqueue.Task{}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			calls++
+			return app.StatusResult{}, nil
+		},
+	})
+	tasksView := openTasksView(t, model)
+
+	afterPending, cmd := updateStatusModel(t, tasksView, keyRunes("u"))
+	if cmd != nil {
+		t.Fatalf("pending retry cmd = %v, want nil", cmd)
+	}
+	if calls != 0 {
+		t.Fatalf("callback calls after pending retry = %d, want 0", calls)
+	}
+	requireLines(t, normalizedViewLines(afterPending.View()),
+		"Notice: Retry unavailable: selected task task-pending is not blocked (status: pending).",
+		"> next task-pending  pending  write focused tests",
+	)
+
+	completedView, cmd := updateStatusModel(t, afterPending, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("first move selection cmd = %v, want nil", cmd)
+	}
+	completedView, cmd = updateStatusModel(t, completedView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("second move selection cmd = %v, want nil", cmd)
+	}
+	afterCompleted, cmd := updateStatusModel(t, completedView, keyRunes("u"))
+	if cmd != nil {
+		t.Fatalf("completed retry cmd = %v, want nil", cmd)
+	}
+	if calls != 0 {
+		t.Fatalf("callback calls after completed retry = %d, want 0", calls)
+	}
+	requireLines(t, normalizedViewLines(afterCompleted.View()),
+		"Notice: Retry unavailable: selected task task-completed is not blocked (status: completed).",
+		"> - task-completed  completed  finished task",
+	)
+}
+
+func TestStatusModelTasksViewRetryReportsMissingCallbacks(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks:       sampleTasks(),
+	})
+	tasksView := openTasksView(t, model)
+	blockedView, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+
+	afterMissingRetry, cmd := updateStatusModel(t, blockedView, keyRunes("u"))
+	if cmd != nil {
+		t.Fatalf("missing retry callback cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(afterMissingRetry.View()),
+		"Notice: Retry is unavailable.",
+		"> - task-blocked  ! blocked  blocked task",
+	)
+
+	called := false
+	afterMissingRetry.actions.RetryTask = func(string) (taskqueue.Task, error) {
+		called = true
+		return taskqueue.Task{}, nil
+	}
+	afterMissingRefresh, cmd := updateStatusModel(t, afterMissingRetry, keyRunes("u"))
+	if cmd != nil {
+		t.Fatalf("missing refresh callback cmd = %v, want nil", cmd)
+	}
+	if called {
+		t.Fatal("retry callback ran while refresh callback was missing")
+	}
+	requireLines(t, normalizedViewLines(afterMissingRefresh.View()),
+		"Notice: Retry is unavailable: refresh callback is missing.",
+	)
+}
+
+func TestStatusModelTasksViewRetryCallbackErrorShowsInlineMessage(t *testing.T) {
+	calls := 0
+	model := NewStatusModelWithActions(app.StatusResult{
+		Initialized: true,
+		Tasks:       sampleTasks(),
+	}, StatusActions{
+		RetryTask: func(taskID string) (taskqueue.Task, error) {
+			calls++
+			if taskID != "task-blocked" {
+				t.Fatalf("retry task id = %q, want task-blocked", taskID)
+			}
+			return taskqueue.Task{}, errors.New("storage locked")
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			t.Fatal("refresh callback ran after retry error")
+			return app.StatusResult{}, nil
+		},
+	})
+	tasksView := openTasksView(t, model)
+	blockedView, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+
+	afterKey, cmd := updateStatusModel(t, blockedView, keyRunes("u"))
+	if cmd == nil {
+		t.Fatal("retry key returned nil cmd")
+	}
+	afterRetry, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd != nil {
+		t.Fatalf("retry message cmd = %v, want nil", cmd)
+	}
+	if calls != 1 {
+		t.Fatalf("retry calls = %d, want 1", calls)
+	}
+	requireLines(t, normalizedViewLines(afterRetry.View()),
+		"Notice: Retry failed: storage locked",
+		"> - task-blocked  ! blocked  blocked task",
+		"Status: blocked",
+	)
+}
+
+func TestStatusModelTasksViewRetryRefreshFailureShowsInlineMessage(t *testing.T) {
+	tasks := sampleTasks()
+	retried := tasks[1]
+	retried.Status = taskqueue.StatusPending
+	retried.Blocker = ""
+	retried.BlockedAt = nil
+
+	var calls []string
+	model := NewStatusModelWithActions(app.StatusResult{
+		Initialized: true,
+		Tasks:       tasks,
+	}, StatusActions{
+		RetryTask: func(taskID string) (taskqueue.Task, error) {
+			calls = append(calls, "retry:"+taskID)
+			return retried, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			calls = append(calls, "refresh")
+			return app.StatusResult{}, errors.New("status database offline")
+		},
+	})
+	tasksView := openTasksView(t, model)
+	blockedView, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+
+	afterKey, cmd := updateStatusModel(t, blockedView, keyRunes("u"))
+	if cmd == nil {
+		t.Fatal("retry key returned nil cmd")
+	}
+	afterRetry, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd != nil {
+		t.Fatalf("retry message cmd = %v, want nil", cmd)
+	}
+	if !reflect.DeepEqual(calls, []string{"retry:task-blocked", "refresh"}) {
+		t.Fatalf("callback order = %#v, want retry then refresh", calls)
+	}
+	requireLines(t, normalizedViewLines(afterRetry.View()),
+		"Notice: Retry refresh failed: status database offline",
+		"> - task-blocked  ! blocked  blocked task",
+		"Status: blocked",
+	)
+}
+
 func TestStatusModelTaskEntryRejectsEmptyTaskTextInline(t *testing.T) {
 	addCalled := false
 	refreshCalled := false

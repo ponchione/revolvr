@@ -439,7 +439,7 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 	}
 }
 
-func TestTUIRunnerReceivesRefreshOpenAndAddActions(t *testing.T) {
+func TestTUIRunnerReceivesRefreshOpenAddAndRetryActions(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -455,6 +455,29 @@ verification:
 `)
 
 	base := time.Date(2026, 7, 8, 13, 0, 0, 0, time.UTC)
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	store, err := taskqueue.Open(context.Background(), paths.TaskDBPath)
+	if err != nil {
+		t.Fatalf("open task store: %v", err)
+	}
+	if _, err := store.AddTask(context.Background(), taskqueue.TaskSpec{
+		ID:        "task-blocked",
+		Task:      "Retry from TUI",
+		Summary:   "blocked tui",
+		CreatedAt: base,
+	}); err != nil {
+		t.Fatalf("add blocked task: %v", err)
+	}
+	if _, ok, err := store.BlockTask(context.Background(), "task-blocked", "waiting on callback"); err != nil || !ok {
+		t.Fatalf("block task ok=%t err=%v, want ok", ok, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close task store: %v", err)
+	}
+
 	createValidationRun(t, workDir, validationRunSpec{
 		RunID:              "run-new",
 		TaskID:             "task-new",
@@ -528,6 +551,9 @@ verification:
 			if opts.AddTask == nil {
 				t.Fatal("add task callback is nil")
 			}
+			if opts.RetryTask == nil {
+				t.Fatal("retry task callback is nil")
+			}
 			if opts.ValidateReceipt == nil {
 				t.Fatal("validate receipt callback is nil")
 			}
@@ -592,6 +618,35 @@ verification:
 				t.Fatalf("tui run progress = %#v, want one event", progress)
 			}
 
+			retried, err := opts.RetryTask("task-blocked")
+			if err != nil {
+				return err
+			}
+			if got, want := retried.Status, taskqueue.StatusPending; got != want {
+				t.Fatalf("retried task status = %q, want %q", got, want)
+			}
+			if retried.Blocker != "" || retried.BlockedAt != nil {
+				t.Fatalf("retried task = %+v, want blocker state cleared", retried)
+			}
+
+			refreshedAfterRetry, err := opts.RefreshStatus()
+			if err != nil {
+				return err
+			}
+			var foundRetried bool
+			for _, task := range refreshedAfterRetry.Tasks {
+				if task.ID != "task-blocked" {
+					continue
+				}
+				foundRetried = true
+				if got, want := task.Status, taskqueue.StatusPending; got != want {
+					t.Fatalf("refreshed retried task status = %q, want %q", got, want)
+				}
+			}
+			if !foundRetried {
+				t.Fatalf("refreshed tasks missing retried task: %#v", refreshedAfterRetry.Tasks)
+			}
+
 			added, err := opts.AddTask(app.AddTaskInput{
 				Task:    "  Add from TUI  ",
 				Summary: "  tui add  ",
@@ -613,11 +668,17 @@ verification:
 			if err != nil {
 				return err
 			}
-			if got, want := len(refreshedAfterAdd.Tasks), 1; got != want {
+			if got, want := len(refreshedAfterAdd.Tasks), 2; got != want {
 				t.Fatalf("refreshed task count = %d, want %d", got, want)
 			}
-			if got, want := refreshedAfterAdd.Tasks[0].ID, added.ID; got != want {
-				t.Fatalf("refreshed task id = %q, want %q", got, want)
+			var foundAdded bool
+			for _, task := range refreshedAfterAdd.Tasks {
+				if task.ID == added.ID {
+					foundAdded = true
+				}
+			}
+			if !foundAdded {
+				t.Fatalf("refreshed tasks missing added task %q: %#v", added.ID, refreshedAfterAdd.Tasks)
 			}
 
 			_, err = fmt.Fprint(opts.Output, "tui actions ok\n")

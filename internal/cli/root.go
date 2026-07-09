@@ -433,6 +433,9 @@ func newTUICommand(opts Options) *cobra.Command {
 				AddTask: func(input app.AddTaskInput) (taskqueue.Task, error) {
 					return app.AddTask(ctx, cfg, input)
 				},
+				RetryTask: func(taskID string) (taskqueue.Task, error) {
+					return app.RetryTask(ctx, cfg, taskID)
+				},
 				ValidateReceipt: func(runID string) (receipt.ValidationResult, error) {
 					return app.ValidateReceipt(ctx, cfg, runID)
 				},

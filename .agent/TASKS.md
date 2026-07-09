@@ -37,7 +37,7 @@
   Acceptance: Dashboard shows the next task ID and summary when present; Tasks view marks both the current selection and the next runnable task; uninitialized and empty states still render coherently.
   Verification: add focused `internal/tui` render tests for pending, blocked-only, completed-only, and empty queues; run `go test ./internal/tui` and `go test ./...`.
 
-- [ ] Add TUI blocked-task retry for the selected task.
+- [x] Add TUI blocked-task retry for the selected task.
   Scope: add a Tasks-view action backed by `internal/app.RetryTask`, refresh after success, and display clear inline messages for non-blocked tasks, missing callbacks, and retry errors.
   Acceptance: a blocked selected task can be returned to pending without leaving the TUI; pending and completed selected tasks are not mutated; the footer/help reflects when retry is available.
   Verification: add TUI model tests for successful retry, non-blocked rejection, callback error, and refresh failure; add CLI wiring coverage if command setup changes; run `go test ./internal/tui ./internal/cli ./internal/app` and `go test ./...`.
