@@ -2,13 +2,48 @@
 
 ## Current Focus
 
-No task is currently in progress. The next unchecked backlog item is to add an app-level run timeline projection from ledger events.
+No task is currently in progress. The next unchecked backlog item remains to add an app-level run timeline projection from ledger events.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-09:
+
+- Selected task: finish context-bundle migration cleanup in smoke scripts and operator-facing docs.
+- Files changed: `scripts/smoke-run-once-fake-codex.sh`, `scripts/smoke-run-once-fake-codex-verification-failure.sh`, `scripts/dogfood-live.sh`, `README.md`, `internal/ledger/ledger_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: fake-Codex smoke checks and the live dogfood script now assert `.revolvr/runs/<run-id>/context.md` and `.revolvr/runs/<run-id>/context.json` instead of obsolete `prompt.md`, validate the main context Markdown sections, validate manifest keys for payload path and SHA-256, and check CLI `show` output for both context artifact paths.
+- Documentation changed: README now describes run passes as writing `context.md` plus `context.json` and sending that context payload to Codex.
+- Verification run: `gofmt -w internal/ledger/ledger_test.go`; `bash -n scripts/smoke-run-once-fake-codex.sh scripts/smoke-run-once-fake-codex-verification-failure.sh scripts/dogfood-live.sh`; `./scripts/smoke-run-once-fake-codex.sh`; `./scripts/smoke-run-once-fake-codex-verification-failure.sh`; `go test ./internal/prompt`; `go test ./internal/runonce`; `go test ./internal/ledger`; `go test ./internal/cli`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: introduce an auditable run context bundle as the canonical prompt architecture.
+- Files changed: `internal/prompt/context.go`, `internal/prompt/profile.go`, `internal/prompt/prompt.go`, `internal/prompt/prompt_test.go`, `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `internal/ledger/events.go`, `internal/ledger/artifacts.go`, `internal/ledger/artifacts_test.go`, `internal/receipt/validation.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/app/app_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: each run now writes an exact Markdown context payload at `.revolvr/runs/<run-id>/context.md` and an auditable JSON manifest at `.revolvr/runs/<run-id>/context.json` before Codex starts. The manifest records run/task/profile identity, payload path, payload SHA-256 and byte size, generation time, and source entries for the selected task and run profile. Ledger run artifacts now expose `context_payload_path` and `context_manifest_path`, while old `prompt_path` events still decode as legacy context payloads.
+- Runtime flow preserved: `codex exec` still receives the full uncompressed Markdown context payload in a fresh session; no resume flow or context compression was added.
+- Tests added/updated: prompt context-manifest hash/byte-size and JSON tests, runonce context-bundle artifact coverage proving the manifest references the exact bytes sent to Codex, ledger artifact context-path coverage plus legacy `prompt_path` fallback, and updated CLI/TUI/app artifact fixtures and rendering expectations.
+- Verification run: `gofmt -w internal/app/app_test.go internal/cli/root.go internal/cli/root_test.go internal/ledger/artifacts.go internal/ledger/artifacts_test.go internal/ledger/events.go internal/prompt/context.go internal/prompt/profile.go internal/prompt/prompt.go internal/prompt/prompt_test.go internal/receipt/validation.go internal/runonce/runonce.go internal/runonce/runonce_test.go internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/prompt`; `go test ./internal/runonce`; `go test ./internal/ledger`; `go test ./internal/cli`; `go test ./internal/tui`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: begin the new prompt architecture with the smallest safe implementation step by adding run profiles and richer prompt assembly.
+- Files changed: `internal/prompt/profile.go`, `internal/prompt/prompt.go`, `internal/prompt/prompt_test.go`, `internal/runonce/runonce_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `internal/prompt` now has a `RunProfile` type and built-in default profile named `implementer`. Prompt artifacts now render predictable sections in order: `# Revolvr Codex Pass`, `## Run Profile`, `## Selected Task`, `## Repository Rules`, `## Artifact Paths`, `## Required Receipt Schema`, and `## Stop Condition`.
+- Runtime flow preserved: `runonce` still selects the next task from the current queue, writes `.revolvr/runs/<run-id>/prompt.md`, and invokes fresh `codex exec` through the existing path without resume or task-storage migration.
+- Tests added/updated: prompt builder snapshot/order coverage for the new profile section, default profile coverage when no explicit profile is provided, default rules/artifacts/receipt/stop-condition assertions, and a runonce test that reads the written prompt artifact and checks the default profile section.
+- Verification run: `gofmt -w internal/prompt/profile.go internal/prompt/prompt.go internal/prompt/prompt_test.go internal/runonce/runonce_test.go`; `go test ./internal/prompt`; `go test ./internal/runonce`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
 
 Task completed on 2026-07-09:
 

@@ -221,13 +221,15 @@ Run up to a bounded number of passes:
 go run ./cmd/revolvr run --max-passes 3
 ```
 
-A pass selects a runnable task, writes a prompt, runs Codex, captures artifacts,
-runs verification commands, records a receipt and ledger events, and commits the
-verified result. Failed Codex, verification, commit, or safety outcomes are
-recorded without pushing branches. While Codex runs, `revolvr run` streams
-concise progress messages to stdout; the full Codex JSONL and stderr streams
-remain captured as run artifacts. `run --max-passes` prints a final loop summary
-and stops early when failed or blocked passes need inspection.
+A pass selects a runnable task, writes `.revolvr/runs/<run-id>/context.md` plus
+its `.revolvr/runs/<run-id>/context.json` manifest, runs Codex with that context
+payload, captures artifacts, runs verification commands, records a receipt and
+ledger events, and commits the verified result. Failed Codex, verification,
+commit, or safety outcomes are recorded without pushing branches. While Codex
+runs, `revolvr run` streams concise progress messages to stdout; the full Codex
+JSONL and stderr streams remain captured as run artifacts. `run --max-passes`
+prints a final loop summary and stops early when failed or blocked passes need
+inspection.
 
 ## Status, Show, And Receipt Validation
 

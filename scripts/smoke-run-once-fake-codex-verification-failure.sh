@@ -284,11 +284,17 @@ fi
 git -C "$WORK_DIR" status --short >"$TMP_ROOT/git-status.out"
 assert_contains "$TMP_ROOT/git-status.out" "?? generated.txt"
 
-assert_file_exists "$WORK_DIR/.revolvr/runs/$RUN_ID/prompt.md"
+assert_file_exists "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md"
+assert_file_exists "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json"
 assert_file_exists "$WORK_DIR/.revolvr/runs/$RUN_ID/codex.jsonl"
 assert_file_exists "$WORK_DIR/.revolvr/runs/$RUN_ID/codex.stderr"
 assert_file_exists "$WORK_DIR/.revolvr/runs/$RUN_ID/last-message.txt"
 assert_file_exists "$WORK_DIR/.revolvr/receipts/$RUN_ID.md"
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md" "## Run Profile"
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md" "## Selected Task"
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md" "## Required Receipt Schema"
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"context_payload_path"'
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"context_payload_sha256"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/codex.jsonl" '"type":"turn.completed"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/last-message.txt" "fake codex completed before verification failure"
 assert_contains "$WORK_DIR/.revolvr/receipts/$RUN_ID.md" "verdict: verification_failed"
@@ -303,6 +309,8 @@ assert_contains "$TMP_ROOT/show-run.out" "Summary: verification command 0 failed
 assert_contains "$TMP_ROOT/show-run.out" "Codex exit code: 0"
 assert_contains "$TMP_ROOT/show-run.out" "Verification status: failed"
 assert_contains "$TMP_ROOT/show-run.out" "Artifacts:"
+assert_contains "$TMP_ROOT/show-run.out" "context payload: .revolvr/runs/$RUN_ID/context.md"
+assert_contains "$TMP_ROOT/show-run.out" "context manifest: .revolvr/runs/$RUN_ID/context.json"
 assert_contains "$TMP_ROOT/show-run.out" "codex stdout jsonl: .revolvr/runs/$RUN_ID/codex.jsonl"
 assert_contains "$TMP_ROOT/show-run.out" "receipt: .revolvr/receipts/$RUN_ID.md"
 assert_contains "$TMP_ROOT/show-run.out" "Diagnostics:"

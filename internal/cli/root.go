@@ -720,7 +720,8 @@ func writeArtifactPathLines(out io.Writer, artifacts ledger.RunArtifacts) error 
 		label string
 		path  string
 	}{
-		{label: "prompt", path: artifacts.PromptPath},
+		{label: "context payload", path: artifacts.ContextPayloadPath},
+		{label: "context manifest", path: artifacts.ContextManifestPath},
 		{label: "codex stdout jsonl", path: artifacts.CodexStdoutJSONLPath},
 		{label: "codex stderr", path: artifacts.CodexStderrPath},
 		{label: "last message", path: artifacts.LastMessagePath},

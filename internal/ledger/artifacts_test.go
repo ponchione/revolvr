@@ -11,7 +11,8 @@ func TestRunArtifactsFromEventsUsesExplicitArtifactEvent(t *testing.T) {
 		{
 			Type: EventRunArtifacts,
 			Payload: mustRawMessage(t, RunArtifacts{
-				PromptPath:           ".revolvr/runs/run-1/prompt.md",
+				ContextPayloadPath:   ".revolvr/runs/run-1/context.md",
+				ContextManifestPath:  ".revolvr/runs/run-1/context.json",
 				CodexStdoutJSONLPath: ".revolvr/runs/run-1/codex.jsonl",
 				CodexStderrPath:      ".revolvr/runs/run-1/codex.stderr",
 				LastMessagePath:      ".revolvr/runs/run-1/last-message.txt",
@@ -29,7 +30,8 @@ func TestRunArtifactsFromEventsUsesExplicitArtifactEvent(t *testing.T) {
 		t.Fatal("found = false, want true")
 	}
 	want := RunArtifacts{
-		PromptPath:           ".revolvr/runs/run-1/prompt.md",
+		ContextPayloadPath:   ".revolvr/runs/run-1/context.md",
+		ContextManifestPath:  ".revolvr/runs/run-1/context.json",
 		CodexStdoutJSONLPath: ".revolvr/runs/run-1/codex.jsonl",
 		CodexStderrPath:      ".revolvr/runs/run-1/codex.stderr",
 		LastMessagePath:      ".revolvr/runs/run-1/last-message.txt",
@@ -40,11 +42,11 @@ func TestRunArtifactsFromEventsUsesExplicitArtifactEvent(t *testing.T) {
 	}
 }
 
-func TestRunArtifactsFromEventsReadsExistingPromptCodexAndReceiptPayloads(t *testing.T) {
+func TestRunArtifactsFromEventsReadsContextCodexAndReceiptPayloads(t *testing.T) {
 	events := []Event{
 		{
-			Type:    EventPromptBuilt,
-			Payload: json.RawMessage(`{"prompt_path":".revolvr/runs/run-2/prompt.md","receipt_path":".revolvr/receipts/run-2.md"}`),
+			Type:    EventContextBuilt,
+			Payload: json.RawMessage(`{"context_payload_path":".revolvr/runs/run-2/context.md","context_manifest_path":".revolvr/runs/run-2/context.json","receipt_path":".revolvr/receipts/run-2.md"}`),
 		},
 		{
 			Type: EventCodexStarted,
@@ -67,11 +69,33 @@ func TestRunArtifactsFromEventsReadsExistingPromptCodexAndReceiptPayloads(t *tes
 		t.Fatal("found = false, want true")
 	}
 	want := RunArtifacts{
-		PromptPath:           ".revolvr/runs/run-2/prompt.md",
+		ContextPayloadPath:   ".revolvr/runs/run-2/context.md",
+		ContextManifestPath:  ".revolvr/runs/run-2/context.json",
 		CodexStdoutJSONLPath: "/repo/.revolvr/runs/run-2/codex.jsonl",
 		CodexStderrPath:      "/repo/.revolvr/runs/run-2/codex.stderr",
 		LastMessagePath:      "/repo/.revolvr/runs/run-2/last-message.txt",
 		ReceiptPath:          ".revolvr/receipts/run-2.md",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("artifacts = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunArtifactsFromEventsReadsLegacyPromptPayloadPath(t *testing.T) {
+	events := []Event{
+		{
+			Type:    EventPromptBuilt,
+			Payload: json.RawMessage(`{"prompt_path":".revolvr/runs/run-legacy/prompt.md","receipt_path":".revolvr/receipts/run-legacy.md"}`),
+		},
+	}
+
+	got, found := RunArtifactsFromEvents(events)
+	if !found {
+		t.Fatal("found = false, want true")
+	}
+	want := RunArtifacts{
+		ContextPayloadPath: ".revolvr/runs/run-legacy/prompt.md",
+		ReceiptPath:        ".revolvr/receipts/run-legacy.md",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("artifacts = %#v, want %#v", got, want)

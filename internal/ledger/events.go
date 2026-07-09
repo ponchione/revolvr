@@ -6,6 +6,7 @@ const (
 	EventRunStarted            EventType = "run_started"
 	EventTaskSelected          EventType = "task_selected"
 	EventRunArtifacts          EventType = "run_artifacts"
+	EventContextBuilt          EventType = "context_built"
 	EventPromptBuilt           EventType = "prompt_built"
 	EventCodexStarted          EventType = "codex_started"
 	EventCodexJSONEvent        EventType = "codex_json_event"

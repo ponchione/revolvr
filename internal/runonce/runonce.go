@@ -192,7 +192,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	result.ReceiptRelPath = paths.receiptRel
 	result.ReceiptPath = filepath.Join(workDir, paths.receiptRel)
 	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventRunArtifacts, ledger.RunArtifacts{
-		PromptPath:           paths.promptRel,
+		ContextPayloadPath:   paths.contextPayloadRel,
+		ContextManifestPath:  paths.contextManifestRel,
 		CodexStdoutJSONLPath: paths.stdoutRel,
 		CodexStderrPath:      paths.stderrRel,
 		LastMessagePath:      paths.lastMessageRel,
@@ -216,7 +217,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 
-	promptText, err := prompt.Build(prompt.Input{
+	contextInput := prompt.Input{
 		RunID:          run.ID,
 		PassID:         run.ID,
 		TaskID:         task.ID,
@@ -224,30 +225,53 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		RepositoryRoot: workDir,
 		ReceiptPath:    paths.receiptRel,
 		ArtifactPaths: []prompt.ArtifactPath{
-			{Label: "prompt", Path: paths.promptRel},
+			{Label: "context payload", Path: paths.contextPayloadRel},
+			{Label: "context manifest", Path: paths.contextManifestRel},
 			{Label: "codex stdout jsonl", Path: paths.stdoutRel},
 			{Label: "codex stderr", Path: paths.stderrRel},
 			{Label: "codex last message", Path: paths.lastMessageRel},
 		},
+	}
+	contextPayload, err := prompt.BuildContextPayload(contextInput)
+	if err != nil {
+		result.Message = "build context payload failed: " + err.Error()
+		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
+	contextManifest, err := prompt.BuildContextManifest(prompt.ContextManifestInput{
+		Input:              contextInput,
+		ContextPayload:     []byte(contextPayload),
+		ContextPayloadPath: paths.contextPayloadRel,
+		GeneratedAt:        cfg.Clock(),
 	})
 	if err != nil {
-		result.Message = "build prompt failed: " + err.Error()
+		result.Message = "build context manifest failed: " + err.Error()
 		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
-	if err := writeTextFile(filepath.Join(workDir, paths.promptRel), promptText, 0o644); err != nil {
-		result.Message = "write prompt artifact failed: " + err.Error()
+	contextManifestJSON, err := prompt.MarshalContextManifest(contextManifest)
+	if err != nil {
+		result.Message = "marshal context manifest failed: " + err.Error()
 		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
-	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventPromptBuilt, map[string]any{
-		"prompt_path":  paths.promptRel,
-		"receipt_path": paths.receiptRel,
-		"bytes":        len(promptText),
+	if err := writeTextFile(filepath.Join(workDir, paths.contextPayloadRel), contextPayload, 0o644); err != nil {
+		result.Message = "write context payload artifact failed: " + err.Error()
+		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
+	if err := writeTextFile(filepath.Join(workDir, paths.contextManifestRel), string(contextManifestJSON), 0o644); err != nil {
+		result.Message = "write context manifest artifact failed: " + err.Error()
+		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
+	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventContextBuilt, map[string]any{
+		"context_payload_path":      paths.contextPayloadRel,
+		"context_manifest_path":     paths.contextManifestRel,
+		"context_payload_sha256":    contextManifest.ContextPayloadSHA256,
+		"context_payload_byte_size": contextManifest.ContextPayloadByteSize,
+		"receipt_path":              paths.receiptRel,
 	})
 
 	codexResult, err := cfg.CodexRunner(ctx, codexexec.Config{
 		Executable:                cfg.CodexExecutable,
 		WorkingDir:                workDir,
-		Prompt:                    promptText,
+		Prompt:                    contextPayload,
 		Timeout:                   cfg.CodexTimeout,
 		StdoutCap:                 cfg.CodexStdoutCap,
 		StderrCap:                 cfg.CodexStderrCap,
@@ -736,23 +760,25 @@ func setLedgerError(result *Result, err error) {
 }
 
 type runPaths struct {
-	runDirRel      string
-	promptRel      string
-	stdoutRel      string
-	stderrRel      string
-	lastMessageRel string
-	receiptRel     string
+	runDirRel          string
+	contextPayloadRel  string
+	contextManifestRel string
+	stdoutRel          string
+	stderrRel          string
+	lastMessageRel     string
+	receiptRel         string
 }
 
 func newRunPaths(runID string) runPaths {
 	runDir := filepath.Join(".revolvr", "runs", runID)
 	return runPaths{
-		runDirRel:      runDir,
-		promptRel:      filepath.Join(runDir, "prompt.md"),
-		stdoutRel:      filepath.Join(runDir, "codex.jsonl"),
-		stderrRel:      filepath.Join(runDir, "codex.stderr"),
-		lastMessageRel: filepath.Join(runDir, "last-message.txt"),
-		receiptRel:     filepath.Join(".revolvr", "receipts", runID+".md"),
+		runDirRel:          runDir,
+		contextPayloadRel:  filepath.Join(runDir, "context.md"),
+		contextManifestRel: filepath.Join(runDir, "context.json"),
+		stdoutRel:          filepath.Join(runDir, "codex.jsonl"),
+		stderrRel:          filepath.Join(runDir, "codex.stderr"),
+		lastMessageRel:     filepath.Join(runDir, "last-message.txt"),
+		receiptRel:         filepath.Join(".revolvr", "receipts", runID+".md"),
 	}
 }
 

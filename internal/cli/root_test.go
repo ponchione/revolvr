@@ -244,8 +244,9 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 		}
 	}
 	if _, err := runs.AppendEvent(ctx, "run-new", ledger.EventRunArtifacts, ledger.RunArtifacts{
-		PromptPath:  ".revolvr/runs/run-new/prompt.md",
-		ReceiptPath: ".revolvr/receipts/run-new.md",
+		ContextPayloadPath:  ".revolvr/runs/run-new/context.md",
+		ContextManifestPath: ".revolvr/runs/run-new/context.json",
+		ReceiptPath:         ".revolvr/receipts/run-new.md",
 	}); err != nil {
 		t.Fatalf("append artifact event: %v", err)
 	}
@@ -267,7 +268,8 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 		"Latest verification: failed\n" +
 		"Latest commit: abc123\n" +
 		"Latest artifacts:\n" +
-		"prompt: .revolvr/runs/run-new/prompt.md\n" +
+		"context payload: .revolvr/runs/run-new/context.md\n" +
+		"context manifest: .revolvr/runs/run-new/context.json\n" +
 		"receipt: .revolvr/receipts/run-new.md\n"
 	if out != want {
 		t.Fatalf("status output = %q, want %q", out, want)
@@ -1991,7 +1993,8 @@ func TestShowRunPrintsPersistedArtifactPaths(t *testing.T) {
 	}
 	eventTime = eventTime.Add(time.Second)
 	if _, err := runs.AppendEvent(ctx, "run-artifacts", ledger.EventRunArtifacts, ledger.RunArtifacts{
-		PromptPath:           ".revolvr/runs/run-artifacts/prompt.md",
+		ContextPayloadPath:   ".revolvr/runs/run-artifacts/context.md",
+		ContextManifestPath:  ".revolvr/runs/run-artifacts/context.json",
 		CodexStdoutJSONLPath: ".revolvr/runs/run-artifacts/codex.jsonl",
 		CodexStderrPath:      ".revolvr/runs/run-artifacts/codex.stderr",
 		LastMessagePath:      ".revolvr/runs/run-artifacts/last-message.txt",
@@ -2021,7 +2024,8 @@ func TestShowRunPrintsPersistedArtifactPaths(t *testing.T) {
 		"Codex exit code: 1\n" +
 		"Verification status: not_run\n" +
 		"Artifacts:\n" +
-		"prompt: .revolvr/runs/run-artifacts/prompt.md\n" +
+		"context payload: .revolvr/runs/run-artifacts/context.md\n" +
+		"context manifest: .revolvr/runs/run-artifacts/context.json\n" +
 		"codex stdout jsonl: .revolvr/runs/run-artifacts/codex.jsonl\n" +
 		"codex stderr: .revolvr/runs/run-artifacts/codex.stderr\n" +
 		"last message: .revolvr/runs/run-artifacts/last-message.txt\n" +
@@ -2523,7 +2527,8 @@ func createValidationRun(t *testing.T, workDir string, spec validationRunSpec) {
 		t.Fatalf("create run: %v", err)
 	}
 	artifactPaths := ledger.RunArtifacts{
-		PromptPath:           filepath.Join(".revolvr", "runs", spec.RunID, "prompt.md"),
+		ContextPayloadPath:   filepath.Join(".revolvr", "runs", spec.RunID, "context.md"),
+		ContextManifestPath:  filepath.Join(".revolvr", "runs", spec.RunID, "context.json"),
 		CodexStdoutJSONLPath: filepath.Join(".revolvr", "runs", spec.RunID, "codex.jsonl"),
 		CodexStderrPath:      filepath.Join(".revolvr", "runs", spec.RunID, "codex.stderr"),
 		LastMessagePath:      filepath.Join(".revolvr", "runs", spec.RunID, "last-message.txt"),
@@ -2556,7 +2561,8 @@ func createValidationRun(t *testing.T, workDir string, spec validationRunSpec) {
 	}
 
 	if spec.WriteArtifacts {
-		writeCLIFile(t, filepath.Join(workDir, artifactPaths.PromptPath), "prompt")
+		writeCLIFile(t, filepath.Join(workDir, artifactPaths.ContextPayloadPath), "context payload")
+		writeCLIFile(t, filepath.Join(workDir, artifactPaths.ContextManifestPath), "{}\n")
 		writeCLIFile(t, filepath.Join(workDir, artifactPaths.CodexStdoutJSONLPath), "{}\n")
 		if !spec.SkipCodexStderrArtifact {
 			writeCLIFile(t, filepath.Join(workDir, artifactPaths.CodexStderrPath), "")

@@ -26,6 +26,7 @@ type Input struct {
 	PassID          string
 	TaskID          string
 	Task            string
+	RunProfile      RunProfile
 	RepositoryRoot  string
 	ReceiptPath     string
 	ArtifactPaths   []ArtifactPath
@@ -34,6 +35,10 @@ type Input struct {
 }
 
 func Build(in Input) (string, error) {
+	return BuildContextPayload(in)
+}
+
+func BuildContextPayload(in Input) (string, error) {
 	normalized, err := normalize(in)
 	if err != nil {
 		return "", err
@@ -42,6 +47,11 @@ func Build(in Input) (string, error) {
 	var out strings.Builder
 	out.WriteString("# Revolvr Codex Pass\n\n")
 	out.WriteString("You are running one fresh bounded Codex pass controlled by revolvr.\n\n")
+
+	out.WriteString("## Run Profile\n")
+	fmt.Fprintf(&out, "- Profile: `%s`\n\n", normalized.RunProfile.Name)
+	out.WriteString(normalized.RunProfile.Description)
+	out.WriteString("\n\n")
 
 	out.WriteString("## Selected Task\n")
 	fmt.Fprintf(&out, "- Task ID: `%s`\n", normalized.TaskID)
@@ -54,8 +64,8 @@ func Build(in Input) (string, error) {
 	out.WriteString(normalized.Task)
 	out.WriteString("\n```\n\n")
 
-	out.WriteString("## Required Operating Rules\n")
-	out.WriteString("- Use one bounded task only: the selected task in this prompt.\n")
+	out.WriteString("## Repository Rules\n")
+	out.WriteString("- Use one bounded task only: the selected task in this context payload.\n")
 	out.WriteString("- Write or update the receipt before stopping.\n")
 	out.WriteString("- Do not use codex resume.\n")
 	out.WriteString("- Do not launch nested Codex runs.\n")
@@ -122,13 +132,13 @@ func normalize(in Input) (Input, error) {
 
 	switch {
 	case in.RunID == "":
-		return Input{}, errors.New("build prompt: run id is required")
+		return Input{}, errors.New("build context payload: run id is required")
 	case in.TaskID == "":
-		return Input{}, errors.New("build prompt: task id is required")
+		return Input{}, errors.New("build context payload: task id is required")
 	case in.Task == "":
-		return Input{}, errors.New("build prompt: task text is required")
+		return Input{}, errors.New("build context payload: task text is required")
 	case in.ReceiptPath == "":
-		return Input{}, errors.New("build prompt: receipt path is required")
+		return Input{}, errors.New("build context payload: receipt path is required")
 	}
 
 	if in.PassID == "" {
@@ -140,12 +150,32 @@ func normalize(in Input) (Input, error) {
 	if in.StopCondition == "" {
 		in.StopCondition = DefaultStopCondition
 	}
+	profile, err := normalizeRunProfile(in.RunProfile)
+	if err != nil {
+		return Input{}, err
+	}
+	in.RunProfile = profile
 	in.RepositoryRules = compactRules(in.RepositoryRules)
 	if len(in.RepositoryRules) == 0 {
 		in.RepositoryRules = append([]string(nil), DefaultRepositoryRules...)
 	}
 	in.ArtifactPaths = compactArtifacts(in.ArtifactPaths)
 	return in, nil
+}
+
+func normalizeRunProfile(profile RunProfile) (RunProfile, error) {
+	profile.Name = strings.TrimSpace(profile.Name)
+	profile.Description = strings.TrimSpace(profile.Description)
+	if profile.Name == "" && profile.Description == "" {
+		return DefaultRunProfile(), nil
+	}
+	if profile.Name == "" {
+		return RunProfile{}, errors.New("build context payload: run profile name is required")
+	}
+	if profile.Description == "" {
+		return RunProfile{}, errors.New("build context payload: run profile description is required")
+	}
+	return profile, nil
 }
 
 func compactRules(rules []string) []string {

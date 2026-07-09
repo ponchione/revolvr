@@ -1010,7 +1010,8 @@ func createAppValidationRun(t *testing.T, workDir string, spec appValidationRunS
 		t.Fatalf("create run: %v", err)
 	}
 	artifacts := ledger.RunArtifacts{
-		PromptPath:           filepath.Join(".revolvr", "runs", spec.RunID, "prompt.md"),
+		ContextPayloadPath:   filepath.Join(".revolvr", "runs", spec.RunID, "context.md"),
+		ContextManifestPath:  filepath.Join(".revolvr", "runs", spec.RunID, "context.json"),
 		CodexStdoutJSONLPath: filepath.Join(".revolvr", "runs", spec.RunID, "codex.jsonl"),
 		CodexStderrPath:      filepath.Join(".revolvr", "runs", spec.RunID, "codex.stderr"),
 		LastMessagePath:      filepath.Join(".revolvr", "runs", spec.RunID, "last-message.txt"),
@@ -1043,7 +1044,8 @@ func createAppValidationRun(t *testing.T, workDir string, spec appValidationRunS
 	}
 
 	if spec.WriteArtifacts {
-		writeAppTestFile(t, filepath.Join(workDir, artifacts.PromptPath), "prompt")
+		writeAppTestFile(t, filepath.Join(workDir, artifacts.ContextPayloadPath), "context payload")
+		writeAppTestFile(t, filepath.Join(workDir, artifacts.ContextManifestPath), "{}\n")
 		writeAppTestFile(t, filepath.Join(workDir, artifacts.CodexStdoutJSONLPath), "{}\n")
 		writeAppTestFile(t, filepath.Join(workDir, artifacts.CodexStderrPath), "")
 		writeAppTestFile(t, filepath.Join(workDir, artifacts.LastMessagePath), "done")

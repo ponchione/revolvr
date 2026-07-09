@@ -1426,8 +1426,9 @@ func TestStatusModelRunDetailRendersArtifactsAndMissingArtifacts(t *testing.T) {
 				RunID: "run-artifacts",
 				Type:  ledger.EventRunArtifacts,
 				Payload: jsonPayload(t, ledger.RunArtifacts{
-					PromptPath:  ".revolvr/runs/run-artifacts/prompt.md",
-					ReceiptPath: ".revolvr/receipts/run-artifacts.md",
+					ContextPayloadPath:  ".revolvr/runs/run-artifacts/context.md",
+					ContextManifestPath: ".revolvr/runs/run-artifacts/context.json",
+					ReceiptPath:         ".revolvr/receipts/run-artifacts.md",
 				}),
 				CreatedAt: startedAt,
 			},
@@ -1437,7 +1438,8 @@ func TestStatusModelRunDetailRendersArtifactsAndMissingArtifacts(t *testing.T) {
 
 	requireLines(t, normalizedViewLines(view.View()),
 		"Artifacts",
-		"prompt: .revolvr/runs/run-artifacts/prompt.md",
+		"context payload: .revolvr/runs/run-artifacts/context.md",
+		"context manifest: .revolvr/runs/run-artifacts/context.json",
 		"codex stdout jsonl: missing",
 		"codex stderr: missing",
 		"last message: missing",
@@ -2110,7 +2112,8 @@ func validationDetailHistory(runID string) ledger.RunWithEvents {
 				RunID: runID,
 				Type:  ledger.EventRunArtifacts,
 				Payload: json.RawMessage(`{
-					"prompt_path": ".revolvr/runs/` + runID + `/prompt.md",
+					"context_payload_path": ".revolvr/runs/` + runID + `/context.md",
+					"context_manifest_path": ".revolvr/runs/` + runID + `/context.json",
 					"codex_stdout_jsonl_path": ".revolvr/runs/` + runID + `/codex.jsonl",
 					"codex_stderr_path": ".revolvr/runs/` + runID + `/codex.stderr",
 					"last_message_path": ".revolvr/runs/` + runID + `/last-message.txt",

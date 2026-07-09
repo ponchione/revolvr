@@ -1,12 +1,16 @@
 package prompt
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
-func TestBuildSnapshot(t *testing.T) {
-	got, err := Build(Input{
+func TestBuildContextPayloadSnapshot(t *testing.T) {
+	got, err := BuildContextPayload(Input{
 		RunID:          "run-123",
 		PassID:         "pass-123",
 		TaskID:         "task-7",
@@ -24,12 +28,19 @@ func TestBuildSnapshot(t *testing.T) {
 		StopCondition: "Stop after updating the receipt.",
 	})
 	if err != nil {
-		t.Fatalf("build prompt: %v", err)
+		t.Fatalf("build context payload: %v", err)
 	}
 
 	want := `# Revolvr Codex Pass
 
 You are running one fresh bounded Codex pass controlled by revolvr.
+
+## Run Profile
+- Profile: ` + "`implementer`" + `
+
+You are the implementer for this Revolvr pass.
+
+Focus on the selected task, make small reviewable changes, preserve existing repository state, verify the work, and write the required receipt before stopping.
 
 ## Selected Task
 - Task ID: ` + "`task-7`" + `
@@ -43,8 +54,8 @@ You are running one fresh bounded Codex pass controlled by revolvr.
 Implement Tasks 7 and 8 only.
 ` + "```" + `
 
-## Required Operating Rules
-- Use one bounded task only: the selected task in this prompt.
+## Repository Rules
+- Use one bounded task only: the selected task in this context payload.
 - Write or update the receipt before stopping.
 - Do not use codex resume.
 - Do not launch nested Codex runs.
@@ -93,19 +104,52 @@ Do not start another task.
 `
 
 	if got != want {
-		t.Fatalf("prompt snapshot mismatch\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		t.Fatalf("context payload snapshot mismatch\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
+
+	assertSectionOrder(t, got, []string{
+		"# Revolvr Codex Pass",
+		"## Run Profile",
+		"## Selected Task",
+		"## Repository Rules",
+		"## Artifact Paths",
+		"## Required Receipt Schema",
+		"## Stop Condition",
+	})
 }
 
-func TestBuildIncludesDefaultRulesAndRequiredInstructions(t *testing.T) {
-	got, err := Build(Input{
+func TestBuildUsesDefaultRunProfileWhenMissing(t *testing.T) {
+	got, err := BuildContextPayload(Input{
 		RunID:       "run-default",
 		TaskID:      "task-default",
 		Task:        "Do the selected work.",
 		ReceiptPath: "receipts/run-default.md",
 	})
 	if err != nil {
-		t.Fatalf("build prompt: %v", err)
+		t.Fatalf("build context payload: %v", err)
+	}
+
+	required := []string{
+		"## Run Profile",
+		"Profile: `implementer`",
+		DefaultRunProfile().Description,
+	}
+	for _, want := range required {
+		if !strings.Contains(got, want) {
+			t.Fatalf("context payload missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestBuildIncludesDefaultRulesAndRequiredInstructions(t *testing.T) {
+	got, err := BuildContextPayload(Input{
+		RunID:       "run-default",
+		TaskID:      "task-default",
+		Task:        "Do the selected work.",
+		ReceiptPath: "receipts/run-default.md",
+	})
+	if err != nil {
+		t.Fatalf("build context payload: %v", err)
 	}
 
 	required := []string{
@@ -113,28 +157,156 @@ func TestBuildIncludesDefaultRulesAndRequiredInstructions(t *testing.T) {
 		"Pass ID: `run-default`",
 		"Task ID: `task-default`",
 		"Receipt path: `receipts/run-default.md`",
+		"## Repository Rules",
 		"Use one bounded task only",
 		"Write or update the receipt",
 		"Do not use codex resume",
 		"Do not launch nested Codex runs",
 		"Do not push branches or create PRs",
+		"Work only in this repository and keep changes scoped to the selected task.",
+		"## Artifact Paths",
+		"No additional artifact paths were provided.",
 		"schema_version: revolvr.receipt.v1",
 		"## Stop Condition",
 		DefaultStopCondition,
 	}
 	for _, want := range required {
 		if !strings.Contains(got, want) {
-			t.Fatalf("prompt missing %q:\n%s", want, got)
+			t.Fatalf("context payload missing %q:\n%s", want, got)
 		}
 	}
 }
 
+func TestBuildContextManifestHashesPayloadAndSources(t *testing.T) {
+	generatedAt := time.Date(2026, 7, 9, 15, 30, 0, 0, time.FixedZone("offset", -4*60*60))
+	payload := []byte("full context payload\nwith exact bytes\n")
+	manifest, err := BuildContextManifest(ContextManifestInput{
+		Input: Input{
+			RunID:       "run-123",
+			TaskID:      "task-7",
+			Task:        "  Implement the selected task.\n\nVerify it.  ",
+			ReceiptPath: ".revolvr/receipts/run-123.md",
+			RunProfile: RunProfile{
+				Name:        "reviewer",
+				Description: "Read context carefully.\nThen make the change.",
+			},
+		},
+		ContextPayload:     payload,
+		ContextPayloadPath: ".revolvr/runs/run-123/context.md",
+		GeneratedAt:        generatedAt,
+	})
+	if err != nil {
+		t.Fatalf("build context manifest: %v", err)
+	}
+
+	if manifest.RunID != "run-123" || manifest.TaskID != "task-7" || manifest.ProfileName != "reviewer" {
+		t.Fatalf("manifest identity = %+v, want run/task/profile", manifest)
+	}
+	if got, want := manifest.ContextPayloadPath, ".revolvr/runs/run-123/context.md"; got != want {
+		t.Fatalf("payload path = %q, want %q", got, want)
+	}
+	if got, want := manifest.ContextPayloadSHA256, sha256HexTest(payload); got != want {
+		t.Fatalf("payload sha256 = %q, want %q", got, want)
+	}
+	if got, want := manifest.ContextPayloadByteSize, len(payload); got != want {
+		t.Fatalf("payload byte size = %d, want %d", got, want)
+	}
+	if got, want := manifest.GeneratedAt, generatedAt.UTC(); !got.Equal(want) {
+		t.Fatalf("generated_at = %s, want %s", got, want)
+	}
+
+	selectedTask := sourceByLabel(t, manifest, "selected_task")
+	selectedTaskBytes := []byte("Implement the selected task.\n\nVerify it.")
+	if got, want := selectedTask.SHA256, sha256HexTest(selectedTaskBytes); got != want {
+		t.Fatalf("selected task sha256 = %q, want %q", got, want)
+	}
+	if got, want := selectedTask.ByteSize, len(selectedTaskBytes); got != want {
+		t.Fatalf("selected task byte size = %d, want %d", got, want)
+	}
+	if selectedTask.Path != "" {
+		t.Fatalf("selected task path = %q, want empty", selectedTask.Path)
+	}
+
+	runProfile := sourceByLabel(t, manifest, "run_profile")
+	runProfileBytes := []byte("reviewer\nRead context carefully.\nThen make the change.")
+	if got, want := runProfile.SHA256, sha256HexTest(runProfileBytes); got != want {
+		t.Fatalf("run profile sha256 = %q, want %q", got, want)
+	}
+	if got, want := runProfile.ByteSize, len(runProfileBytes); got != want {
+		t.Fatalf("run profile byte size = %d, want %d", got, want)
+	}
+}
+
+func TestMarshalContextManifestWritesStableJSON(t *testing.T) {
+	generatedAt := time.Date(2026, 7, 9, 19, 30, 0, 0, time.UTC)
+	manifest, err := BuildContextManifest(ContextManifestInput{
+		Input: Input{
+			RunID:       "run-json",
+			TaskID:      "task-json",
+			Task:        "Write JSON.",
+			ReceiptPath: ".revolvr/receipts/run-json.md",
+		},
+		ContextPayload:     []byte("payload"),
+		ContextPayloadPath: ".revolvr/runs/run-json/context.md",
+		GeneratedAt:        generatedAt,
+	})
+	if err != nil {
+		t.Fatalf("build context manifest: %v", err)
+	}
+
+	raw, err := MarshalContextManifest(manifest)
+	if err != nil {
+		t.Fatalf("marshal context manifest: %v", err)
+	}
+	if raw[len(raw)-1] != '\n' {
+		t.Fatalf("manifest JSON does not end with newline: %q", raw)
+	}
+	var reparsed ContextManifest
+	if err := json.Unmarshal(raw, &reparsed); err != nil {
+		t.Fatalf("unmarshal manifest JSON: %v\n%s", err, raw)
+	}
+	if got, want := reparsed.ContextPayloadSHA256, sha256HexTest([]byte("payload")); got != want {
+		t.Fatalf("reparsed payload sha256 = %q, want %q", got, want)
+	}
+}
+
 func TestBuildRequiresCoreFields(t *testing.T) {
-	_, err := Build(Input{RunID: "run-1", TaskID: "task-1", Task: "x"})
+	_, err := BuildContextPayload(Input{RunID: "run-1", TaskID: "task-1", Task: "x"})
 	if err == nil {
-		t.Fatal("build prompt succeeded, want missing receipt path error")
+		t.Fatal("build context payload succeeded, want missing receipt path error")
 	}
 	if !strings.Contains(err.Error(), "receipt path is required") {
 		t.Fatalf("error = %v, want receipt path requirement", err)
+	}
+}
+
+func sourceByLabel(t *testing.T, manifest ContextManifest, label string) ContextSource {
+	t.Helper()
+	for _, source := range manifest.Sources {
+		if source.Label == label {
+			return source
+		}
+	}
+	t.Fatalf("manifest source %q not found: %+v", label, manifest.Sources)
+	return ContextSource{}
+}
+
+func sha256HexTest(content []byte) string {
+	sum := sha256.Sum256(content)
+	return fmt.Sprintf("%x", sum)
+}
+
+func assertSectionOrder(t *testing.T, content string, headings []string) {
+	t.Helper()
+	lastIndex := -1
+	for _, heading := range headings {
+		index := strings.Index(content, heading)
+		if index < 0 {
+			t.Fatalf("context payload missing heading %q:\n%s", heading, content)
+		}
+		if index <= lastIndex {
+			t.Fatalf("heading %q rendered out of order:\n%s", heading, content)
+		}
+		lastIndex = index
 	}
 }

@@ -52,9 +52,9 @@ func TestAppendEventRecordsJSONPayload(t *testing.T) {
 	defer store.Close()
 	run := mustCreateRun(t, store, "run-events", now)
 
-	event, err := store.AppendEvent(ctx, run.ID, EventPromptBuilt, map[string]any{
-		"prompt_path": "prompts/task-1.md",
-		"tokens":      42,
+	event, err := store.AppendEvent(ctx, run.ID, EventContextBuilt, map[string]any{
+		"context_payload_path": "runs/task-1/context.md",
+		"tokens":               42,
 	})
 	if err != nil {
 		t.Fatalf("append event: %v", err)
@@ -66,13 +66,13 @@ func TestAppendEventRecordsJSONPayload(t *testing.T) {
 	if got, want := event.RunID, run.ID; got != want {
 		t.Fatalf("event run id = %q, want %q", got, want)
 	}
-	if got, want := event.Type, EventPromptBuilt; got != want {
+	if got, want := event.Type, EventContextBuilt; got != want {
 		t.Fatalf("event type = %q, want %q", got, want)
 	}
 	if !event.CreatedAt.Equal(now) {
 		t.Fatalf("created at = %s, want %s", event.CreatedAt, now)
 	}
-	assertJSONEqual(t, event.Payload, `{"prompt_path":"prompts/task-1.md","tokens":42}`)
+	assertJSONEqual(t, event.Payload, `{"context_payload_path":"runs/task-1/context.md","tokens":42}`)
 }
 
 func TestRecordCommitSHA(t *testing.T) {

@@ -2,6 +2,7 @@ package runonce
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
 	"revolvr/internal/lock"
+	"revolvr/internal/prompt"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
 	"revolvr/internal/taskqueue"
@@ -133,7 +135,8 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		t.Fatal("run artifacts not found in ledger events")
 	}
 	wantArtifacts := ledger.RunArtifacts{
-		PromptPath:           filepath.Join(".revolvr", "runs", result.Run.ID, "prompt.md"),
+		ContextPayloadPath:   filepath.Join(".revolvr", "runs", result.Run.ID, "context.md"),
+		ContextManifestPath:  filepath.Join(".revolvr", "runs", result.Run.ID, "context.json"),
 		CodexStdoutJSONLPath: filepath.Join(".revolvr", "runs", result.Run.ID, "codex.jsonl"),
 		CodexStderrPath:      filepath.Join(".revolvr", "runs", result.Run.ID, "codex.stderr"),
 		LastMessagePath:      filepath.Join(".revolvr", "runs", result.Run.ID, "last-message.txt"),
@@ -146,7 +149,7 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		ledger.EventRunStarted,
 		ledger.EventTaskSelected,
 		ledger.EventRunArtifacts,
-		ledger.EventPromptBuilt,
+		ledger.EventContextBuilt,
 		ledger.EventCodexStarted,
 		ledger.EventCodexJSONEvent,
 		ledger.EventCodexCompleted,
@@ -158,6 +161,111 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		ledger.EventCommitCreated,
 		ledger.EventRunCompleted,
 	})
+}
+
+func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-profile", Task: "Use the default run profile"}); err != nil {
+		t.Fatalf("add task: %v", err)
+	}
+
+	var runnerPayload string
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		TaskStore:      env.tasks,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+			runnerPayload = cfg.Prompt
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCodexFailed {
+		t.Fatalf("outcome = %s, want codex_failed", result.Outcome)
+	}
+
+	contextPayloadPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.md")
+	payloadBytes, err := os.ReadFile(contextPayloadPath)
+	if err != nil {
+		t.Fatalf("read context payload artifact: %v", err)
+	}
+	got := string(payloadBytes)
+	if got != runnerPayload {
+		t.Fatalf("context payload artifact differs from runner payload\n--- artifact ---\n%s\n--- runner ---\n%s", got, runnerPayload)
+	}
+	required := []string{
+		"## Run Profile",
+		"Profile: `implementer`",
+		prompt.DefaultRunProfile().Description,
+		"## Selected Task",
+		"Task ID: `task-profile`",
+		"## Repository Rules",
+		"## Artifact Paths",
+		"## Required Receipt Schema",
+		"## Stop Condition",
+	}
+	for _, want := range required {
+		if !strings.Contains(got, want) {
+			t.Fatalf("context payload artifact missing %q:\n%s", want, got)
+		}
+	}
+
+	contextManifestPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.json")
+	manifestBytes, err := os.ReadFile(contextManifestPath)
+	if err != nil {
+		t.Fatalf("read context manifest artifact: %v", err)
+	}
+	var manifest prompt.ContextManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("unmarshal context manifest: %v\n%s", err, manifestBytes)
+	}
+	if manifest.RunID != result.Run.ID || manifest.TaskID != "task-profile" || manifest.ProfileName != prompt.DefaultRunProfileName {
+		t.Fatalf("manifest identity = %+v, want run/task/profile", manifest)
+	}
+	payloadRel := filepath.Join(".revolvr", "runs", result.Run.ID, "context.md")
+	if got, want := manifest.ContextPayloadPath, payloadRel; got != want {
+		t.Fatalf("manifest payload path = %q, want %q", got, want)
+	}
+	if got, want := manifest.ContextPayloadSHA256, sha256HexTest(payloadBytes); got != want {
+		t.Fatalf("manifest payload sha256 = %q, want %q", got, want)
+	}
+	if got, want := manifest.ContextPayloadByteSize, len(payloadBytes); got != want {
+		t.Fatalf("manifest payload byte size = %d, want %d", got, want)
+	}
+	if got, want := manifest.GeneratedAt, env.clock().UTC(); !got.Equal(want) {
+		t.Fatalf("manifest generated_at = %s, want %s", got, want)
+	}
+	selectedTask := manifestSourceByLabel(t, manifest, "selected_task")
+	if got, want := selectedTask.SHA256, sha256HexTest([]byte("Use the default run profile")); got != want {
+		t.Fatalf("selected task sha256 = %q, want %q", got, want)
+	}
+	runProfile := manifestSourceByLabel(t, manifest, "run_profile")
+	defaultProfile := prompt.DefaultRunProfile()
+	if got, want := runProfile.SHA256, sha256HexTest([]byte(defaultProfile.Name+"\n"+defaultProfile.Description)); got != want {
+		t.Fatalf("run profile sha256 = %q, want %q", got, want)
+	}
+
+	history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if err != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, err)
+	}
+	artifacts, found := ledger.RunArtifactsFromEvents(history.Events)
+	if !found {
+		t.Fatal("run artifacts not found")
+	}
+	if artifacts.ContextPayloadPath != payloadRel {
+		t.Fatalf("ledger context payload path = %q, want %q", artifacts.ContextPayloadPath, payloadRel)
+	}
+	manifestRel := filepath.Join(".revolvr", "runs", result.Run.ID, "context.json")
+	if artifacts.ContextManifestPath != manifestRel {
+		t.Fatalf("ledger context manifest path = %q, want %q", artifacts.ContextManifestPath, manifestRel)
+	}
 }
 
 func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T) {
@@ -538,7 +646,7 @@ func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 	}
 }
 
-func TestRunBlocksPreExistingDirtyBeforePromptCodexVerificationAndCommit(t *testing.T) {
+func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
 	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-dirty", Task: "Avoid dirty worktree"}); err != nil {
@@ -600,9 +708,13 @@ func TestRunBlocksPreExistingDirtyBeforePromptCodexVerificationAndCommit(t *test
 	if !result.ReceiptSynthesized || result.Receipt.Verdict != receipt.VerdictBlocked {
 		t.Fatalf("receipt synthesized=%v verdict=%q, want synthesized blocked", result.ReceiptSynthesized, result.Receipt.Verdict)
 	}
-	promptPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "prompt.md")
-	if _, err := os.Stat(promptPath); !os.IsNotExist(err) {
-		t.Fatalf("prompt artifact stat err = %v, want not exist", err)
+	contextPayloadPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.md")
+	if _, err := os.Stat(contextPayloadPath); !os.IsNotExist(err) {
+		t.Fatalf("context payload artifact stat err = %v, want not exist", err)
+	}
+	contextManifestPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.json")
+	if _, err := os.Stat(contextManifestPath); !os.IsNotExist(err) {
+		t.Fatalf("context manifest artifact stat err = %v, want not exist", err)
 	}
 	assertRunEvents(t, env.ledger, result.Run.ID, []ledger.EventType{
 		ledger.EventRunStarted,
@@ -1060,10 +1172,10 @@ func (s *fakeCommandState) run(_ context.Context, command runner.Command) runner
 
 func (s *fakeCommandState) runCodex(command runner.Command) runner.Result {
 	s.codexArgs = append([]string(nil), command.Args...)
-	promptText := readPrompt(s.t, command.Stdin)
-	receiptRel := promptValue(s.t, promptText, "Receipt path")
-	runID := promptValue(s.t, promptText, "Run ID")
-	taskID := promptValue(s.t, promptText, "Task ID")
+	contextPayload := readContextPayload(s.t, command.Stdin)
+	receiptRel := contextPayloadValue(s.t, contextPayload, "Receipt path")
+	runID := contextPayloadValue(s.t, contextPayload, "Run ID")
+	taskID := contextPayloadValue(s.t, contextPayload, "Task ID")
 	if s.writeReceipt {
 		content := validReceipt(runID, taskID, "Implement the selected task")
 		if s.receiptContent != nil {
@@ -1227,26 +1339,26 @@ func receiptContent(runID string, taskID string, task string, opts receiptOption
 	return out.String()
 }
 
-func readPrompt(t *testing.T, reader io.Reader) string {
+func readContextPayload(t *testing.T, reader io.Reader) string {
 	t.Helper()
 	content, err := io.ReadAll(reader)
 	if err != nil {
-		t.Fatalf("read prompt: %v", err)
+		t.Fatalf("read context payload: %v", err)
 	}
 	return string(content)
 }
 
-func promptValue(t *testing.T, promptText string, label string) string {
+func contextPayloadValue(t *testing.T, payload string, label string) string {
 	t.Helper()
 	prefix := "- " + label + ": `"
-	for _, line := range strings.Split(promptText, "\n") {
+	for _, line := range strings.Split(payload, "\n") {
 		if strings.HasPrefix(line, prefix) {
 			value := strings.TrimPrefix(line, prefix)
 			value = strings.TrimSuffix(value, "`")
 			return value
 		}
 	}
-	t.Fatalf("prompt missing %s:\n%s", label, promptText)
+	t.Fatalf("context payload missing %s:\n%s", label, payload)
 	return ""
 }
 
@@ -1281,6 +1393,22 @@ func containsArg(args []string, value string) bool {
 		}
 	}
 	return false
+}
+
+func manifestSourceByLabel(t *testing.T, manifest prompt.ContextManifest, label string) prompt.ContextSource {
+	t.Helper()
+	for _, source := range manifest.Sources {
+		if source.Label == label {
+			return source
+		}
+	}
+	t.Fatalf("manifest source %q not found: %+v", label, manifest.Sources)
+	return prompt.ContextSource{}
+}
+
+func sha256HexTest(content []byte) string {
+	sum := sha256.Sum256(content)
+	return fmt.Sprintf("%x", sum)
 }
 
 func assertRunEvents(t *testing.T, store *ledger.Store, runID string, want []ledger.EventType) {
