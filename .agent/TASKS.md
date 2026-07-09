@@ -27,7 +27,7 @@
   Acceptance: `--dry-run` does not mutate task state; import creates tasks in parsed order; unreadable files and parse failures return clear command errors.
   Verification: add focused CLI tests for help, dry-run, successful import, parse errors, and unreadable paths; run `go test ./internal/cli -run 'TestTaskImport|TestTask(Add|List)'`, `go test ./...`, and `go run ./cmd/revolvr task import --help`.
 
-- [ ] Document the chat/spec-to-task workflow and import format.
+- [x] Document the chat/spec-to-task workflow and import format.
   Scope: add README guidance for using web chat to design specs, saving a Markdown task file, dry-running/importing it, refreshing the TUI, and running one pass from the TUI. Include the caution that chat and TUI can share task state, but concurrent code edits against the same repo should be avoided.
   Acceptance: docs include a minimal import-file example with summary, acceptance, and verification notes, plus commands for dry-run, import, TUI refresh, preflight, and run-once.
   Verification: run `go test ./...` and `go run ./cmd/revolvr task import --help`.

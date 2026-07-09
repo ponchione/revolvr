@@ -51,6 +51,69 @@ If a task is blocked and should be retried:
 go run ./cmd/revolvr task retry <task-id>
 ```
 
+## Chat-To-Task Imports
+
+Use a web chat or design session to shape a feature into small, bounded tasks,
+then save the result as a Markdown import file in the repository. The import
+format is intentionally simple: each task starts with a `## Task` heading, has a
+required task body, and may include `### Summary`, `### Acceptance`, and
+`### Verification` sections. Summary becomes the task summary; acceptance and
+verification notes stay in the task text so the Codex pass sees them.
+
+Minimal import file:
+
+```markdown
+# Next Revolvr Tasks
+
+## Task
+Document the task import workflow in the README.
+
+### Summary
+README task import workflow
+
+### Acceptance
+- README explains dry-run, import, refresh, preflight, and one-pass TUI use.
+
+### Verification
+- go test ./...
+- go run ./cmd/revolvr task import --help
+```
+
+Save the file somewhere local to the repo, for example
+`.agent/imports/next-tasks.md`, then preview it without mutating `.revolvr/`:
+
+```bash
+go run ./cmd/revolvr task import --dry-run .agent/imports/next-tasks.md
+```
+
+Import the tasks when the dry-run output looks right:
+
+```bash
+go run ./cmd/revolvr task import .agent/imports/next-tasks.md
+```
+
+Open the TUI:
+
+```bash
+go run ./cmd/revolvr tui
+```
+
+If the TUI is already open, press `r` to refresh the shared task state. To run
+from the TUI, press `5` to open Preflight, press `p` to run the readiness check,
+then press `R` once preflight is ready to start one bounded pass. The closest
+CLI equivalents are:
+
+```bash
+go run ./cmd/revolvr doctor
+go run ./cmd/revolvr run --once
+```
+
+Chat sessions, the CLI, and the TUI all read and write the same `.revolvr/`
+task state, so it is fine to design tasks in chat and refresh the TUI after
+importing them. Avoid concurrent code edits against the same repository while a
+TUI-started or CLI-started Codex pass is running; keep one actor responsible for
+worktree changes at a time.
+
 ## Configuration
 
 Configuration is optional and lives at `.revolvr/config.yaml`. Inspect the

@@ -2,13 +2,23 @@
 
 ## Current Focus
 
-No task is currently in progress. The next unchecked backlog item is to document the chat/spec-to-task workflow and import format.
+No task is currently in progress. The next unchecked backlog item is to surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-09:
+
+- Selected task: document the chat/spec-to-task workflow and import format.
+- Files changed: `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Documentation added: README now documents a chat-to-task import workflow for shaping specs in web chat, saving a Markdown task file, dry-running and importing it, opening or refreshing the TUI, running TUI preflight, and starting one bounded TUI pass. It includes a minimal import-file example with summary, acceptance, and verification notes, plus the caution that chat, CLI, and TUI can share task state while concurrent code edits against the same repository should be avoided.
+- Verification run: `go test ./...`; `go run ./cmd/revolvr task import --help`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
+- Blockers: none.
 
 Task completed on 2026-07-09:
 
