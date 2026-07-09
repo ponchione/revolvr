@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ func TestBuildContextPayloadSnapshot(t *testing.T) {
 		PassID:         "pass-123",
 		TaskID:         "task-7",
 		Task:           "Implement Tasks 7 and 8 only.",
+		RunProfile:     testRunProfile(DefaultRunProfileName, defaultImplementerProfileContent(t)),
 		RepositoryRoot: "/repo/revolvr",
 		ReceiptPath:    ".revolvr/receipts/run-123.md",
 		ArtifactPaths: []ArtifactPath{
@@ -36,8 +38,6 @@ func TestBuildContextPayloadSnapshot(t *testing.T) {
 You are running one fresh bounded Codex pass controlled by revolvr.
 
 ## Run Profile
-- Profile: ` + "`implementer`" + `
-
 You are the implementer for this Revolvr pass.
 
 Focus on the selected task, make small reviewable changes, preserve existing repository state, verify the work, and write the required receipt before stopping.
@@ -118,11 +118,27 @@ Do not start another task.
 	})
 }
 
-func TestBuildUsesDefaultRunProfileWhenMissing(t *testing.T) {
+func TestBuildRequiresLoadedRunProfile(t *testing.T) {
+	_, err := BuildContextPayload(Input{
+		RunID:       "run-default",
+		TaskID:      "task-default",
+		Task:        "Do the selected work.",
+		ReceiptPath: "receipts/run-default.md",
+	})
+	if err == nil {
+		t.Fatal("build context payload succeeded, want missing run profile error")
+	}
+	if !strings.Contains(err.Error(), "run profile name is required") {
+		t.Fatalf("error = %v, want run profile requirement", err)
+	}
+}
+
+func TestBuildUsesLoadedRunProfileBody(t *testing.T) {
 	got, err := BuildContextPayload(Input{
 		RunID:       "run-default",
 		TaskID:      "task-default",
 		Task:        "Do the selected work.",
+		RunProfile:  testRunProfile(DefaultRunProfileName, "Loaded profile body.\n\nUse this exact file-backed content."),
 		ReceiptPath: "receipts/run-default.md",
 	})
 	if err != nil {
@@ -131,8 +147,7 @@ func TestBuildUsesDefaultRunProfileWhenMissing(t *testing.T) {
 
 	required := []string{
 		"## Run Profile",
-		"Profile: `implementer`",
-		DefaultRunProfile().Description,
+		"Loaded profile body.\n\nUse this exact file-backed content.",
 	}
 	for _, want := range required {
 		if !strings.Contains(got, want) {
@@ -146,6 +161,7 @@ func TestBuildIncludesDefaultRulesAndRequiredInstructions(t *testing.T) {
 		RunID:       "run-default",
 		TaskID:      "task-default",
 		Task:        "Do the selected work.",
+		RunProfile:  testRunProfile(DefaultRunProfileName, defaultImplementerProfileContent(t)),
 		ReceiptPath: "receipts/run-default.md",
 	})
 	if err != nil {
@@ -189,6 +205,7 @@ func TestBuildContextManifestHashesPayloadAndSources(t *testing.T) {
 			RunProfile: RunProfile{
 				Name:        "reviewer",
 				Description: "Read context carefully.\nThen make the change.",
+				SourcePath:  RunProfileSourcePath("reviewer"),
 			},
 		},
 		ContextPayload:     payload,
@@ -228,12 +245,46 @@ func TestBuildContextManifestHashesPayloadAndSources(t *testing.T) {
 	}
 
 	runProfile := sourceByLabel(t, manifest, "run_profile")
-	runProfileBytes := []byte("reviewer\nRead context carefully.\nThen make the change.")
+	runProfileBytes := []byte("Read context carefully.\nThen make the change.")
 	if got, want := runProfile.SHA256, sha256HexTest(runProfileBytes); got != want {
 		t.Fatalf("run profile sha256 = %q, want %q", got, want)
 	}
 	if got, want := runProfile.ByteSize, len(runProfileBytes); got != want {
 		t.Fatalf("run profile byte size = %d, want %d", got, want)
+	}
+	if got, want := runProfile.Path, filepath.Join(".agent", "profiles", "reviewer.md"); got != want {
+		t.Fatalf("run profile path = %q, want %q", got, want)
+	}
+}
+
+func TestBuildContextManifestUsesSelectedTaskFileSourceBytes(t *testing.T) {
+	taskBytes := []byte("---\nid: task-file\npriority: 10\n---\n# File Backed Task\n\n## Goal\nUse exact bytes.\n")
+	manifest, err := BuildContextManifest(ContextManifestInput{
+		Input: Input{
+			RunID:       "run-task-file",
+			TaskID:      "task-file",
+			Task:        string(taskBytes),
+			TaskSource:  SourceContent{Path: filepath.Join(".agent", "tasks", "010-task.md"), Content: taskBytes},
+			ReceiptPath: ".revolvr/receipts/run-task-file.md",
+			RunProfile:  testRunProfile(DefaultRunProfileName, defaultImplementerProfileContent(t)),
+		},
+		ContextPayload:     []byte("payload"),
+		ContextPayloadPath: ".revolvr/runs/run-task-file/context.md",
+		GeneratedAt:        time.Date(2026, 7, 9, 20, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("build context manifest: %v", err)
+	}
+
+	selectedTask := sourceByLabel(t, manifest, "selected_task")
+	if got, want := selectedTask.Path, filepath.Join(".agent", "tasks", "010-task.md"); got != want {
+		t.Fatalf("selected task path = %q, want %q", got, want)
+	}
+	if got, want := selectedTask.SHA256, sha256HexTest(taskBytes); got != want {
+		t.Fatalf("selected task sha256 = %q, want %q", got, want)
+	}
+	if got, want := selectedTask.ByteSize, len(taskBytes); got != want {
+		t.Fatalf("selected task byte size = %d, want %d", got, want)
 	}
 }
 
@@ -244,6 +295,7 @@ func TestMarshalContextManifestWritesStableJSON(t *testing.T) {
 			RunID:       "run-json",
 			TaskID:      "task-json",
 			Task:        "Write JSON.",
+			RunProfile:  testRunProfile(DefaultRunProfileName, defaultImplementerProfileContent(t)),
 			ReceiptPath: ".revolvr/receipts/run-json.md",
 		},
 		ContextPayload:     []byte("payload"),
@@ -309,4 +361,23 @@ func assertSectionOrder(t *testing.T, content string, headings []string) {
 		}
 		lastIndex = index
 	}
+}
+
+func testRunProfile(name string, content string) RunProfile {
+	return RunProfile{
+		Name:        name,
+		Description: strings.TrimSpace(content),
+		SourcePath:  RunProfileSourcePath(name),
+	}
+}
+
+func defaultImplementerProfileContent(t *testing.T) string {
+	t.Helper()
+	for _, template := range DefaultRunProfileTemplates() {
+		if template.Name == DefaultRunProfileName {
+			return template.Content
+		}
+	}
+	t.Fatalf("default profile template %q not found", DefaultRunProfileName)
+	return ""
 }

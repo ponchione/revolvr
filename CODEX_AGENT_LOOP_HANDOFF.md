@@ -1,5 +1,11 @@
 # Local Codex Fresh-Session Agent Loop Handoff
 
+> Archived setup handoff. Current architecture is documented in `AGENTS.md`,
+> `README.md`, and `.agent/DECISIONS.md`: tasks live in `.agent/tasks/*.md`,
+> run profiles live in `.agent/profiles/*.md`, run context artifacts are
+> `.revolvr/runs/<run-id>/context.md` plus `context.json`, and every work pass
+> starts a fresh `codex exec` session.
+
 ## Purpose
 
 You are my local Codex agent operating inside the current repository. Your job is to set up a safe, repeatable agent-loop workflow that preserves the benefits of fresh session context resets.
@@ -142,7 +148,7 @@ If no verification command is obvious, explain what was checked manually and rec
 
 Use these files as durable memory between fresh Codex sessions:
 
-- `.agent/TASKS.md` for the task queue
+- `.agent/TASKS.md` for the task backlog
 - `.agent/STATE.md` for current status and recent progress
 - `.agent/DECISIONS.md` for durable implementation and architecture decisions
 - `.agent/LOOP_PROMPT.md` for the reusable one-pass loop prompt

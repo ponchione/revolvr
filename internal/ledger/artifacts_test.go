@@ -81,27 +81,6 @@ func TestRunArtifactsFromEventsReadsContextCodexAndReceiptPayloads(t *testing.T)
 	}
 }
 
-func TestRunArtifactsFromEventsReadsLegacyPromptPayloadPath(t *testing.T) {
-	events := []Event{
-		{
-			Type:    EventPromptBuilt,
-			Payload: json.RawMessage(`{"prompt_path":".revolvr/runs/run-legacy/prompt.md","receipt_path":".revolvr/receipts/run-legacy.md"}`),
-		},
-	}
-
-	got, found := RunArtifactsFromEvents(events)
-	if !found {
-		t.Fatal("found = false, want true")
-	}
-	want := RunArtifacts{
-		ContextPayloadPath: ".revolvr/runs/run-legacy/prompt.md",
-		ReceiptPath:        ".revolvr/receipts/run-legacy.md",
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("artifacts = %#v, want %#v", got, want)
-	}
-}
-
 func TestRunArtifactsFromEventsNoArtifactEvents(t *testing.T) {
 	artifacts, found := RunArtifactsFromEvents([]Event{
 		{Type: EventRunStarted, Payload: json.RawMessage(`{"run_id":"run-3"}`)},

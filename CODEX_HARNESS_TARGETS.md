@@ -1,5 +1,11 @@
 # Codex Harness Targets
 
+> Archived design note. Current architecture is documented in `AGENTS.md`,
+> `README.md`, and `.agent/DECISIONS.md`: tasks live in `.agent/tasks/*.md`,
+> run profiles live in `.agent/profiles/*.md`, run context artifacts are
+> `.revolvr/runs/<run-id>/context.md` plus `context.json`, and every work pass
+> starts a fresh `codex exec` session.
+
 ## Purpose
 
 This repository will house a custom local harness for running bounded Codex
@@ -247,7 +253,7 @@ Initial event types:
 
 - `run_started`
 - `task_selected`
-- `prompt_built`
+- `context_built`
 - `codex_started`
 - `codex_json_event`
 - `codex_completed`
@@ -538,7 +544,7 @@ Acceptance criteria:
 - Can list recent runs.
 - Can reopen the ledger and read previous runs.
 
-### Task 6: Add Task Queue
+### Task 6: Add Task Files
 
 Goal:
 
@@ -547,9 +553,10 @@ Goal:
 Suggested prompt:
 
 ```text
-Add a simple task queue for revolvr. It should support adding tasks, listing
-tasks, selecting the first pending task for run --once, marking completed, and
-recording blockers. Keep task storage compatible with the ledger design.
+Add file-backed Markdown task specs for revolvr. It should support adding
+tasks, listing tasks, selecting the first pending task for run --once, marking
+completed, and recording blockers. Keep task state aligned with the ledger
+design.
 ```
 
 Acceptance criteria:

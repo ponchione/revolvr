@@ -21,6 +21,7 @@ func TestDoctorReportsReadyForDogfood(t *testing.T) {
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
+	commitDoctorProfiles(t, workDir)
 	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
 codex:
   executable: `+strconv.Quote(fakeCodex)+`
@@ -127,6 +128,7 @@ func TestDoctorFailsWhenRequiredChecksAreNotReady(t *testing.T) {
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
+	commitDoctorProfiles(t, workDir)
 	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
 codex:
   executable: `+strconv.Quote(missingCodex)+`
@@ -176,6 +178,12 @@ func runDoctorGitTestCommand(t *testing.T, workDir string, args ...string) {
 	if err != nil {
 		t.Fatalf("git %s failed: %v\n%s", strings.Join(allArgs, " "), err, output)
 	}
+}
+
+func commitDoctorProfiles(t *testing.T, workDir string) {
+	t.Helper()
+	runDoctorGitTestCommand(t, workDir, "add", ".agent/profiles")
+	runDoctorGitTestCommand(t, workDir, "commit", "-q", "-m", "Add revolvr profiles")
 }
 
 func writeDoctorFakeExecutable(t *testing.T, name string) string {

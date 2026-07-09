@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
@@ -14,10 +15,11 @@ import (
 
 	"revolvr/internal/app"
 	"revolvr/internal/codexexec"
+	"revolvr/internal/commit"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/taskmodel"
 )
 
 func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
@@ -36,7 +38,7 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 		"Runs: unavailable",
 		"",
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
-		"      a Add Task | R Run Once | r Refresh | q Quit",
+		"      a Add Task | R Run Once | n Passes 3 | L Run Loop | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -46,10 +48,10 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{
 		Initialized: true,
-		Tasks: []taskqueue.Task{
-			{ID: "task-pending", Status: taskqueue.StatusPending},
-			{ID: "task-blocked", Status: taskqueue.StatusBlocked},
-			{ID: "task-completed", Status: taskqueue.StatusCompleted},
+		Tasks: []taskmodel.Task{
+			{ID: "task-pending", Status: taskmodel.StatusPending},
+			{ID: "task-blocked", Status: taskmodel.StatusBlocked},
+			{ID: "task-completed", Status: taskmodel.StatusCompleted},
 		},
 		RecentRuns: []ledger.Run{
 			{
@@ -101,7 +103,7 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 		"  run-old  completed  none  abc123  committed change",
 		"",
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
-		"      r Refresh | q Quit",
+		"      n Passes 3 | L Run Loop | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -123,28 +125,28 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"Runnable: nothing runnable",
 		"Next task: none",
 		"Task List",
-		"No tasks queued.",
+		"No task files found.",
 		"Task Detail",
 		"No task selected.",
 		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
-		"      r Refresh | q Quit",
+		"      n Passes 3 | L Run Loop | r Refresh | q Quit",
 	)
 }
 
 func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 	tests := []struct {
 		name          string
-		tasks         []taskqueue.Task
+		tasks         []taskmodel.Task
 		dashboardWant []string
 		tasksWant     []string
 		tasksNotWant  []string
 	}{
 		{
 			name: "pending",
-			tasks: []taskqueue.Task{
-				{ID: "task-blocked", Status: taskqueue.StatusBlocked, Summary: "waiting on access"},
-				{ID: "task-ready", Status: taskqueue.StatusPending, Summary: "ship change"},
-				{ID: "task-later", Status: taskqueue.StatusPending, Task: "later task"},
+			tasks: []taskmodel.Task{
+				{ID: "task-blocked", Status: taskmodel.StatusBlocked, Summary: "waiting on access"},
+				{ID: "task-ready", Status: taskmodel.StatusPending, Summary: "ship change"},
+				{ID: "task-later", Status: taskmodel.StatusPending, Task: "later task"},
 			},
 			dashboardWant: []string{
 				"Total: 3",
@@ -168,8 +170,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 		},
 		{
 			name: "blocked-only",
-			tasks: []taskqueue.Task{
-				{ID: "task-blocked", Status: taskqueue.StatusBlocked, Summary: "waiting on access"},
+			tasks: []taskmodel.Task{
+				{ID: "task-blocked", Status: taskmodel.StatusBlocked, Summary: "waiting on access"},
 			},
 			dashboardWant: []string{
 				"Total: 1",
@@ -191,8 +193,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 		},
 		{
 			name: "completed-only",
-			tasks: []taskqueue.Task{
-				{ID: "task-completed", Status: taskqueue.StatusCompleted, Summary: "done"},
+			tasks: []taskmodel.Task{
+				{ID: "task-completed", Status: taskmodel.StatusCompleted, Summary: "done"},
 			},
 			dashboardWant: []string{
 				"Total: 1",
@@ -226,7 +228,7 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 			tasksWant: []string{
 				"Runnable: nothing runnable",
 				"Next task: none",
-				"No tasks queued.",
+				"No task files found.",
 				"No task selected.",
 			},
 			tasksNotWant: []string{
@@ -352,7 +354,7 @@ func TestStatusModelTasksViewRendersCompletedTaskDetails(t *testing.T) {
 func TestStatusModelTasksViewRetriesBlockedTaskRefreshesAndSelects(t *testing.T) {
 	tasks := sampleTasks()
 	retried := tasks[1]
-	retried.Status = taskqueue.StatusPending
+	retried.Status = taskmodel.StatusPending
 	retried.Blocker = ""
 	retried.BlockedAt = nil
 	retried.UpdatedAt = retried.UpdatedAt.Add(time.Minute)
@@ -362,7 +364,7 @@ func TestStatusModelTasksViewRetriesBlockedTaskRefreshesAndSelects(t *testing.T)
 		Initialized: true,
 		Tasks:       tasks,
 	}, StatusActions{
-		RetryTask: func(taskID string) (taskqueue.Task, error) {
+		RetryTask: func(taskID string) (taskmodel.Task, error) {
 			calls = append(calls, "retry:"+taskID)
 			if taskID != "task-blocked" {
 				t.Fatalf("retry task id = %q, want task-blocked", taskID)
@@ -373,7 +375,7 @@ func TestStatusModelTasksViewRetriesBlockedTaskRefreshesAndSelects(t *testing.T)
 			calls = append(calls, "refresh")
 			return app.StatusResult{
 				Initialized: true,
-				Tasks:       []taskqueue.Task{tasks[0], retried, tasks[2]},
+				Tasks:       []taskmodel.Task{tasks[0], retried, tasks[2]},
 			}, nil
 		},
 	})
@@ -422,9 +424,9 @@ func TestStatusModelTasksViewRejectsNonBlockedRetryWithoutMutation(t *testing.T)
 		Initialized: true,
 		Tasks:       sampleTasks(),
 	}, StatusActions{
-		RetryTask: func(string) (taskqueue.Task, error) {
+		RetryTask: func(string) (taskmodel.Task, error) {
 			calls++
-			return taskqueue.Task{}, nil
+			return taskmodel.Task{}, nil
 		},
 		RefreshStatus: func() (app.StatusResult, error) {
 			calls++
@@ -487,9 +489,9 @@ func TestStatusModelTasksViewRetryReportsMissingCallbacks(t *testing.T) {
 	)
 
 	called := false
-	afterMissingRetry.actions.RetryTask = func(string) (taskqueue.Task, error) {
+	afterMissingRetry.actions.RetryTask = func(string) (taskmodel.Task, error) {
 		called = true
-		return taskqueue.Task{}, nil
+		return taskmodel.Task{}, nil
 	}
 	afterMissingRefresh, cmd := updateStatusModel(t, afterMissingRetry, keyRunes("u"))
 	if cmd != nil {
@@ -509,12 +511,12 @@ func TestStatusModelTasksViewRetryCallbackErrorShowsInlineMessage(t *testing.T) 
 		Initialized: true,
 		Tasks:       sampleTasks(),
 	}, StatusActions{
-		RetryTask: func(taskID string) (taskqueue.Task, error) {
+		RetryTask: func(taskID string) (taskmodel.Task, error) {
 			calls++
 			if taskID != "task-blocked" {
 				t.Fatalf("retry task id = %q, want task-blocked", taskID)
 			}
-			return taskqueue.Task{}, errors.New("storage locked")
+			return taskmodel.Task{}, errors.New("storage locked")
 		},
 		RefreshStatus: func() (app.StatusResult, error) {
 			t.Fatal("refresh callback ran after retry error")
@@ -548,7 +550,7 @@ func TestStatusModelTasksViewRetryCallbackErrorShowsInlineMessage(t *testing.T) 
 func TestStatusModelTasksViewRetryRefreshFailureShowsInlineMessage(t *testing.T) {
 	tasks := sampleTasks()
 	retried := tasks[1]
-	retried.Status = taskqueue.StatusPending
+	retried.Status = taskmodel.StatusPending
 	retried.Blocker = ""
 	retried.BlockedAt = nil
 
@@ -557,7 +559,7 @@ func TestStatusModelTasksViewRetryRefreshFailureShowsInlineMessage(t *testing.T)
 		Initialized: true,
 		Tasks:       tasks,
 	}, StatusActions{
-		RetryTask: func(taskID string) (taskqueue.Task, error) {
+		RetryTask: func(taskID string) (taskmodel.Task, error) {
 			calls = append(calls, "retry:"+taskID)
 			return retried, nil
 		},
@@ -594,9 +596,9 @@ func TestStatusModelTaskEntryRejectsEmptyTaskTextInline(t *testing.T) {
 	addCalled := false
 	refreshCalled := false
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
-		AddTask: func(app.AddTaskInput) (taskqueue.Task, error) {
+		AddTask: func(app.AddTaskInput) (taskmodel.Task, error) {
 			addCalled = true
-			return taskqueue.Task{}, nil
+			return taskmodel.Task{}, nil
 		},
 		RefreshStatus: func() (app.StatusResult, error) {
 			refreshCalled = true
@@ -645,9 +647,9 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 			Summary: "done",
 		}},
 	}, StatusActions{
-		AddTask: func(app.AddTaskInput) (taskqueue.Task, error) {
+		AddTask: func(app.AddTaskInput) (taskmodel.Task, error) {
 			addCalled = true
-			return taskqueue.Task{}, nil
+			return taskmodel.Task{}, nil
 		},
 	})
 	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 40})
@@ -689,17 +691,17 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 
 func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) {
 	base := time.Date(2026, 7, 8, 11, 0, 0, 0, time.UTC)
-	existing := taskqueue.Task{
+	existing := taskmodel.Task{
 		ID:        "task-old",
-		Status:    taskqueue.StatusPending,
+		Status:    taskmodel.StatusPending,
 		Task:      "existing task",
 		CreatedAt: base,
 		UpdatedAt: base,
 	}
-	added := taskqueue.Task{
+	added := taskmodel.Task{
 		ID:        "task-new",
-		Status:    taskqueue.StatusPending,
-		Task:      "Implement add flow",
+		Status:    taskmodel.StatusPending,
+		Task:      "---\nid: task-new\nstatus: pending\n---\n# TUI add\n\nImplement add flow\n",
 		Summary:   "TUI add",
 		CreatedAt: base.Add(time.Minute),
 		UpdatedAt: base.Add(time.Minute),
@@ -708,9 +710,9 @@ func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) 
 	var calls []string
 	model := NewStatusModelWithActions(app.StatusResult{
 		Initialized: true,
-		Tasks:       []taskqueue.Task{existing},
+		Tasks:       []taskmodel.Task{existing},
 	}, StatusActions{
-		AddTask: func(got app.AddTaskInput) (taskqueue.Task, error) {
+		AddTask: func(got app.AddTaskInput) (taskmodel.Task, error) {
 			calls = append(calls, "add")
 			input = got
 			return added, nil
@@ -719,7 +721,7 @@ func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) 
 			calls = append(calls, "refresh")
 			return app.StatusResult{
 				Initialized: true,
-				Tasks:       []taskqueue.Task{existing, added},
+				Tasks:       []taskmodel.Task{existing, added},
 			}, nil
 		},
 	})
@@ -775,7 +777,7 @@ func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) 
 		"> - task-new  pending  TUI add",
 		"ID: task-new",
 		"Status: pending",
-		"Task: Implement add flow",
+		"Task: --- id: task-new status: pending --- # TUI add Implement add flow",
 	)
 }
 
@@ -793,9 +795,9 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 			refreshed = true
 			return app.StatusResult{
 				Initialized: true,
-				Tasks: []taskqueue.Task{
-					{ID: "task-1", Status: taskqueue.StatusPending},
-					{ID: "task-2", Status: taskqueue.StatusCompleted},
+				Tasks: []taskmodel.Task{
+					{ID: "task-1", Status: taskmodel.StatusPending},
+					{ID: "task-2", Status: taskmodel.StatusCompleted},
 				},
 				RecentRuns: []ledger.Run{{
 					ID:      "run-new",
@@ -892,7 +894,8 @@ func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
 		"Checks",
 		"OK state: initialized at /work/.revolvr",
 		"OK verification commands: 1 command configured",
-		"Keys: p Check | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once | r Refresh | q Quit",
+		"Keys: p Check | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop",
+		"      r Refresh | q Quit",
 	)
 }
 
@@ -1027,7 +1030,7 @@ func TestStatusModelRunOnceStreamsProgressAndRefreshesCompletion(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     history.Run,
-				Task:    taskqueue.Task{ID: "task-success"},
+				Task:    taskmodel.Task{ID: "task-success"},
 			}, nil
 		},
 		RefreshStatus: func() (app.StatusResult, error) {
@@ -1102,7 +1105,7 @@ func TestStatusModelRunOnceFailureReportsTerminalState(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeVerificationFailed,
 				Run:     run,
-				Task:    taskqueue.Task{ID: "task-failed"},
+				Task:    taskmodel.Task{ID: "task-failed"},
 				Message: "verification command 0 failed",
 			}, nil
 		},
@@ -1151,7 +1154,7 @@ func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeBlocked,
 				Run:     run,
-				Task:    taskqueue.Task{ID: "task-cancelled"},
+				Task:    taskmodel.Task{ID: "task-cancelled"},
 				Message: "context canceled",
 			}, ctx.Err()
 		},
@@ -1197,6 +1200,322 @@ func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
 		"Status: cancelled",
 		"Run ID: run-cancelled",
 		"Outcome: blocked",
+		"Error: context canceled",
+		"system: terminal state: cancelled",
+	)
+}
+
+func TestStatusModelRunLoopCyclesPassCount(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+
+	afterFirst, cmd := updateStatusModel(t, model, keyRunes("n"))
+	if cmd != nil {
+		t.Fatalf("first cycle cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(afterFirst.View()),
+		"Notice: Loop max passes set to 5.",
+		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
+		"      a Add Task | R Run Once | n Passes 5 | L Run Loop | r Refresh | q Quit",
+	)
+
+	afterSecond, cmd := updateStatusModel(t, afterFirst, keyRunes("n"))
+	if cmd != nil {
+		t.Fatalf("second cycle cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(afterSecond.View()),
+		"Notice: Loop max passes set to 2.",
+		"      a Add Task | R Run Once | n Passes 2 | L Run Loop | r Refresh | q Quit",
+	)
+}
+
+func TestStatusModelRunLoopMaxPassCompletionRefreshesAndOpensLatestRun(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 15, 30, 0, 0, time.UTC)
+	runs := []ledger.Run{
+		{ID: "run-loop-1", TaskID: "task-loop-1", Task: "Loop task 1", Status: ledger.StatusCompleted, StartedAt: startedAt, CommitSHA: "abc1"},
+		{ID: "run-loop-2", TaskID: "task-loop-2", Task: "Loop task 2", Status: ledger.StatusCompleted, StartedAt: startedAt.Add(time.Minute), CommitSHA: "abc2"},
+		{ID: "run-loop-3", TaskID: "task-loop-3", Task: "Loop task 3", Status: ledger.StatusCompleted, StartedAt: startedAt.Add(2 * time.Minute), CommitSHA: "abc3"},
+	}
+	var calls []string
+	model := runLoopReadyModel(StatusActions{
+		RunLoop: func(_ context.Context, maxPasses int, progress app.RunProgress, onPass app.RunPassFunc) (app.RunLoopResult, error) {
+			calls = append(calls, fmt.Sprintf("loop:%d", maxPasses))
+			if maxPasses != 3 {
+				t.Fatalf("max passes = %d, want default 3", maxPasses)
+			}
+			progress(codexexec.ProgressEvent{Source: "codex", Message: "loop started"})
+			for i, run := range runs {
+				if err := onPass(runonce.Result{
+					Outcome: runonce.OutcomeCommitted,
+					Run:     run,
+					Task:    taskmodel.Task{ID: run.TaskID},
+					Commit:  commit.Result{CommitSHA: run.CommitSHA},
+				}); err != nil {
+					return app.RunLoopResult{}, err
+				}
+				calls = append(calls, fmt.Sprintf("pass:%d", i+1))
+			}
+			return app.RunLoopResult{Stats: app.RunLoopStats{
+				MaxPasses:  3,
+				Passes:     3,
+				Completed:  3,
+				StopReason: "max_passes",
+			}}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			calls = append(calls, "refresh")
+			return app.StatusResult{
+				Initialized: true,
+				RecentRuns:  []ledger.Run{runs[2], runs[1], runs[0]},
+			}, nil
+		},
+		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+			calls = append(calls, "open:"+runID)
+			if runID != "run-loop-3" {
+				t.Fatalf("opened run id = %q, want run-loop-3", runID)
+			}
+			return ledger.RunWithEvents{Run: runs[2]}, nil
+		},
+	})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 160, Height: 80})
+	if cmd != nil {
+		t.Fatalf("window size update cmd = %v, want nil", cmd)
+	}
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	if cmd == nil {
+		t.Fatal("loop key returned nil cmd")
+	}
+	if len(calls) != 0 {
+		t.Fatalf("loop callbacks ran before command execution: %#v", calls)
+	}
+
+	afterLoop := drainStatusModelCmds(t, afterKey, cmd)
+	if afterLoop.runOnce.Active {
+		t.Fatal("loop active = true after completion")
+	}
+	if afterLoop.runDetails == nil || afterLoop.runDetails.Run.ID != "run-loop-3" {
+		t.Fatalf("run detail = %+v, want run-loop-3", afterLoop.runDetails)
+	}
+	requireLines(t, normalizedViewLines(afterLoop.View()),
+		"Notice: Loop completed. Latest run run-loop-3.",
+		"Run Progress",
+		"Status: completed",
+		"Mode: loop",
+		"Max passes: 3",
+		"Passes: 3/3",
+		"Completed: 3",
+		"Failed or blocked: 0",
+		"No task: false",
+		"Stop reason: max_passes",
+		"Latest run ID: run-loop-3",
+		"codex: loop started",
+		"pass 1: run run-loop-1 completed task task-loop-1; commit abc1",
+		"pass 2: run run-loop-2 completed task task-loop-2; commit abc2",
+		"pass 3: run run-loop-3 completed task task-loop-3; commit abc3",
+		"system: terminal state: completed",
+	)
+}
+
+func TestStatusModelRunLoopNoTaskStopRefreshesStatus(t *testing.T) {
+	var calls []string
+	model := runLoopReadyModel(StatusActions{
+		RunLoop: func(_ context.Context, maxPasses int, _ app.RunProgress, onPass app.RunPassFunc) (app.RunLoopResult, error) {
+			calls = append(calls, fmt.Sprintf("loop:%d", maxPasses))
+			if err := onPass(runonce.Result{Outcome: runonce.OutcomeNoTask, NoTask: true}); err != nil {
+				return app.RunLoopResult{}, err
+			}
+			return app.RunLoopResult{Stats: app.RunLoopStats{
+				MaxPasses:  maxPasses,
+				Passes:     1,
+				NoTask:     true,
+				StopReason: "no_task",
+			}}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			calls = append(calls, "refresh")
+			return app.StatusResult{Initialized: true}, nil
+		},
+		OpenRun: func(string) (ledger.RunWithEvents, error) {
+			t.Fatal("open run callback should not run without a loop run id")
+			return ledger.RunWithEvents{}, nil
+		},
+	})
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	if cmd == nil {
+		t.Fatal("loop key returned nil cmd")
+	}
+	afterLoop := drainStatusModelCmds(t, afterKey, cmd)
+	if !reflect.DeepEqual(calls, []string{"loop:3", "refresh"}) {
+		t.Fatalf("calls = %#v, want loop then refresh", calls)
+	}
+	requireLines(t, normalizedViewLines(afterLoop.View()),
+		"Notice: Loop finished: no pending runnable tasks.",
+		"Status: no_task",
+		"Passes: 1/3",
+		"Completed: 0",
+		"Failed or blocked: 0",
+		"No task: true",
+		"Stop reason: no_task",
+		"pass 1: no pending runnable tasks",
+		"system: terminal state: no_task",
+	)
+}
+
+func TestStatusModelRunLoopRepeatedFailureGuardrail(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 15, 40, 0, 0, time.UTC)
+	runs := []ledger.Run{
+		{ID: "run-failed-1", TaskID: "task-failed-1", Task: "Fail task 1", Status: ledger.StatusFailed, StartedAt: startedAt},
+		{ID: "run-failed-2", TaskID: "task-failed-2", Task: "Fail task 2", Status: ledger.StatusFailed, StartedAt: startedAt.Add(time.Minute)},
+	}
+	model := runLoopReadyModel(StatusActions{
+		RunLoop: func(_ context.Context, maxPasses int, _ app.RunProgress, onPass app.RunPassFunc) (app.RunLoopResult, error) {
+			for _, run := range runs {
+				if err := onPass(runonce.Result{
+					Outcome: runonce.OutcomeVerificationFailed,
+					Run:     run,
+					Task:    taskmodel.Task{ID: run.TaskID},
+					Message: "verification command 0 failed",
+				}); err != nil {
+					return app.RunLoopResult{}, err
+				}
+			}
+			return app.RunLoopResult{Stats: app.RunLoopStats{
+				MaxPasses:                  maxPasses,
+				Passes:                     2,
+				FailedOrBlocked:            2,
+				StopReason:                 "failure_guardrail",
+				ConsecutiveFailedOrBlocked: 2,
+			}}, errors.New("run loop stopped after 2 consecutive failed or blocked passes")
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			return app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{runs[1], runs[0]}}, nil
+		},
+		OpenRun: func(string) (ledger.RunWithEvents, error) {
+			return ledger.RunWithEvents{Run: runs[1]}, nil
+		},
+	})
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	if cmd == nil {
+		t.Fatal("loop key returned nil cmd")
+	}
+	afterLoop := drainStatusModelCmds(t, afterKey, cmd)
+	requireLines(t, normalizedViewLines(afterLoop.View()),
+		"Notice: Loop failed. Latest run run-failed-2.",
+		"Status: failed",
+		"Passes: 2/3",
+		"Completed: 0",
+		"Failed or blocked: 2",
+		"Consecutive failed or blocked: 2",
+		"Stop reason: failure_guardrail",
+		"Latest run ID: run-failed-2",
+		"Error: run loop stopped after 2 consecutive failed or blocked passes",
+		"pass 1: run run-failed-1 stopped (verification_failed): verification command 0 failed",
+		"pass 2: run run-failed-2 stopped (verification_failed): verification command 0 failed",
+	)
+}
+
+func TestStatusModelRunLoopBlockedStop(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 15, 50, 0, 0, time.UTC)
+	run := ledger.Run{ID: "run-blocked", TaskID: "task-blocked", Task: "Blocked task", Status: ledger.StatusFailed, StartedAt: startedAt}
+	model := runLoopReadyModel(StatusActions{
+		RunLoop: func(_ context.Context, maxPasses int, _ app.RunProgress, onPass app.RunPassFunc) (app.RunLoopResult, error) {
+			if err := onPass(runonce.Result{
+				Outcome: runonce.OutcomeBlocked,
+				Run:     run,
+				Task:    taskmodel.Task{ID: "task-blocked"},
+				Message: "blocked by preflight",
+			}); err != nil {
+				return app.RunLoopResult{}, err
+			}
+			return app.RunLoopResult{Stats: app.RunLoopStats{
+				MaxPasses:                  maxPasses,
+				Passes:                     1,
+				FailedOrBlocked:            1,
+				StopReason:                 "failed_or_blocked",
+				ConsecutiveFailedOrBlocked: 1,
+			}}, errors.New("run run-blocked stopped with outcome blocked")
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			return app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{run}}, nil
+		},
+		OpenRun: func(string) (ledger.RunWithEvents, error) {
+			return ledger.RunWithEvents{Run: run}, nil
+		},
+	})
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	if cmd == nil {
+		t.Fatal("loop key returned nil cmd")
+	}
+	afterLoop := drainStatusModelCmds(t, afterKey, cmd)
+	requireLines(t, normalizedViewLines(afterLoop.View()),
+		"Notice: Loop failed. Latest run run-blocked.",
+		"Status: failed",
+		"Passes: 1/3",
+		"Failed or blocked: 1",
+		"Stop reason: failed_or_blocked",
+		"Latest run ID: run-blocked",
+		"Error: run run-blocked stopped with outcome blocked",
+		"pass 1: run run-blocked stopped (blocked): blocked by preflight",
+	)
+}
+
+func TestStatusModelRunLoopCancellationReportsTerminalState(t *testing.T) {
+	cancelled := false
+	refreshCalled := false
+	model := runLoopReadyModel(StatusActions{
+		RunLoop: func(ctx context.Context, maxPasses int, progress app.RunProgress, _ app.RunPassFunc) (app.RunLoopResult, error) {
+			progress(codexexec.ProgressEvent{Source: "codex", Message: "loop started"})
+			<-ctx.Done()
+			cancelled = true
+			return app.RunLoopResult{Stats: app.RunLoopStats{
+				MaxPasses:  maxPasses,
+				StopReason: "context_cancelled",
+			}}, ctx.Err()
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			refreshCalled = true
+			return app.StatusResult{Initialized: true}, nil
+		},
+	})
+
+	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	if cmd == nil {
+		t.Fatal("loop key returned nil cmd")
+	}
+	afterProgress, waitCmd := runStatusModelCmd(t, afterKey, cmd)
+	if waitCmd == nil {
+		t.Fatal("progress update returned nil wait command")
+	}
+
+	cancelView, cancelCmd := updateStatusModel(t, afterProgress, keyRunes("c"))
+	if cancelCmd != nil {
+		t.Fatalf("cancel key cmd = %v, want nil", cancelCmd)
+	}
+	if !cancelView.runOnce.CancelRequested {
+		t.Fatal("cancel requested = false, want true")
+	}
+	requireLines(t, normalizedViewLines(cancelView.View()),
+		"Notice: Cancellation requested.",
+		"Status: running",
+		"Mode: loop",
+		"Cancellation: requested",
+		"system: cancellation requested",
+	)
+
+	afterCancel := drainStatusModelCmds(t, cancelView, waitCmd)
+	if !cancelled {
+		t.Fatal("loop context was not cancelled")
+	}
+	if !refreshCalled {
+		t.Fatal("refresh callback was not called after cancellation")
+	}
+	requireLines(t, normalizedViewLines(afterCancel.View()),
+		"Notice: Loop cancelled.",
+		"Status: cancelled",
+		"Stop reason: context_cancelled",
 		"Error: context canceled",
 		"system: terminal state: cancelled",
 	)
@@ -1410,6 +1729,73 @@ func TestStatusModelRunDetailRendersDiagnosticsAndChangedFiles(t *testing.T) {
 	)
 }
 
+func TestStatusModelRunDetailRendersTimelineAndRawEvents(t *testing.T) {
+	startedAt := time.Date(2026, 7, 8, 13, 5, 0, 0, time.UTC)
+	completedAt := startedAt.Add(30 * time.Second)
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:          "run-timeline",
+			TaskID:      "task-timeline",
+			Task:        "Render a timeline",
+			Status:      ledger.StatusCompleted,
+			Summary:     "committed abc123",
+			StartedAt:   startedAt,
+			CompletedAt: &completedAt,
+			CommitSHA:   "abc123",
+		},
+		Events: []ledger.Event{
+			{
+				ID:        1,
+				RunID:     "run-timeline",
+				Type:      ledger.EventRunStarted,
+				Payload:   jsonPayload(t, map[string]any{"run_id": "run-timeline", "task_id": "task-timeline"}),
+				CreatedAt: startedAt,
+			},
+			{
+				ID:    2,
+				RunID: "run-timeline",
+				Type:  ledger.EventRunCompleted,
+				Payload: jsonPayload(t, map[string]any{
+					"outcome":             "committed",
+					"message":             "committed abc123",
+					"verification_status": "passed",
+					"commit_sha":          "abc123",
+				}),
+				CreatedAt: completedAt,
+			},
+		},
+	}
+	view := runDetailView(t, history, 160, 80)
+
+	requireLines(t, normalizedViewLines(view.View()),
+		"Timeline",
+		"TIMESTAMP  PHASE  STATUS  DETAIL",
+		"2026-07-08T13:05:00Z  run  started  run run-timeline, task task-timeline",
+		"2026-07-08T13:05:30Z  run  completed  outcome=committed: committed abc123; verification=passed; commit=abc123",
+		"Events",
+		"1  run_started  2026-07-08T13:05:00Z",
+		"2  run_completed  2026-07-08T13:05:30Z",
+	)
+}
+
+func TestStatusModelRunDetailRendersNoTimelineRows(t *testing.T) {
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:     "run-empty-timeline",
+			TaskID: "task-empty-timeline",
+			Task:   "No projected events",
+		},
+	}
+	view := runDetailView(t, history, 140, 60)
+
+	requireLines(t, normalizedViewLines(view.View()),
+		"Timeline",
+		"No timeline rows.",
+		"Events",
+		"None",
+	)
+}
+
 func TestStatusModelRunDetailRendersArtifactsAndMissingArtifacts(t *testing.T) {
 	startedAt := time.Date(2026, 7, 8, 13, 10, 0, 0, time.UTC)
 	history := ledger.RunWithEvents{
@@ -1586,7 +1972,7 @@ func TestStatusModelRunDetailShowsValidationCallbackErrors(t *testing.T) {
 	)
 }
 
-func TestStatusModelRunDetailScrollsLongEventOutput(t *testing.T) {
+func TestStatusModelRunDetailScrollsLongTimelineAndEventOutput(t *testing.T) {
 	startedAt := time.Date(2026, 7, 8, 13, 20, 0, 0, time.UTC)
 	events := make([]ledger.Event, 0, 80)
 	for i := 1; i <= 80; i++ {
@@ -1612,6 +1998,20 @@ func TestStatusModelRunDetailScrollsLongEventOutput(t *testing.T) {
 	if containsLine(topLines, "80  codex_json_event  2026-07-08T13:21:19Z") {
 		t.Fatalf("top of long detail already showed last event: %#v", topLines)
 	}
+
+	timeline := view
+	var cmd tea.Cmd
+	for i := 0; i < 13; i++ {
+		timeline, cmd = updateStatusModel(t, timeline, tea.KeyMsg{Type: tea.KeyDown})
+		if cmd != nil {
+			t.Fatalf("timeline scroll cmd %d = %v, want nil", i, cmd)
+		}
+	}
+	requireLines(t, normalizedViewLines(timeline.View()),
+		"Timeline",
+		"TIMESTAMP  PHASE  STATUS  DETAIL",
+		"2026-07-08T13:20:00Z  run  started  run run-long-events, task task-long-events",
+	)
 
 	bottom, cmd := updateStatusModel(t, view, tea.KeyMsg{Type: tea.KeyEnd})
 	if cmd != nil {
@@ -1658,7 +2058,7 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 			}, nil
 		},
 	})
-	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 40})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 60})
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
@@ -1710,8 +2110,8 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 		"Verification: failed",
 		"Commit: abc123",
 		"receipt: .revolvr/receipts/run-old.md",
-		"1  run_started  2026-07-08T12:00:00Z",
-		"2  run_artifacts  2026-07-08T12:02:00Z",
+		"1 run_started 2026-07-08T12:00:00Z",
+		"2 run_artifacts 2026-07-08T12:02:00Z",
 	} {
 		if !containsLine(lines, want) {
 			t.Fatalf("detail view missing %q: %#v", want, lines)
@@ -1766,7 +2166,8 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	for _, want := range []string{
 		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
 		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
-		"      5 Preflight | ? Help | a Add Task | R Run Once | r Refresh | q Quit",
+		"      5 Preflight | ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop",
+		"      r Refresh | q Quit",
 	} {
 		if !containsLine(runsLines, want) {
 			t.Fatalf("runs footer/header missing %q: %#v", want, runsLines)
@@ -1782,9 +2183,12 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 		"Views: Dashboard | Tasks | Runs | Run Detail | Preflight | [Help]",
 		"Help",
 		"1  Dashboard",
+		"n  Cycle loop max passes (current 3)",
+		"L  Run loop",
 		"enter or o  Open selected run",
 		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight",
-		"      ? Help | a Add Task | R Run Once | r Refresh | q Quit",
+		"      ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop | r Refresh",
+		"      q Quit",
 	} {
 		if !containsLine(helpLines, want) {
 			t.Fatalf("help view missing %q: %#v", want, helpLines)
@@ -1803,15 +2207,15 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 func TestStatusModelWideRenderSnapshot(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{
 		Initialized: true,
-		Tasks: []taskqueue.Task{
+		Tasks: []taskmodel.Task{
 			{
 				ID:      "task-ready",
-				Status:  taskqueue.StatusPending,
+				Status:  taskmodel.StatusPending,
 				Summary: "write focused TUI polish",
 			},
 			{
 				ID:      "task-blocked",
-				Status:  taskqueue.StatusBlocked,
+				Status:  taskmodel.StatusBlocked,
 				Summary: "blocked task",
 			},
 		},
@@ -1866,7 +2270,7 @@ func TestStatusModelWideRenderSnapshot(t *testing.T) {
 		"  run-failed  failed  failed  none  verification failed",
 		"",
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
-		"      r Refresh | q Quit",
+		"      n Passes 3 | L Run Loop | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("wide view lines = %#v, want %#v", lines, want)
@@ -1877,9 +2281,9 @@ func TestStatusModelWideRenderSnapshot(t *testing.T) {
 func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{
 		Initialized: true,
-		Tasks: []taskqueue.Task{
-			{ID: "task-pending", Status: taskqueue.StatusPending},
-			{ID: "task-blocked", Status: taskqueue.StatusBlocked},
+		Tasks: []taskmodel.Task{
+			{ID: "task-pending", Status: taskmodel.StatusPending},
+			{ID: "task-blocked", Status: taskmodel.StatusBlocked},
 		},
 		RecentRuns: []ledger.Run{
 			{
@@ -1929,6 +2333,7 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs",
 		"      4 Detail | 5 Preflight | ? Help",
 		"      a Add Task | R Run Once",
+		"      n Passes 3 | L Run Loop",
 		"      r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
@@ -1961,6 +2366,7 @@ func TestStatusModelResizeUpdatesContentAreaAndWrapsFooter(t *testing.T) {
 		"      3 Runs | 4 Detail",
 		"      5 Preflight | ? Help",
 		"      a Add Task | R Run Once",
+		"      n Passes 3 | L Run Loop",
 		"      r Refresh | q Quit",
 	} {
 		if !containsLine(lines, want) {
@@ -2082,6 +2488,16 @@ func runDetailView(t *testing.T, history ledger.RunWithEvents, width int, height
 	return model
 }
 
+func runLoopReadyModel(actions StatusActions) StatusModel {
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, actions)
+	model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+	model.width = 160
+	model.height = 80
+	model.resizeViewport()
+	model.updateViewportContent()
+	return model
+}
+
 func jsonPayload(t *testing.T, value any) json.RawMessage {
 	t.Helper()
 	payload, err := json.Marshal(value)
@@ -2125,17 +2541,17 @@ func validationDetailHistory(runID string) ledger.RunWithEvents {
 	}
 }
 
-func sampleTasks() []taskqueue.Task {
+func sampleTasks() []taskmodel.Task {
 	createdPending := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
 	createdBlocked := createdPending.Add(time.Minute)
 	blockedAt := createdPending.Add(2 * time.Minute)
 	completedCreated := createdPending.Add(3 * time.Minute)
 	completedAt := createdPending.Add(4 * time.Minute)
 
-	return []taskqueue.Task{
+	return []taskmodel.Task{
 		{
 			ID:        "task-pending",
-			Status:    taskqueue.StatusPending,
+			Status:    taskmodel.StatusPending,
 			Summary:   "write focused tests",
 			Task:      "Add focused task view tests",
 			CreatedAt: createdPending,
@@ -2143,7 +2559,7 @@ func sampleTasks() []taskqueue.Task {
 		},
 		{
 			ID:        "task-blocked",
-			Status:    taskqueue.StatusBlocked,
+			Status:    taskmodel.StatusBlocked,
 			Task:      "blocked task",
 			Blocker:   "waiting on access",
 			CreatedAt: createdBlocked,
@@ -2152,7 +2568,7 @@ func sampleTasks() []taskqueue.Task {
 		},
 		{
 			ID:          "task-completed",
-			Status:      taskqueue.StatusCompleted,
+			Status:      taskmodel.StatusCompleted,
 			Summary:     "finished task",
 			Task:        "completed task",
 			CreatedAt:   completedCreated,

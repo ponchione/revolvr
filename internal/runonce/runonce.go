@@ -18,7 +18,8 @@ import (
 	"revolvr/internal/prompt"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/taskfile"
+	"revolvr/internal/taskmodel"
 	"revolvr/internal/verification"
 )
 
@@ -53,9 +54,7 @@ type CommitRunner func(context.Context, commit.Config) (commit.Result, error)
 type Config struct {
 	WorkingDir string
 
-	TaskStore   *taskqueue.Store
 	LedgerStore *ledger.Store
-	TaskDBPath  string
 	LedgerPath  string
 
 	CodexExecutable                string
@@ -102,7 +101,8 @@ type Result struct {
 	Message            string
 	WorkingDir         string
 	NoTask             bool
-	Task               taskqueue.Task
+	Task               taskmodel.Task
+	FileTask           taskfile.Task
 	Run                ledger.Run
 	Receipt            receipt.Receipt
 	ReceiptPath        string
@@ -145,19 +145,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		_ = sourceLock.Release(releaseCtx)
 	}()
 
-	taskStore, closeTask, err := openTaskStore(ctx, cfg, workDir)
-	if err != nil {
-		return result, err
-	}
-	defer closeTask()
-
 	ledgerStore, closeLedger, err := openLedgerStore(ctx, cfg, workDir)
 	if err != nil {
 		return result, err
 	}
 	defer closeLedger()
 
-	task, ok, err := taskStore.SelectNext(ctx)
+	fileTask, ok, err := taskfile.SelectNext(workDir)
 	if err != nil {
 		return result, err
 	}
@@ -167,12 +161,14 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		result.Message = "no pending runnable tasks"
 		return result, nil
 	}
+	task := taskFromFileTask(fileTask)
 	result.Task = task
+	result.FileTask = fileTask
 
 	run, err := ledgerStore.CreateRun(ctx, ledger.RunSpec{
 		ID:     runID,
-		TaskID: task.ID,
-		Task:   task.Task,
+		TaskID: fileTask.ID,
+		Task:   fileTask.ContextBody,
 	})
 	if err != nil {
 		return result, err
@@ -180,12 +176,12 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	result.Run = run
 	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventRunStarted, map[string]any{
 		"run_id":  run.ID,
-		"task_id": task.ID,
+		"task_id": fileTask.ID,
 	})
 	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventTaskSelected, map[string]any{
-		"task_id": task.ID,
-		"task":    task.Task,
-		"summary": task.Summary,
+		"task_id": fileTask.ID,
+		"task":    fileTask.ContextBody,
+		"summary": fileTask.Title,
 	})
 
 	paths := newRunPaths(run.ID)
@@ -204,7 +200,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		result.PreRunDirty = gitstate.Capture{Kind: gitstate.CaptureKindDirty, CaptureError: err.Error()}
 		result.Message = "capture pre-run dirty state failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	result.PreRunDirty = preRunDirty
 	if !cfg.AllowPreExistingDirty && hasPreExistingDirty(result.PreRunDirty) {
@@ -214,14 +210,22 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			"capture_error":       result.PreRunDirty.CaptureError,
 		})
 		result.Message = "pre-existing dirty files are present"
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
+
+	runProfile, err := prompt.LoadRunProfile(workDir, prompt.DefaultRunProfileName)
+	if err != nil {
+		result.Message = "load run profile failed: " + err.Error()
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 
 	contextInput := prompt.Input{
 		RunID:          run.ID,
 		PassID:         run.ID,
-		TaskID:         task.ID,
-		Task:           task.Task,
+		TaskID:         fileTask.ID,
+		Task:           fileTask.ContextBody,
+		TaskSource:     prompt.SourceContent{Path: fileTask.SourcePath, Content: fileTask.SourceBytes},
+		RunProfile:     runProfile,
 		RepositoryRoot: workDir,
 		ReceiptPath:    paths.receiptRel,
 		ArtifactPaths: []prompt.ArtifactPath{
@@ -235,7 +239,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	contextPayload, err := prompt.BuildContextPayload(contextInput)
 	if err != nil {
 		result.Message = "build context payload failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	contextManifest, err := prompt.BuildContextManifest(prompt.ContextManifestInput{
 		Input:              contextInput,
@@ -245,20 +249,20 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	})
 	if err != nil {
 		result.Message = "build context manifest failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	contextManifestJSON, err := prompt.MarshalContextManifest(contextManifest)
 	if err != nil {
 		result.Message = "marshal context manifest failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	if err := writeTextFile(filepath.Join(workDir, paths.contextPayloadRel), contextPayload, 0o644); err != nil {
 		result.Message = "write context payload artifact failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	if err := writeTextFile(filepath.Join(workDir, paths.contextManifestRel), string(contextManifestJSON), 0o644); err != nil {
 		result.Message = "write context manifest artifact failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventContextBuilt, map[string]any{
 		"context_payload_path":      paths.contextPayloadRel,
@@ -296,23 +300,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	result.Codex = codexResult
 
-	postRunChanged, err := cfg.ChangedCapture(ctx, gitConfig(cfg, workDir))
-	if err != nil {
-		result.PostRunChanged = gitstate.Capture{Kind: gitstate.CaptureKindChanged, CaptureError: err.Error()}
-	} else {
-		result.PostRunChanged = postRunChanged
-	}
-	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventChangedFilesCaptured, map[string]any{
-		"pre_run_dirty_files": result.PreRunDirty.DirtyFiles,
-		"changed_files":       result.PostRunChanged.ChangedFiles,
-		"capture_error":       result.PostRunChanged.CaptureError,
-	})
+	captureAndRecordChangedFiles(ctx, cfg, ledgerStore, &result, workDir)
 
 	ensureRunReceipt(ctx, cfg, ledgerStore, &result, receipt.VerdictCompletedWithConcerns, "not_run", nil, "", codexResult.FinalMessage)
 
 	if !codexSucceeded(result.Codex) {
 		result.Message = codexFailureMessage(result.Codex)
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeCodexFailed, receipt.VerdictCodexFailed, "not_run", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeCodexFailed, receipt.VerdictCodexFailed, "not_run", "")
 	}
 
 	verificationResult, err := cfg.VerificationRunner(ctx, verification.Config{
@@ -328,7 +322,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	})
 	if err != nil {
 		result.Message = "verification runner failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeVerificationFailed, receipt.VerdictVerificationFailed, "failed", "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeVerificationFailed, receipt.VerdictVerificationFailed, "failed", "")
 	}
 	result.Verification = verificationResult
 	if verificationResult.LedgerError != nil {
@@ -338,7 +332,18 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	verificationStatus := verificationStatus(verificationResult)
 	if !verificationResult.Passed || verificationResult.Status != verification.StatusPassed {
 		result.Message = verificationFailureMessage(verificationResult)
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeVerificationFailed, receipt.VerdictVerificationFailed, verificationStatus, "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeVerificationFailed, receipt.VerdictVerificationFailed, verificationStatus, "")
+	}
+
+	if result.PostRunChanged.CaptureError == "" && len(changedFiles(result.PostRunChanged)) > 0 {
+		updatedFileTask, err := taskfile.UpdateStatus(workDir, result.FileTask.SourcePath, taskfile.StatusCompleted)
+		if err != nil {
+			result.Message = "update task status before commit failed: " + err.Error()
+			return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
+		}
+		result.FileTask = updatedFileTask
+		result.Task = taskFromFileTask(updatedFileTask)
+		captureAndRecordChangedFiles(ctx, cfg, ledgerStore, &result, workDir)
 	}
 
 	commitResult, err := cfg.CommitRunner(ctx, commit.Config{
@@ -361,7 +366,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	})
 	if err != nil {
 		result.Message = "auto-commit gate failed: " + err.Error()
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
 	}
 	result.Commit = commitResult
 	if commitResult.LedgerError != nil {
@@ -371,14 +376,14 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	switch commitResult.Status {
 	case commit.StatusCommitted:
 		result.Message = "committed " + commitResult.CommitSHA
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeCommitted, receipt.VerdictCompleted, verificationStatus, commitResult.CommitSHA)
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeCommitted, receipt.VerdictCompleted, verificationStatus, commitResult.CommitSHA)
 	case commit.StatusRefused:
 		outcome, verdict := commitRefusalOutcome(commitResult.RefusalReason)
 		result.Message = commitRefusalMessage(commitResult)
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, outcome, verdict, verificationStatus, "")
+		return finish(ctx, cfg, ledgerStore, &result, outcome, verdict, verificationStatus, "")
 	default:
 		result.Message = nonEmpty(commitResult.Message, "auto-commit failed")
-		return finish(ctx, cfg, taskStore, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
 	}
 }
 
@@ -520,21 +525,6 @@ func startLockHeartbeat(ctx context.Context, sourceLock *lock.SourceWriter, inte
 	}
 }
 
-func openTaskStore(ctx context.Context, cfg Config, workDir string) (*taskqueue.Store, func(), error) {
-	if cfg.TaskStore != nil {
-		return cfg.TaskStore, func() {}, nil
-	}
-	path := strings.TrimSpace(cfg.TaskDBPath)
-	if path == "" {
-		path = filepath.Join(workDir, ".revolvr", "tasks.sqlite")
-	}
-	store, err := taskqueue.Open(ctx, path)
-	if err != nil {
-		return nil, nil, err
-	}
-	return store, func() { _ = store.Close() }, nil
-}
-
 func openLedgerStore(ctx context.Context, cfg Config, workDir string) (*ledger.Store, func(), error) {
 	if cfg.LedgerStore != nil {
 		return cfg.LedgerStore, func() {}, nil
@@ -550,7 +540,21 @@ func openLedgerStore(ctx context.Context, cfg Config, workDir string) (*ledger.S
 	return store, func() { _ = store.Close() }, nil
 }
 
-func finish(ctx context.Context, cfg Config, tasks *taskqueue.Store, runs *ledger.Store, result *Result, outcome Outcome, verdict receipt.Verdict, verificationStatus string, commitSHA string) (Result, error) {
+func captureAndRecordChangedFiles(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, workDir string) {
+	postRunChanged, err := cfg.ChangedCapture(ctx, gitConfig(cfg, workDir))
+	if err != nil {
+		result.PostRunChanged = gitstate.Capture{Kind: gitstate.CaptureKindChanged, CaptureError: err.Error()}
+	} else {
+		result.PostRunChanged = postRunChanged
+	}
+	appendEvent(ctx, result, runs, result.Run.ID, ledger.EventChangedFilesCaptured, map[string]any{
+		"pre_run_dirty_files": result.PreRunDirty.DirtyFiles,
+		"changed_files":       result.PostRunChanged.ChangedFiles,
+		"capture_error":       result.PostRunChanged.CaptureError,
+	})
+}
+
+func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, outcome Outcome, verdict receipt.Verdict, verificationStatus string, commitSHA string) (Result, error) {
 	result.Outcome = outcome
 	if strings.TrimSpace(result.Message) == "" {
 		result.Message = string(outcome)
@@ -587,23 +591,25 @@ func finish(ctx context.Context, cfg Config, tasks *taskqueue.Store, runs *ledge
 		result.Run = updatedRun
 	}
 
+	taskStatus := taskfile.StatusBlocked
 	if outcome == OutcomeCommitted {
-		updatedTask, ok, err := tasks.CompleteTask(ctx, result.Task.ID, result.Message)
-		if err != nil {
-			return *result, err
-		}
-		if ok {
-			result.Task = updatedTask
-		}
-	} else {
-		updatedTask, ok, err := tasks.BlockTask(ctx, result.Task.ID, result.Message)
-		if err != nil {
-			return *result, err
-		}
-		if ok {
-			result.Task = updatedTask
-		}
+		taskStatus = taskfile.StatusCompleted
 	}
+	updatedFileTask, err := taskfile.UpdateStatus(cfg.WorkingDir, result.FileTask.SourcePath, taskStatus)
+	if err != nil {
+		return *result, err
+	}
+	result.FileTask = updatedFileTask
+	result.Task = taskFromFileTask(updatedFileTask)
+	if taskStatus == taskfile.StatusBlocked {
+		result.Task.Blocker = result.Message
+		blockedAt := completedAt
+		result.Task.BlockedAt = &blockedAt
+	} else {
+		taskCompletedAt := completedAt
+		result.Task.CompletedAt = &taskCompletedAt
+	}
+	result.Task.UpdatedAt = completedAt
 
 	appendEvent(ctx, result, runs, result.Run.ID, eventType, map[string]any{
 		"outcome":             outcome,
@@ -858,7 +864,16 @@ func commitRefusalMessage(result commit.Result) string {
 	return "auto-commit refused"
 }
 
-func taskSummary(task taskqueue.Task) string {
+func taskFromFileTask(task taskfile.Task) taskmodel.Task {
+	return taskmodel.Task{
+		ID:      task.ID,
+		Task:    task.ContextBody,
+		Status:  task.Status,
+		Summary: task.Title,
+	}
+}
+
+func taskSummary(task taskmodel.Task) string {
 	if summary := singleLine(task.Summary); summary != "" {
 		return summary
 	}

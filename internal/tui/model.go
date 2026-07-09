@@ -17,7 +17,7 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/taskmodel"
 )
 
 const (
@@ -25,9 +25,12 @@ const (
 	defaultViewportHeight = 24
 	maxRunLogLines        = 200
 	compactLayoutWidth    = 72
+	defaultRunLoopPasses  = 3
 )
 
 var _ tea.Model = StatusModel{}
+
+var runLoopPassOptions = []int{2, 3, 5}
 
 var (
 	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
@@ -51,6 +54,11 @@ const (
 	viewTaskEntry
 )
 
+const (
+	runModeOnce = "once"
+	runModeLoop = "loop"
+)
+
 type StatusModel struct {
 	status       app.StatusResult
 	actions      StatusActions
@@ -58,6 +66,7 @@ type StatusModel struct {
 	previous     TUIView
 	selectedTask int
 	selectedRun  int
+	loopPasses   int
 	runDetails   *ledger.RunWithEvents
 	runOnce      runOnceState
 	preflight    preflightState
@@ -71,11 +80,12 @@ type StatusModel struct {
 
 type RefreshStatusFunc func() (app.StatusResult, error)
 type OpenRunFunc func(runID string) (ledger.RunWithEvents, error)
-type AddTaskFunc func(input app.AddTaskInput) (taskqueue.Task, error)
-type RetryTaskFunc func(taskID string) (taskqueue.Task, error)
+type AddTaskFunc func(input app.AddTaskInput) (taskmodel.Task, error)
+type RetryTaskFunc func(taskID string) (taskmodel.Task, error)
 type ValidateReceiptFunc func(runID string) (receipt.ValidationResult, error)
 type PreflightFunc func() (app.PreflightResult, error)
 type RunOnceFunc func(context.Context, app.RunProgress) (runonce.Result, error)
+type RunLoopFunc func(context.Context, int, app.RunProgress, app.RunPassFunc) (app.RunLoopResult, error)
 
 type StatusActions struct {
 	Context         context.Context
@@ -86,6 +96,7 @@ type StatusActions struct {
 	ValidateReceipt ValidateReceiptFunc
 	Preflight       PreflightFunc
 	RunOnce         RunOnceFunc
+	RunLoop         RunLoopFunc
 }
 
 type RunOptions struct {
@@ -98,6 +109,7 @@ type RunOptions struct {
 	ValidateReceipt ValidateReceiptFunc
 	Preflight       PreflightFunc
 	RunOnce         RunOnceFunc
+	RunLoop         RunLoopFunc
 }
 
 type taskEntryField int
@@ -132,12 +144,15 @@ type runOnceState struct {
 	Active          bool
 	Started         bool
 	CancelRequested bool
+	Mode            string
 	Token           int
 	Cancel          context.CancelFunc
 	Messages        <-chan tea.Msg
 	Status          string
 	RunID           string
 	Outcome         string
+	MaxPasses       int
+	Stats           app.RunLoopStats
 	Err             string
 	Logs            []string
 }
@@ -154,6 +169,7 @@ func NewStatusModelWithActions(status app.StatusResult, actions StatusActions) S
 		previous:     viewDashboard,
 		selectedTask: clampTaskIndex(status.Tasks, 0),
 		selectedRun:  clampRunIndex(status.RecentRuns, 0),
+		loopPasses:   defaultRunLoopPasses,
 		width:        defaultViewportWidth,
 		height:       defaultViewportHeight,
 		viewport:     viewport.New(defaultViewportWidth, defaultViewportHeight),
@@ -181,6 +197,7 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 		ValidateReceipt: opts.ValidateReceipt,
 		Preflight:       opts.Preflight,
 		RunOnce:         opts.RunOnce,
+		RunLoop:         opts.RunLoop,
 	}), options...).Run()
 	return err
 }
@@ -301,7 +318,15 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, runProgressLine(msg.event))
-		m.message = "Run in progress."
+		m.message = activeRunProgressMessage(m.runOnce.Mode)
+		m.updateViewportContent()
+		return m, m.waitRunOnceMsgCmd()
+	case runLoopPassMsg:
+		if msg.token != m.runOnce.Token || !m.runOnce.Started || m.runOnce.Mode != runModeLoop {
+			return m, nil
+		}
+		m.applyRunLoopPass(msg.result)
+		m.message = "Loop in progress."
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case runOnceDoneMsg:
@@ -353,6 +378,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "R":
 			cmd := m.startRunOnce()
+			return m, cmd
+		case "n":
+			m.cycleRunLoopPasses()
+			return m, nil
+		case "L":
+			cmd := m.startRunLoop()
 			return m, cmd
 		case "r":
 			if m.actions.RefreshStatus == nil {
@@ -483,13 +514,13 @@ type openRunMsg struct {
 }
 
 type addTaskMsg struct {
-	task   taskqueue.Task
+	task   taskmodel.Task
 	status app.StatusResult
 	err    error
 }
 
 type retryTaskMsg struct {
-	task          taskqueue.Task
+	task          taskmodel.Task
 	status        app.StatusResult
 	err           error
 	refreshFailed bool
@@ -511,11 +542,19 @@ type runOnceProgressMsg struct {
 	event codexexec.ProgressEvent
 }
 
+type runLoopPassMsg struct {
+	token  int
+	result runonce.Result
+}
+
 type runOnceDoneMsg struct {
 	token         int
 	result        runonce.Result
+	loopResult    app.RunLoopResult
 	err           error
 	cancelled     bool
+	loop          bool
+	lastRunID     string
 	status        app.StatusResult
 	statusErr     error
 	history       ledger.RunWithEvents
@@ -566,7 +605,7 @@ func (m *StatusModel) startRetrySelectedTask() tea.Cmd {
 		m.updateViewportContent()
 		return nil
 	}
-	if task.Status != taskqueue.StatusBlocked {
+	if task.Status != taskmodel.StatusBlocked {
 		m.message = fmt.Sprintf("Retry unavailable: selected task %s is not blocked (status: %s).", optionalValue(task.ID), optionalValue(task.Status))
 		m.updateViewportContent()
 		return nil
@@ -622,7 +661,7 @@ func (m StatusModel) preflightCmd() tea.Cmd {
 }
 
 func (m *StatusModel) startRunOnce() tea.Cmd {
-	if message := m.runStartBlocker(); message != "" {
+	if message := m.runStartBlocker(runModeOnce); message != "" {
 		m.message = message
 		m.updateViewportContent()
 		return nil
@@ -636,17 +675,51 @@ func (m *StatusModel) startRunOnce() tea.Cmd {
 	token := m.runOnce.Token + 1
 	messages := make(chan tea.Msg, 128)
 	m.runOnce = runOnceState{
-		Active:   true,
-		Started:  true,
-		Token:    token,
-		Cancel:   cancel,
-		Messages: messages,
-		Status:   "running",
-		Logs:     []string{"system: run started"},
+		Active:    true,
+		Started:   true,
+		Mode:      runModeOnce,
+		Token:     token,
+		Cancel:    cancel,
+		Messages:  messages,
+		Status:    "running",
+		MaxPasses: 1,
+		Logs:      []string{"system: run started"},
 	}
 	m.message = "Run started."
 	m.updateViewportContent()
 	return m.startRunOnceCmd(token, runCtx, messages)
+}
+
+func (m *StatusModel) startRunLoop() tea.Cmd {
+	if message := m.runStartBlocker(runModeLoop); message != "" {
+		m.message = message
+		m.updateViewportContent()
+		return nil
+	}
+
+	baseCtx := m.actions.Context
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	maxPasses := m.selectedRunLoopPasses()
+	runCtx, cancel := context.WithCancel(baseCtx)
+	token := m.runOnce.Token + 1
+	messages := make(chan tea.Msg, 128)
+	m.runOnce = runOnceState{
+		Active:    true,
+		Started:   true,
+		Mode:      runModeLoop,
+		Token:     token,
+		Cancel:    cancel,
+		Messages:  messages,
+		Status:    "running",
+		MaxPasses: maxPasses,
+		Stats:     app.RunLoopStats{MaxPasses: maxPasses},
+		Logs:      []string{fmt.Sprintf("system: loop started (max passes %d)", maxPasses)},
+	}
+	m.message = "Loop started."
+	m.updateViewportContent()
+	return m.startRunLoopCmd(token, runCtx, messages, maxPasses)
 }
 
 func (m StatusModel) startRunOnceCmd(token int, ctx context.Context, messages chan tea.Msg) tea.Cmd {
@@ -715,11 +788,77 @@ func (m StatusModel) waitRunOnceMsgCmd() tea.Cmd {
 	}
 }
 
-func (m StatusModel) runStartBlocker() string {
+func (m StatusModel) startRunLoopCmd(token int, ctx context.Context, messages chan tea.Msg, maxPasses int) tea.Cmd {
+	actions := m.actions
+	return func() tea.Msg {
+		go func() {
+			lastRunID := ""
+			result, err := actions.RunLoop(ctx, maxPasses, func(event codexexec.ProgressEvent) {
+				line := runProgressLine(event)
+				if line == "" {
+					return
+				}
+				select {
+				case messages <- runOnceProgressMsg{token: token, event: event}:
+				case <-ctx.Done():
+				}
+			}, func(result runonce.Result) error {
+				if runID := strings.TrimSpace(result.Run.ID); runID != "" {
+					lastRunID = runID
+				}
+				select {
+				case messages <- runLoopPassMsg{token: token, result: result}:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+
+			done := runOnceDoneMsg{
+				token:      token,
+				loopResult: result,
+				err:        err,
+				cancelled:  ctx.Err() != nil,
+				loop:       true,
+				lastRunID:  lastRunID,
+			}
+			if actions.RefreshStatus != nil {
+				done.status, done.statusErr = actions.RefreshStatus()
+			} else {
+				done.statusErr = fmt.Errorf("refresh is unavailable")
+			}
+			if lastRunID != "" {
+				if actions.OpenRun != nil {
+					done.history, done.historyErr = actions.OpenRun(lastRunID)
+					done.historyLoaded = done.historyErr == nil
+				} else {
+					done.historyErr = fmt.Errorf("open run is unavailable")
+				}
+			}
+			messages <- done
+			close(messages)
+		}()
+
+		msg, ok := <-messages
+		if !ok {
+			return runOnceDoneMsg{
+				token:     token,
+				err:       fmt.Errorf("run event stream closed"),
+				cancelled: ctx.Err() != nil,
+				loop:      true,
+			}
+		}
+		return msg
+	}
+}
+
+func (m StatusModel) runStartBlocker(mode string) string {
 	switch {
 	case m.runOnce.Active:
 		return "Run already active."
-	case m.actions.RunOnce == nil:
+	case mode == runModeLoop && m.actions.RunLoop == nil:
+		return "Run loop is unavailable."
+	case mode != runModeLoop && m.actions.RunOnce == nil:
 		return "Run is unavailable."
 	case !m.preflight.Checked:
 		return "Run blocked: preflight is not ready."
@@ -743,7 +882,7 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	case "c":
 		m.requestRunCancel()
 		return true, nil
-	case "R", "r", "a", "u":
+	case "R", "L", "n", "r", "a", "u":
 		m.message = "Run is active; cancel or wait before starting another action."
 		m.updateViewportContent()
 		return true, nil
@@ -784,7 +923,37 @@ func (m *StatusModel) requestRunCancel() {
 	m.updateViewportContent()
 }
 
+func (m *StatusModel) applyRunLoopPass(result runonce.Result) {
+	stats := m.runOnce.Stats
+	if stats.MaxPasses <= 0 {
+		stats.MaxPasses = m.runOnce.MaxPasses
+	}
+	stats.Passes++
+	if result.NoTask || result.Outcome == runonce.OutcomeNoTask {
+		stats.NoTask = true
+		stats.ConsecutiveFailedOrBlocked = 0
+	} else if err := app.RunOnceOutcomeError(result); err != nil {
+		stats.FailedOrBlocked++
+		stats.ConsecutiveFailedOrBlocked++
+	} else {
+		if result.Outcome == runonce.OutcomeCommitted {
+			stats.Completed++
+		}
+		stats.ConsecutiveFailedOrBlocked = 0
+	}
+	m.runOnce.Stats = stats
+	if runID := strings.TrimSpace(result.Run.ID); runID != "" {
+		m.runOnce.RunID = runID
+	}
+	m.runOnce.Logs = appendRunLog(m.runOnce.Logs, runPassSummaryLine(stats.Passes, result))
+}
+
 func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
+	if msg.loop || m.runOnce.Mode == runModeLoop {
+		m.applyRunLoopDone(msg)
+		return
+	}
+
 	runID := strings.TrimSpace(msg.result.Run.ID)
 	outcome := strings.TrimSpace(string(msg.result.Outcome))
 	terminal := runTerminalStatus(msg.result, msg.err, msg.cancelled)
@@ -813,6 +982,72 @@ func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
 	}
 	if runID != "" {
 		m.message += " " + runID + "."
+	}
+
+	m.applyRunCompletionStatus(msg, runID)
+	m.applyRunCompletionDetail(msg, runID)
+}
+
+func (m *StatusModel) cycleRunLoopPasses() {
+	current := m.selectedRunLoopPasses()
+	next := runLoopPassOptions[0]
+	for i, option := range runLoopPassOptions {
+		if option == current {
+			next = runLoopPassOptions[(i+1)%len(runLoopPassOptions)]
+			break
+		}
+	}
+	m.loopPasses = next
+	m.message = fmt.Sprintf("Loop max passes set to %d.", next)
+	m.updateViewportContent()
+}
+
+func (m StatusModel) selectedRunLoopPasses() int {
+	if m.loopPasses > 0 {
+		return m.loopPasses
+	}
+	return defaultRunLoopPasses
+}
+
+func (m *StatusModel) applyRunLoopDone(msg runOnceDoneMsg) {
+	runID := strings.TrimSpace(msg.lastRunID)
+	stats := msg.loopResult.Stats
+	if stats.MaxPasses <= 0 {
+		stats.MaxPasses = m.runOnce.MaxPasses
+	}
+	if msg.cancelled && strings.TrimSpace(stats.StopReason) == "" {
+		stats.StopReason = "context_cancelled"
+	}
+	terminal := runLoopTerminalStatus(stats, msg.err, msg.cancelled)
+
+	m.runOnce.Active = false
+	m.runOnce.Cancel = nil
+	m.runOnce.Messages = nil
+	m.runOnce.Status = terminal
+	m.runOnce.RunID = runID
+	m.runOnce.Outcome = ""
+	m.runOnce.Stats = stats
+	m.runOnce.Err = ""
+	if msg.err != nil {
+		m.runOnce.Err = msg.err.Error()
+	}
+	if stopReason := strings.TrimSpace(stats.StopReason); stopReason != "" {
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: stop reason: "+stopReason)
+	}
+	m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: terminal state: "+terminal)
+
+	switch terminal {
+	case "cancelled":
+		m.message = "Loop cancelled."
+	case "completed":
+		m.message = "Loop completed."
+	case "no_task":
+		m.message = "Loop finished: no pending runnable tasks."
+	default:
+		m.message = "Loop failed."
+	}
+	if runID != "" {
+		m.message += " Latest run " + runID + "."
 	}
 
 	m.applyRunCompletionStatus(msg, runID)
@@ -1147,7 +1382,7 @@ func (m StatusModel) footerLines() []string {
 	case viewTaskEntry:
 		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
 	}
-	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "R Run Once", "r Refresh", "q Quit")
+	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "R Run Once", fmt.Sprintf("n Passes %d", m.selectedRunLoopPasses()), "L Run Loop", "r Refresh", "q Quit")
 	return wrapKeyLines(keys, m.width)
 }
 
@@ -1207,7 +1442,7 @@ func (m StatusModel) renderTasks() string {
 	lines = append(lines, "", "Task List")
 	if len(m.status.Tasks) == 0 {
 		lines = append(lines,
-			"No tasks queued.",
+			"No task files found.",
 			"",
 			"Task Detail",
 			"No task selected.",
@@ -1248,6 +1483,8 @@ func (m StatusModel) renderRunDetails(history ledger.RunWithEvents) string {
 	lines := []string{"Run Detail"}
 	lines = appendNotice(lines, m.message)
 	lines = append(lines, runSummaryLines(history.Run)...)
+	lines = append(lines, "")
+	lines = append(lines, runTimelineLines(history)...)
 	lines = append(lines, "")
 	lines = append(lines, runDiagnosticLines(diagnostics)...)
 	lines = append(lines, "")
@@ -1313,10 +1550,30 @@ func (m StatusModel) renderRunProgress() string {
 	lines := []string{"Run Progress"}
 	lines = appendNotice(lines, m.message)
 	lines = append(lines, "Status: "+optionalValue(m.runOnce.Status))
-	if m.runOnce.RunID != "" {
+	if m.runOnce.Mode == runModeLoop {
+		stats := m.runOnce.Stats
+		if stats.MaxPasses <= 0 {
+			stats.MaxPasses = m.runOnce.MaxPasses
+		}
+		lines = append(lines,
+			"Mode: loop",
+			fmt.Sprintf("Max passes: %d", stats.MaxPasses),
+			fmt.Sprintf("Passes: %d/%d", stats.Passes, stats.MaxPasses),
+			fmt.Sprintf("Completed: %d", stats.Completed),
+			fmt.Sprintf("Failed or blocked: %d", stats.FailedOrBlocked),
+			fmt.Sprintf("No task: %t", stats.NoTask),
+			fmt.Sprintf("Consecutive failed or blocked: %d", stats.ConsecutiveFailedOrBlocked),
+		)
+		if stopReason := strings.TrimSpace(stats.StopReason); stopReason != "" {
+			lines = append(lines, "Stop reason: "+stopReason)
+		}
+		if m.runOnce.RunID != "" {
+			lines = append(lines, "Latest run ID: "+m.runOnce.RunID)
+		}
+	} else if m.runOnce.RunID != "" {
 		lines = append(lines, "Run ID: "+m.runOnce.RunID)
 	}
-	if m.runOnce.Outcome != "" {
+	if m.runOnce.Mode != runModeLoop && m.runOnce.Outcome != "" {
 		lines = append(lines, "Outcome: "+m.runOnce.Outcome)
 	}
 	if m.runOnce.CancelRequested && m.runOnce.Active {
@@ -1345,6 +1602,8 @@ func (m StatusModel) renderHelp() string {
 		"?  Help",
 		"a  Add task",
 		"R  Run once",
+		fmt.Sprintf("n  Cycle loop max passes (current %d)", m.selectedRunLoopPasses()),
+		"L  Run loop",
 		"r  Refresh status",
 		"c  Cancel active run",
 		"q  Quit",
@@ -1378,31 +1637,31 @@ type taskCounts struct {
 	completed int
 }
 
-func countTasks(tasks []taskqueue.Task) taskCounts {
+func countTasks(tasks []taskmodel.Task) taskCounts {
 	counts := taskCounts{total: len(tasks)}
 	for _, task := range tasks {
 		switch task.Status {
-		case taskqueue.StatusPending:
+		case taskmodel.StatusPending:
 			counts.pending++
-		case taskqueue.StatusBlocked:
+		case taskmodel.StatusBlocked:
 			counts.blocked++
-		case taskqueue.StatusCompleted:
+		case taskmodel.StatusCompleted:
 			counts.completed++
 		}
 	}
 	return counts
 }
 
-func firstPendingTaskIndex(tasks []taskqueue.Task) int {
+func firstPendingTaskIndex(tasks []taskmodel.Task) int {
 	for i, task := range tasks {
-		if task.Status == taskqueue.StatusPending {
+		if task.Status == taskmodel.StatusPending {
 			return i
 		}
 	}
 	return -1
 }
 
-func nextRunnableLines(tasks []taskqueue.Task, nextIndex int) []string {
+func nextRunnableLines(tasks []taskmodel.Task, nextIndex int) []string {
 	if nextIndex < 0 || nextIndex >= len(tasks) {
 		return []string{
 			"Runnable: nothing runnable",
@@ -1415,7 +1674,7 @@ func nextRunnableLines(tasks []taskqueue.Task, nextIndex int) []string {
 	}
 }
 
-func taskBrief(task taskqueue.Task) string {
+func taskBrief(task taskmodel.Task) string {
 	id := optionalValue(task.ID)
 	summary := oneLine(task.Summary)
 	if summary == "" {
@@ -1427,7 +1686,7 @@ func taskBrief(task taskqueue.Task) string {
 	return fmt.Sprintf("%s - %s", id, summary)
 }
 
-func renderTaskDetailLines(task taskqueue.Task) []string {
+func renderTaskDetailLines(task taskmodel.Task) []string {
 	lines := []string{
 		"Task Detail",
 		fmt.Sprintf("ID: %s", optionalValue(task.ID)),
@@ -1464,7 +1723,7 @@ func taskListPrefix(selected bool, nextRunnable bool) string {
 
 func taskListStatus(status string) string {
 	switch status {
-	case taskqueue.StatusBlocked:
+	case taskmodel.StatusBlocked:
 		return "! blocked"
 	case "":
 		return "none"
@@ -1550,6 +1809,25 @@ func runSummaryLines(run ledger.Run) []string {
 		fmt.Sprintf("Verification: %s", optionalValue(run.VerificationStatus)),
 		fmt.Sprintf("Commit: %s", optionalValue(run.CommitSHA)),
 	}
+}
+
+func runTimelineLines(history ledger.RunWithEvents) []string {
+	rows := app.RunTimeline(history)
+	lines := []string{"Timeline"}
+	if len(rows) == 0 {
+		return append(lines, "No timeline rows.")
+	}
+	lines = append(lines, "TIMESTAMP  PHASE  STATUS  DETAIL")
+	for _, row := range rows {
+		lines = append(lines, fmt.Sprintf(
+			"%s  %s  %s  %s",
+			optionalTime(row.Timestamp),
+			optionalValue(row.Phase),
+			optionalValue(row.Status),
+			optionalValue(row.Detail),
+		))
+	}
+	return lines
 }
 
 func runArtifactLines(events []ledger.Event) []string {
@@ -1908,6 +2186,35 @@ func runProgressLine(event codexexec.ProgressEvent) string {
 	return source + ": " + message
 }
 
+func activeRunProgressMessage(mode string) string {
+	if mode == runModeLoop {
+		return "Loop in progress."
+	}
+	return "Run in progress."
+}
+
+func runPassSummaryLine(pass int, result runonce.Result) string {
+	return fmt.Sprintf("pass %d: %s", pass, runResultSummary(result))
+}
+
+func runResultSummary(result runonce.Result) string {
+	if result.NoTask || result.Outcome == runonce.OutcomeNoTask {
+		return "no pending runnable tasks"
+	}
+	runID := optionalValue(result.Run.ID)
+	taskID := optionalValue(result.Task.ID)
+	switch result.Outcome {
+	case runonce.OutcomeCommitted:
+		return fmt.Sprintf("run %s completed task %s; commit %s", runID, taskID, optionalValue(result.Commit.CommitSHA))
+	default:
+		message := oneLine(result.Message)
+		if message == "" {
+			message = "no message"
+		}
+		return fmt.Sprintf("run %s stopped (%s): %s", runID, optionalValue(string(result.Outcome)), message)
+	}
+}
+
 func runTerminalStatus(result runonce.Result, err error, cancelled bool) string {
 	switch {
 	case cancelled:
@@ -1919,6 +2226,19 @@ func runTerminalStatus(result runonce.Result, err error, cancelled bool) string 
 	case result.Outcome == runonce.OutcomeCommitted:
 		return "completed"
 	case app.RunOnceOutcomeError(result) != nil:
+		return "failed"
+	default:
+		return "completed"
+	}
+}
+
+func runLoopTerminalStatus(stats app.RunLoopStats, err error, cancelled bool) string {
+	switch {
+	case cancelled:
+		return "cancelled"
+	case stats.StopReason == "no_task":
+		return "no_task"
+	case err != nil:
 		return "failed"
 	default:
 		return "completed"
@@ -2235,6 +2555,7 @@ func isSectionHeading(value string) bool {
 		"Runs",
 		"Run Detail",
 		"Summary",
+		"Timeline",
 		"Diagnostics",
 		"Receipt Validation",
 		"Changed Files",
@@ -2315,9 +2636,9 @@ func (m StatusModel) selectedTaskID() string {
 	return strings.TrimSpace(m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTask)].ID)
 }
 
-func (m StatusModel) selectedTaskValue() (taskqueue.Task, bool) {
+func (m StatusModel) selectedTaskValue() (taskmodel.Task, bool) {
 	if len(m.status.Tasks) == 0 {
-		return taskqueue.Task{}, false
+		return taskmodel.Task{}, false
 	}
 	return m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTask)], true
 }
@@ -2325,7 +2646,7 @@ func (m StatusModel) selectedTaskValue() (taskqueue.Task, bool) {
 func (m StatusModel) retrySelectedTaskAvailable() bool {
 	task, ok := m.selectedTaskValue()
 	return ok &&
-		task.Status == taskqueue.StatusBlocked &&
+		task.Status == taskmodel.StatusBlocked &&
 		m.actions.RetryTask != nil &&
 		m.actions.RefreshStatus != nil
 }
@@ -2345,7 +2666,7 @@ func (m StatusModel) selectedRunID() string {
 	return strings.TrimSpace(m.status.RecentRuns[clampRunIndex(m.status.RecentRuns, m.selectedRun)].ID)
 }
 
-func selectedTaskIndex(tasks []taskqueue.Task, taskID string) int {
+func selectedTaskIndex(tasks []taskmodel.Task, taskID string) int {
 	taskID = strings.TrimSpace(taskID)
 	if taskID != "" {
 		for i, task := range tasks {
@@ -2357,7 +2678,7 @@ func selectedTaskIndex(tasks []taskqueue.Task, taskID string) int {
 	return clampTaskIndex(tasks, 0)
 }
 
-func clampTaskIndex(tasks []taskqueue.Task, index int) int {
+func clampTaskIndex(tasks []taskmodel.Task, index int) int {
 	if len(tasks) == 0 || index < 0 {
 		return 0
 	}

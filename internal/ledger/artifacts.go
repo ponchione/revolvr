@@ -63,7 +63,7 @@ func artifactsFromEvent(event Event) (RunArtifacts, bool) {
 	case EventRunArtifacts:
 		paths, _ := decodeRunArtifacts(event.Payload)
 		return paths, true
-	case EventContextBuilt, EventPromptBuilt:
+	case EventContextBuilt:
 		paths, ok := decodeContextArtifacts(event.Payload)
 		return paths, ok
 	case EventCodexStarted, EventCodexCompleted:
@@ -85,7 +85,7 @@ func decodeRunArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 		return RunArtifacts{}, false
 	}
 	paths := RunArtifacts{
-		ContextPayloadPath:   contextPayloadPathField(payload),
+		ContextPayloadPath:   stringField(payload, "context_payload_path"),
 		ContextManifestPath:  stringField(payload, "context_manifest_path"),
 		CodexStdoutJSONLPath: stringField(payload, "codex_stdout_jsonl_path"),
 		CodexStderrPath:      stringField(payload, "codex_stderr_path"),
@@ -97,7 +97,7 @@ func decodeRunArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 
 func decodeContextArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 	paths := RunArtifacts{
-		ContextPayloadPath:  contextPayloadPathField(payload),
+		ContextPayloadPath:  stringField(payload, "context_payload_path"),
 		ContextManifestPath: stringField(payload, "context_manifest_path"),
 		ReceiptPath:         stringField(payload, "receipt_path"),
 	}
@@ -115,13 +115,6 @@ func decodeCodexArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 		LastMessagePath:      stringField(artifactPayload, "last_message"),
 	}
 	return paths, !paths.Empty()
-}
-
-func contextPayloadPathField(payload json.RawMessage) string {
-	if path := stringField(payload, "context_payload_path"); path != "" {
-		return path
-	}
-	return stringField(payload, "prompt_path")
 }
 
 func stringField(payload json.RawMessage, key string) string {

@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"revolvr/internal/ledger"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/prompt"
+	"revolvr/internal/taskfile"
 )
 
 const revolvrStateDir = ".revolvr"
@@ -17,7 +18,6 @@ const revolvrGitExcludePattern = "/.revolvr/"
 type statePaths struct {
 	WorkDir      string
 	StateDir     string
-	TaskDBPath   string
 	LedgerDBPath string
 	RunsDir      string
 	ReceiptsDir  string
@@ -42,7 +42,6 @@ func resolveStatePaths(workDir string) (statePaths, error) {
 	return statePaths{
 		WorkDir:      absWorkDir,
 		StateDir:     stateDir,
-		TaskDBPath:   filepath.Join(stateDir, "tasks.sqlite"),
 		LedgerDBPath: filepath.Join(stateDir, "ledger.sqlite"),
 		RunsDir:      filepath.Join(stateDir, "runs"),
 		ReceiptsDir:  filepath.Join(stateDir, "receipts"),
@@ -56,13 +55,11 @@ func initializeState(ctx context.Context, paths statePaths) error {
 			return fmt.Errorf("initialize state: create %s: %w", dir, err)
 		}
 	}
-
-	tasks, err := taskqueue.Open(ctx, paths.TaskDBPath)
-	if err != nil {
+	if err := seedDefaultRunProfiles(paths.WorkDir); err != nil {
 		return err
 	}
-	if err := tasks.Close(); err != nil {
-		return fmt.Errorf("close task queue: %w", err)
+	if err := ensureTaskFilesDir(paths.WorkDir); err != nil {
+		return err
 	}
 
 	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
@@ -74,6 +71,40 @@ func initializeState(ctx context.Context, paths statePaths) error {
 	}
 	if err := ensureStateIgnoredByGit(paths.WorkDir); err != nil {
 		return err
+	}
+	return nil
+}
+
+func ensureTaskFilesDir(workDir string) error {
+	tasksDir := filepath.Join(workDir, taskfile.TasksDir)
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		return fmt.Errorf("initialize state: create %s: %w", tasksDir, err)
+	}
+	return nil
+}
+
+func seedDefaultRunProfiles(workDir string) error {
+	profilesDir := filepath.Join(workDir, ".agent", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o755); err != nil {
+		return fmt.Errorf("initialize state: create %s: %w", profilesDir, err)
+	}
+	for _, template := range prompt.DefaultRunProfileTemplates() {
+		path := filepath.Join(workDir, prompt.RunProfileSourcePath(template.Name))
+		info, err := os.Stat(path)
+		if err == nil {
+			if info.IsDir() {
+				return fmt.Errorf("initialize state: profile path %s is a directory", path)
+			}
+			continue
+		}
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("initialize state: inspect profile %s: %w", path, err)
+		}
+
+		content := strings.TrimRight(template.Content, "\n") + "\n"
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			return fmt.Errorf("initialize state: write profile %s: %w", path, err)
+		}
 	}
 	return nil
 }
@@ -171,7 +202,7 @@ func openLedgerStore(ctx context.Context, opts Options) (*ledger.Store, func(), 
 }
 
 func stateInitialized(paths statePaths) (bool, error) {
-	return pathsInitialized(paths, paths.TaskDBPath, paths.LedgerDBPath)
+	return pathsInitialized(paths, paths.LedgerDBPath)
 }
 
 func ledgerInitialized(paths statePaths) (bool, error) {

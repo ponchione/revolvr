@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -23,20 +24,15 @@ import (
 	"revolvr/internal/prompt"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/taskfile"
+	"revolvr/internal/taskmodel"
 	"revolvr/internal/verification"
 )
 
 func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{
-		ID:      "task-1",
-		Task:    "Implement the selected task",
-		Summary: "Implement selected task",
-	}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	selected := writeRunTask(t, env, "task-1", "Implement selected task")
 
 	state := &fakeCommandState{
 		t:                 t,
@@ -50,7 +46,6 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -68,8 +63,11 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	if result.Commit.CommitSHA != "abc123def456" {
 		t.Fatalf("commit sha = %q, want abc123def456", result.Commit.CommitSHA)
 	}
-	if result.Task.Status != taskqueue.StatusCompleted {
+	if result.Task.Status != taskmodel.StatusCompleted {
 		t.Fatalf("task status = %q, want completed", result.Task.Status)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
+		t.Fatalf("file task status = %q, want completed", got)
 	}
 	if result.Run.Status != ledger.StatusCompleted {
 		t.Fatalf("run status = %q, want completed", result.Run.Status)
@@ -112,6 +110,7 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		t.Fatalf("codex args include resume: %#v", state.codexArgs)
 	}
 	if got, want := state.gitCommands, [][]string{
+		{"status", "--short", "--untracked-files=all"},
 		{"status", "--short", "--untracked-files=all"},
 		{"status", "--short", "--untracked-files=all"},
 		{"add", "--", "internal/feature.go"},
@@ -157,23 +156,249 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		ledger.EventReceiptParsed,
 		ledger.EventVerificationStarted,
 		ledger.EventVerificationCompleted,
+		ledger.EventChangedFilesCaptured,
 		ledger.EventCommitStarted,
 		ledger.EventCommitCreated,
 		ledger.EventRunCompleted,
 	})
 }
 
+func TestRunSuccessfulCommitChangedFilesIncludeCompletedTaskFile(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-commit-status", "Commit task status")
+
+	var changedCaptureCalls int
+	var commitChangedFiles []string
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			changedCaptureCalls++
+			switch changedCaptureCalls {
+			case 1:
+				if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusPending {
+					t.Fatalf("task status before verification capture = %q, want pending", got)
+				}
+				return gitstate.Capture{
+					Kind:         gitstate.CaptureKindChanged,
+					ChangedFiles: []string{"internal/feature.go"},
+					Paths:        []string{"internal/feature.go"},
+				}, nil
+			case 2:
+				if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
+					t.Fatalf("task status before commit capture = %q, want completed", got)
+				}
+				return gitstate.Capture{
+					Kind:         gitstate.CaptureKindChanged,
+					ChangedFiles: []string{"internal/feature.go", selected.SourcePath},
+					Paths:        []string{"internal/feature.go", selected.SourcePath},
+				}, nil
+			default:
+				t.Fatalf("changed capture call %d, want exactly 2", changedCaptureCalls)
+				return gitstate.Capture{}, nil
+			}
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0, FinalMessage: "done"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(_ context.Context, cfg commit.Config) (commit.Result, error) {
+			commitChangedFiles = changedFiles(*cfg.PostRunChanged)
+			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123", ChangedFiles: commitChangedFiles}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeCommitted {
+		t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
+	}
+	if changedCaptureCalls != 2 {
+		t.Fatalf("changed capture calls = %d, want 2", changedCaptureCalls)
+	}
+	if got, want := commitChangedFiles, []string{"internal/feature.go", selected.SourcePath}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("commit changed files = %#v, want %#v", got, want)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
+		t.Fatalf("file task status = %q, want completed", got)
+	}
+}
+
+func TestRunSelectsLowestPriorityPendingTaskFileByPriorityThenFilename(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeRunTaskFile(t, env, "020-later.md", taskFileMarkdown("task-later", "Later Task", taskfile.StatusPending, ptrInt(20)))
+	writeRunTaskFile(t, env, "010-beta.md", taskFileMarkdown("task-beta", "Beta Task", taskfile.StatusPending, ptrInt(10)))
+	selected := writeRunTaskFile(t, env, "010-alpha.md", taskFileMarkdown("task-alpha", "Alpha Task", taskfile.StatusPending, ptrInt(10)))
+	writeRunTaskFile(t, env, "001-completed.md", taskFileMarkdown("task-completed", "Completed Task", taskfile.StatusCompleted, ptrInt(1)))
+
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Task.ID != "task-alpha" {
+		t.Fatalf("selected task id = %q, want task-alpha", result.Task.ID)
+	}
+	if result.FileTask.SourcePath != selected.SourcePath {
+		t.Fatalf("selected task path = %q, want %q", result.FileTask.SourcePath, selected.SourcePath)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusBlocked {
+		t.Fatalf("selected file status = %q, want blocked", got)
+	}
+	if got := loadRunTask(t, env, filepath.Join(taskfile.TasksDir, "010-beta.md")).Status; got != taskfile.StatusPending {
+		t.Fatalf("unselected file status = %q, want pending", got)
+	}
+}
+
+func TestRunSecondPassAfterCompletionReturnsNoTask(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeRunTask(t, env, "task-once", "Do one task")
+
+	state := &fakeCommandState{
+		t:                 t,
+		workDir:           env.workDir,
+		writeReceipt:      true,
+		postStatus:        " M internal/feature.go\n",
+		verificationExit:  0,
+		commitSHA:         "abc123def456",
+		expectedCommitAdd: []string{"add", "--", "internal/feature.go"},
+	}
+	first, err := Run(ctx, Config{
+		WorkingDir:           env.workDir,
+		LedgerStore:          env.ledger,
+		CodexExecutable:      "codex-test",
+		GitExecutable:        "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run,
+		Clock:                env.clock,
+	})
+	if err != nil {
+		t.Fatalf("first run once: %v", err)
+	}
+	if first.Outcome != OutcomeCommitted {
+		t.Fatalf("first outcome = %s, want committed", first.Outcome)
+	}
+
+	secondState := &fakeCommandState{t: t, workDir: env.workDir}
+	second, err := Run(ctx, Config{
+		WorkingDir:    env.workDir,
+		LedgerStore:   env.ledger,
+		CommandRunner: secondState.run,
+		Clock:         env.clock,
+	})
+	if err != nil {
+		t.Fatalf("second run once: %v", err)
+	}
+	if !second.NoTask || second.Outcome != OutcomeNoTask {
+		t.Fatalf("second result = %+v, want no task", second)
+	}
+	if len(secondState.commands) != 0 {
+		t.Fatalf("second commands = %#v, want none", secondState.commands)
+	}
+}
+
+func TestRunSecondPendingTaskAfterSuccessfulFileTaskCommitStartsClean(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	runTestGit(t, workDir, "init", "-q")
+	runTestGit(t, workDir, "config", "user.name", "Revolvr Test")
+	runTestGit(t, workDir, "config", "user.email", "revolvr-test@example.invalid")
+	if err := os.WriteFile(filepath.Join(workDir, ".git", "info", "exclude"), []byte("/.revolvr/\n"), 0o644); err != nil {
+		t.Fatalf("write git exclude: %v", err)
+	}
+
+	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
+	ledgerPath := filepath.Join(t.TempDir(), "ledger.sqlite")
+	runs, err := ledger.OpenWithClock(ctx, ledgerPath, func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	t.Cleanup(func() { _ = runs.Close() })
+	env := testEnv{workDir: workDir, ledger: runs, now: now}
+
+	if err := os.WriteFile(filepath.Join(workDir, "README.md"), []byte("# Test repo\n"), 0o644); err != nil {
+		t.Fatalf("write readme: %v", err)
+	}
+	writeTestRunProfile(t, workDir, prompt.DefaultRunProfileName, defaultRunProfileTemplateContent(t))
+	firstTask := writeRunTaskFile(t, env, "010-first.md", taskFileMarkdown("task-first", "First Task", taskfile.StatusPending, ptrInt(10)))
+	secondTask := writeRunTaskFile(t, env, "020-second.md", taskFileMarkdown("task-second", "Second Task", taskfile.StatusPending, ptrInt(20)))
+	runTestGit(t, workDir, "add", ".")
+	runTestGit(t, workDir, "commit", "-q", "-m", "Initial file tasks")
+
+	var codexCalls int
+	cfg := Config{
+		WorkingDir:  workDir,
+		LedgerStore: runs,
+		CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+			codexCalls++
+			path := filepath.Join(cfg.WorkingDir, fmt.Sprintf("generated-%d.txt", codexCalls))
+			if err := os.WriteFile(path, []byte(fmt.Sprintf("generated %d\n", codexCalls)), 0o644); err != nil {
+				return codexexec.Result{}, err
+			}
+			return codexexec.Result{ExitCode: 0, FinalMessage: "done"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		Clock: func() time.Time { return now.Add(2 * time.Minute) },
+	}
+
+	first, err := Run(ctx, cfg)
+	if err != nil {
+		t.Fatalf("first run once: %v", err)
+	}
+	if first.Outcome != OutcomeCommitted {
+		t.Fatalf("first outcome = %s, want committed; message=%s", first.Outcome, first.Message)
+	}
+	if got := loadRunTask(t, env, firstTask.SourcePath).Status; got != taskfile.StatusCompleted {
+		t.Fatalf("first file task status = %q, want completed", got)
+	}
+	assertGitStatusClean(t, workDir)
+
+	second, err := Run(ctx, cfg)
+	if err != nil {
+		t.Fatalf("second run once: %v", err)
+	}
+	if second.Outcome != OutcomeCommitted {
+		t.Fatalf("second outcome = %s, want committed; message=%s", second.Outcome, second.Message)
+	}
+	if second.Task.ID != "task-second" {
+		t.Fatalf("second selected task = %q, want task-second", second.Task.ID)
+	}
+	if got := loadRunTask(t, env, secondTask.SourcePath).Status; got != taskfile.StatusCompleted {
+		t.Fatalf("second file task status = %q, want completed", got)
+	}
+	assertGitStatusClean(t, workDir)
+}
+
 func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-profile", Task: "Use the default run profile"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	profileContent := "File-backed implementer profile.\n\nUse the markdown from .agent/profiles."
+	writeTestRunProfile(t, env.workDir, prompt.DefaultRunProfileName, profileContent)
+	selected := writeRunTask(t, env, "task-profile", "Use the default run profile")
 
 	var runnerPayload string
 	result, err := Run(ctx, Config{
 		WorkingDir:     env.workDir,
-		TaskStore:      env.tasks,
 		LedgerStore:    env.ledger,
 		DirtyCapture:   cleanDirtyCapture,
 		ChangedCapture: emptyChangedCapture,
@@ -201,8 +426,7 @@ func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
 	}
 	required := []string{
 		"## Run Profile",
-		"Profile: `implementer`",
-		prompt.DefaultRunProfile().Description,
+		profileContent,
 		"## Selected Task",
 		"Task ID: `task-profile`",
 		"## Repository Rules",
@@ -242,13 +466,24 @@ func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
 		t.Fatalf("manifest generated_at = %s, want %s", got, want)
 	}
 	selectedTask := manifestSourceByLabel(t, manifest, "selected_task")
-	if got, want := selectedTask.SHA256, sha256HexTest([]byte("Use the default run profile")); got != want {
+	if got, want := selectedTask.Path, selected.SourcePath; got != want {
+		t.Fatalf("selected task path = %q, want %q", got, want)
+	}
+	if got, want := selectedTask.SHA256, sha256HexTest(selected.SourceBytes); got != want {
 		t.Fatalf("selected task sha256 = %q, want %q", got, want)
 	}
+	if got, want := selectedTask.ByteSize, len(selected.SourceBytes); got != want {
+		t.Fatalf("selected task byte size = %d, want %d", got, want)
+	}
 	runProfile := manifestSourceByLabel(t, manifest, "run_profile")
-	defaultProfile := prompt.DefaultRunProfile()
-	if got, want := runProfile.SHA256, sha256HexTest([]byte(defaultProfile.Name+"\n"+defaultProfile.Description)); got != want {
+	if got, want := runProfile.Path, filepath.Join(".agent", "profiles", "implementer.md"); got != want {
+		t.Fatalf("run profile path = %q, want %q", got, want)
+	}
+	if got, want := runProfile.SHA256, sha256HexTest([]byte(profileContent)); got != want {
 		t.Fatalf("run profile sha256 = %q, want %q", got, want)
+	}
+	if got, want := runProfile.ByteSize, len([]byte(profileContent)); got != want {
+		t.Fatalf("run profile byte size = %d, want %d", got, want)
 	}
 
 	history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
@@ -268,12 +503,112 @@ func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
 	}
 }
 
+func TestRunSmokeScriptTaskFileManifestUsesExactPreRunBytes(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTaskFile(t, env, "001-fake-codex-smoke.md", strings.Join([]string{
+		"---",
+		"id: smoke-fake-codex",
+		"status: pending",
+		"priority: 10",
+		"---",
+		"# Fake Codex run smoke",
+		"",
+		"Run once success path through strict fake Codex",
+		"",
+	}, "\n"))
+	preRunBytes := append([]byte(nil), selected.SourceBytes...)
+
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCodexFailed {
+		t.Fatalf("outcome = %s, want codex_failed", result.Outcome)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusBlocked {
+		t.Fatalf("file task status = %q, want blocked", got)
+	}
+
+	contextManifestPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.json")
+	manifestBytes, err := os.ReadFile(contextManifestPath)
+	if err != nil {
+		t.Fatalf("read context manifest artifact: %v", err)
+	}
+	var manifest prompt.ContextManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("unmarshal context manifest: %v\n%s", err, manifestBytes)
+	}
+	selectedTask := manifestSourceByLabel(t, manifest, "selected_task")
+	if got, want := selectedTask.Path, selected.SourcePath; got != want {
+		t.Fatalf("selected task path = %q, want %q", got, want)
+	}
+	if got, want := selectedTask.SHA256, sha256HexTest(preRunBytes); got != want {
+		t.Fatalf("selected task sha256 = %q, want pre-run %q", got, want)
+	}
+	if got, want := selectedTask.ByteSize, len(preRunBytes); got != want {
+		t.Fatalf("selected task byte size = %d, want pre-run %d", got, want)
+	}
+}
+
+func TestRunBlocksBeforeCodexWhenDefaultProfileMissing(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	if err := os.Remove(filepath.Join(env.workDir, prompt.RunProfileSourcePath(prompt.DefaultRunProfileName))); err != nil {
+		t.Fatalf("remove default profile: %v", err)
+	}
+	writeRunTask(t, env, "task-missing-profile", "Require a profile file")
+
+	codexCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalled = true
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeBlocked {
+		t.Fatalf("outcome = %s, want blocked", result.Outcome)
+	}
+	if codexCalled {
+		t.Fatal("codex runner was called, want profile load failure before Codex starts")
+	}
+	for _, want := range []string{
+		"load run profile failed",
+		filepath.Join(".agent", "profiles", "implementer.md"),
+		"run `revolvr init` or create the profile file",
+	} {
+		if !strings.Contains(result.Message, want) {
+			t.Fatalf("message missing %q:\n%s", want, result.Message)
+		}
+	}
+	contextPayloadPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.md")
+	if _, err := os.Stat(contextPayloadPath); !os.IsNotExist(err) {
+		t.Fatalf("context payload artifact stat err = %v, want not exist", err)
+	}
+}
+
 func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-warning-files", Task: "Create a mismatched receipt"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-warning-files", "Create a mismatched receipt")
 
 	state := &fakeCommandState{
 		t:            t,
@@ -290,7 +625,6 @@ func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T)
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -305,7 +639,7 @@ func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T)
 	if result.Outcome != OutcomeCommitted {
 		t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
 	}
-	if result.Task.Status != taskqueue.StatusCompleted || result.Run.Status != ledger.StatusCompleted {
+	if result.Task.Status != taskmodel.StatusCompleted || result.Run.Status != ledger.StatusCompleted {
 		t.Fatalf("task/run status = %s/%s, want completed/completed", result.Task.Status, result.Run.Status)
 	}
 
@@ -341,9 +675,7 @@ func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T)
 func TestRunRecordsVerificationReceiptWarningWithoutBlockingCommit(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-warning-verification", Task: "Claim wrong verification"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-warning-verification", "Claim wrong verification")
 
 	state := &fakeCommandState{
 		t:            t,
@@ -367,7 +699,6 @@ func TestRunRecordsVerificationReceiptWarningWithoutBlockingCommit(t *testing.T)
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -407,9 +738,7 @@ func TestRunRecordsVerificationReceiptWarningWithoutBlockingCommit(t *testing.T)
 func TestRunReceiptWarningsDoNotChangeFailedOutcome(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-warning-failed", Task: "Fail despite receipt"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-warning-failed", "Fail despite receipt")
 	state := &fakeCommandState{
 		t:            t,
 		workDir:      env.workDir,
@@ -431,7 +760,6 @@ func TestRunReceiptWarningsDoNotChangeFailedOutcome(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -446,7 +774,7 @@ func TestRunReceiptWarningsDoNotChangeFailedOutcome(t *testing.T) {
 	if result.Outcome != OutcomeVerificationFailed {
 		t.Fatalf("outcome = %s, want verification_failed", result.Outcome)
 	}
-	if result.Task.Status != taskqueue.StatusBlocked || result.Run.Status != ledger.StatusFailed {
+	if result.Task.Status != taskmodel.StatusBlocked || result.Run.Status != ledger.StatusFailed {
 		t.Fatalf("task/run status = %s/%s, want blocked/failed", result.Task.Status, result.Run.Status)
 	}
 	if state.gitAddOrCommitCalls != 0 {
@@ -461,9 +789,7 @@ func TestRunReceiptWarningsDoNotChangeFailedOutcome(t *testing.T) {
 func TestRunDoesNotWarnWhenReceiptFactsMatchHarness(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-no-warning", Task: "Match receipt facts"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-no-warning", "Match receipt facts")
 	state := &fakeCommandState{
 		t:            t,
 		workDir:      env.workDir,
@@ -486,7 +812,6 @@ func TestRunDoesNotWarnWhenReceiptFactsMatchHarness(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -508,9 +833,7 @@ func TestRunDoesNotWarnWhenReceiptFactsMatchHarness(t *testing.T) {
 func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-verify", Task: "Break verification"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	selected := writeRunTask(t, env, "task-verify", "Break verification")
 	state := &fakeCommandState{
 		t:                t,
 		workDir:          env.workDir,
@@ -520,7 +843,6 @@ func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -535,8 +857,11 @@ func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 	if result.Outcome != OutcomeVerificationFailed {
 		t.Fatalf("outcome = %s, want verification_failed", result.Outcome)
 	}
-	if result.Task.Status != taskqueue.StatusBlocked {
+	if result.Task.Status != taskmodel.StatusBlocked {
 		t.Fatalf("task status = %q, want blocked", result.Task.Status)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusBlocked {
+		t.Fatalf("file task status = %q, want blocked", got)
 	}
 	if result.Run.Status != ledger.StatusFailed {
 		t.Fatalf("run status = %q, want failed", result.Run.Status)
@@ -561,9 +886,7 @@ func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 func TestRunBlocksWhenNoChangesAfterSuccessfulVerification(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-no-change", Task: "Make no changes"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-no-change", "Make no changes")
 	state := &fakeCommandState{
 		t:                t,
 		workDir:          env.workDir,
@@ -573,7 +896,6 @@ func TestRunBlocksWhenNoChangesAfterSuccessfulVerification(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -591,7 +913,7 @@ func TestRunBlocksWhenNoChangesAfterSuccessfulVerification(t *testing.T) {
 	if result.Commit.Status != commit.StatusRefused || result.Commit.RefusalReason != commit.ReasonNoChanges {
 		t.Fatalf("commit result = %+v, want no changes refusal", result.Commit)
 	}
-	if result.Task.Status != taskqueue.StatusBlocked {
+	if result.Task.Status != taskmodel.StatusBlocked {
 		t.Fatalf("task status = %q, want blocked", result.Task.Status)
 	}
 	if state.gitAddOrCommitCalls != 0 {
@@ -605,9 +927,7 @@ func TestRunBlocksWhenNoChangesAfterSuccessfulVerification(t *testing.T) {
 func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-codex", Task: "Codex fails"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	selected := writeRunTask(t, env, "task-codex", "Codex fails")
 	state := &fakeCommandState{
 		t:          t,
 		workDir:    env.workDir,
@@ -617,7 +937,6 @@ func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -632,8 +951,11 @@ func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 	if result.Outcome != OutcomeCodexFailed {
 		t.Fatalf("outcome = %s, want codex_failed", result.Outcome)
 	}
-	if result.Task.Status != taskqueue.StatusBlocked {
+	if result.Task.Status != taskmodel.StatusBlocked {
 		t.Fatalf("task status = %q, want blocked", result.Task.Status)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusBlocked {
+		t.Fatalf("file task status = %q, want blocked", got)
 	}
 	if state.verificationCalls != 0 {
 		t.Fatalf("verification calls = %d, want 0", state.verificationCalls)
@@ -649,9 +971,7 @@ func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-dirty", Task: "Avoid dirty worktree"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	selected := writeRunTask(t, env, "task-dirty", "Avoid dirty worktree")
 
 	codexCalled := false
 	changedCalled := false
@@ -659,7 +979,6 @@ func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *tes
 	commitCalled := false
 	result, err := Run(ctx, Config{
 		WorkingDir:  env.workDir,
-		TaskStore:   env.tasks,
 		LedgerStore: env.ledger,
 		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
 			return gitstate.Capture{
@@ -699,8 +1018,11 @@ func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *tes
 	if codexCalled || changedCalled || verificationCalled || commitCalled {
 		t.Fatalf("called codex=%v changed=%v verification=%v commit=%v, want all false", codexCalled, changedCalled, verificationCalled, commitCalled)
 	}
-	if result.Task.Status != taskqueue.StatusBlocked {
+	if result.Task.Status != taskmodel.StatusBlocked {
 		t.Fatalf("task status = %q, want blocked", result.Task.Status)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusBlocked {
+		t.Fatalf("file task status = %q, want blocked", got)
 	}
 	if result.Run.Status != ledger.StatusFailed {
 		t.Fatalf("run status = %q, want failed", result.Run.Status)
@@ -751,16 +1073,13 @@ func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *tes
 func TestRunAllowsPreExistingDirtyWhenConfigured(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-allow-dirty", Task: "Proceed with dirty worktree"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	selected := writeRunTask(t, env, "task-allow-dirty", "Proceed with dirty worktree")
 
 	codexCalled := false
 	verificationCalled := false
 	commitCalled := false
 	result, err := Run(ctx, Config{
 		WorkingDir:                env.workDir,
-		TaskStore:                 env.tasks,
 		LedgerStore:               env.ledger,
 		AllowPreExistingDirty:     true,
 		VerificationCommands:      []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
@@ -821,17 +1140,18 @@ func TestRunAllowsPreExistingDirtyWhenConfigured(t *testing.T) {
 	if result.Run.CommitSHA != "abc123" {
 		t.Fatalf("run commit sha = %q, want abc123", result.Run.CommitSHA)
 	}
-	if result.Task.Status != taskqueue.StatusCompleted {
+	if result.Task.Status != taskmodel.StatusCompleted {
 		t.Fatalf("task status = %q, want completed", result.Task.Status)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
+		t.Fatalf("file task status = %q, want completed", got)
 	}
 }
 
 func TestRunUpdatesParsedReceiptWhenVerificationFails(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-receipt-verify", Task: "Break verification after receipt"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-receipt-verify", "Break verification after receipt")
 	state := &fakeCommandState{
 		t:                t,
 		workDir:          env.workDir,
@@ -842,7 +1162,6 @@ func TestRunUpdatesParsedReceiptWhenVerificationFails(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
-		TaskStore:            env.tasks,
 		LedgerStore:          env.ledger,
 		CodexExecutable:      "codex-test",
 		GitExecutable:        "git-test",
@@ -871,35 +1190,10 @@ func TestRunUpdatesParsedReceiptWhenVerificationFails(t *testing.T) {
 	}
 }
 
-func TestRunReturnsNoTaskWhenQueueIsEmpty(t *testing.T) {
-	ctx := context.Background()
-	env := newTestEnv(t)
-	state := &fakeCommandState{t: t, workDir: env.workDir}
-
-	result, err := Run(ctx, Config{
-		WorkingDir:    env.workDir,
-		TaskStore:     env.tasks,
-		LedgerStore:   env.ledger,
-		CommandRunner: state.run,
-		Clock:         env.clock,
-	})
-	if err != nil {
-		t.Fatalf("run once: %v", err)
-	}
-	if !result.NoTask || result.Outcome != OutcomeNoTask {
-		t.Fatalf("result = %+v, want no task", result)
-	}
-	if len(state.commands) != 0 {
-		t.Fatalf("commands = %#v, want none", state.commands)
-	}
-}
-
 func TestRunRefusesLiveSourceWriterLockBeforeStateMutation(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-locked", Task: "Do locked work"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	selected := writeRunTask(t, env, "task-locked", "Do locked work")
 
 	existing, err := lock.AcquireSourceWriter(ctx, lock.Config{
 		WorkingDir: env.workDir,
@@ -916,7 +1210,6 @@ func TestRunRefusesLiveSourceWriterLockBeforeStateMutation(t *testing.T) {
 	state := &fakeCommandState{t: t, workDir: env.workDir}
 	result, err := Run(ctx, Config{
 		WorkingDir:          env.workDir,
-		TaskStore:           env.tasks,
 		LedgerStore:         env.ledger,
 		CommandRunner:       state.run,
 		Clock:               env.clock,
@@ -938,21 +1231,15 @@ func TestRunRefusesLiveSourceWriterLockBeforeStateMutation(t *testing.T) {
 	if len(runs) != 0 {
 		t.Fatalf("runs = %#v, want none", runs)
 	}
-	task, ok, err := env.tasks.GetTask(ctx, "task-locked")
-	if err != nil || !ok {
-		t.Fatalf("get task: ok=%v err=%v", ok, err)
-	}
-	if task.Status != taskqueue.StatusPending {
-		t.Fatalf("task status = %q, want pending", task.Status)
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusPending {
+		t.Fatalf("file task status = %q, want pending", got)
 	}
 }
 
 func TestRunRefreshesSourceWriterLockWhileCodexRuns(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-heartbeat", Task: "Observe heartbeat"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-heartbeat", "Observe heartbeat")
 	clock := &advancingClock{current: time.Date(2026, 6, 26, 14, 0, 0, 0, time.UTC), step: time.Second}
 
 	var observed lock.Metadata
@@ -979,7 +1266,6 @@ func TestRunRefreshesSourceWriterLockWhileCodexRuns(t *testing.T) {
 
 	result, err := Run(ctx, Config{
 		WorkingDir:                        env.workDir,
-		TaskStore:                         env.tasks,
 		LedgerStore:                       env.ledger,
 		CodexRunner:                       codexRunner,
 		DirtyCapture:                      cleanDirtyCapture,
@@ -1009,9 +1295,7 @@ func TestRunRefreshesSourceWriterLockWhileCodexRuns(t *testing.T) {
 func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-cancel", Task: "Cancel while Codex runs"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-cancel", "Cancel while Codex runs")
 
 	codexRunner := func(ctx context.Context, cfg codexexec.Config) (codexexec.Result, error) {
 		cancel()
@@ -1024,7 +1308,6 @@ func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
 
 	_, err := Run(ctx, Config{
 		WorkingDir:  env.workDir,
-		TaskStore:   env.tasks,
 		LedgerStore: env.ledger,
 		CodexRunner: codexRunner,
 		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
@@ -1046,14 +1329,11 @@ func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
 func TestRunPassesCodexBypassApprovalsAndSandbox(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if _, err := env.tasks.AddTask(ctx, taskqueue.TaskSpec{ID: "task-yolo", Task: "Run without permission gates"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
+	writeRunTask(t, env, "task-yolo", "Run without permission gates")
 
 	codexCalled := false
 	result, err := Run(ctx, Config{
 		WorkingDir:                     env.workDir,
-		TaskStore:                      env.tasks,
 		LedgerStore:                    env.ledger,
 		CodexSandbox:                   "workspace-write",
 		CodexApprovalPolicy:            "never",
@@ -1085,7 +1365,6 @@ func TestRunPassesCodexBypassApprovalsAndSandbox(t *testing.T) {
 
 type testEnv struct {
 	workDir string
-	tasks   *taskqueue.Store
 	ledger  *ledger.Store
 	now     time.Time
 }
@@ -1094,22 +1373,125 @@ func newTestEnv(t *testing.T) testEnv {
 	t.Helper()
 	ctx := context.Background()
 	workDir := t.TempDir()
+	writeTestRunProfile(t, workDir, prompt.DefaultRunProfileName, defaultRunProfileTemplateContent(t))
 	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
-	tasks, err := taskqueue.OpenWithClock(ctx, filepath.Join(workDir, "tasks.sqlite"), func() time.Time { return now })
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	t.Cleanup(func() { _ = tasks.Close() })
 	runs, err := ledger.OpenWithClock(ctx, filepath.Join(workDir, "ledger.sqlite"), func() time.Time { return now })
 	if err != nil {
 		t.Fatalf("open ledger: %v", err)
 	}
 	t.Cleanup(func() { _ = runs.Close() })
-	return testEnv{workDir: workDir, tasks: tasks, ledger: runs, now: now}
+	return testEnv{workDir: workDir, ledger: runs, now: now}
 }
 
 func (e testEnv) clock() time.Time {
 	return e.now.Add(2 * time.Minute)
+}
+
+func writeTestRunProfile(t *testing.T, workDir string, name string, content string) {
+	t.Helper()
+	path := filepath.Join(workDir, prompt.RunProfileSourcePath(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create profile dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(strings.TrimRight(content, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write profile file: %v", err)
+	}
+}
+
+func writeRunTask(t *testing.T, env testEnv, id string, title string) taskfile.Task {
+	t.Helper()
+	return writeRunTaskFile(t, env, id+".md", taskFileMarkdown(id, title, taskfile.StatusPending, nil))
+}
+
+func writeRunTaskFile(t *testing.T, env testEnv, name string, content string) taskfile.Task {
+	t.Helper()
+	path := filepath.Join(env.workDir, taskfile.TasksDir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create task dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+	task, err := taskfile.Load(env.workDir, filepath.Join(taskfile.TasksDir, name))
+	if err != nil {
+		t.Fatalf("load task file: %v", err)
+	}
+	return task
+}
+
+func loadRunTask(t *testing.T, env testEnv, sourcePath string) taskfile.Task {
+	t.Helper()
+	task, err := taskfile.Load(env.workDir, sourcePath)
+	if err != nil {
+		t.Fatalf("load task file %s: %v", sourcePath, err)
+	}
+	return task
+}
+
+func taskFileMarkdown(id string, title string, status string, priority *int) string {
+	var out strings.Builder
+	out.WriteString("---\n")
+	fmt.Fprintf(&out, "id: %s\n", id)
+	fmt.Fprintf(&out, "status: %s\n", status)
+	if priority != nil {
+		fmt.Fprintf(&out, "priority: %d\n", *priority)
+	}
+	out.WriteString("---\n")
+	fmt.Fprintf(&out, "# %s\n\n", title)
+	fmt.Fprintf(&out, "%s\n", title)
+	return out.String()
+}
+
+func ptrInt(value int) *int {
+	return &value
+}
+
+func defaultRunProfileTemplateContent(t *testing.T) string {
+	t.Helper()
+	for _, template := range prompt.DefaultRunProfileTemplates() {
+		if template.Name == prompt.DefaultRunProfileName {
+			return template.Content
+		}
+	}
+	t.Fatalf("default profile template %q not found", prompt.DefaultRunProfileName)
+	return ""
+}
+
+func passedVerificationResult(command string) verification.Result {
+	return verification.Result{
+		Status:             verification.StatusPassed,
+		Passed:             true,
+		FailedCommandIndex: -1,
+		Commands: []verification.CommandResult{{
+			Command:  command,
+			Status:   verification.StatusPassed,
+			Passed:   true,
+			ExitCode: 0,
+		}},
+	}
+}
+
+func runTestGit(t *testing.T, workDir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = workDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, output)
+	}
+}
+
+func assertGitStatusClean(t *testing.T, workDir string) {
+	t.Helper()
+	cmd := exec.Command("git", "status", "--short", "--untracked-files=all")
+	cmd.Dir = workDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git status failed: %v\n%s", err, output)
+	}
+	if len(output) != 0 {
+		t.Fatalf("git status = %q, want clean", output)
+	}
 }
 
 func cleanDirtyCapture(context.Context, gitstate.Config) (gitstate.Capture, error) {
@@ -1176,10 +1558,11 @@ func (s *fakeCommandState) runCodex(command runner.Command) runner.Result {
 	receiptRel := contextPayloadValue(s.t, contextPayload, "Receipt path")
 	runID := contextPayloadValue(s.t, contextPayload, "Run ID")
 	taskID := contextPayloadValue(s.t, contextPayload, "Task ID")
+	taskText := contextPayloadTaskText(s.t, contextPayload)
 	if s.writeReceipt {
-		content := validReceipt(runID, taskID, "Implement the selected task")
+		content := validReceipt(runID, taskID, taskText)
 		if s.receiptContent != nil {
-			content = s.receiptContent(runID, taskID, "Implement the selected task")
+			content = s.receiptContent(runID, taskID, taskText)
 		}
 		if err := writeTestFile(filepath.Join(command.Dir, receiptRel), content); err != nil {
 			s.t.Fatalf("write receipt: %v", err)
@@ -1359,6 +1742,28 @@ func contextPayloadValue(t *testing.T, payload string, label string) string {
 		}
 	}
 	t.Fatalf("context payload missing %s:\n%s", label, payload)
+	return ""
+}
+
+func contextPayloadTaskText(t *testing.T, payload string) string {
+	t.Helper()
+	lines := strings.Split(payload, "\n")
+	for i, line := range lines {
+		if line != "- Task text:" {
+			continue
+		}
+		if i+2 >= len(lines) || lines[i+2] != "```text" {
+			t.Fatalf("context payload task text block malformed:\n%s", payload)
+		}
+		start := i + 3
+		for end := start; end < len(lines); end++ {
+			if lines[end] == "```" {
+				return strings.Join(lines[start:end], "\n")
+			}
+		}
+		t.Fatalf("context payload task text block not closed:\n%s", payload)
+	}
+	t.Fatalf("context payload missing task text:\n%s", payload)
 	return ""
 }
 

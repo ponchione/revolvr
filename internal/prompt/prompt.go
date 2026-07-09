@@ -21,11 +21,17 @@ type ArtifactPath struct {
 	Path  string
 }
 
+type SourceContent struct {
+	Path    string
+	Content []byte
+}
+
 type Input struct {
 	RunID           string
 	PassID          string
 	TaskID          string
 	Task            string
+	TaskSource      SourceContent
 	RunProfile      RunProfile
 	RepositoryRoot  string
 	ReceiptPath     string
@@ -49,7 +55,6 @@ func BuildContextPayload(in Input) (string, error) {
 	out.WriteString("You are running one fresh bounded Codex pass controlled by revolvr.\n\n")
 
 	out.WriteString("## Run Profile\n")
-	fmt.Fprintf(&out, "- Profile: `%s`\n\n", normalized.RunProfile.Name)
 	out.WriteString(normalized.RunProfile.Description)
 	out.WriteString("\n\n")
 
@@ -126,6 +131,7 @@ func normalize(in Input) (Input, error) {
 	in.PassID = strings.TrimSpace(in.PassID)
 	in.TaskID = strings.TrimSpace(in.TaskID)
 	in.Task = strings.TrimSpace(in.Task)
+	in.TaskSource.Path = strings.TrimSpace(in.TaskSource.Path)
 	in.RepositoryRoot = strings.TrimSpace(in.RepositoryRoot)
 	in.ReceiptPath = strings.TrimSpace(in.ReceiptPath)
 	in.StopCondition = strings.TrimSpace(in.StopCondition)
@@ -166,9 +172,7 @@ func normalize(in Input) (Input, error) {
 func normalizeRunProfile(profile RunProfile) (RunProfile, error) {
 	profile.Name = strings.TrimSpace(profile.Name)
 	profile.Description = strings.TrimSpace(profile.Description)
-	if profile.Name == "" && profile.Description == "" {
-		return DefaultRunProfile(), nil
-	}
+	profile.SourcePath = strings.TrimSpace(profile.SourcePath)
 	if profile.Name == "" {
 		return RunProfile{}, errors.New("build context payload: run profile name is required")
 	}

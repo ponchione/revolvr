@@ -18,10 +18,12 @@ import (
 	"revolvr/internal/commit"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
+	"revolvr/internal/prompt"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/taskfile"
+	"revolvr/internal/taskmodel"
 	tuiapp "revolvr/internal/tui"
 	"revolvr/internal/verification"
 )
@@ -196,31 +198,9 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 
 	ctx := context.Background()
 	base := time.Date(2026, 6, 26, 9, 0, 0, 0, time.UTC)
-	now := base
-	tasks, err := taskqueue.OpenWithClock(ctx, paths.TaskDBPath, func() time.Time { return now })
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	for _, spec := range []taskqueue.TaskSpec{
-		{ID: "task-pending", Task: "pending task", CreatedAt: base},
-		{ID: "task-blocked", Task: "blocked task", CreatedAt: base.Add(time.Minute)},
-		{ID: "task-completed", Task: "completed task", CreatedAt: base.Add(2 * time.Minute)},
-	} {
-		if _, err := tasks.AddTask(ctx, spec); err != nil {
-			t.Fatalf("add %s: %v", spec.ID, err)
-		}
-	}
-	now = base.Add(3 * time.Minute)
-	if _, ok, err := tasks.BlockTask(ctx, "task-blocked", "waiting"); err != nil || !ok {
-		t.Fatalf("block task: ok=%v err=%v", ok, err)
-	}
-	now = base.Add(4 * time.Minute)
-	if _, ok, err := tasks.CompleteTask(ctx, "task-completed", "done"); err != nil || !ok {
-		t.Fatalf("complete task: ok=%v err=%v", ok, err)
-	}
-	if err := tasks.Close(); err != nil {
-		t.Fatalf("close task store: %v", err)
-	}
+	writeCLITaskFile(t, workDir, "010-pending.md", cliTaskMarkdown("task-pending", "pending", "Pending File Task", "pending task"))
+	writeCLITaskFile(t, workDir, "020-blocked.md", cliTaskMarkdown("task-blocked", "blocked", "Blocked File Task", "blocked task"))
+	writeCLITaskFile(t, workDir, "030-completed.md", cliTaskMarkdown("task-completed", "completed", "Completed File Task", "completed task"))
 
 	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
 	if err != nil {
@@ -331,31 +311,9 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 
 	ctx := context.Background()
 	base := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
-	now := base
-	tasks, err := taskqueue.OpenWithClock(ctx, paths.TaskDBPath, func() time.Time { return now })
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	for _, spec := range []taskqueue.TaskSpec{
-		{ID: "task-pending", Task: "pending task", CreatedAt: base},
-		{ID: "task-blocked", Task: "blocked task", CreatedAt: base.Add(time.Minute)},
-		{ID: "task-completed", Task: "completed task", CreatedAt: base.Add(2 * time.Minute)},
-	} {
-		if _, err := tasks.AddTask(ctx, spec); err != nil {
-			t.Fatalf("add %s: %v", spec.ID, err)
-		}
-	}
-	now = base.Add(3 * time.Minute)
-	if _, ok, err := tasks.BlockTask(ctx, "task-blocked", "waiting"); err != nil || !ok {
-		t.Fatalf("block task: ok=%v err=%v", ok, err)
-	}
-	now = base.Add(4 * time.Minute)
-	if _, ok, err := tasks.CompleteTask(ctx, "task-completed", "done"); err != nil || !ok {
-		t.Fatalf("complete task: ok=%v err=%v", ok, err)
-	}
-	if err := tasks.Close(); err != nil {
-		t.Fatalf("close task store: %v", err)
-	}
+	writeCLITaskFile(t, workDir, "010-pending.md", cliTaskMarkdown("task-pending", "pending", "Pending File Task", "pending task"))
+	writeCLITaskFile(t, workDir, "020-blocked.md", cliTaskMarkdown("task-blocked", "blocked", "Blocked File Task", "blocked task"))
+	writeCLITaskFile(t, workDir, "030-completed.md", cliTaskMarkdown("task-completed", "completed", "Completed File Task", "completed task"))
 
 	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
 	if err != nil {
@@ -411,6 +369,21 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 			if cmd != nil {
 				t.Fatalf("window size update cmd = %v, want nil", cmd)
 			}
+			tasksView, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+			if cmd != nil {
+				t.Fatalf("tasks view update cmd = %v, want nil", cmd)
+			}
+			for _, want := range []string{
+				"Runnable: ready to run",
+				"Next task: task-pending - Pending File Task",
+				"> next task-pending  pending  Pending File Task",
+				"  - task-blocked  ! blocked  Blocked File Task",
+				"  - task-completed  completed  Completed File Task",
+			} {
+				if !strings.Contains(tasksView.View(), want) {
+					t.Fatalf("tui tasks view missing %q:\n%s", want, tasksView.View())
+				}
+			}
 			_, err := fmt.Fprint(opts.Output, updated.View())
 			return err
 		},
@@ -428,6 +401,7 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 		"Pending: 1",
 		"Blocked: 1",
 		"Completed: 1",
+		"Next task: task-pending - Pending File Task",
 		"Latest Run",
 		"ID: run-new",
 		"Summary: latest summary",
@@ -457,28 +431,8 @@ verification:
 `)
 
 	base := time.Date(2026, 7, 8, 13, 0, 0, 0, time.UTC)
-	paths, err := resolveStatePaths(workDir)
-	if err != nil {
-		t.Fatalf("resolve state paths: %v", err)
-	}
-	store, err := taskqueue.Open(context.Background(), paths.TaskDBPath)
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	if _, err := store.AddTask(context.Background(), taskqueue.TaskSpec{
-		ID:        "task-blocked",
-		Task:      "Retry from TUI",
-		Summary:   "blocked tui",
-		CreatedAt: base,
-	}); err != nil {
-		t.Fatalf("add blocked task: %v", err)
-	}
-	if _, ok, err := store.BlockTask(context.Background(), "task-blocked", "waiting on callback"); err != nil || !ok {
-		t.Fatalf("block task ok=%t err=%v, want ok", ok, err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("close task store: %v", err)
-	}
+	writeCLITaskFile(t, workDir, "010-blocked.md", cliTaskMarkdown("task-blocked", "blocked", "blocked tui", "Retry from TUI"))
+	writeCLITaskFile(t, workDir, "010-visible.md", cliTaskMarkdown("task-visible", "pending", "Visible File Task", "visible file-backed task"))
 
 	createValidationRun(t, workDir, validationRunSpec{
 		RunID:              "run-new",
@@ -510,7 +464,7 @@ verification:
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     ledger.Run{ID: "run-tui"},
-				Task:    taskqueue.Task{ID: "task-tui"},
+				Task:    taskmodel.Task{ID: "task-tui"},
 				Commit:  commit.Result{CommitSHA: "abc123"},
 			}, nil
 		},
@@ -564,6 +518,9 @@ verification:
 			}
 			if opts.RunOnce == nil {
 				t.Fatal("run once callback is nil")
+			}
+			if opts.RunLoop == nil {
+				t.Fatal("run loop callback is nil")
 			}
 
 			refreshed, err := opts.RefreshStatus()
@@ -620,11 +577,38 @@ verification:
 				t.Fatalf("tui run progress = %#v, want one event", progress)
 			}
 
+			var loopProgress []codexexec.ProgressEvent
+			var passResults []runonce.Result
+			loopResult, err := opts.RunLoop(context.Background(), 2, func(event codexexec.ProgressEvent) {
+				loopProgress = append(loopProgress, event)
+			}, func(result runonce.Result) error {
+				passResults = append(passResults, result)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			if got, want := loopResult.Stats.StopReason, "max_passes"; got != want {
+				t.Fatalf("tui loop stop reason = %q, want %q", got, want)
+			}
+			if got, want := loopResult.Stats.Passes, 2; got != want {
+				t.Fatalf("tui loop passes = %d, want %d", got, want)
+			}
+			if got, want := loopResult.Stats.Completed, 2; got != want {
+				t.Fatalf("tui loop completed = %d, want %d", got, want)
+			}
+			if len(loopProgress) != 2 || loopProgress[0].Message != "tui running" || loopProgress[1].Message != "tui running" {
+				t.Fatalf("tui loop progress = %#v, want two progress events", loopProgress)
+			}
+			if len(passResults) != 2 || passResults[0].Run.ID != "run-tui" || passResults[1].Run.ID != "run-tui" {
+				t.Fatalf("tui loop pass results = %#v, want two run-tui results", passResults)
+			}
+
 			retried, err := opts.RetryTask("task-blocked")
 			if err != nil {
 				return err
 			}
-			if got, want := retried.Status, taskqueue.StatusPending; got != want {
+			if got, want := retried.Status, taskmodel.StatusPending; got != want {
 				t.Fatalf("retried task status = %q, want %q", got, want)
 			}
 			if retried.Blocker != "" || retried.BlockedAt != nil {
@@ -635,18 +619,8 @@ verification:
 			if err != nil {
 				return err
 			}
-			var foundRetried bool
-			for _, task := range refreshedAfterRetry.Tasks {
-				if task.ID != "task-blocked" {
-					continue
-				}
-				foundRetried = true
-				if got, want := task.Status, taskqueue.StatusPending; got != want {
-					t.Fatalf("refreshed retried task status = %q, want %q", got, want)
-				}
-			}
-			if !foundRetried {
-				t.Fatalf("refreshed tasks missing retried task: %#v", refreshedAfterRetry.Tasks)
+			if got, want := taskIDSet(refreshedAfterRetry.Tasks), map[string]bool{"task-blocked": true, "task-visible": true}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("refreshed tasks after retry = %#v, want file-backed task ids %#v", got, want)
 			}
 
 			added, err := opts.AddTask(app.AddTaskInput{
@@ -659,7 +633,7 @@ verification:
 			if added.ID == "" {
 				t.Fatal("added task id is empty")
 			}
-			if got, want := added.Task, "Add from TUI"; got != want {
+			if got, want := added.Task, cliTaskMarkdown(added.ID, "pending", "tui add", "Add from TUI"); got != want {
 				t.Fatalf("added task text = %q, want %q", got, want)
 			}
 			if got, want := added.Summary, "tui add"; got != want {
@@ -670,17 +644,8 @@ verification:
 			if err != nil {
 				return err
 			}
-			if got, want := len(refreshedAfterAdd.Tasks), 2; got != want {
-				t.Fatalf("refreshed task count = %d, want %d", got, want)
-			}
-			var foundAdded bool
-			for _, task := range refreshedAfterAdd.Tasks {
-				if task.ID == added.ID {
-					foundAdded = true
-				}
-			}
-			if !foundAdded {
-				t.Fatalf("refreshed tasks missing added task %q: %#v", added.ID, refreshedAfterAdd.Tasks)
+			if got := taskIDSet(refreshedAfterAdd.Tasks); !got["task-blocked"] || !got["task-visible"] || !got[added.ID] || len(got) != 3 {
+				t.Fatalf("refreshed tasks after add = %#v, want task-blocked, task-visible, and added task %s", got, added.ID)
 			}
 
 			_, err = fmt.Fprint(opts.Output, "tui actions ok\n")
@@ -714,7 +679,7 @@ func TestInitCreatesStoresAndIsIdempotent(t *testing.T) {
 	for _, want := range []string{
 		"Initialized revolvr state:",
 		paths.StateDir,
-		paths.TaskDBPath,
+		"Task files: .agent/tasks",
 		paths.LedgerDBPath,
 		paths.RunsDir,
 		paths.ReceiptsDir,
@@ -727,9 +692,16 @@ func TestInitCreatesStoresAndIsIdempotent(t *testing.T) {
 	for _, dir := range []string{paths.StateDir, paths.RunsDir, paths.ReceiptsDir, paths.LocksDir} {
 		assertDirExists(t, dir)
 	}
-	assertTaskStoreOpens(t, paths.TaskDBPath)
+	taskFilesDir := filepath.Join(workDir, taskfile.TasksDir)
+	assertDirExists(t, taskFilesDir)
+	assertDirEntries(t, taskFilesDir, nil)
+	for _, template := range prompt.DefaultRunProfileTemplates() {
+		assertProfileFileContent(t, workDir, template.Name, strings.TrimRight(template.Content, "\n")+"\n")
+	}
 	assertLedgerStoreOpens(t, paths.LedgerDBPath)
 
+	customTask := "# Existing Task\n\n## Goal\nKeep this file.\n"
+	writeCLIFile(t, filepath.Join(taskFilesDir, "existing.md"), customTask)
 	secondOut, err := executeCLI(t, workDir, "init")
 	if err != nil {
 		t.Fatalf("execute init second time: %v", err)
@@ -737,8 +709,22 @@ func TestInitCreatesStoresAndIsIdempotent(t *testing.T) {
 	if secondOut != firstOut {
 		t.Fatalf("second init output = %q, want %q", secondOut, firstOut)
 	}
-	assertTaskStoreOpens(t, paths.TaskDBPath)
+	assertFileContent(t, filepath.Join(taskFilesDir, "existing.md"), customTask)
 	assertLedgerStoreOpens(t, paths.LedgerDBPath)
+}
+
+func TestInitDoesNotOverwriteExistingProfileFiles(t *testing.T) {
+	workDir := t.TempDir()
+	custom := "Custom implementer profile.\n"
+	writeCLIFile(t, filepath.Join(workDir, prompt.RunProfileSourcePath(prompt.DefaultRunProfileName)), custom)
+
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+
+	assertProfileFileContent(t, workDir, prompt.DefaultRunProfileName, custom)
+	assertProfileFileContent(t, workDir, "auditor", strings.TrimRight(profileTemplateContent(t, "auditor"), "\n")+"\n")
+	assertProfileFileContent(t, workDir, "documentor", strings.TrimRight(profileTemplateContent(t, "documentor"), "\n")+"\n")
 }
 
 func TestInitAddsStateDirToLocalGitExclude(t *testing.T) {
@@ -783,14 +769,15 @@ func TestTaskAddPersistsTask(t *testing.T) {
 	if !strings.Contains(out, task.ID) {
 		t.Fatalf("task add output %q missing created id %q", out, task.ID)
 	}
-	if got, want := task.Status, taskqueue.StatusPending; got != want {
+	if got, want := task.Status, taskmodel.StatusPending; got != want {
 		t.Fatalf("task status = %q, want %q", got, want)
 	}
-	if got, want := task.Task, "Implement the CLI slice"; got != want {
+	wantTask := cliTaskMarkdown(task.ID, "pending", "Implement the CLI slice", "Implement the CLI slice")
+	if got, want := task.Task, wantTask; got != want {
 		t.Fatalf("task text = %q, want %q", got, want)
 	}
-	if got := task.Summary; got != "" {
-		t.Fatalf("task summary = %q, want empty", got)
+	if got, want := task.Summary, "Implement the CLI slice"; got != want {
+		t.Fatalf("task summary = %q, want %q", got, want)
 	}
 }
 
@@ -808,7 +795,8 @@ func TestTaskAddSummaryPersistsSummary(t *testing.T) {
 	if len(tasks) != 1 {
 		t.Fatalf("got %d tasks, want 1", len(tasks))
 	}
-	if got, want := tasks[0].Task, "Implement init and task commands"; got != want {
+	wantTask := cliTaskMarkdown(tasks[0].ID, "pending", "CLI bootstrap", "Implement init and task commands")
+	if got, want := tasks[0].Task, wantTask; got != want {
 		t.Fatalf("task text = %q, want %q", got, want)
 	}
 	if got, want := tasks[0].Summary, "CLI bootstrap"; got != want {
@@ -893,7 +881,10 @@ Create second task.
 	if got, want := len(tasks), 2; got != want {
 		t.Fatalf("imported task count = %d, want %d", got, want)
 	}
-	if got, want := []string{tasks[0].Task, tasks[1].Task}, []string{"Create first task.", "Create second task."}; !reflect.DeepEqual(got, want) {
+	if got, want := []string{tasks[0].Task, tasks[1].Task}, []string{
+		cliTaskMarkdown(tasks[0].ID, "pending", "First import", "Create first task."),
+		cliTaskMarkdown(tasks[1].ID, "pending", "Second import", "Create second task."),
+	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("imported task text = %#v, want %#v", got, want)
 	}
 	if got, want := []string{tasks[0].Summary, tasks[1].Summary}, []string{"First import", "Second import"}; !reflect.DeepEqual(got, want) {
@@ -943,43 +934,24 @@ func TestTaskImportUnreadablePathReturnsClearErrorWithoutMutatingState(t *testin
 	assertNoCLIStateDir(t, workDir)
 }
 
-func TestTaskListShowsPersistedTasks(t *testing.T) {
+func TestTaskListShowsFileBackedTasksInTaskfileOrder(t *testing.T) {
 	workDir := t.TempDir()
-	paths, err := resolveStatePaths(workDir)
-	if err != nil {
-		t.Fatalf("resolve state paths: %v", err)
-	}
-	ctx := context.Background()
-	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	base := time.Date(2026, 6, 26, 10, 0, 0, 0, time.UTC)
-	for _, spec := range []taskqueue.TaskSpec{
-		{ID: "task-b", Task: "Second task", Summary: "second", CreatedAt: base.Add(time.Minute)},
-		{ID: "task-a", Task: "First task", Summary: "first", CreatedAt: base},
-	} {
-		if _, err := store.AddTask(ctx, spec); err != nil {
-			t.Fatalf("add %s: %v", spec.ID, err)
-		}
-	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("close task store: %v", err)
-	}
+	writeCLITaskFile(t, workDir, "020-second.md", "# Second task\n\nSecond body.\n")
+	writeCLITaskFile(t, workDir, "010-first.md", "# First task\n\nFirst body.\n")
 
 	out, err := executeCLI(t, workDir, "task", "list")
 	if err != nil {
 		t.Fatalf("execute task list: %v", err)
 	}
 	want := "ID\tSTATUS\tTASK\tSUMMARY\n" +
-		"task-a\tpending\tFirst task\tfirst\n" +
-		"task-b\tpending\tSecond task\tsecond\n"
+		"010-first\tpending\t# First task First body.\tFirst task\n" +
+		"020-second\tpending\t# Second task Second body.\tSecond task\n"
 	if out != want {
 		t.Fatalf("task list output = %q, want %q", out, want)
 	}
 }
 
-func TestTaskListHandlesEmptyQueue(t *testing.T) {
+func TestTaskListHandlesEmptyTaskList(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -999,34 +971,7 @@ func TestTaskRetryMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
-	paths, err := resolveStatePaths(workDir)
-	if err != nil {
-		t.Fatalf("resolve state paths: %v", err)
-	}
-
-	ctx := context.Background()
-	base := time.Date(2026, 6, 26, 11, 0, 0, 0, time.UTC)
-	now := base
-	store, err := taskqueue.OpenWithClock(ctx, paths.TaskDBPath, func() time.Time { return now })
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	original, err := store.AddTask(ctx, taskqueue.TaskSpec{
-		ID:        "task-blocked",
-		Task:      "retry this task",
-		Summary:   "blocked summary",
-		CreatedAt: base,
-	})
-	if err != nil {
-		t.Fatalf("add task: %v", err)
-	}
-	now = base.Add(time.Minute)
-	if _, ok, err := store.BlockTask(ctx, "task-blocked", "verification failed"); err != nil || !ok {
-		t.Fatalf("block task: ok=%v err=%v", ok, err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("close task store: %v", err)
-	}
+	writeCLITaskFile(t, workDir, "010-blocked.md", cliTaskMarkdown("task-blocked", "blocked", "blocked summary", "retry this task"))
 
 	out, err := executeCLI(t, workDir, "task", "retry", "task-blocked")
 	if err != nil {
@@ -1040,10 +985,10 @@ func TestTaskRetryMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 		t.Fatalf("tasks after retry = %+v, want one task", tasks)
 	}
 	task := tasks[0]
-	if task.ID != original.ID || task.Task != original.Task || task.Summary != original.Summary || !task.CreatedAt.Equal(original.CreatedAt) {
-		t.Fatalf("task after retry = %+v, want same persisted task identity/history as %+v", task, original)
+	if task.ID != "task-blocked" || task.Task != cliTaskMarkdown("task-blocked", "pending", "blocked summary", "retry this task") || task.Summary != "blocked summary" {
+		t.Fatalf("task after retry = %+v, want same file-backed task identity/text/summary", task)
 	}
-	if task.Status != taskqueue.StatusPending || task.Blocker != "" || task.BlockedAt != nil || task.CompletedAt != nil {
+	if task.Status != taskmodel.StatusPending || task.Blocker != "" || task.BlockedAt != nil || task.CompletedAt != nil {
 		t.Fatalf("task after retry = %+v, want pending task with blocker state cleared", task)
 	}
 
@@ -1057,12 +1002,7 @@ func TestTaskRetryMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 			if cfg.WorkingDir != workDir {
 				t.Fatalf("working dir = %q, want %q", cfg.WorkingDir, workDir)
 			}
-			store, err := taskqueue.Open(ctx, paths.TaskDBPath)
-			if err != nil {
-				return runonce.Result{}, err
-			}
-			defer store.Close()
-			task, ok, err := store.SelectNext(ctx)
+			task, ok, err := taskfile.SelectNext(cfg.WorkingDir)
 			if err != nil {
 				return runonce.Result{}, err
 			}
@@ -1073,7 +1013,7 @@ func TestTaskRetryMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     ledger.Run{ID: "run-selected"},
-				Task:    task,
+				Task:    taskmodel.Task{ID: task.ID},
 				Commit:  commit.Result{CommitSHA: "abc123"},
 			}, nil
 		},
@@ -1095,26 +1035,9 @@ func TestTaskRetryDoesNotRevertCompletedTask(t *testing.T) {
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
-	paths, err := resolveStatePaths(workDir)
-	if err != nil {
-		t.Fatalf("resolve state paths: %v", err)
-	}
-	ctx := context.Background()
-	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	if _, err := store.AddTask(ctx, taskqueue.TaskSpec{ID: "task-done", Task: "already done"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
-	if _, ok, err := store.CompleteTask(ctx, "task-done", "done"); err != nil || !ok {
-		t.Fatalf("complete task: ok=%v err=%v", ok, err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("close task store: %v", err)
-	}
+	writeCLITaskFile(t, workDir, "010-done.md", cliTaskMarkdown("task-done", "completed", "done", "already done"))
 
-	_, err = executeCLI(t, workDir, "task", "retry", "task-done")
+	_, err := executeCLI(t, workDir, "task", "retry", "task-done")
 	if err == nil {
 		t.Fatal("task retry completed task succeeded, want error")
 	}
@@ -1122,7 +1045,7 @@ func TestTaskRetryDoesNotRevertCompletedTask(t *testing.T) {
 		t.Fatalf("task retry error = %v, want not blocked", err)
 	}
 	tasks := readTasks(t, workDir)
-	if len(tasks) != 1 || tasks[0].Status != taskqueue.StatusCompleted || tasks[0].CompletedAt == nil {
+	if len(tasks) != 1 || tasks[0].Status != taskmodel.StatusCompleted || tasks[0].Task != cliTaskMarkdown("task-done", "completed", "done", "already done") {
 		t.Fatalf("tasks after completed retry = %+v, want still completed", tasks)
 	}
 }
@@ -1147,26 +1070,9 @@ func TestTaskUnblockDoesNotRevertCompletedTask(t *testing.T) {
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
-	paths, err := resolveStatePaths(workDir)
-	if err != nil {
-		t.Fatalf("resolve state paths: %v", err)
-	}
-	ctx := context.Background()
-	store, err := taskqueue.Open(ctx, paths.TaskDBPath)
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	if _, err := store.AddTask(ctx, taskqueue.TaskSpec{ID: "task-done", Task: "already done"}); err != nil {
-		t.Fatalf("add task: %v", err)
-	}
-	if _, ok, err := store.CompleteTask(ctx, "task-done", "done"); err != nil || !ok {
-		t.Fatalf("complete task: ok=%v err=%v", ok, err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("close task store: %v", err)
-	}
+	writeCLITaskFile(t, workDir, "010-done.md", cliTaskMarkdown("task-done", "completed", "done", "already done"))
 
-	_, err = executeCLI(t, workDir, "task", "unblock", "task-done")
+	_, err := executeCLI(t, workDir, "task", "unblock", "task-done")
 	if err == nil {
 		t.Fatal("task unblock completed task succeeded, want error")
 	}
@@ -1174,7 +1080,7 @@ func TestTaskUnblockDoesNotRevertCompletedTask(t *testing.T) {
 		t.Fatalf("task unblock error = %v, want not blocked", err)
 	}
 	tasks := readTasks(t, workDir)
-	if len(tasks) != 1 || tasks[0].Status != taskqueue.StatusCompleted || tasks[0].CompletedAt == nil {
+	if len(tasks) != 1 || tasks[0].Status != taskmodel.StatusCompleted || tasks[0].Task != cliTaskMarkdown("task-done", "completed", "done", "already done") {
 		t.Fatalf("tasks after completed unblock = %+v, want still completed", tasks)
 	}
 }
@@ -1215,7 +1121,7 @@ func TestRunOnceInvokesRunnerAndPrintsSummary(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     ledger.Run{ID: "run-1"},
-				Task:    taskqueue.Task{ID: "task-1"},
+				Task:    taskmodel.Task{ID: "task-1"},
 				Commit:  commit.Result{CommitSHA: "abc123"},
 			}, nil
 		},
@@ -1250,7 +1156,7 @@ func TestRunOncePrintsLiveCodexProgressBeforeSummary(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     ledger.Run{ID: "run-progress"},
-				Task:    taskqueue.Task{ID: "task-progress"},
+				Task:    taskmodel.Task{ID: "task-progress"},
 				Commit:  commit.Result{CommitSHA: "abc123"},
 			}, nil
 		},
@@ -1649,7 +1555,7 @@ func TestRunOnceReturnsErrorForFailedOutcomesAndPrintsSummary(t *testing.T) {
 					return runonce.Result{
 						Outcome: outcome,
 						Run:     ledger.Run{ID: "run-" + string(outcome)},
-						Task:    taskqueue.Task{ID: "task-1"},
+						Task:    taskmodel.Task{ID: "task-1"},
 						Message: "stopped",
 					}, nil
 				},
@@ -1685,7 +1591,7 @@ func TestRunMaxPassesStopsAfterNoTask(t *testing.T) {
 				return runonce.Result{
 					Outcome: runonce.OutcomeCommitted,
 					Run:     ledger.Run{ID: "run-1"},
-					Task:    taskqueue.Task{ID: "task-1"},
+					Task:    taskmodel.Task{ID: "task-1"},
 					Commit:  commit.Result{CommitSHA: "abc123"},
 				}, nil
 			}
@@ -1720,7 +1626,7 @@ func TestRunMaxPassesStopsAfterRepeatedFailuresWithSummary(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeVerificationFailed,
 				Run:     ledger.Run{ID: "run-failed"},
-				Task:    taskqueue.Task{ID: "task-failed"},
+				Task:    taskmodel.Task{ID: "task-failed"},
 				Message: "verification command 0 failed",
 			}, nil
 		},
@@ -1757,7 +1663,7 @@ func TestRunMaxPassesStopsAfterBlockedOutcomeWithSummary(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeBlocked,
 				Run:     ledger.Run{ID: fmt.Sprintf("run-blocked-%d", calls)},
-				Task:    taskqueue.Task{ID: fmt.Sprintf("task-blocked-%d", calls)},
+				Task:    taskmodel.Task{ID: fmt.Sprintf("task-blocked-%d", calls)},
 				Message: "blocked by preflight",
 			}, nil
 		},
@@ -1793,7 +1699,7 @@ func TestRunMaxPassesStopsAfterFailedPassWithChangedFiles(t *testing.T) {
 			return runonce.Result{
 				Outcome:        runonce.OutcomeVerificationFailed,
 				Run:            ledger.Run{ID: "run-dirty-failure"},
-				Task:           taskqueue.Task{ID: "task-dirty-failure"},
+				Task:           taskmodel.Task{ID: "task-dirty-failure"},
 				Message:        "verification command 0 failed",
 				PostRunChanged: gitstate.Capture{ChangedFiles: []string{"internal/feature.go"}},
 			}, nil
@@ -1830,7 +1736,7 @@ func TestRunMaxPassesCapIsHonored(t *testing.T) {
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     ledger.Run{ID: fmt.Sprintf("run-%d", calls)},
-				Task:    taskqueue.Task{ID: fmt.Sprintf("task-%d", calls)},
+				Task:    taskmodel.Task{ID: fmt.Sprintf("task-%d", calls)},
 				Commit:  commit.Result{CommitSHA: fmt.Sprintf("abc%d", calls)},
 			}, nil
 		},
@@ -1946,6 +1852,10 @@ func TestShowRunPrintsPersistedRunAndEvents(t *testing.T) {
 		"Codex exit code: 0\n" +
 		"Verification status: passed\n" +
 		"Commit SHA: abc123\n" +
+		"Timeline:\n" +
+		"TIMESTAMP\tPHASE\tSTATUS\tDETAIL\n" +
+		"2026-06-26T12:00:01Z\trun\tstarted\trun run-show\n" +
+		"2026-06-26T12:02:00Z\trun\tcompleted\trun completed\n" +
 		"Events:\n" +
 		"ID\tTYPE\tTIMESTAMP\n" +
 		"1\trun_started\t2026-06-26T12:00:01Z\n" +
@@ -2023,6 +1933,10 @@ func TestShowRunPrintsPersistedArtifactPaths(t *testing.T) {
 		"Completed at: 2026-06-26T13:01:00Z\n" +
 		"Codex exit code: 1\n" +
 		"Verification status: not_run\n" +
+		"Timeline:\n" +
+		"TIMESTAMP\tPHASE\tSTATUS\tDETAIL\n" +
+		"2026-06-26T13:00:01Z\trun\tstarted\trun run-artifacts\n" +
+		"2026-06-26T13:01:00Z\trun\tfailed\trun failed\n" +
 		"Artifacts:\n" +
 		"context payload: .revolvr/runs/run-artifacts/context.md\n" +
 		"context manifest: .revolvr/runs/run-artifacts/context.json\n" +
@@ -2081,6 +1995,10 @@ func TestShowRunPrintsNoneForEmptyArtifactEvent(t *testing.T) {
 		"Task: Empty artifacts\n" +
 		"Status: failed\n" +
 		"Started at: 2026-06-26T14:00:00Z\n" +
+		"Timeline:\n" +
+		"TIMESTAMP\tPHASE\tSTATUS\tDETAIL\n" +
+		"2026-06-26T14:00:00Z\trun\tstarted\trun run-empty-artifacts, task task-empty-artifacts\n" +
+		"none\trun\tfailed\trun failed\n" +
 		"Artifacts:\n" +
 		"none\n" +
 		"Events:\n" +
@@ -2187,6 +2105,14 @@ func TestShowRunPrintsDiagnosticsForFailedRun(t *testing.T) {
 		"Completed at: 2026-06-26T15:00:30Z\n" +
 		"Codex exit code: 0\n" +
 		"Verification status: failed\n" +
+		"Timeline:\n" +
+		"TIMESTAMP\tPHASE\tSTATUS\tDETAIL\n" +
+		"2026-06-26T15:00:00Z\trun\tstarted\trun run-diagnostics\n" +
+		"2026-06-26T15:00:01Z\tcodex\tcompleted\texit_code=0\n" +
+		"2026-06-26T15:00:02Z\tchanges\tcaptured\t1 changed file: internal/broken.go\n" +
+		"2026-06-26T15:00:03Z\tverification\tfailed\tfailed command 0: go test ./... (exit_code=1)\n" +
+		"2026-06-26T15:00:04Z\treceipt\tsynthesized\tverification_failed (.revolvr/receipts/run-diagnostics.md)\n" +
+		"2026-06-26T15:00:30Z\trun\tfailed\toutcome=verification_failed: verification command 0 failed\n" +
 		"Artifacts:\n" +
 		"receipt: .revolvr/receipts/run-diagnostics.md\n" +
 		"Diagnostics:\n" +
@@ -2257,6 +2183,11 @@ func TestShowRunPrintsReceiptWarningsInDiagnostics(t *testing.T) {
 		"Task: Surface receipt warning\n" +
 		"Status: failed\n" +
 		"Started at: 2026-06-26T16:00:00Z\n" +
+		"Timeline:\n" +
+		"TIMESTAMP\tPHASE\tSTATUS\tDETAIL\n" +
+		"2026-06-26T16:00:00Z\trun\tstarted\trun run-warning, task task-warning\n" +
+		"2026-06-26T16:00:00Z\treceipt\twarning\tchanged_files_mismatch: receipt changed files differ from harness captured changed files (.revolvr/receipts/run-warning.md)\n" +
+		"none\trun\tfailed\trun failed\n" +
 		"Diagnostics:\n" +
 		"warning: changed_files_mismatch: receipt changed files differ from harness captured changed files (.revolvr/receipts/run-warning.md)\n" +
 		"Events:\n" +
@@ -2264,6 +2195,18 @@ func TestShowRunPrintsReceiptWarningsInDiagnostics(t *testing.T) {
 		"1\treceipt_warning\t2026-06-26T16:00:00Z\n"
 	if out != want {
 		t.Fatalf("show output = %q, want %q", out, want)
+	}
+}
+
+func TestWriteTimelinePrintsNoRows(t *testing.T) {
+	var out bytes.Buffer
+	if err := writeTimeline(&out, nil); err != nil {
+		t.Fatalf("write timeline: %v", err)
+	}
+
+	want := "Timeline:\nNo timeline rows.\n"
+	if got := out.String(); got != want {
+		t.Fatalf("timeline output = %q, want %q", got, want)
 	}
 }
 
@@ -2426,20 +2369,21 @@ func assertDirExists(t *testing.T, path string) {
 	}
 }
 
-func assertTaskStoreOpens(t *testing.T, path string) {
+func assertDirEntries(t *testing.T, path string, want []string) {
 	t.Helper()
-	assertFileExists(t, path)
-	store, err := taskqueue.Open(context.Background(), path)
+	entries, err := os.ReadDir(path)
 	if err != nil {
-		t.Fatalf("open task store %s: %v", path, err)
+		t.Fatalf("read dir %s: %v", path, err)
 	}
-	defer store.Close()
-	tasks, err := store.ListTasks(context.Background())
-	if err != nil {
-		t.Fatalf("list tasks from %s: %v", path, err)
+	if want == nil {
+		want = []string{}
 	}
-	if tasks == nil {
-		return
+	got := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		got = append(got, entry.Name())
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("dir entries for %s = %#v, want %#v", path, got, want)
 	}
 }
 
@@ -2471,6 +2415,40 @@ func assertFileExists(t *testing.T, path string) {
 	}
 }
 
+func assertFileContent(t *testing.T, path string, want string) {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if got := string(content); got != want {
+		t.Fatalf("%s content = %q, want %q", path, got, want)
+	}
+}
+
+func assertProfileFileContent(t *testing.T, workDir string, name string, want string) {
+	t.Helper()
+	path := filepath.Join(workDir, prompt.RunProfileSourcePath(name))
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read profile %s: %v", path, err)
+	}
+	if got := string(content); got != want {
+		t.Fatalf("profile %s content = %q, want %q", name, got, want)
+	}
+}
+
+func profileTemplateContent(t *testing.T, name string) string {
+	t.Helper()
+	for _, template := range prompt.DefaultRunProfileTemplates() {
+		if template.Name == name {
+			return template.Content
+		}
+	}
+	t.Fatalf("profile template %q not found", name)
+	return ""
+}
+
 func writeCLIFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -2479,6 +2457,30 @@ func writeCLIFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(strings.TrimPrefix(content, "\n")), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func writeCLITaskFile(t *testing.T, workDir string, name string, content string) {
+	t.Helper()
+	writeCLIFile(t, filepath.Join(workDir, taskfile.TasksDir, name), content)
+}
+
+func cliTaskMarkdown(id string, status string, title string, body string) string {
+	return fmt.Sprintf(`---
+id: %s
+status: %s
+---
+# %s
+
+%s
+`, id, status, title, body)
+}
+
+func taskIDSet(tasks []taskmodel.Task) map[string]bool {
+	ids := make(map[string]bool, len(tasks))
+	for _, task := range tasks {
+		ids[task.ID] = true
+	}
+	return ids
 }
 
 type validationRunSpec struct {
@@ -2618,18 +2620,9 @@ func validationCommandPayloads(entries []receipt.VerificationEntry) []map[string
 	return payloads
 }
 
-func readTasks(t *testing.T, workDir string) []taskqueue.Task {
+func readTasks(t *testing.T, workDir string) []taskmodel.Task {
 	t.Helper()
-	paths, err := resolveStatePaths(workDir)
-	if err != nil {
-		t.Fatalf("resolve state paths: %v", err)
-	}
-	store, err := taskqueue.Open(context.Background(), paths.TaskDBPath)
-	if err != nil {
-		t.Fatalf("open task store: %v", err)
-	}
-	defer store.Close()
-	tasks, err := store.ListTasks(context.Background())
+	tasks, err := app.ListTasks(context.Background(), app.Config{WorkDir: workDir})
 	if err != nil {
 		t.Fatalf("list tasks: %v", err)
 	}

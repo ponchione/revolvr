@@ -73,6 +73,9 @@ func RunLoop(ctx context.Context, cfg Config, input RunLoopInput) (RunLoopResult
 			stats.FailedOrBlocked++
 			stats.ConsecutiveFailedOrBlocked++
 			stats.StopReason = "runner_error"
+			if ctx.Err() != nil {
+				stats.StopReason = "context_cancelled"
+			}
 			if resultHasRunSummary(result) {
 				if passErr := callRunPass(input.OnPass, result); passErr != nil {
 					stats.StopReason = ""

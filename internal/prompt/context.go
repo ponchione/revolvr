@@ -44,12 +44,21 @@ func BuildContextManifest(in ContextManifestInput) (ContextManifest, error) {
 	if payloadPath == "" {
 		return ContextManifest{}, errors.New("build context manifest: context payload path is required")
 	}
+	runProfileSourcePath := strings.TrimSpace(normalized.RunProfile.SourcePath)
+	if runProfileSourcePath == "" {
+		return ContextManifest{}, errors.New("build context manifest: run profile source path is required")
+	}
 
 	generatedAt := in.GeneratedAt
 	if generatedAt.IsZero() {
 		generatedAt = time.Now()
 	}
 	generatedAt = generatedAt.UTC()
+
+	selectedTaskSource, err := selectedTaskContextSource(normalized)
+	if err != nil {
+		return ContextManifest{}, err
+	}
 
 	return ContextManifest{
 		RunID:                  normalized.RunID,
@@ -60,8 +69,8 @@ func BuildContextManifest(in ContextManifestInput) (ContextManifest, error) {
 		ContextPayloadByteSize: len(in.ContextPayload),
 		GeneratedAt:            generatedAt,
 		Sources: []ContextSource{
-			contextSource("selected_task", "", []byte(normalized.Task)),
-			contextSource("run_profile", "", runProfileSource(normalized.RunProfile)),
+			selectedTaskSource,
+			contextSource("run_profile", runProfileSourcePath, []byte(normalized.RunProfile.Description)),
 		},
 	}, nil
 }
@@ -83,8 +92,14 @@ func contextSource(label string, path string, content []byte) ContextSource {
 	}
 }
 
-func runProfileSource(profile RunProfile) []byte {
-	return []byte(profile.Name + "\n" + profile.Description)
+func selectedTaskContextSource(in Input) (ContextSource, error) {
+	if in.TaskSource.Path == "" {
+		return contextSource("selected_task", "", []byte(in.Task)), nil
+	}
+	if in.TaskSource.Content == nil {
+		return ContextSource{}, errors.New("build context manifest: selected task source content is required when source path is provided")
+	}
+	return contextSource("selected_task", in.TaskSource.Path, in.TaskSource.Content), nil
 }
 
 func sha256Hex(content []byte) string {

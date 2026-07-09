@@ -14,7 +14,7 @@
 
 - Stack: Go 1.22 CLI application.
 - Entry point: `cmd/revolvr/main.go`.
-- Main packages: `internal/cli`, `internal/runonce`, `internal/ledger`, `internal/taskqueue`, `internal/codexexec`, `internal/receipt`, `internal/verification`, `internal/commit`, `internal/gitstate`, `internal/runner`.
+- Main packages: `internal/cli`, `internal/runonce`, `internal/ledger`, `internal/taskfile`, `internal/taskmodel`, `internal/codexexec`, `internal/receipt`, `internal/verification`, `internal/commit`, `internal/gitstate`, `internal/runner`.
 - Runtime state: `.revolvr/` after `revolvr init`; this directory is local and ignored by Git.
 
 ## Verification
@@ -38,7 +38,7 @@ There is no separate lint or typecheck command configured. `go test ./...` is th
 
 Use these files as durable memory between fresh Codex sessions:
 
-- `.agent/TASKS.md` for the task queue
+- `.agent/TASKS.md` for the task backlog
 - `.agent/STATE.md` for current status and recent progress
 - `.agent/DECISIONS.md` for durable implementation and architecture decisions
 - `.agent/LOOP_PROMPT.md` for the reusable one-pass loop prompt

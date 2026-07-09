@@ -16,6 +16,9 @@ RUN_TAG="${REVOLVR_DOGFOOD_TAG:-$(date -u +%Y%m%dT%H%M%SZ)}"
 EXPECTED_LINE="live dogfood run $RUN_TAG"
 TASK_SUMMARY="Live dogfood $RUN_TAG"
 TASK_TEXT="Live dogfood task: create or update $DOGFOOD_FILE with exactly one line: $EXPECTED_LINE. Keep the change limited to $DOGFOOD_FILE, update the configured receipt, run go test ./..., and stop."
+TASK_ID="live-dogfood-$RUN_TAG"
+TASK_REL=".agent/tasks/$TASK_ID.md"
+TASK_FILE="$ROOT/$TASK_REL"
 CODEX_TIMEOUT_SECONDS="${REVOLVR_DOGFOOD_CODEX_TIMEOUT_SECONDS:-1800}"
 VERIFICATION_TIMEOUT_SECONDS="${REVOLVR_DOGFOOD_VERIFICATION_TIMEOUT_SECONDS:-300}"
 
@@ -63,15 +66,15 @@ assert_nonempty() {
 }
 
 assert_clean_worktree() {
-  local label="$1"
-  local output="$TMP_ROOT/git-status-$label.out"
-  git status --short --untracked-files=all >"$output"
-  if [[ -s "$output" ]]; then
-    echo "Expected clean Git worktree during $label." >&2
-    echo "This live dogfood script resets .revolvr/ and creates one commit, so start from a clean tree." >&2
-    sed 's/^/  /' "$output" >&2
-    exit 1
-  fi
+	local label="$1"
+	local output="$TMP_ROOT/git-status-$label.out"
+	git status --short --untracked-files=all >"$output"
+	if [[ -s "$output" ]]; then
+		echo "Expected clean Git worktree during $label." >&2
+		echo "This live dogfood script resets .revolvr/ and creates task baseline plus run commits, so start from a clean tree." >&2
+		sed 's/^/  /' "$output" >&2
+		exit 1
+	fi
 }
 
 run_revolvr() {
@@ -105,10 +108,29 @@ rm -rf .revolvr
 
 run_revolvr init init
 assert_contains "$TMP_ROOT/init.out" "Initialized revolvr state:"
-assert_file_exists ".revolvr/tasks.sqlite"
 assert_file_exists ".revolvr/ledger.sqlite"
 assert_contains ".git/info/exclude" "/.revolvr/"
 git check-ignore --quiet .revolvr/ || fail "Expected .revolvr/ to be ignored by Git"
+assert_file_exists ".agent/profiles/implementer.md"
+assert_file_exists ".agent/profiles/auditor.md"
+assert_file_exists ".agent/profiles/documentor.md"
+
+mkdir -p "$(dirname "$TASK_FILE")"
+cat >"$TASK_FILE" <<TASK_MD
+---
+id: $TASK_ID
+status: pending
+priority: 10
+---
+# $TASK_SUMMARY
+
+$TASK_TEXT
+TASK_MD
+TASK_SHA="$(sha256sum "$TASK_FILE" | awk '{print $1}')"
+TASK_BYTES="$(wc -c <"$TASK_FILE" | tr -d ' ')"
+git add .agent/profiles "$TASK_REL"
+git commit -q -m "Add live dogfood task $RUN_TAG"
+assert_clean_worktree "task-baseline"
 
 cat >".revolvr/config.yaml" <<CONFIG_YAML
 codex:
@@ -136,11 +158,6 @@ assert_contains "$TMP_ROOT/doctor.out" "OK runtime state ignored: .revolvr/ igno
 assert_contains "$TMP_ROOT/doctor.out" "OK verification commands: 1 command configured"
 assert_contains "$TMP_ROOT/doctor.out" "Ready: true"
 
-run_revolvr task-add task add --summary "$TASK_SUMMARY" "$TASK_TEXT"
-assert_contains "$TMP_ROOT/task-add.out" "Added task "
-assert_contains "$TMP_ROOT/task-add.out" "$TASK_TEXT"
-assert_contains "$TMP_ROOT/task-add.out" "summary: $TASK_SUMMARY"
-
 run_revolvr run-once run --once
 assert_contains "$TMP_ROOT/run-once.out" "Run "
 assert_contains "$TMP_ROOT/run-once.out" " completed task "
@@ -162,12 +179,14 @@ if [[ "$(tr -d '\r' <"$DOGFOOD_FILE")" != "$EXPECTED_LINE" ]]; then
   echo "  $EXPECTED_LINE" >&2
   echo "Actual content:" >&2
   sed 's/^/  /' "$DOGFOOD_FILE" >&2
-  exit 1
+	exit 1
 fi
+assert_contains "$TASK_FILE" "status: completed"
 
 mapfile -t COMMITTED_FILES < <(git show --name-only --format= HEAD | sed '/^$/d')
-if [[ "${#COMMITTED_FILES[@]}" -ne 1 || "${COMMITTED_FILES[0]}" != "$DOGFOOD_FILE" ]]; then
-  echo "Expected live dogfood commit to contain only $DOGFOOD_FILE." >&2
+printf '%s\n' "${COMMITTED_FILES[@]}" >"$TMP_ROOT/committed-files.out"
+if [[ "${#COMMITTED_FILES[@]}" -ne 2 ]] || ! grep -Fxq "$DOGFOOD_FILE" "$TMP_ROOT/committed-files.out" || ! grep -Fxq "$TASK_REL" "$TMP_ROOT/committed-files.out"; then
+  echo "Expected live dogfood commit to contain $DOGFOOD_FILE and $TASK_REL." >&2
   printf '  %s\n' "${COMMITTED_FILES[@]}" >&2
   exit 1
 fi
@@ -185,18 +204,19 @@ assert_contains ".revolvr/runs/$RUN_ID/context.md" "## Selected Task"
 assert_contains ".revolvr/runs/$RUN_ID/context.md" "## Required Receipt Schema"
 assert_contains ".revolvr/runs/$RUN_ID/context.json" '"context_payload_path"'
 assert_contains ".revolvr/runs/$RUN_ID/context.json" '"context_payload_sha256"'
+assert_contains ".revolvr/runs/$RUN_ID/context.json" '"label": "selected_task"'
+assert_contains ".revolvr/runs/$RUN_ID/context.json" "\"path\": \"$TASK_REL\""
+assert_contains ".revolvr/runs/$RUN_ID/context.json" "\"sha256\": \"$TASK_SHA\""
+assert_contains ".revolvr/runs/$RUN_ID/context.json" "\"byte_size\": $TASK_BYTES"
 assert_contains ".revolvr/receipts/$RUN_ID.md" "schema_version: revolvr.receipt.v1"
 assert_contains ".revolvr/receipts/$RUN_ID.md" "run_id: $RUN_ID"
 assert_contains ".revolvr/receipts/$RUN_ID.md" "verdict: completed"
 assert_contains ".revolvr/receipts/$RUN_ID.md" "verification_status: passed"
 assert_contains ".revolvr/receipts/$RUN_ID.md" "commit_sha: $HEAD_SHA"
 assert_contains ".revolvr/receipts/$RUN_ID.md" "$DOGFOOD_FILE"
+assert_contains ".revolvr/receipts/$RUN_ID.md" "$TASK_REL"
 
 run_revolvr status status
-assert_contains "$TMP_ROOT/status.out" "Total tasks: 1"
-assert_contains "$TMP_ROOT/status.out" "Pending tasks: 0"
-assert_contains "$TMP_ROOT/status.out" "Blocked tasks: 0"
-assert_contains "$TMP_ROOT/status.out" "Completed tasks: 1"
 assert_contains "$TMP_ROOT/status.out" "Recent runs: 1"
 assert_contains "$TMP_ROOT/status.out" "Latest run: $RUN_ID (completed)"
 assert_contains "$TMP_ROOT/status.out" "Latest verification: passed"
@@ -217,7 +237,9 @@ assert_contains "$TMP_ROOT/show-run.out" "outcome: committed"
 assert_contains "$TMP_ROOT/show-run.out" "verification: passed"
 assert_contains "$TMP_ROOT/show-run.out" "commit: $HEAD_SHA"
 assert_contains "$TMP_ROOT/show-run.out" "receipt: completed (.revolvr/receipts/$RUN_ID.md)"
-assert_contains "$TMP_ROOT/show-run.out" "changed files: $DOGFOOD_FILE"
+assert_contains "$TMP_ROOT/show-run.out" "changed files:"
+assert_contains "$TMP_ROOT/show-run.out" "$DOGFOOD_FILE"
+assert_contains "$TMP_ROOT/show-run.out" "$TASK_REL"
 
 run_revolvr receipt-validate receipt validate "$RUN_ID"
 assert_contains "$TMP_ROOT/receipt-validate.out" "Receipt validation: passed"

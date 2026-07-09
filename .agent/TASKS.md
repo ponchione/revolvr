@@ -35,24 +35,24 @@
 - [x] Surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
   Scope: highlight the first pending task, show pending/blocked/completed counts near the task area, and distinguish `ready to run` from `nothing runnable` without relying on color.
   Acceptance: Dashboard shows the next task ID and summary when present; Tasks view marks both the current selection and the next runnable task; uninitialized and empty states still render coherently.
-  Verification: add focused `internal/tui` render tests for pending, blocked-only, completed-only, and empty queues; run `go test ./internal/tui` and `go test ./...`.
+  Verification: add focused `internal/tui` render tests for pending, blocked-only, completed-only, and empty task lists; run `go test ./internal/tui` and `go test ./...`.
 
 - [x] Add TUI blocked-task retry for the selected task.
   Scope: add a Tasks-view action backed by `internal/app.RetryTask`, refresh after success, and display clear inline messages for non-blocked tasks, missing callbacks, and retry errors.
   Acceptance: a blocked selected task can be returned to pending without leaving the TUI; pending and completed selected tasks are not mutated; the footer/help reflects when retry is available.
   Verification: add TUI model tests for successful retry, non-blocked rejection, callback error, and refresh failure; add CLI wiring coverage if command setup changes; run `go test ./internal/tui ./internal/cli ./internal/app` and `go test ./...`.
 
-- [ ] Add an app-level run timeline projection from ledger events.
+- [x] Add an app-level run timeline projection from ledger events.
   Scope: build a reusable `internal/app` projection that converts a run history into ordered human-readable timeline rows for prompt creation, Codex start/progress/completion, verification, commit, receipt, and terminal outcome.
   Acceptance: timeline rows include timestamp, phase, status, and concise detail; completed, failed-verification, Codex-failed, blocked, and missing-artifact histories degrade gracefully without panics.
   Verification: add `internal/app` tests for completed, failed verification, Codex failed, blocked, and missing-event histories; run `go test ./internal/app` and `go test ./...`.
 
-- [ ] Render the run timeline in CLI `show` and TUI Run Detail.
+- [x] Render the run timeline in CLI `show` and TUI Run Detail.
   Scope: surface the app timeline in `revolvr show <run-id>` and the TUI Run Detail view, while keeping raw event visibility available in the TUI when practical.
   Acceptance: users can understand the run flow without reading raw JSON or ledger payloads; long timelines remain scrollable; CLI output remains deterministic in tests.
   Verification: add focused CLI and TUI tests for timeline rendering and long timeline scrolling; run `go test ./internal/cli ./internal/tui` and `go test ./...`.
 
-- [ ] Add a controlled TUI run-next-N flow backed by `internal/app.RunLoop`.
+- [x] Add a controlled TUI run-next-N flow backed by `internal/app.RunLoop`.
   Scope: add a bounded multi-pass action in the TUI that runs up to a small user-selected pass count, reuses preflight readiness and cancellation controls, and streams pass summaries into the progress pane.
   Acceptance: users can run multiple passes without leaving the TUI; the TUI honors the same stop reasons and guardrails as `run --max-passes`; cancellation reports a clear terminal state and refreshes state.
   Verification: add fake-runner TUI tests for max-pass completion, no-task stop, failure guardrail, blocked stop, and cancellation; run `go test ./internal/tui ./internal/app ./internal/cli` and `go test ./...`.

@@ -2,13 +2,161 @@
 
 ## Current Focus
 
-No task is currently in progress. The next unchecked backlog item remains to add an app-level run timeline projection from ledger events.
+No task is currently in progress. No unchecked backlog items remain in `.agent/TASKS.md`.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Audit completed on 2026-07-09:
+
+- Selected task: audit obsolete migration surface after moving to file-backed tasks, repo-authored profiles, current context artifacts, and fresh Codex sessions.
+- Files changed: `README.md`, `CODEX_AGENT_LOOP_HANDOFF.md`, `CODEX_HARNESS_TARGETS.md`, `.agent/DECISIONS.md`, `.agent/TASKS.md`, `.agent/STATE.md`, `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/cli/root_test.go`.
+- Obsolete surface removed: current operator/developer docs, TUI empty-state text, and CLI test helper names no longer describe tasks as a queue; archived setup/design docs now point readers to the current `.agent/tasks/*.md`, `.agent/profiles/*.md`, `context.md`/`context.json`, and fresh `codex exec` architecture.
+- Audit result: no tracked runtime code remains for `internal/taskqueue`, `.revolvr/tasks.sqlite`, `prompt_path`, `prompt.md`, `prompt_built`, or historical context artifact compatibility. Valid SQLite usage is limited to the run ledger at `.revolvr/ledger.sqlite`; ledger artifact decoding only accepts `context_payload_path` and `context_manifest_path` for run context artifacts; app, CLI, TUI, and runonce task paths use `internal/taskfile` plus `internal/taskmodel`.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go internal/cli/root_test.go`; stale-term `rg` sweeps; `go list ./...`; `bash -n scripts/smoke-local.sh scripts/smoke-run-once-fake-codex.sh scripts/smoke-run-once-fake-codex-verification-failure.sh scripts/dogfood-live.sh`; `git diff --check`; `go test ./...`; temp-worktree `revolvr init` smoke confirming no `.revolvr/tasks.sqlite`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr status`; `./scripts/smoke-local.sh`.
+- Verification result: all commands passed.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: remove obsolete SQLite task queue and historical prompt artifact compatibility before publishing.
+- Files changed: `AGENTS.md`, `CODEX_AGENT_LOOP_HANDOFF.md`, `CODEX_HARNESS_TARGETS.md`, `README.md`, `.agent/DECISIONS.md`, `.agent/STATE.md`, `internal/taskmodel/task.go`, `internal/taskqueue/store.go`, `internal/taskqueue/store_test.go`, `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/state.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `internal/ledger/events.go`, `internal/ledger/artifacts.go`, `internal/ledger/artifacts_test.go`, `internal/app/timeline.go`, `scripts/smoke-local.sh`, `scripts/dogfood-live.sh`.
+- Behavior changed: initialization no longer creates or requires `.revolvr/tasks.sqlite`; the old SQLite task queue package has been removed; task display/status data now uses `internal/taskmodel` while canonical task storage remains `.agent/tasks/*.md`.
+- Compatibility removed: ledger artifact decoding no longer accepts `prompt_path`, `EventPromptBuilt` has been removed, and timeline/context artifact rendering now only uses `context_built` plus `context_payload_path` / `context_manifest_path`.
+- Verification run: `gofmt -w internal/taskmodel/task.go internal/app/app.go internal/app/app_test.go internal/cli/state.go internal/cli/root.go internal/cli/root_test.go internal/runonce/runonce.go internal/runonce/runonce_test.go internal/tui/model.go internal/tui/model_test.go internal/ledger/events.go internal/ledger/artifacts.go internal/ledger/artifacts_test.go internal/app/timeline.go`; `go test ./internal/taskmodel ./internal/ledger ./internal/app`; `go test ./internal/cli ./internal/runonce ./internal/tui`; `go list ./...`; `go test ./...`; `bash -n scripts/smoke-local.sh scripts/smoke-run-once-fake-codex.sh scripts/smoke-run-once-fake-codex-verification-failure.sh scripts/dogfood-live.sh`; `git diff --check`; `./scripts/smoke-local.sh`; `./scripts/smoke-run-once-fake-codex.sh`; `./scripts/smoke-run-once-fake-codex-verification-failure.sh`.
+- Verification result: all commands passed.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: update operator-facing README TUI documentation for bounded multi-pass loops.
+- Files changed: `README.md`, `.agent/STATE.md`.
+- Documentation changed: README now documents `n` loop max-pass cycling, `L` bounded loop start, cancellation for an active run or loop, and progress-pane pass summaries. The chat-to-task workflow still recommends a single `R` pass for one bounded pass and now also mentions the optional TUI loop; CLI `run --max-passes` remains documented as the non-TUI equivalent.
+- Verification run: `go test ./...`; `go run ./cmd/revolvr tui --help`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: add a controlled TUI run-next-N flow backed by `internal/app.RunLoop`.
+- Files changed: `internal/app/run.go`, `internal/app/app_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`, `.agent/TASKS.md`.
+- Behavior changed: the TUI now keeps `R` as single-pass run-once and adds a bounded loop action on `L` backed by the app-wired `internal/app.RunLoop`. The loop pass count defaults to 3 and cycles through 2/3/5 with `n`; active loops reuse the existing preflight blocker, cancellation key `c`, progress pane, status refresh, and latest-run detail opening.
+- Progress behavior changed: the existing `Run Progress` pane now distinguishes loop mode, shows max passes, pass counts, completed/failed-or-blocked/no-task/consecutive-failure stats, stop reason, latest run ID, Codex progress, and per-pass summaries streamed through `RunLoopInput.OnPass`. Cancellation cancels the loop context, refreshes status, and renders `cancelled` with `context_cancelled` when applicable.
+- CLI wiring changed: `revolvr tui` now passes a `RunLoop` callback into `internal/tui` that calls `app.RunLoop` with the same configured runner used by CLI/TUI run once, plus progress and pass callbacks. `app.RunLoop` now reports `context_cancelled` when the runner returns because the loop context was cancelled inside a pass.
+- Tests added/updated: focused TUI model coverage for loop max-pass completion, no-task stop, repeated failure guardrail, blocked stop, cancellation, and pass-count cycling; CLI TUI wiring coverage now verifies the `RunLoop` callback; app coverage now verifies runner-context cancellation stop reason.
+- Verification run: `gofmt -w internal/app/run.go internal/app/app_test.go internal/cli/root.go internal/cli/root_test.go internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/tui`; `go test ./internal/app`; `go test ./internal/cli`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: render the run timeline in CLI `show` and TUI Run Detail.
+- Files changed: `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`, `.agent/TASKS.md`.
+- Behavior changed: `revolvr show <run-id>` now prints a `Timeline:` section immediately after run summary fields and before artifacts, diagnostics, and raw events. The section uses `internal/app.RunTimeline` with deterministic tabular columns for timestamp, phase, status, and detail, uses CLI time formatting for real timestamps, and renders missing row timestamps as `none`.
+- TUI behavior changed: Run Detail now renders a `Timeline` section after `Summary` and before `Diagnostics` using the same app projection and compact single-line rows. Raw `Events` remain visible below artifacts, and long timeline/event detail remains scrollable through the existing viewport.
+- Tests added/updated: CLI `show` exact-output coverage now includes timeline rows for persisted run start/completion, artifact, diagnostic, warning, and sparse histories, plus an empty timeline helper check. TUI coverage now proves Run Detail includes timeline rows while keeping raw event rows, renders an empty timeline clearly, and scrolls through a long timeline while still reaching raw events.
+- Verification run: `gofmt -w internal/cli/root.go internal/cli/root_test.go internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/cli`; `go test ./internal/tui`; `go test ./internal/app`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add a controlled TUI run-next-N flow backed by `internal/app.RunLoop`.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: add an app-level run timeline projection from ledger events.
+- Files changed: `internal/app/timeline.go`, `internal/app/timeline_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`, `.agent/TASKS.md`.
+- Behavior changed: added `internal/app.RunTimeline`, which projects a `ledger.RunWithEvents` history into reusable app-level `RunTimelineRow` values with timestamp, phase, status, and concise detail. The projection preserves ledger event order, uses event `CreatedAt` timestamps, covers run start, task selection, context, Codex start/progress/completion, changed files, receipts, verification, commit, and terminal outcome rows, and keeps the slice app-only for later CLI/TUI rendering.
+- Fallback behavior added: when start or terminal events are missing, the projection uses the ledger run row for started/completed timestamps, run status, summary, verification status, Codex exit code, and commit SHA. Malformed, missing, or partial event payloads return generic deterministic rows instead of panicking.
+- Tests added: focused `internal/app` coverage for completed, verification-failed, Codex-failed, blocked/pre-run failure, sparse missing-event fallback, and malformed payload histories with exact expected row slices.
+- Verification run: `gofmt -w internal/app/timeline.go internal/app/timeline_test.go`; `go test ./internal/app`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to render the run timeline in CLI `show` and TUI Run Detail.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: migrate app-level task write operations to canonical `.agent/tasks/*.md`.
+- Files changed: `internal/taskfile/taskfile.go`, `internal/taskfile/taskfile_test.go`, `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/tui/model_test.go`, `README.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `internal/app.AddTask`, write-mode `ImportTasks`, `RetryTask`, and `UnblockTask` now operate on canonical Markdown task files under `.agent/tasks/` instead of mutating SQLite task rows. New task files are written with `id` plus `status: pending` frontmatter and an H1 title derived from the provided summary or first task line. Retry/unblock find file-backed tasks by ID and only transition `blocked` tasks back to `pending`, preserving clear missing-task and non-blocked-task errors.
+- Taskfile helpers added: `internal/taskfile.Create` writes canonical pending task files with generated IDs, `FindByID` resolves frontmatter or filename-derived task IDs and reports duplicates, and `UpdateBlockedToPending` reuses status-frontmatter updates for blocked-to-pending transitions.
+- CLI/TUI behavior preserved: `task add` keeps the concise confirmation output based on the original task text and summary, while `task add` followed by `task list`, write-mode `task import`, TUI add refresh, and retry/unblock refresh paths now expose file-backed task changes through the existing `taskqueue.Task` adapter shape. `task import --dry-run` remains non-mutating, and validation/parse failures do not create `.agent/tasks/` or `.revolvr/`.
+- Documentation changed: README now describes `.agent/tasks/*.md` as the shared task state and `.revolvr/` as local runtime state with transitional task database infrastructure.
+- Verification run: `gofmt -w internal/taskfile/taskfile.go internal/taskfile/taskfile_test.go internal/app/app.go internal/app/app_test.go internal/cli/root.go internal/cli/root_test.go internal/tui/model_test.go`; `go test ./internal/taskfile`; `go test ./internal/app`; `go test ./internal/cli`; `go test ./internal/tui`; `go test ./...`; `./scripts/smoke-local.sh`; `./scripts/smoke-run-once-fake-codex.sh`; `./scripts/smoke-run-once-fake-codex-verification-failure.sh`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: surface canonical `.agent/tasks/*.md` tasks through app status, CLI task list/status, and existing TUI task views.
+- Files changed: `internal/app/app.go`, `internal/app/app_test.go`, `internal/cli/root_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `internal/app.ListTasks` and `internal/app.Status(...).Tasks` now load direct Markdown task files through `internal/taskfile` instead of reading SQLite queue rows. File tasks are adapted into the existing `taskqueue.Task` shape with task-file ID, full Markdown body as `Task`, H1 title as `Summary`, and task-file status preserved, including `running`.
+- Status behavior preserved: `app.Status` still uses the existing initialized-state check and still loads recent runs plus latest run events from the ledger exactly as before; only the task slice source changed.
+- CLI/TUI changed: `revolvr status`, `revolvr task list`, and `revolvr tui` task/dashboard views now surface file-backed tasks through the existing render paths. `task add`, `task import`, `task retry`, and `task unblock` remain transitional SQLite-backed write operations in this slice, so tests that cover those writes inspect the legacy queue directly instead of expecting app status refreshes to expose SQLite-only rows.
+- Tests updated: app coverage now proves file-backed status/list conversion, deterministic taskfile order, full Markdown task bodies, H1 summaries, status preservation, and zero timestamp/blocker metadata. CLI coverage now counts file-backed tasks in status, lists file-backed tasks in filename order, and verifies TUI Dashboard/Tasks rendering from app status for pending, blocked, completed, and next-runnable file tasks while keeping write callback tests scoped to SQLite writes.
+- Verification run: `gofmt -w internal/app/app.go internal/app/app_test.go internal/cli/root_test.go`; `go test ./internal/app`; `go test ./internal/cli`; `go test ./internal/tui`; `go test ./...`; `./scripts/smoke-run-once-fake-codex.sh`; `./scripts/smoke-run-once-fake-codex-verification-failure.sh`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: fix file-backed runonce integration so fake-Codex smoke scripts pass and successful task status updates do not leave the worktree dirty.
+- Files changed: `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `scripts/smoke-run-once-fake-codex.sh`, `scripts/smoke-run-once-fake-codex-verification-failure.sh`, `scripts/dogfood-live.sh`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: successful runonce passes now keep the selected task manifest source metadata based on exact pre-run file bytes, wait until Codex and verification have passed, update the selected Markdown task to `status: completed`, recapture changed files, and pass that recaptured list to the commit runner so the task status flip is committed with the successful run. The pre-status changed-file capture still gates `no_changes`, so a task-status-only mutation does not turn an empty Codex pass into a success. Failed and blocking outcomes continue to mark selected task files `blocked` without committing.
+- Script changes: the fake-Codex success and verification-failure smokes now create committed canonical `.agent/tasks/*.md` task files instead of using `revolvr task add`; they assert run artifacts and receipts, selected-task manifest source metadata from the pending file bytes, `completed` on success, and `blocked` on verification failure without relying on SQLite task counts. `scripts/dogfood-live.sh` now writes and commits a canonical live dogfood task file before the run and expects the successful run commit to include both the requested dogfood file and the task status update.
+- Tests added/updated: runonce coverage now proves the successful commit changed-file capture includes the completed selected task file, a real-Git second pending file task can run after a successful first task without leftover dirty status, and smoke-shaped task files produce `selected_task` manifest metadata from exact pre-run bytes.
+- Verification run: `gofmt -w internal/runonce/runonce.go internal/runonce/runonce_test.go`; `bash -n scripts/smoke-run-once-fake-codex.sh scripts/smoke-run-once-fake-codex-verification-failure.sh scripts/dogfood-live.sh`; `./scripts/smoke-run-once-fake-codex.sh`; `./scripts/smoke-run-once-fake-codex-verification-failure.sh`; `go test ./internal/taskfile`; `go test ./internal/runonce`; `go test ./internal/prompt`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: wire runonce to select canonical file-backed Markdown tasks from `.agent/tasks/*.md`.
+- Files changed: `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `internal/taskfile/taskfile.go`, `internal/taskfile/taskfile_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `internal/runonce` now selects the next pending Markdown task via `internal/taskfile.SelectNext`, ordered by priority then filename, and returns `OutcomeNoTask` when no pending task files exist without falling back to SQLite queue rows.
+- Context/ledger changed: selected run fields use `taskfile.Task.ID`, `ContextBody`, and `Title`; prompt input now passes `prompt.SourceContent{Path: task.SourcePath, Content: task.SourceBytes}` so `context.json` records selected-task path, SHA-256, and byte size from the exact pre-run file bytes. Run profile selection remains the default `implementer` profile only.
+- Task status changed: `internal/taskfile.UpdateStatus` can replace, insert, or add deterministic `status` frontmatter while preserving other frontmatter/body content as much as practical. Committed runs mark the selected Markdown task `completed`; blocking/failed terminal outcomes mark it `blocked`; no-task and failures before task selection do not mutate task files.
+- Transitional note: the old SQLite task queue package, app/CLI task commands, and compatibility result fields remain in place, but runonce no longer consumes SQLite pending tasks.
+- Tests added/updated: taskfile status replacement/insertion/frontmatter-add coverage; runonce coverage for file priority/filename selection, exact selected-task manifest metadata from pre-run bytes, committed-to-completed mutation, failed/blocking-to-blocked mutation, second run after completion returning no-task, pre-selection lock failure leaving files pending, and SQLite pending tasks being ignored when no task file exists.
+- Verification run: `gofmt -w internal/taskfile/taskfile.go internal/taskfile/taskfile_test.go internal/runonce/runonce.go internal/runonce/runonce_test.go`; `go test ./internal/taskfile`; `go test ./internal/runonce`; `go test ./internal/prompt`; `go test ./...`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: introduce file-backed Markdown task specs under `.agent/tasks/` and selected-task source metadata in the context manifest.
+- Files changed: `internal/taskfile/taskfile.go`, `internal/taskfile/taskfile_test.go`, `internal/cli/state.go`, `internal/cli/root_test.go`, `internal/prompt/prompt.go`, `internal/prompt/context.go`, `internal/prompt/prompt_test.go`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added `internal/taskfile` for dependency-free loading of direct `.agent/tasks/*.md` files with optional YAML-ish `id`, `profile`, `status`, and `priority` frontmatter, required non-empty H1 titles, status/profile/path validation, exact source bytes, SHA-256 and byte-size helpers, all-file listing, runnable pending ordering by numeric priority then filename, and select-next behavior.
+- Init changed: `revolvr init` now creates `.agent/tasks/` when missing, leaves it empty by default, and preserves existing task Markdown files across repeated init runs.
+- Context manifest changed: `prompt.Input` can now carry a selected task source path plus exact source bytes, and `context.json` records `selected_task` path, SHA-256, and byte size from those exact bytes when provided. The existing task-text fallback remains for the transitional queue-backed path.
+- Transitional note: this pass did not remove or rewrite the existing SQLite queue-backed runtime selection path; the new file-backed loader is the canonical task-file foundation for the next runtime wiring step.
+- Tests added/updated: focused taskfile loader/parser tests for valid files, missing H1, invalid status, unsafe profile, path containment, direct-file loading, deterministic runnable ordering, select-next behavior, and exact source hash/byte size; CLI init coverage for task directory creation, empty default contents, and idempotent non-overwrite; prompt manifest coverage for selected task file source metadata.
+- Verification run: `gofmt -w internal/taskfile/taskfile.go internal/taskfile/taskfile_test.go internal/prompt/context.go internal/prompt/prompt.go internal/prompt/prompt_test.go internal/cli/state.go internal/cli/root_test.go`; `go test ./internal/taskfile`; `go test ./internal/prompt`; `go test ./internal/cli`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: make run profiles file-backed and repo-authored.
+- Files changed: `.agent/profiles/implementer.md`, `.agent/profiles/auditor.md`, `.agent/profiles/documentor.md`, `internal/prompt/profile.go`, `internal/prompt/profile_test.go`, `internal/prompt/prompt.go`, `internal/prompt/prompt_test.go`, `internal/prompt/context.go`, `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `internal/cli/state.go`, `internal/cli/root_test.go`, `internal/cli/doctor_test.go`, `scripts/smoke-run-once-fake-codex.sh`, `scripts/smoke-run-once-fake-codex-verification-failure.sh`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: run profiles are now loaded from `.agent/profiles/<name>.md` relative to the repository root. The default runtime profile name remains `implementer`, but missing, empty, or unsafe profile names now fail clearly instead of falling back to embedded text.
+- Init changed: `revolvr init` seeds `implementer.md`, `auditor.md`, and `documentor.md` under `.agent/profiles/` without overwriting existing files; `.revolvr/` state and local Git exclude behavior remain intact.
+- Context bundle changed: `context.md` renders the loaded profile markdown as the `## Run Profile` body, and `context.json` records the run profile source path plus SHA-256 and byte size for the profile content used in the run.
+- Tests added/updated: focused profile-loader coverage for success, default-name loading, missing files, empty files, and unsafe names; runonce coverage for file-backed profile content and manifest metadata plus missing-profile blocking before Codex; CLI init coverage for profile seeding and non-overwrite behavior; doctor/smoke tests updated for repo-authored profile files.
+- Verification run: `gofmt -w internal/cli/doctor_test.go internal/cli/root_test.go internal/cli/state.go internal/prompt/context.go internal/prompt/profile.go internal/prompt/profile_test.go internal/prompt/prompt.go internal/prompt/prompt_test.go internal/runonce/runonce.go internal/runonce/runonce_test.go`; `bash -n scripts/smoke-run-once-fake-codex.sh scripts/smoke-run-once-fake-codex-verification-failure.sh scripts/dogfood-live.sh`; `./scripts/smoke-run-once-fake-codex.sh`; `./scripts/smoke-run-once-fake-codex-verification-failure.sh`; `go test ./internal/prompt`; `go test ./internal/runonce`; `go test ./internal/cli`; `go test ./...`; `git diff --check`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is still to add an app-level run timeline projection from ledger events.
+- Blockers: none.
 
 Task completed on 2026-07-09:
 

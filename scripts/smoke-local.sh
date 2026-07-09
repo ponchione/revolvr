@@ -38,7 +38,6 @@ go build -o "$BIN" ./cmd/revolvr
 
 run_revolvr init init
 assert_contains "$TMP_ROOT/init.out" "Initialized revolvr state:"
-test -f "$WORK_DIR/.revolvr/tasks.sqlite"
 test -f "$WORK_DIR/.revolvr/ledger.sqlite"
 
 run_revolvr task-add task add --summary "Smoke task" "Exercise local CLI smoke test"

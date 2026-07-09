@@ -1,9 +1,9 @@
 # revolvr
 
-`revolvr` is a local Go CLI for running bounded Codex harness passes from a
-repo-owned task queue. It keeps durable state under `.revolvr/`, launches fresh
-Codex executions for work passes, verifies the resulting work, records run
-history, and commits verified changes.
+`revolvr` is a local Go CLI for running bounded Codex harness passes from
+repo-owned Markdown tasks under `.agent/tasks/*.md`. It keeps local runtime
+state under `.revolvr/`, launches fresh Codex executions for work passes,
+verifies the resulting work, records run history, and commits verified changes.
 
 ## Setup
 
@@ -26,12 +26,13 @@ Initialize local runtime state:
 go run ./cmd/revolvr init
 ```
 
-This creates `.revolvr/` with task, ledger, run artifact, receipt, and lock
-state. The directory is local runtime state and is ignored by Git. When
-initialized from a Git worktree, `init` adds `/.revolvr/` to
+This creates `.revolvr/` with ledger, run artifact, receipt, and lock state,
+and ensures `.agent/tasks/` exists for canonical Markdown tasks. `.revolvr/` is
+local runtime state and is ignored by Git. When initialized from a Git worktree,
+`init` adds `/.revolvr/` to
 `.git/info/exclude` so tracked ignore files do not need to change.
 
-## Task Queue
+## Tasks
 
 Add work for the harness:
 
@@ -39,7 +40,7 @@ Add work for the harness:
 go run ./cmd/revolvr task add --summary "README docs" "Add concise setup and usage docs"
 ```
 
-List queued tasks:
+List task files:
 
 ```bash
 go run ./cmd/revolvr task list
@@ -98,21 +99,24 @@ Open the TUI:
 go run ./cmd/revolvr tui
 ```
 
-If the TUI is already open, press `r` to refresh the shared task state. To run
-from the TUI, press `5` to open Preflight, press `p` to run the readiness check,
-then press `R` once preflight is ready to start one bounded pass. The closest
-CLI equivalents are:
+If the TUI is already open, press `r` to refresh the shared task state. To run a
+single pass from the TUI, press `5` to open Preflight, press `p` to run the
+readiness check, then press `R` once preflight is ready. To run a bounded
+multi-pass loop from the TUI, press `n` to choose 2, 3, or 5 max passes
+(default 3), then press `L`; the progress pane shows pass summaries as the loop
+runs. The closest CLI equivalents are:
 
 ```bash
 go run ./cmd/revolvr doctor
 go run ./cmd/revolvr run --once
+go run ./cmd/revolvr run --max-passes 3
 ```
 
-Chat sessions, the CLI, and the TUI all read and write the same `.revolvr/`
-task state, so it is fine to design tasks in chat and refresh the TUI after
-importing them. Avoid concurrent code edits against the same repository while a
-TUI-started or CLI-started Codex pass is running; keep one actor responsible for
-worktree changes at a time.
+Chat sessions, the CLI, and the TUI all read and write the same
+`.agent/tasks/*.md` task files, so it is fine to design tasks in chat and
+refresh the TUI after importing them. Avoid concurrent code edits against the
+same repository while a TUI-started or CLI-started Codex pass is running; keep
+one actor responsible for worktree changes at a time.
 
 ## Configuration
 
@@ -179,7 +183,7 @@ For a fuller live check against real Codex, run:
 
 This script is intentionally destructive to local Revolvr runtime state: it
 requires a clean source worktree, removes `.revolvr/`, initializes fresh state,
-queues one tiny file-update task, runs `revolvr run --once`, and verifies the
+creates one tiny file-update task, runs `revolvr run --once`, and verifies the
 receipt, ledger-backed `status`/`show` output, commit SHA, `receipt validate`,
 and final clean worktree. It creates one Git commit when the live run passes.
 
@@ -193,19 +197,22 @@ go run ./cmd/revolvr tui
 
 The TUI shows the same app-backed state as the CLI: task counts, task details,
 recent runs, run diagnostics, artifacts, receipt validation results, preflight
-readiness checks, and a live progress pane while a TUI-started run is active.
-Use number keys to switch views, `j`/`k` or arrow keys to move list selections,
-`a` to add a task, `p` in Preflight to check readiness, `R` to run one pass
-after preflight is ready, `c` to request cancellation of an active run, `v` in
-Run Detail to validate the loaded receipt, `r` to refresh, and `?` for in-app
-key help.
+readiness checks, and a live progress pane while a TUI-started run or loop is
+active. Use number keys to switch views, `j`/`k` or arrow keys to move list
+selections, `a` to add a task, `p` in Preflight to check readiness, `R` to run
+one pass after preflight is ready, `n` to cycle loop max passes through 2/3/5
+(default 3), `L` to start the bounded run loop, `c` to request cancellation of
+an active run or loop, `v` in Run Detail to validate the loaded receipt, `r` to
+refresh, and `?` for in-app key help. Loop runs show pass summaries in the
+progress pane.
 
 Current limitations: the TUI starts at the current terminal size and wraps
 content for narrow terminals, but it is still a local terminal view over the
-same `.revolvr/` runtime state. It can add tasks, run one pass, cancel an
-active TUI-started pass, refresh state, open run details, and validate receipts;
-use the CLI for task retry/unblock, configuration changes, bounded
-`run --max-passes` loops, and receipt validation outside the loaded run detail.
+same runtime and `.agent/tasks/*.md` task state. It can add tasks, retry blocked
+tasks, run one pass, run a bounded multi-pass loop, cancel an active TUI-started
+pass or loop, refresh state, open run details, and validate receipts; use the
+CLI for configuration changes, the non-TUI `run --max-passes` loop alternative,
+and receipt validation outside the loaded run detail.
 
 ## Run
 
@@ -306,6 +313,6 @@ Run the opt-in live dogfood check with real Codex:
 ./scripts/dogfood-live.sh
 ```
 
-This resets `.revolvr/`, queues a tiny task, runs one real Codex pass, and
+This resets `.revolvr/`, creates a tiny task, runs one real Codex pass, and
 checks the finalized receipt, ledger output, commit, receipt validation command,
 and clean-worktree consistency.

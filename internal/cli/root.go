@@ -16,7 +16,8 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/taskfile"
+	"revolvr/internal/taskmodel"
 	tuiapp "revolvr/internal/tui"
 )
 
@@ -91,9 +92,9 @@ func newInitCommand(opts Options) *cobra.Command {
 				return err
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(),
-				"Initialized revolvr state:\nState: %s\nTasks: %s\nLedger: %s\nRuns: %s\nReceipts: %s\nLocks: %s\n",
+				"Initialized revolvr state:\nState: %s\nTask files: %s\nLedger: %s\nRuns: %s\nReceipts: %s\nLocks: %s\n",
 				paths.StateDir,
-				paths.TaskDBPath,
+				taskfile.TasksDir,
 				paths.LedgerDBPath,
 				paths.RunsDir,
 				paths.ReceiptsDir,
@@ -128,18 +129,20 @@ func newTaskAddCommand(opts Options) *cobra.Command {
 		Short: "Add a task",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			taskText := strings.TrimSpace(strings.Join(args, " "))
+			summaryText := strings.TrimSpace(summary)
 			task, err := app.AddTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.AddTaskInput{
-				Task:    strings.Join(args, " "),
-				Summary: summary,
+				Task:    taskText,
+				Summary: summaryText,
 			})
 			if err != nil {
 				return err
 			}
-			if task.Summary != "" {
-				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Added task %s: %s (summary: %s)\n", task.ID, task.Task, task.Summary)
+			if summaryText != "" {
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Added task %s: %s (summary: %s)\n", task.ID, taskText, summaryText)
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Added task %s: %s\n", task.ID, task.Task)
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Added task %s: %s\n", task.ID, taskText)
 			return err
 		},
 	}
@@ -268,7 +271,7 @@ func newTaskRetryCommand(opts Options) *cobra.Command {
 
 func retryBlockedTask(cmd *cobra.Command, opts Options, rawTaskID string, operation string, successVerb string) error {
 	var (
-		task taskqueue.Task
+		task taskmodel.Task
 		err  error
 	)
 	switch operation {
@@ -430,10 +433,10 @@ func newTUICommand(opts Options) *cobra.Command {
 				OpenRun: func(runID string) (ledger.RunWithEvents, error) {
 					return app.ShowRun(ctx, cfg, runID)
 				},
-				AddTask: func(input app.AddTaskInput) (taskqueue.Task, error) {
+				AddTask: func(input app.AddTaskInput) (taskmodel.Task, error) {
 					return app.AddTask(ctx, cfg, input)
 				},
-				RetryTask: func(taskID string) (taskqueue.Task, error) {
+				RetryTask: func(taskID string) (taskmodel.Task, error) {
 					return app.RetryTask(ctx, cfg, taskID)
 				},
 				ValidateReceipt: func(runID string) (receipt.ValidationResult, error) {
@@ -449,6 +452,14 @@ func newTUICommand(opts Options) *cobra.Command {
 					return app.RunOnce(runCtx, cfg, app.RunOnceInput{
 						Runner:   opts.RunOnce,
 						Progress: progress,
+					})
+				},
+				RunLoop: func(runCtx context.Context, maxPasses int, progress app.RunProgress, onPass app.RunPassFunc) (app.RunLoopResult, error) {
+					return app.RunLoop(runCtx, cfg, app.RunLoopInput{
+						MaxPasses: maxPasses,
+						Runner:    opts.RunOnce,
+						Progress:  progress,
+						OnPass:    onPass,
 					})
 				},
 			})
@@ -560,7 +571,7 @@ type taskCounts struct {
 	completed int
 }
 
-func writeStatus(out io.Writer, tasks []taskqueue.Task, recentRuns []ledger.Run, latestEvents []ledger.Event) error {
+func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run, latestEvents []ledger.Event) error {
 	counts := countTasks(tasks)
 	if _, err := fmt.Fprintf(out, "Total tasks: %d\n", counts.total); err != nil {
 		return err
@@ -620,15 +631,15 @@ func writeLatestArtifacts(out io.Writer, events []ledger.Event) error {
 	return writeArtifactPathLines(out, artifacts)
 }
 
-func countTasks(tasks []taskqueue.Task) taskCounts {
+func countTasks(tasks []taskmodel.Task) taskCounts {
 	counts := taskCounts{total: len(tasks)}
 	for _, task := range tasks {
 		switch task.Status {
-		case taskqueue.StatusPending:
+		case taskmodel.StatusPending:
 			counts.pending++
-		case taskqueue.StatusBlocked:
+		case taskmodel.StatusBlocked:
 			counts.blocked++
-		case taskqueue.StatusCompleted:
+		case taskmodel.StatusCompleted:
 			counts.completed++
 		}
 	}
@@ -677,6 +688,9 @@ func writeRun(out io.Writer, history ledger.RunWithEvents) error {
 			return err
 		}
 	}
+	if err := writeTimeline(out, app.RunTimeline(history)); err != nil {
+		return err
+	}
 	artifacts, artifactEvents := ledger.RunArtifactsFromEvents(history.Events)
 	if artifactEvents {
 		if err := writeArtifacts(out, artifacts); err != nil {
@@ -702,6 +716,40 @@ func writeRun(out io.Writer, history ledger.RunWithEvents) error {
 		}
 	}
 	return nil
+}
+
+func writeTimeline(out io.Writer, rows []app.RunTimelineRow) error {
+	if _, err := fmt.Fprint(out, "Timeline:\n"); err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		_, err := fmt.Fprint(out, "No timeline rows.\n")
+		return err
+	}
+	if _, err := fmt.Fprint(out, "TIMESTAMP\tPHASE\tSTATUS\tDETAIL\n"); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if _, err := fmt.Fprintf(out, "%s\t%s\t%s\t%s\n", cliTimelineTime(row.Timestamp), timelineCell(row.Phase), timelineCell(row.Status), timelineCell(row.Detail)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cliTimelineTime(value time.Time) string {
+	if value.IsZero() {
+		return "none"
+	}
+	return cliTime(value)
+}
+
+func timelineCell(value string) string {
+	value = oneLine(value)
+	if value == "" {
+		return "none"
+	}
+	return value
 }
 
 func writeArtifacts(out io.Writer, artifacts ledger.RunArtifacts) error {

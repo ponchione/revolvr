@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/taskfile"
 	"revolvr/internal/taskimport"
-	"revolvr/internal/taskqueue"
+	"revolvr/internal/taskmodel"
 )
 
 const (
@@ -58,27 +58,30 @@ type ImportedTask struct {
 
 type StatusResult struct {
 	Initialized  bool
-	Tasks        []taskqueue.Task
+	Tasks        []taskmodel.Task
 	RecentRuns   []ledger.Run
 	LatestEvents []ledger.Event
 }
 
-func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskqueue.Task, error) {
+func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskmodel.Task, error) {
 	validated, err := validateTaskInput(input.Task, input.Summary, "task add")
 	if err != nil {
-		return taskqueue.Task{}, err
+		return taskmodel.Task{}, err
 	}
 
-	tasks, err := openTaskStore(ctx, cfg)
+	paths, err := resolveStatePaths(cfg.WorkDir)
 	if err != nil {
-		return taskqueue.Task{}, err
+		return taskmodel.Task{}, err
 	}
-	defer tasks.Close()
 
-	return tasks.AddTask(ctx, taskqueue.TaskSpec{
-		Task:    validated.Task,
-		Summary: validated.Summary,
+	task, err := taskfile.Create(paths.WorkDir, taskfile.CreateInput{
+		Title: taskFileTitle(validated),
+		Body:  validated.Task,
 	})
+	if err != nil {
+		return taskmodel.Task{}, err
+	}
+	return taskFromFileTask(task), nil
 }
 
 func ParseTaskImport(markdown []byte) ([]TaskImport, error) {
@@ -128,18 +131,15 @@ func ImportTasks(ctx context.Context, cfg Config, input ImportTasksInput) (Impor
 		return result, nil
 	}
 
-	store, err := openTaskStore(ctx, cfg)
+	paths, err := resolveStatePaths(cfg.WorkDir)
 	if err != nil {
 		return ImportTasksResult{}, err
 	}
-	defer store.Close()
 
-	baseCreatedAt := time.Now().UTC()
 	for i, task := range tasks {
-		created, err := store.AddTask(ctx, taskqueue.TaskSpec{
-			Task:      task.Task,
-			Summary:   task.Summary,
-			CreatedAt: baseCreatedAt.Add(time.Duration(i) * time.Nanosecond),
+		created, err := taskfile.Create(paths.WorkDir, taskfile.CreateInput{
+			Title: taskFileTitle(task),
+			Body:  task.Task,
 		})
 		if err != nil {
 			return ImportTasksResult{}, fmt.Errorf("task import: create task %d: %w", i+1, err)
@@ -149,21 +149,19 @@ func ImportTasks(ctx context.Context, cfg Config, input ImportTasksInput) (Impor
 	return result, nil
 }
 
-func ListTasks(ctx context.Context, cfg Config) ([]taskqueue.Task, error) {
-	tasks, err := openTaskStore(ctx, cfg)
+func ListTasks(ctx context.Context, cfg Config) ([]taskmodel.Task, error) {
+	paths, err := resolveStatePaths(cfg.WorkDir)
 	if err != nil {
 		return nil, err
 	}
-	defer tasks.Close()
-
-	return tasks.ListTasks(ctx)
+	return listTaskFilesAsTasks(paths.WorkDir)
 }
 
-func RetryTask(ctx context.Context, cfg Config, taskID string) (taskqueue.Task, error) {
+func RetryTask(ctx context.Context, cfg Config, taskID string) (taskmodel.Task, error) {
 	return unblockBlockedTask(ctx, cfg, taskID, "task retry")
 }
 
-func UnblockTask(ctx context.Context, cfg Config, taskID string) (taskqueue.Task, error) {
+func UnblockTask(ctx context.Context, cfg Config, taskID string) (taskmodel.Task, error) {
 	return unblockBlockedTask(ctx, cfg, taskID, "task unblock")
 }
 
@@ -180,13 +178,7 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 		return StatusResult{Initialized: false}, nil
 	}
 
-	tasks, err := taskqueue.Open(ctx, paths.TaskDBPath)
-	if err != nil {
-		return StatusResult{}, err
-	}
-	defer tasks.Close()
-
-	taskList, err := tasks.ListTasks(ctx)
+	taskList, err := listTaskFilesAsTasks(paths.WorkDir)
 	if err != nil {
 		return StatusResult{}, err
 	}
@@ -223,6 +215,28 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 		RecentRuns:   recentRuns,
 		LatestEvents: latestEvents,
 	}, nil
+}
+
+func listTaskFilesAsTasks(workDir string) ([]taskmodel.Task, error) {
+	tasks, err := taskfile.List(workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]taskmodel.Task, 0, len(tasks))
+	for _, task := range tasks {
+		result = append(result, taskFromFileTask(task))
+	}
+	return result, nil
+}
+
+func taskFromFileTask(task taskfile.Task) taskmodel.Task {
+	return taskmodel.Task{
+		ID:      task.ID,
+		Task:    task.ContextBody,
+		Status:  task.Status,
+		Summary: task.Title,
+	}
 }
 
 func ShowRun(ctx context.Context, cfg Config, runID string) (ledger.RunWithEvents, error) {
@@ -297,29 +311,28 @@ func ValidateReceipt(ctx context.Context, cfg Config, runID string) (receipt.Val
 	})
 }
 
-func unblockBlockedTask(ctx context.Context, cfg Config, rawTaskID string, operation string) (taskqueue.Task, error) {
+func unblockBlockedTask(ctx context.Context, cfg Config, rawTaskID string, operation string) (taskmodel.Task, error) {
 	taskID := strings.TrimSpace(rawTaskID)
 	if taskID == "" {
-		return taskqueue.Task{}, fmt.Errorf("%s: task id is required", operation)
+		return taskmodel.Task{}, fmt.Errorf("%s: task id is required", operation)
 	}
 
-	tasks, err := openTaskStore(ctx, cfg)
+	paths, err := resolveStatePaths(cfg.WorkDir)
 	if err != nil {
-		return taskqueue.Task{}, err
+		return taskmodel.Task{}, err
 	}
-	defer tasks.Close()
 
-	task, changed, err := tasks.UnblockTask(ctx, taskID)
+	task, changed, err := taskfile.UpdateBlockedToPending(paths.WorkDir, taskID)
 	if err != nil {
-		return taskqueue.Task{}, err
+		return taskmodel.Task{}, err
 	}
 	if !changed {
 		if task.ID == "" {
-			return taskqueue.Task{}, fmt.Errorf("task %q not found", taskID)
+			return taskmodel.Task{}, fmt.Errorf("task %q not found", taskID)
 		}
-		return taskqueue.Task{}, fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
+		return taskmodel.Task{}, fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
 	}
-	return task, nil
+	return taskFromFileTask(task), nil
 }
 
 func validateTaskImports(tasks []TaskImport) ([]AddTaskInput, error) {
@@ -345,10 +358,22 @@ func validateTaskInput(task string, summary string, operation string) (AddTaskIn
 	}, nil
 }
 
+func taskFileTitle(input AddTaskInput) string {
+	if input.Summary != "" {
+		return input.Summary
+	}
+	for _, line := range strings.Split(input.Task, "\n") {
+		title := strings.Join(strings.Fields(strings.TrimSpace(line)), " ")
+		if title != "" {
+			return title
+		}
+	}
+	return input.Task
+}
+
 type statePaths struct {
 	WorkDir      string
 	StateDir     string
-	TaskDBPath   string
 	LedgerDBPath string
 }
 
@@ -370,21 +395,12 @@ func resolveStatePaths(workDir string) (statePaths, error) {
 	return statePaths{
 		WorkDir:      absWorkDir,
 		StateDir:     stateDir,
-		TaskDBPath:   filepath.Join(stateDir, "tasks.sqlite"),
 		LedgerDBPath: filepath.Join(stateDir, "ledger.sqlite"),
 	}, nil
 }
 
-func openTaskStore(ctx context.Context, cfg Config) (*taskqueue.Store, error) {
-	paths, err := resolveStatePaths(cfg.WorkDir)
-	if err != nil {
-		return nil, err
-	}
-	return taskqueue.Open(ctx, paths.TaskDBPath)
-}
-
 func stateInitialized(paths statePaths) (bool, error) {
-	return pathsInitialized(paths, paths.TaskDBPath, paths.LedgerDBPath)
+	return pathsInitialized(paths, paths.LedgerDBPath)
 }
 
 func ledgerInitialized(paths statePaths) (bool, error) {
