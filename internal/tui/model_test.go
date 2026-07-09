@@ -32,6 +32,7 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 		"Dashboard",
 		"State: not initialized",
 		"Tasks: unavailable",
+		"Runnable: unavailable",
 		"Runs: unavailable",
 		"",
 		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
@@ -84,6 +85,8 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 		"Pending: 1",
 		"Blocked: 1",
 		"Completed: 1",
+		"Runnable: ready to run",
+		"Next task: task-pending",
 		"",
 		"Latest Run",
 		"ID: run-new",
@@ -117,6 +120,8 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"Pending: 0",
 		"Blocked: 0",
 		"Completed: 0",
+		"Runnable: nothing runnable",
+		"Next task: none",
 		"Task List",
 		"No tasks queued.",
 		"Task Detail",
@@ -124,6 +129,130 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
 		"      r Refresh | q Quit",
 	)
+}
+
+func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
+	tests := []struct {
+		name          string
+		tasks         []taskqueue.Task
+		dashboardWant []string
+		tasksWant     []string
+		tasksNotWant  []string
+	}{
+		{
+			name: "pending",
+			tasks: []taskqueue.Task{
+				{ID: "task-blocked", Status: taskqueue.StatusBlocked, Summary: "waiting on access"},
+				{ID: "task-ready", Status: taskqueue.StatusPending, Summary: "ship change"},
+				{ID: "task-later", Status: taskqueue.StatusPending, Task: "later task"},
+			},
+			dashboardWant: []string{
+				"Total: 3",
+				"Pending: 2",
+				"Blocked: 1",
+				"Completed: 0",
+				"Runnable: ready to run",
+				"Next task: task-ready - ship change",
+			},
+			tasksWant: []string{
+				"Runnable: ready to run",
+				"Next task: task-ready - ship change",
+				"> - task-blocked  ! blocked  waiting on access",
+				"  next task-ready  pending  ship change",
+				"  - task-later  pending  later task",
+			},
+			tasksNotWant: []string{
+				"Runnable: nothing runnable",
+				"Next task: none",
+			},
+		},
+		{
+			name: "blocked-only",
+			tasks: []taskqueue.Task{
+				{ID: "task-blocked", Status: taskqueue.StatusBlocked, Summary: "waiting on access"},
+			},
+			dashboardWant: []string{
+				"Total: 1",
+				"Pending: 0",
+				"Blocked: 1",
+				"Completed: 0",
+				"Runnable: nothing runnable",
+				"Next task: none",
+			},
+			tasksWant: []string{
+				"Runnable: nothing runnable",
+				"Next task: none",
+				"> - task-blocked  ! blocked  waiting on access",
+			},
+			tasksNotWant: []string{
+				"Runnable: ready to run",
+				"> next task-blocked  ! blocked  waiting on access",
+			},
+		},
+		{
+			name: "completed-only",
+			tasks: []taskqueue.Task{
+				{ID: "task-completed", Status: taskqueue.StatusCompleted, Summary: "done"},
+			},
+			dashboardWant: []string{
+				"Total: 1",
+				"Pending: 0",
+				"Blocked: 0",
+				"Completed: 1",
+				"Runnable: nothing runnable",
+				"Next task: none",
+			},
+			tasksWant: []string{
+				"Runnable: nothing runnable",
+				"Next task: none",
+				"> - task-completed  completed  done",
+			},
+			tasksNotWant: []string{
+				"Runnable: ready to run",
+				"> next task-completed  completed  done",
+			},
+		},
+		{
+			name:  "empty",
+			tasks: nil,
+			dashboardWant: []string{
+				"Total: 0",
+				"Pending: 0",
+				"Blocked: 0",
+				"Completed: 0",
+				"Runnable: nothing runnable",
+				"Next task: none",
+			},
+			tasksWant: []string{
+				"Runnable: nothing runnable",
+				"Next task: none",
+				"No tasks queued.",
+				"No task selected.",
+			},
+			tasksNotWant: []string{
+				"Runnable: ready to run",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := NewStatusModel(app.StatusResult{
+				Initialized: true,
+				Tasks:       tt.tasks,
+			})
+
+			dashboardLines := normalizedViewLines(model.View())
+			requireLines(t, dashboardLines, tt.dashboardWant...)
+
+			tasksView := openTasksView(t, model)
+			tasksLines := normalizedViewLines(tasksView.View())
+			requireLines(t, tasksLines, tt.tasksWant...)
+			for _, notWant := range tt.tasksNotWant {
+				requireNoLine(t, tasksLines, notWant)
+			}
+		})
+	}
 }
 
 func TestStatusModelTasksViewRendersPopulatedTaskList(t *testing.T) {
@@ -136,9 +265,9 @@ func TestStatusModelTasksViewRendersPopulatedTaskList(t *testing.T) {
 	lines := normalizedViewLines(tasksView.View())
 	requireLines(t, lines,
 		"Task List",
-		"> task-pending  pending  write focused tests",
-		"  task-blocked  ! blocked  blocked task",
-		"  task-completed  completed  finished task",
+		"> next task-pending  pending  write focused tests",
+		"  - task-blocked  ! blocked  blocked task",
+		"  - task-completed  completed  finished task",
 	)
 }
 
@@ -178,7 +307,7 @@ func TestStatusModelTasksViewRendersBlockedTaskDetails(t *testing.T) {
 
 	lines := normalizedViewLines(blockedView.View())
 	requireLines(t, lines,
-		"> task-blocked  ! blocked  blocked task",
+		"> - task-blocked  ! blocked  blocked task",
 		"ID: task-blocked",
 		"Status: blocked",
 		"Summary: none",
@@ -208,7 +337,7 @@ func TestStatusModelTasksViewRendersCompletedTaskDetails(t *testing.T) {
 
 	lines := normalizedViewLines(completedView.View())
 	requireLines(t, lines,
-		"> task-completed  completed  finished task",
+		"> - task-completed  completed  finished task",
 		"ID: task-completed",
 		"Status: completed",
 		"Summary: finished task",
@@ -402,7 +531,7 @@ func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) 
 	lines := normalizedViewLines(afterAdd.View())
 	requireLines(t, lines,
 		"Notice: Added task task-new.",
-		"> task-new  pending  TUI add",
+		"> - task-new  pending  TUI add",
 		"ID: task-new",
 		"Status: pending",
 		"Task: Implement add flow",
@@ -1478,6 +1607,8 @@ func TestStatusModelWideRenderSnapshot(t *testing.T) {
 		"Pending: 1",
 		"Blocked: 1",
 		"Completed: 0",
+		"Runnable: ready to run",
+		"Next task: task-ready - write focused TUI polish",
 		"",
 		"Latest Run",
 		"ID: run-success",
@@ -1535,6 +1666,8 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 		"Pending: 1",
 		"Blocked: 1",
 		"Completed: 0",
+		"Runnable: ready to run",
+		"Next task: task-pending",
 		"",
 		"Latest Run",
 		"ID: 019f4415-40b6-7099-9d68-5f87cea67000",

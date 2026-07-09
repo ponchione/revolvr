@@ -1079,6 +1079,7 @@ func (m StatusModel) renderDashboard() string {
 			"Dashboard",
 			"State: not initialized",
 			"Tasks: unavailable",
+			"Runnable: unavailable",
 			"Runs: unavailable",
 		}
 		lines = appendNotice(lines, m.message)
@@ -1086,6 +1087,7 @@ func (m StatusModel) renderDashboard() string {
 	}
 
 	counts := countTasks(m.status.Tasks)
+	nextIndex := firstPendingTaskIndex(m.status.Tasks)
 	lines := []string{
 		"Dashboard",
 		"State: initialized",
@@ -1095,8 +1097,9 @@ func (m StatusModel) renderDashboard() string {
 		fmt.Sprintf("Pending: %d", counts.pending),
 		fmt.Sprintf("Blocked: %d", counts.blocked),
 		fmt.Sprintf("Completed: %d", counts.completed),
-		"",
 	}
+	lines = append(lines, nextRunnableLines(m.status.Tasks, nextIndex)...)
+	lines = append(lines, "")
 	lines = appendNotice(lines, m.message)
 
 	lines = append(lines, latestRunLines(m.status.RecentRuns)...)
@@ -1115,14 +1118,15 @@ func (m StatusModel) renderTasks() string {
 	}
 
 	counts := countTasks(m.status.Tasks)
+	nextIndex := firstPendingTaskIndex(m.status.Tasks)
 	lines = append(lines,
 		fmt.Sprintf("Total: %d", counts.total),
 		fmt.Sprintf("Pending: %d", counts.pending),
 		fmt.Sprintf("Blocked: %d", counts.blocked),
 		fmt.Sprintf("Completed: %d", counts.completed),
-		"",
-		"Task List",
 	)
+	lines = append(lines, nextRunnableLines(m.status.Tasks, nextIndex)...)
+	lines = append(lines, "", "Task List")
 	if len(m.status.Tasks) == 0 {
 		lines = append(lines,
 			"No tasks queued.",
@@ -1134,10 +1138,7 @@ func (m StatusModel) renderTasks() string {
 	}
 	selected := clampTaskIndex(m.status.Tasks, m.selectedTask)
 	for i, task := range m.status.Tasks {
-		prefix := " "
-		if i == selected {
-			prefix = ">"
-		}
+		prefix := taskListPrefix(i == selected, i == nextIndex)
 		summary := oneLine(task.Summary)
 		if summary == "" {
 			summary = oneLine(task.Task)
@@ -1314,6 +1315,40 @@ func countTasks(tasks []taskqueue.Task) taskCounts {
 	return counts
 }
 
+func firstPendingTaskIndex(tasks []taskqueue.Task) int {
+	for i, task := range tasks {
+		if task.Status == taskqueue.StatusPending {
+			return i
+		}
+	}
+	return -1
+}
+
+func nextRunnableLines(tasks []taskqueue.Task, nextIndex int) []string {
+	if nextIndex < 0 || nextIndex >= len(tasks) {
+		return []string{
+			"Runnable: nothing runnable",
+			"Next task: none",
+		}
+	}
+	return []string{
+		"Runnable: ready to run",
+		"Next task: " + taskBrief(tasks[nextIndex]),
+	}
+}
+
+func taskBrief(task taskqueue.Task) string {
+	id := optionalValue(task.ID)
+	summary := oneLine(task.Summary)
+	if summary == "" {
+		summary = oneLine(task.Task)
+	}
+	if summary == "" {
+		return id
+	}
+	return fmt.Sprintf("%s - %s", id, summary)
+}
+
 func renderTaskDetailLines(task taskqueue.Task) []string {
 	lines := []string{
 		"Task Detail",
@@ -1336,6 +1371,17 @@ func renderTaskDetailLines(task taskqueue.Task) []string {
 		lines = append(lines, fmt.Sprintf("Completed: %s", optionalTimePtr(task.CompletedAt)))
 	}
 	return lines
+}
+
+func taskListPrefix(selected bool, nextRunnable bool) string {
+	prefix := " "
+	if selected {
+		prefix = ">"
+	}
+	if nextRunnable {
+		return prefix + " next"
+	}
+	return prefix + " -"
 }
 
 func taskListStatus(status string) string {

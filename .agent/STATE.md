@@ -2,13 +2,24 @@
 
 ## Current Focus
 
-No task is currently in progress. The next unchecked backlog item is to surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
+No task is currently in progress. The next unchecked backlog item is to add TUI blocked-task retry for the selected task.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-09:
+
+- Selected task: surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
+- Files changed: `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the Dashboard and Tasks view now show pending, blocked, and completed counts alongside explicit runnable state text. When a pending task exists, both views show `Runnable: ready to run` and the next task ID plus summary/task text; otherwise they show `Runnable: nothing runnable` and `Next task: none`. The Tasks list marks the current selection with `>` and the first pending task with a plain `next` marker, so selection and run readiness are visible without depending on color.
+- Tests added: focused `internal/tui` render coverage for pending, blocked-only, completed-only, and empty queues, plus updated dashboard/task snapshots for uninitialized and narrow/wide rendering.
+- Verification run: `gofmt -w internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/tui`; `go test ./...`.
+- Verification result: all commands passed.
+- What remains: next unchecked backlog item is to add TUI blocked-task retry for the selected task.
+- Blockers: none.
 
 Task completed on 2026-07-09:
 

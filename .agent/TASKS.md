@@ -32,7 +32,7 @@
   Acceptance: docs include a minimal import-file example with summary, acceptance, and verification notes, plus commands for dry-run, import, TUI refresh, preflight, and run-once.
   Verification: run `go test ./...` and `go run ./cmd/revolvr task import --help`.
 
-- [ ] Surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
+- [x] Surface the next runnable task more clearly in the TUI Dashboard and Tasks view.
   Scope: highlight the first pending task, show pending/blocked/completed counts near the task area, and distinguish `ready to run` from `nothing runnable` without relying on color.
   Acceptance: Dashboard shows the next task ID and summary when present; Tasks view marks both the current selection and the next runnable task; uninitialized and empty states still render coherently.
   Verification: add focused `internal/tui` render tests for pending, blocked-only, completed-only, and empty queues; run `go test ./internal/tui` and `go test ./...`.
