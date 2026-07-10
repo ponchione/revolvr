@@ -34,9 +34,10 @@ type CommitRecorder interface {
 type Status string
 
 const (
-	StatusCommitted Status = "committed"
-	StatusRefused   Status = "refused"
-	StatusFailed    Status = "failed"
+	StatusCommitted     Status = "committed"
+	StatusRefused       Status = "refused"
+	StatusFailed        Status = "failed"
+	StatusIndeterminate Status = "indeterminate"
 )
 
 type RefusalReason string
@@ -86,6 +87,9 @@ type GitCommandResult struct {
 type Result struct {
 	Status                Status
 	CommitSHA             string
+	PreCommitSHA          string
+	PostCommitSHA         string
+	HEADLookupRetried     bool
 	Message               string
 	RefusalReason         RefusalReason
 	ChangedFiles          []string
@@ -129,6 +133,16 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		"changed_files": result.ChangedFiles,
 	})
 
+	preCommitHEAD, preCommitResult, err := resolveHEAD(ctx, cfg, workDir)
+	result.Commands = append(result.Commands, preCommitResult)
+	if err != nil {
+		result.Status = StatusFailed
+		result.Message = "resolve HEAD before commit failed"
+		result.LedgerError = ledgerErr
+		return result, nil
+	}
+	result.PreCommitSHA = preCommitHEAD.SHA
+
 	stageResult := runGit(ctx, cfg, workDir, append([]string{"add", "--"}, result.ChangedFiles...))
 	result.Commands = append(result.Commands, stageResult)
 	if !commandPassed(stageResult) {
@@ -141,33 +155,39 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	subject, body := commitMessageParts(cfg.TaskSummary, cfg.RunID, cfg.TaskID)
 	commitResult := runGit(ctx, cfg, workDir, []string{"commit", "-m", subject, "-m", body})
 	result.Commands = append(result.Commands, commitResult)
-	if !commandPassed(commitResult) {
+
+	postCommitHEAD, postCommitResults, retried, err := resolveHEADAfterCommit(ctx, cfg, workDir)
+	result.Commands = append(result.Commands, postCommitResults...)
+	result.HEADLookupRetried = retried
+	if err != nil {
+		result.Status = StatusIndeterminate
+		result.Message = "git commit outcome is indeterminate: resolve HEAD after commit failed"
+		result.LedgerError = ledgerErr
+		return result, nil
+	}
+	result.PostCommitSHA = postCommitHEAD.SHA
+
+	if !headAdvanced(preCommitHEAD, postCommitHEAD) {
 		result.Status = StatusFailed
-		result.Message = "git commit failed"
+		if commandPassed(commitResult) {
+			result.Message = "git commit reported success but HEAD did not advance"
+		} else {
+			result.Message = "git commit failed"
+		}
 		result.LedgerError = ledgerErr
 		return result, nil
 	}
 
-	shaResult := runGit(ctx, cfg, workDir, []string{"rev-parse", "--verify", "HEAD"})
-	result.Commands = append(result.Commands, shaResult)
-	if !commandPassed(shaResult) {
-		result.Status = StatusFailed
-		result.Message = "git rev-parse failed"
-		result.LedgerError = ledgerErr
-		return result, nil
-	}
-
-	sha := strings.TrimSpace(shaResult.Stdout)
-	if sha == "" {
-		result.Status = StatusFailed
-		result.Message = "git rev-parse returned an empty commit SHA"
-		result.LedgerError = ledgerErr
-		return result, nil
-	}
+	sha := postCommitHEAD.SHA
 
 	result.Status = StatusCommitted
 	result.CommitSHA = sha
 	result.Message = "commit created"
+	if !commandPassed(commitResult) {
+		result.Message = "commit created despite git commit command failure"
+	} else if retried {
+		result.Message = "commit created after reconciling HEAD"
+	}
 
 	recorder := cfg.CommitRecorder
 	if recorder == nil {
@@ -182,10 +202,12 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 
 	appendLedger(ledger.EventCommitCreated, map[string]any{
-		"run_id":        cfg.RunID,
-		"task_id":       cfg.TaskID,
-		"commit_sha":    sha,
-		"changed_files": result.ChangedFiles,
+		"run_id":              cfg.RunID,
+		"task_id":             cfg.TaskID,
+		"commit_sha":          sha,
+		"pre_commit_sha":      result.PreCommitSHA,
+		"head_lookup_retried": result.HEADLookupRetried,
+		"changed_files":       result.ChangedFiles,
 		"message": map[string]any{
 			"subject": subject,
 			"body":    body,
@@ -193,6 +215,45 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	})
 	result.LedgerError = ledgerErr
 	return result, nil
+}
+
+type headState struct {
+	SHA    string
+	Exists bool
+}
+
+func resolveHEAD(ctx context.Context, cfg Config, workDir string) (headState, GitCommandResult, error) {
+	result := runGit(ctx, cfg, workDir, []string{"rev-parse", "--verify", "--quiet", "HEAD"})
+	if commandPassed(result) {
+		sha := strings.TrimSpace(result.Stdout)
+		if sha == "" {
+			return headState{}, result, errors.New("git rev-parse returned an empty commit SHA")
+		}
+		return headState{SHA: sha, Exists: true}, result, nil
+	}
+	if result.Error == "" && !result.TimedOut && result.ExitCode == 1 && strings.TrimSpace(result.Stdout) == "" {
+		return headState{}, result, nil
+	}
+	return headState{}, result, errors.New("git rev-parse failed")
+}
+
+func resolveHEADAfterCommit(ctx context.Context, cfg Config, workDir string) (headState, []GitCommandResult, bool, error) {
+	head, first, err := resolveHEAD(ctx, cfg, workDir)
+	results := []GitCommandResult{first}
+	if err == nil {
+		return head, results, false, nil
+	}
+
+	head, retry, retryErr := resolveHEAD(ctx, cfg, workDir)
+	results = append(results, retry)
+	return head, results, true, retryErr
+}
+
+func headAdvanced(before headState, after headState) bool {
+	if !after.Exists {
+		return false
+	}
+	return !before.Exists || before.SHA != after.SHA
 }
 
 func normalizeConfig(cfg Config) (Config, string, error) {

@@ -12,6 +12,11 @@
 
 ## Current Backlog
 
+- [x] Reconcile ambiguous Git commit outcomes by comparing pre/post-commit HEAD.
+  Scope: capture HEAD before staging, resolve it after every commit attempt, retry a failed post-commit lookup once, and classify a changed HEAD as committed even when the commit command or first SHA lookup reports failure. Preserve an explicit indeterminate state when post-commit HEAD cannot be resolved, without restoring stale task phase metadata.
+  Acceptance: successful and initial commits still record their SHA; transient post-commit lookup failure recovers the created commit; a commit-command error with an advanced HEAD is recorded as committed; unchanged HEAD remains failed; unavailable post-commit HEAD is reported as indeterminate and leaves the task blocked at the transitioned phase for inspection.
+  Verification: add focused `internal/commit` and `internal/runonce` regression tests; run `go test ./internal/commit ./internal/runonce`, `go test -race ./...`, `go vet ./...`, relevant CLI smoke commands, and `git diff --check`.
+
 - [x] Add task workflow/phase metadata parsing and defaults.
   Scope: extend `internal/taskfile` frontmatter parsing for durable workflow metadata without changing runtime behavior yet. Support optional `workflow` and `phase` keys, default missing workflow to `mixed-pass-v1` and missing phase to `implement`, and accept the initial phases `implement`, `audit`, `document`, and `simplify`.
   Acceptance: existing `.agent/tasks/*.md` files without workflow metadata still load as pending implement-phase tasks; invalid workflow or phase values fail clearly; known frontmatter parsing remains deterministic; task selection order is unchanged.

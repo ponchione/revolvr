@@ -441,6 +441,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		outcome, verdict := commitRefusalOutcome(commitResult.RefusalReason)
 		result.Message = commitRefusalMessage(commitResult)
 		return finish(ctx, cfg, ledgerStore, &result, outcome, verdict, verificationStatus, "")
+	case commit.StatusIndeterminate:
+		result.Message = nonEmpty(commitResult.Message, "auto-commit outcome is indeterminate")
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
 	default:
 		result.Message = nonEmpty(commitResult.Message, "auto-commit failed")
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
@@ -685,7 +688,7 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 	var taskRestageError string
 	taskRestageApplied := false
 	if result.selectedFileTask.SourcePath != "" && outcome != OutcomeCommitted {
-		updatedFileTask, err := blockFailedTask(cfg.WorkingDir, result)
+		updatedFileTask, err := blockTaskAfterFailedRun(cfg.WorkingDir, result)
 		if err != nil {
 			taskUpdateError = err.Error()
 			finishErr = errors.Join(finishErr, fmt.Errorf("update task after failed run: %w", err))
@@ -765,6 +768,9 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 		"codex_exit_code":        result.Codex.ExitCode,
 		"verification_status":    verificationStatus,
 		"commit_sha":             commitSHA,
+		"commit_pre_head":        result.Commit.PreCommitSHA,
+		"commit_post_head":       result.Commit.PostCommitSHA,
+		"commit_head_retry":      result.Commit.HEADLookupRetried,
 		"commit_status":          result.Commit.Status,
 		"commit_refusal":         result.Commit.RefusalReason,
 		"commit_message":         result.Commit.Message,
@@ -794,8 +800,12 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 	return *result, finishErr
 }
 
-func blockFailedTask(repositoryRoot string, result *Result) (taskfile.Task, error) {
-	return taskfile.UpdateMetadataFromSnapshot(repositoryRoot, result.selectedFileTask, taskfile.MetadataUpdate{
+func blockTaskAfterFailedRun(repositoryRoot string, result *Result) (taskfile.Task, error) {
+	snapshot := result.selectedFileTask
+	if result.Commit.Status == commit.StatusIndeterminate && result.phaseTransitionApplied {
+		snapshot = result.FileTask
+	}
+	return taskfile.UpdateMetadataFromSnapshot(repositoryRoot, snapshot, taskfile.MetadataUpdate{
 		Status: taskfile.StatusBlocked,
 	})
 }

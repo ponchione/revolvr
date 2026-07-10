@@ -117,9 +117,10 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		{"status", "--short", "--untracked-files=all"},
 		{"status", "--short", "--untracked-files=all"},
 		{"status", "--short", "--untracked-files=all"},
+		{"rev-parse", "--verify", "--quiet", "HEAD"},
 		{"add", "--", "internal/feature.go"},
 		{"commit", "-m", "Implement selected task", "-m", "Run-ID: " + result.Run.ID + "\nTask-ID: task-1\nVerification: passed"},
-		{"rev-parse", "--verify", "HEAD"},
+		{"rev-parse", "--verify", "--quiet", "HEAD"},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("git commands = %#v, want %#v", got, want)
 	}
@@ -499,6 +500,83 @@ func TestRunCommitFailureAfterMetadataUpdateDoesNotAdvancePhase(t *testing.T) {
 	}
 	if got, want := terminal.ChangedFiles, []string{selected.SourcePath}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("terminal changed files = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunIndeterminateCommitBlocksTransitionedPhaseForInspection(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeTestRunProfile(t, env.workDir, "auditor", "Auditor profile.\n\nReview before document.")
+	selected := writeRunTaskWithPhase(t, env, "task-audit-commit-unknown", "Audit indeterminate commit", taskfile.PhaseAudit)
+
+	var changedCaptureCalls int
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			changedCaptureCalls++
+			return gitstate.Capture{
+				Kind:         gitstate.CaptureKindChanged,
+				ChangedFiles: []string{selected.SourcePath},
+				Paths:        []string{selected.SourcePath},
+			}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0, FinalMessage: "done"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			return commit.Result{
+				Status:            commit.StatusIndeterminate,
+				Message:           "git commit outcome is indeterminate: resolve HEAD after commit failed",
+				PreCommitSHA:      "parent123",
+				HEADLookupRetried: true,
+				Commands: []commit.GitCommandResult{
+					{Args: []string{"add", "--", selected.SourcePath}, ExitCode: 0},
+				},
+			}, nil
+		},
+		CommandRunner: func(context.Context, runner.Command) runner.Result {
+			return runner.Result{ExitCode: 0}
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeCommitFailed || result.Commit.Status != commit.StatusIndeterminate {
+		t.Fatalf("outcome/commit = %s/%s, want commit_failed/indeterminate", result.Outcome, result.Commit.Status)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseDocument {
+		t.Fatalf("task status/phase = %s/%s, want blocked transitioned document phase", updated.Status, updated.Phase)
+	}
+	if changedCaptureCalls != 3 {
+		t.Fatalf("changed capture calls = %d, want pre-transition, post-transition, and final captures", changedCaptureCalls)
+	}
+	history, ok, historyErr := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if historyErr != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, historyErr)
+	}
+	var terminal struct {
+		TaskPhase       string        `json:"task_phase"`
+		CommitStatus    commit.Status `json:"commit_status"`
+		CommitPreHEAD   string        `json:"commit_pre_head"`
+		CommitPostHEAD  string        `json:"commit_post_head"`
+		CommitHeadRetry bool          `json:"commit_head_retry"`
+		Restaged        bool          `json:"task_restage_applied"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) {
+		t.Fatal("run failed event not found")
+	}
+	if terminal.TaskPhase != taskfile.PhaseDocument || terminal.CommitStatus != commit.StatusIndeterminate || terminal.CommitPreHEAD != "parent123" || terminal.CommitPostHEAD != "" || !terminal.CommitHeadRetry || !terminal.Restaged {
+		t.Fatalf("terminal indeterminate evidence = %+v", terminal)
 	}
 }
 
@@ -2558,6 +2636,7 @@ type fakeCommandState struct {
 	codexArgs           []string
 	gitCommands         [][]string
 	gitStatusCalls      int
+	gitHEADCalls        int
 	gitAddOrCommitCalls int
 	verificationCalls   int
 }
@@ -2629,6 +2708,10 @@ func (s *fakeCommandState) runGit(command runner.Command) runner.Result {
 	case "add", "commit":
 		return runner.Result{ExitCode: 0}
 	case "rev-parse":
+		s.gitHEADCalls++
+		if s.gitHEADCalls == 1 {
+			return runner.Result{ExitCode: 0, Stdout: "parent123\n"}
+		}
 		sha := s.commitSHA
 		if sha == "" {
 			sha = "abc123"

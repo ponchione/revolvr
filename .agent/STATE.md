@@ -10,6 +10,17 @@ No task is currently in progress. No unchecked backlog items remain in `.agent/T
 
 ## Last Run
 
+Task completed on 2026-07-10:
+
+- Selected task: reconcile ambiguous Git commit outcomes by comparing pre/post-commit HEAD.
+- Files changed: `internal/commit/commit.go`, `internal/commit/commit_test.go`, `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: the commit gate now captures HEAD before staging, resolves HEAD after every commit attempt, retries a failed post-commit lookup once, and treats an advanced HEAD as committed even if the commit command or first lookup reported failure. Initial commits remain supported through an explicit unborn-HEAD result. If post-commit HEAD remains unavailable, the commit result is `indeterminate`; runonce blocks and restages the policy-transitioned task state instead of restoring potentially stale original-phase bytes. Terminal events record pre/post HEAD evidence and whether the lookup was retried.
+- Tests added: focused fake-runner coverage for transient lookup recovery, commit-command failure with an advanced HEAD, an unavailable post-commit HEAD, and an unborn initial HEAD; a real-Git regression injects a transient lookup failure after an actual commit; runonce coverage verifies indeterminate outcomes block the transitioned phase and record terminal evidence.
+- Tests/verification run: `go test -count=1 ./internal/commit ./internal/runonce`; `go test -count=1 ./...`; `go test -race -count=1 ./...`; `go vet ./...`; `go run ./cmd/revolvr --help`; `go run ./cmd/revolvr config check`; `go run ./cmd/revolvr task --help`; `go run ./cmd/revolvr task list`; `go run ./cmd/revolvr run --help`; `go run ./cmd/revolvr status`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: no unchecked backlog items remain.
+- Blockers: none.
+
 Task completed on 2026-07-09:
 
 - Selected task: document the mixed-pass task workflow.
