@@ -174,24 +174,41 @@ func runStartedDetail(event ledger.Event) string {
 
 func taskSelectedDetail(event ledger.Event) string {
 	var payload struct {
-		TaskID  string `json:"task_id"`
-		Summary string `json:"summary"`
+		TaskID      string `json:"task_id"`
+		Summary     string `json:"summary"`
+		Workflow    string `json:"workflow"`
+		Phase       string `json:"phase"`
+		ProfileName string `json:"profile_name"`
 	}
 	if !decodeTimelinePayload(event, &payload) {
 		return "task selected"
 	}
 	taskID := timelineOneLine(payload.TaskID)
 	summary := timelineOneLine(payload.Summary)
+	detail := "task selected"
 	switch {
 	case taskID != "" && summary != "":
-		return "task " + taskID + ": " + summary
+		detail = "task " + taskID + ": " + summary
 	case taskID != "":
-		return "task " + taskID
+		detail = "task " + taskID
 	case summary != "":
-		return summary
-	default:
-		return "task selected"
+		detail = summary
 	}
+
+	metadata := []string{}
+	if workflow := timelineOneLine(payload.Workflow); workflow != "" {
+		metadata = append(metadata, "workflow="+workflow)
+	}
+	if phase := timelineOneLine(payload.Phase); phase != "" {
+		metadata = append(metadata, "phase="+phase)
+	}
+	if profile := timelineOneLine(payload.ProfileName); profile != "" {
+		metadata = append(metadata, "profile="+profile)
+	}
+	if len(metadata) > 0 {
+		detail += "; " + strings.Join(metadata, "; ")
+	}
+	return detail
 }
 
 func contextBuiltDetail(event ledger.Event) string {

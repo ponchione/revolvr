@@ -28,7 +28,13 @@ func TestRunTimelineCompletedRun(t *testing.T) {
 		},
 		Events: []ledger.Event{
 			timelineEvent(t, 1, "run-complete", ledger.EventRunStarted, base, map[string]any{"run_id": "run-complete", "task_id": "task-complete"}),
-			timelineEvent(t, 2, "run-complete", ledger.EventTaskSelected, base.Add(time.Second), map[string]any{"task_id": "task-complete", "summary": "Implement timeline"}),
+			timelineEvent(t, 2, "run-complete", ledger.EventTaskSelected, base.Add(time.Second), map[string]any{
+				"task_id":      "task-complete",
+				"summary":      "Implement timeline",
+				"workflow":     "mixed-pass-v1",
+				"phase":        "audit",
+				"profile_name": "auditor",
+			}),
 			timelineEvent(t, 3, "run-complete", ledger.EventContextBuilt, base.Add(2*time.Second), map[string]any{"context_payload_path": ".revolvr/runs/run-complete/context.md", "context_manifest_path": ".revolvr/runs/run-complete/context.json"}),
 			timelineEvent(t, 4, "run-complete", ledger.EventCodexStarted, base.Add(3*time.Second), map[string]any{"executable": "codex"}),
 			timelineEvent(t, 5, "run-complete", ledger.EventCodexJSONEvent, base.Add(4*time.Second), map[string]any{"type": "turn.started"}),
@@ -49,7 +55,7 @@ func TestRunTimelineCompletedRun(t *testing.T) {
 
 	want := []RunTimelineRow{
 		{Timestamp: base, Phase: "run", Status: "started", Detail: "run run-complete, task task-complete"},
-		{Timestamp: base.Add(time.Second), Phase: "task", Status: "selected", Detail: "task task-complete: Implement timeline"},
+		{Timestamp: base.Add(time.Second), Phase: "task", Status: "selected", Detail: "task task-complete: Implement timeline; workflow=mixed-pass-v1; phase=audit; profile=auditor"},
 		{Timestamp: base.Add(2 * time.Second), Phase: "context", Status: "built", Detail: ".revolvr/runs/run-complete/context.md"},
 		{Timestamp: base.Add(3 * time.Second), Phase: "codex", Status: "started", Detail: "codex"},
 		{Timestamp: base.Add(4 * time.Second), Phase: "codex", Status: "progress", Detail: "turn.started"},

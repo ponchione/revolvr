@@ -10,6 +10,87 @@ No task is currently in progress. No unchecked backlog items remain in `.agent/T
 
 ## Last Run
 
+Task completed on 2026-07-09:
+
+- Selected task: document the mixed-pass task workflow.
+- Files changed: `README.md`, `.agent/TASKS.md`, `.agent/STATE.md`.
+- Documentation added: README now distinguishes a canonical `.agent/tasks/*.md` durable task from each fresh pass/run, shows a minimal `mixed-pass-v1` task, documents `implement -> audit -> document -> simplify -> completed`, summarizes the four policy-selected profiles and their no-change rules, states that task frontmatter `profile` is not an override, explains Revolvr-owned pre-commit phase advancement and same-phase failure retry, and points operators to the CLI and TUI workflow inspection surfaces. It also clarifies that receipts and ledger events audit policy-driven harness outcomes rather than choosing the next phase.
+- Tests/verification run: `go test ./...`; `go run ./cmd/revolvr task --help`; `go run ./cmd/revolvr task list`; `go run ./cmd/revolvr run --help`; `go run ./cmd/revolvr status`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: no unchecked backlog items remain.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: surface task workflow state in CLI, TUI, status, and timeline views.
+- Files changed: `internal/taskmodel/task.go`, `internal/app/app.go`, `internal/app/app_test.go`, `internal/app/timeline.go`, `internal/app/timeline_test.go`, `internal/cli/root.go`, `internal/cli/root_test.go`, `internal/tui/model.go`, `internal/tui/model_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: app task adaptation now resolves each file-backed task through `internal/passpolicy.Lookup` and exposes workflow, current phase, mapped run profile, and next phase or `completed` on `taskmodel.Task`; lookup failures return a task-specific error. `revolvr task list` now prints stable workflow/phase/profile/next columns, and `revolvr status` prints a concise next-task and next-pass summary when a pending task exists while preserving the empty-task output. The TUI Dashboard and Tasks views now show the next task's workflow state, every task row shows phase/profile/next, and selected task detail shows workflow/phase/profile/next. `task_selected` timeline rows append available workflow/phase/profile payload metadata while legacy payload formatting and raw TUI event rows remain intact.
+- Tests/verification run: `gofmt -w internal/taskmodel/task.go internal/app/app.go internal/app/app_test.go internal/app/timeline.go internal/app/timeline_test.go internal/cli/root.go internal/cli/root_test.go internal/tui/model.go internal/tui/model_test.go`; `go test ./internal/app ./internal/cli ./internal/tui`; `go test ./...`; `go run ./cmd/revolvr task list`; `go run ./cmd/revolvr status`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: next unchecked backlog item is to document the mixed-pass task workflow.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: seed `.agent/profiles/simplifier.md`.
+- Files changed: `.agent/profiles/simplifier.md`, `internal/prompt/profile.go`, `internal/prompt/profile_test.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: `prompt.DefaultRunProfileTemplates` now includes the repo-authored `simplifier` profile. `revolvr init` seeds `.agent/profiles/simplifier.md` alongside `implementer.md`, `auditor.md`, and `documentor.md` when missing, while preserving any existing simplifier profile file. The checked-in profile instructs agents to simplify only when meaningful, preserve behavior, avoid clever abstractions, create helpers only for real duplication or complexity reduction, and stop cleanly when no worthwhile simplification exists.
+- Tests/verification run: `gofmt -w internal/prompt/profile.go internal/prompt/profile_test.go internal/cli/root_test.go`; `go test ./internal/prompt ./internal/cli`; `go test ./...`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: next unchecked backlog item is to surface task workflow state in CLI, TUI, status, and timeline views.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: allow policy-permitted no-change success and durable phase advancement.
+- Files changed: `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `internal/taskfile/taskfile.go`, `internal/taskfile/taskfile_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: successful runonce passes now apply the selected task's `internal/passpolicy.Policy` after Codex and verification succeed and before the commit gate. Implement passes still need pre-metadata changed files and now advance the durable task to `phase: audit` with `status: pending`; audit advances to `phase: document`, document advances to `phase: simplify`, and simplify marks the task `completed`. Audit/document/simplify can succeed with no source changes because the task-file metadata update becomes the committed durable change. Changed files are recaptured after metadata updates so commits, receipts, and terminal ledger events include the task-file transition. Failed/blocking outcomes do not advance phase; if a commit fails after a metadata update, the task is marked blocked at its original phase.
+- Tests/verification run: `gofmt -w internal/runonce/runonce.go internal/runonce/runonce_test.go internal/taskfile/taskfile.go internal/taskfile/taskfile_test.go`; `go test ./internal/runonce ./internal/taskfile`; `go test ./internal/app`; `go test ./internal/passpolicy`; `go test ./...`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: next unchecked backlog item is to seed `.agent/profiles/simplifier.md`.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: teach `runonce` to load the profile for the selected task phase.
+- Files changed: `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: `internal/runonce` now resolves the selected task file's `workflow` and `phase` with `internal/passpolicy.Lookup` and loads the mapped repo-authored profile before building the context bundle. Default and explicit implement phases load `implementer`, audit loads `auditor`, document loads `documentor`, and an unseeded simplify phase blocks before Codex with the existing missing-profile failure path. The task-selected ledger event now records workflow, phase, and profile name for audit; context manifests continue recording the exact loaded profile path, SHA-256, and byte size. Successful runs still mark the selected task file `completed`; no phase advancement or no-change success policy was added.
+- Tests/verification run: `gofmt -w internal/runonce/runonce.go internal/runonce/runonce_test.go`; `go test ./internal/runonce ./internal/prompt`; `go test ./internal/passpolicy ./internal/taskfile`; `go test ./...`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: next unchecked backlog item is to allow policy-permitted no-change success and durable phase advancement.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: add a pass-policy model mapping phases to profiles and outcome semantics.
+- Files changed: `internal/passpolicy/policy.go`, `internal/passpolicy/policy_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`.
+- Behavior changed: added `internal/passpolicy.Lookup` for `mixed-pass-v1`, mapping `implement -> audit -> document -> simplify -> completed` with profile names `implementer`, `auditor`, `documentor`, and `simplifier`; `implement` disallows no-change success, later phases allow it, and `simplify` is terminal with no next phase. Unsupported workflows and phases now return clear lookup errors from the policy package. No runtime behavior changed in `runonce`.
+- Tests/verification run: `gofmt -w internal/passpolicy/policy.go internal/passpolicy/policy_test.go`; `go test ./internal/passpolicy`; `go test ./...`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: next unchecked backlog item is to teach `runonce` to load the profile for the selected task phase.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: add task workflow/phase metadata parsing and defaults.
+- Files changed: `internal/taskfile/taskfile.go`, `internal/taskfile/taskfile_test.go`, `.agent/TASKS.md`, `.agent/STATE.md`.
+- Behavior changed: `.agent/tasks/*.md` parsing now exposes `workflow` and `phase` on `taskfile.Task`, defaults missing workflow to `mixed-pass-v1`, defaults missing phase to `implement`, accepts `implement`, `audit`, `document`, and `simplify`, validates invalid workflow/phase values clearly, and treats duplicate `workflow`/`phase` as duplicate known frontmatter keys. Status-only task updates continue preserving workflow/phase frontmatter.
+- Tests/verification run: `gofmt -w internal/taskfile/taskfile.go internal/taskfile/taskfile_test.go`; `go test ./internal/taskfile`; `go test ./...`; `git diff --check`.
+- Verification result: passed.
+- Remaining work: next unchecked backlog item is to add a pass-policy model mapping phases to profiles and outcome semantics.
+- Blockers: none.
+
+Task completed on 2026-07-09:
+
+- Selected task: seed the mixed loop pass progression backlog for durable task phases.
+- Files changed: `.agent/TASKS.md`, `.agent/DECISIONS.md`, `.agent/STATE.md`.
+- Backlog added: small ordered slices for task workflow/phase metadata, pass-policy modeling, phase-based profile loading, no-change success with durable phase advancement, `simplifier` profile seeding, workflow state visibility, and mixed-pass documentation.
+- Decision update: durable tasks and passes are distinct; workflow state lives in canonical task files; Revolvr owns phase transitions through policy; audit/document/simplify may succeed without code changes when policy permits; successful advancement should update the task file before the commit gate when appropriate.
+- Verification run: `git diff --check`.
+- Verification result: passed.
+- What remains: next unchecked backlog item is to add task workflow/phase metadata parsing and defaults.
+- Blockers: none.
+
 Audit completed on 2026-07-09:
 
 - Selected task: audit obsolete migration surface after moving to file-backed tasks, repo-authored profiles, current context artifacts, and fresh Codex sessions.

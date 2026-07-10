@@ -84,6 +84,32 @@ func TestLoadRunProfileRejectsUnsafeNames(t *testing.T) {
 	}
 }
 
+func TestDefaultRunProfileTemplatesIncludesSimplifier(t *testing.T) {
+	template := runProfileTemplateByName(t, "simplifier")
+	for _, want := range []string{
+		"You are the simplifier for this Revolvr pass.",
+		"Reduce unnecessary complexity, duplication, and line count only when doing so is meaningful.",
+		"Preserve behavior",
+		"avoid clever abstractions",
+		"create helpers only when they reduce real duplication or complexity",
+		"stop cleanly when no simplification is worthwhile",
+	} {
+		if !strings.Contains(template.Content, want) {
+			t.Fatalf("simplifier template missing %q:\n%s", want, template.Content)
+		}
+	}
+
+	repo := t.TempDir()
+	writeProfileFile(t, repo, template.Name, template.Content)
+	profile, err := LoadRunProfile(repo, "simplifier")
+	if err != nil {
+		t.Fatalf("load seeded simplifier profile: %v", err)
+	}
+	if got, want := profile.Description, strings.TrimSpace(template.Content); got != want {
+		t.Fatalf("simplifier description = %q, want %q", got, want)
+	}
+}
+
 func writeProfileFile(t *testing.T, repo string, name string, content string) {
 	t.Helper()
 	path := filepath.Join(repo, RunProfileSourcePath(name))
@@ -93,4 +119,15 @@ func writeProfileFile(t *testing.T, repo string, name string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write profile file: %v", err)
 	}
+}
+
+func runProfileTemplateByName(t *testing.T, name string) RunProfileTemplate {
+	t.Helper()
+	for _, template := range DefaultRunProfileTemplates() {
+		if template.Name == name {
+			return template
+		}
+	}
+	t.Fatalf("profile template %q not found", name)
+	return RunProfileTemplate{}
 }

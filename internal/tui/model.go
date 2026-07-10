@@ -1456,11 +1456,14 @@ func (m StatusModel) renderTasks() string {
 		if summary == "" {
 			summary = oneLine(task.Task)
 		}
-		if summary == "" {
-			lines = append(lines, fmt.Sprintf("%s %s  %s", prefix, optionalValue(task.ID), taskListStatus(task.Status)))
-			continue
+		line := fmt.Sprintf("%s %s  %s", prefix, optionalValue(task.ID), taskListStatus(task.Status))
+		if state := taskListWorkflowState(task); state != "" {
+			line += "  " + state
 		}
-		lines = append(lines, fmt.Sprintf("%s %s  %s  %s", prefix, optionalValue(task.ID), taskListStatus(task.Status), summary))
+		if summary != "" {
+			line += "  " + summary
+		}
+		lines = append(lines, line)
 	}
 	lines = append(lines, "")
 	lines = append(lines, renderTaskDetailLines(m.status.Tasks[selected])...)
@@ -1654,6 +1657,11 @@ func countTasks(tasks []taskmodel.Task) taskCounts {
 
 func firstPendingTaskIndex(tasks []taskmodel.Task) int {
 	for i, task := range tasks {
+		if task.Status == taskmodel.StatusPending && task.NextRunnable {
+			return i
+		}
+	}
+	for i, task := range tasks {
 		if task.Status == taskmodel.StatusPending {
 			return i
 		}
@@ -1668,10 +1676,14 @@ func nextRunnableLines(tasks []taskmodel.Task, nextIndex int) []string {
 			"Next task: none",
 		}
 	}
-	return []string{
+	lines := []string{
 		"Runnable: ready to run",
 		"Next task: " + taskBrief(tasks[nextIndex]),
 	}
+	if state := taskWorkflowStateLine(tasks[nextIndex]); state != "" {
+		lines = append(lines, state)
+	}
+	return lines
 }
 
 func taskBrief(task taskmodel.Task) string {
@@ -1691,10 +1703,20 @@ func renderTaskDetailLines(task taskmodel.Task) []string {
 		"Task Detail",
 		fmt.Sprintf("ID: %s", optionalValue(task.ID)),
 		fmt.Sprintf("Status: %s", optionalValue(task.Status)),
+	}
+	if hasTaskWorkflowState(task) {
+		lines = append(lines,
+			fmt.Sprintf("Workflow: %s", optionalValue(task.Workflow)),
+			fmt.Sprintf("Phase: %s", optionalValue(task.Phase)),
+			fmt.Sprintf("Profile: %s", optionalValue(task.RunProfile)),
+			fmt.Sprintf("Next: %s", optionalValue(task.NextState)),
+		)
+	}
+	lines = append(lines,
 		fmt.Sprintf("Summary: %s", optionalValue(task.Summary)),
 		fmt.Sprintf("Task: %s", optionalValue(task.Task)),
 		fmt.Sprintf("Blocker: %s", optionalValue(task.Blocker)),
-	}
+	)
 	if !task.CreatedAt.IsZero() {
 		lines = append(lines, fmt.Sprintf("Created: %s", optionalTime(task.CreatedAt)))
 	}
@@ -1708,6 +1730,36 @@ func renderTaskDetailLines(task taskmodel.Task) []string {
 		lines = append(lines, fmt.Sprintf("Completed: %s", optionalTimePtr(task.CompletedAt)))
 	}
 	return lines
+}
+
+func hasTaskWorkflowState(task taskmodel.Task) bool {
+	return strings.TrimSpace(task.Workflow) != "" ||
+		strings.TrimSpace(task.Phase) != "" ||
+		strings.TrimSpace(task.RunProfile) != "" ||
+		strings.TrimSpace(task.NextState) != ""
+}
+
+func taskWorkflowStateLine(task taskmodel.Task) string {
+	if !hasTaskWorkflowState(task) {
+		return ""
+	}
+	return fmt.Sprintf("Workflow: %s  Phase: %s  Profile: %s  Next: %s",
+		optionalValue(task.Workflow),
+		optionalValue(task.Phase),
+		optionalValue(task.RunProfile),
+		optionalValue(task.NextState),
+	)
+}
+
+func taskListWorkflowState(task taskmodel.Task) string {
+	if !hasTaskWorkflowState(task) {
+		return ""
+	}
+	return fmt.Sprintf("phase=%s  profile=%s  next=%s",
+		optionalValue(task.Phase),
+		optionalValue(task.RunProfile),
+		optionalValue(task.NextState),
+	)
 }
 
 func taskListPrefix(selected bool, nextRunnable bool) string {

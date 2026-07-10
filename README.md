@@ -52,6 +52,69 @@ If a task is blocked and should be retried:
 go run ./cmd/revolvr task retry <task-id>
 ```
 
+### Mixed-Pass Task Workflow
+
+A durable task is one canonical Markdown file under `.agent/tasks/*.md`. It
+keeps its identity and workflow state as it progresses. A pass (or run) is one
+fresh Codex execution for that task, with its own run ID, ledger events,
+artifacts, and receipt. One durable task therefore normally spans several
+passes.
+
+Minimal canonical task file:
+
+```markdown
+---
+id: example-task
+status: pending
+workflow: mixed-pass-v1
+phase: implement
+---
+# Example task
+
+Describe the bounded work here.
+```
+
+Omitting `workflow` or `phase` defaults them to `mixed-pass-v1` and
+`implement`. The workflow progresses in this exact order:
+
+```text
+implement -> audit -> document -> simplify -> completed
+```
+
+Revolvr policy selects the repo-authored profile for each phase:
+
+- `implement` uses `implementer` to make the bounded change. It requires
+  meaningful changes before the metadata transition; a verified no-change
+  implementation pass is refused with `no_changes` and does not advance.
+- `audit` uses `auditor` to review correctness, regressions, verification, and
+  risks. It may succeed without product or source changes.
+- `document` uses `documentor` to update operator-facing documentation when
+  needed. It may succeed without product or source changes.
+- `simplify` uses `simplifier` to reduce worthwhile complexity or duplication.
+  It may succeed without product or source changes and completes the task.
+
+Task frontmatter `profile` is not an operator override. Revolvr derives the
+selected profile from `workflow` and `phase` through its pass policy.
+
+Revolvr, not Codex-authored task edits, owns durable phase transitions. After
+Codex and verification succeed, Revolvr applies the policy transition to the
+task file before the commit gate. Nonterminal transitions keep the task
+`pending` at the next phase; a successful `simplify` pass marks it `completed`.
+Audit, document, and simplify may advance without source changes because the
+task-file metadata transition is durable work included in the commit. A failed
+or blocked outcome leaves the original phase unchanged and blocks the task;
+`revolvr task retry <task-id>` returns it to `pending` at that same phase.
+
+Receipts, ledger events, and committed task-file transitions make every phase
+outcome auditable. Receipt text records the outcome but does not choose the
+next phase; Revolvr applies policy to the harness outcome.
+
+Use `revolvr task list` for workflow, phase, profile, and next-state columns,
+and `revolvr status` for the next runnable task, its next pass, and recent pass
+state. The TUI Dashboard and Tasks views show the current workflow state. Use
+`revolvr show <run-id>` or TUI Run Detail to inspect task-selection timeline
+metadata and the underlying event sequence.
+
 ## Chat-To-Task Imports
 
 Use a web chat or design session to shape a feature into small, bounded tasks,
@@ -261,8 +324,8 @@ Validate one recorded run receipt against the ledger and artifact files:
 go run ./cmd/revolvr receipt validate <run-id>
 ```
 
-Receipt validation checks the finalized receipt timestamp, commit SHA, changed
-files, verification results, and recorded artifact paths.
+Receipt validation checks the finalized verdict, timestamp, commit SHA,
+changed files, verification results, and recorded artifact paths.
 
 ## Development Checks
 

@@ -169,6 +169,24 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 			},
 		},
 		{
+			name: "priority marker overrides display order",
+			tasks: []taskmodel.Task{
+				{ID: "task-filename-first", Status: taskmodel.StatusPending, Summary: "shown first"},
+				{ID: "task-priority-first", Status: taskmodel.StatusPending, Summary: "runs first", NextRunnable: true},
+			},
+			dashboardWant: []string{
+				"Runnable: ready to run",
+				"Next task: task-priority-first - runs first",
+			},
+			tasksWant: []string{
+				"> - task-filename-first  pending  shown first",
+				"  next task-priority-first  pending  runs first",
+			},
+			tasksNotWant: []string{
+				"Next task: task-filename-first - shown first",
+			},
+		},
+		{
 			name: "blocked-only",
 			tasks: []taskmodel.Task{
 				{ID: "task-blocked", Status: taskmodel.StatusBlocked, Summary: "waiting on access"},
@@ -270,6 +288,56 @@ func TestStatusModelTasksViewRendersPopulatedTaskList(t *testing.T) {
 		"> next task-pending  pending  write focused tests",
 		"  - task-blocked  ! blocked  blocked task",
 		"  - task-completed  completed  finished task",
+	)
+}
+
+func TestStatusModelRendersTaskWorkflowState(t *testing.T) {
+	tasks := []taskmodel.Task{
+		{
+			ID:         "task-audit",
+			Status:     taskmodel.StatusPending,
+			Summary:    "audit task",
+			Workflow:   "mixed-pass-v1",
+			Phase:      "audit",
+			RunProfile: "auditor",
+			NextState:  "document",
+		},
+		{
+			ID:         "task-simplify",
+			Status:     taskmodel.StatusCompleted,
+			Summary:    "simplify task",
+			Workflow:   "mixed-pass-v1",
+			Phase:      "simplify",
+			RunProfile: "simplifier",
+			NextState:  taskmodel.StatusCompleted,
+		},
+	}
+	model := NewStatusModel(app.StatusResult{Initialized: true, Tasks: tasks})
+
+	requireLines(t, normalizedViewLines(model.View()),
+		"Next task: task-audit - audit task",
+		"Workflow: mixed-pass-v1  Phase: audit  Profile: auditor  Next: document",
+	)
+
+	tasksView := openTasksView(t, model)
+	requireLines(t, normalizedViewLines(tasksView.View()),
+		"> next task-audit  pending  phase=audit  profile=auditor  next=document  audit task",
+		"  - task-simplify  completed  phase=simplify  profile=simplifier  next=completed  simplify task",
+		"Workflow: mixed-pass-v1",
+		"Phase: audit",
+		"Profile: auditor",
+		"Next: document",
+	)
+
+	completedView, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyDown})
+	if cmd != nil {
+		t.Fatalf("move selection cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(completedView.View()),
+		"Workflow: mixed-pass-v1",
+		"Phase: simplify",
+		"Profile: simplifier",
+		"Next: completed",
 	)
 }
 
@@ -1754,6 +1822,19 @@ func TestStatusModelRunDetailRendersTimelineAndRawEvents(t *testing.T) {
 			{
 				ID:    2,
 				RunID: "run-timeline",
+				Type:  ledger.EventTaskSelected,
+				Payload: jsonPayload(t, map[string]any{
+					"task_id":      "task-timeline",
+					"summary":      "Render a timeline",
+					"workflow":     "mixed-pass-v1",
+					"phase":        "audit",
+					"profile_name": "auditor",
+				}),
+				CreatedAt: startedAt.Add(time.Second),
+			},
+			{
+				ID:    3,
+				RunID: "run-timeline",
 				Type:  ledger.EventRunCompleted,
 				Payload: jsonPayload(t, map[string]any{
 					"outcome":             "committed",
@@ -1771,10 +1852,12 @@ func TestStatusModelRunDetailRendersTimelineAndRawEvents(t *testing.T) {
 		"Timeline",
 		"TIMESTAMP  PHASE  STATUS  DETAIL",
 		"2026-07-08T13:05:00Z  run  started  run run-timeline, task task-timeline",
+		"2026-07-08T13:05:01Z  task  selected  task task-timeline: Render a timeline; workflow=mixed-pass-v1; phase=audit; profile=auditor",
 		"2026-07-08T13:05:30Z  run  completed  outcome=committed: committed abc123; verification=passed; commit=abc123",
 		"Events",
 		"1  run_started  2026-07-08T13:05:00Z",
-		"2  run_completed  2026-07-08T13:05:30Z",
+		"2  task_selected  2026-07-08T13:05:01Z",
+		"3  run_completed  2026-07-08T13:05:30Z",
 	)
 }
 

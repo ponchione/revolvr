@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"revolvr/internal/ledger"
+	"revolvr/internal/passpolicy"
 	"revolvr/internal/receipt"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskimport"
@@ -81,7 +82,7 @@ func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskmodel.Tas
 	if err != nil {
 		return taskmodel.Task{}, err
 	}
-	return taskFromFileTask(task), nil
+	return taskFromFileTask(task)
 }
 
 func ParseTaskImport(markdown []byte) ([]TaskImport, error) {
@@ -224,19 +225,61 @@ func listTaskFilesAsTasks(workDir string) ([]taskmodel.Task, error) {
 	}
 
 	result := make([]taskmodel.Task, 0, len(tasks))
-	for _, task := range tasks {
-		result = append(result, taskFromFileTask(task))
+	nextRunnable := nextRunnableTaskIndex(tasks)
+	for i, task := range tasks {
+		adapted, err := taskFromFileTask(task)
+		if err != nil {
+			return nil, err
+		}
+		adapted.NextRunnable = i == nextRunnable
+		result = append(result, adapted)
 	}
 	return result, nil
 }
 
-func taskFromFileTask(task taskfile.Task) taskmodel.Task {
-	return taskmodel.Task{
-		ID:      task.ID,
-		Task:    task.ContextBody,
-		Status:  task.Status,
-		Summary: task.Title,
+func nextRunnableTaskIndex(tasks []taskfile.Task) int {
+	next := -1
+	for i, task := range tasks {
+		if task.Status != taskfile.StatusPending {
+			continue
+		}
+		if next == -1 || taskRunsBefore(task, tasks[next]) {
+			next = i
+		}
 	}
+	return next
+}
+
+func taskRunsBefore(left taskfile.Task, right taskfile.Task) bool {
+	if left.HasPriority && right.HasPriority && left.Priority != right.Priority {
+		return left.Priority < right.Priority
+	}
+	if left.HasPriority != right.HasPriority {
+		return left.HasPriority
+	}
+	return filepath.Base(left.SourcePath) < filepath.Base(right.SourcePath)
+}
+
+func taskFromFileTask(task taskfile.Task) (taskmodel.Task, error) {
+	policy, err := passpolicy.Lookup(task.Workflow, task.Phase)
+	if err != nil {
+		return taskmodel.Task{}, fmt.Errorf("resolve workflow state for task %q: %w", task.ID, err)
+	}
+
+	nextState := policy.NextPhase
+	if policy.CompletesTask {
+		nextState = taskmodel.StatusCompleted
+	}
+	return taskmodel.Task{
+		ID:         task.ID,
+		Task:       task.ContextBody,
+		Status:     task.Status,
+		Summary:    task.Title,
+		Workflow:   policy.Workflow,
+		Phase:      policy.Phase,
+		RunProfile: policy.ProfileName,
+		NextState:  nextState,
+	}, nil
 }
 
 func ShowRun(ctx context.Context, cfg Config, runID string) (ledger.RunWithEvents, error) {
@@ -332,7 +375,7 @@ func unblockBlockedTask(ctx context.Context, cfg Config, rawTaskID string, opera
 		}
 		return taskmodel.Task{}, fmt.Errorf("task %q is not blocked (status: %s)", taskID, task.Status)
 	}
-	return taskFromFileTask(task), nil
+	return taskFromFileTask(task)
 }
 
 func validateTaskImports(tasks []TaskImport) ([]AddTaskInput, error) {

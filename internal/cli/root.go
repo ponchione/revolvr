@@ -198,11 +198,20 @@ func newTaskListCommand(opts Options) *cobra.Command {
 				_, err = fmt.Fprint(cmd.OutOrStdout(), "No tasks.\n")
 				return err
 			}
-			if _, err := fmt.Fprint(cmd.OutOrStdout(), "ID\tSTATUS\tTASK\tSUMMARY\n"); err != nil {
+			if _, err := fmt.Fprint(cmd.OutOrStdout(), "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tTASK\tSUMMARY\n"); err != nil {
 				return err
 			}
 			for _, task := range tasks {
-				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", task.ID, task.Status, oneLine(task.Task), oneLine(task.Summary)); err != nil {
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					task.ID,
+					task.Status,
+					task.Workflow,
+					task.Phase,
+					task.RunProfile,
+					task.NextState,
+					oneLine(task.Task),
+					oneLine(task.Summary),
+				); err != nil {
 					return err
 				}
 			}
@@ -585,6 +594,9 @@ func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run,
 	if _, err := fmt.Fprintf(out, "Completed tasks: %d\n", counts.completed); err != nil {
 		return err
 	}
+	if err := writeNextTaskStatus(out, tasks); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintf(out, "Recent runs: %d\n", len(recentRuns)); err != nil {
 		return err
 	}
@@ -593,6 +605,46 @@ func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run,
 		return err
 	}
 	return writeLatestRunStatus(out, recentRuns[0], latestEvents)
+}
+
+func writeNextTaskStatus(out io.Writer, tasks []taskmodel.Task) error {
+	for _, task := range tasks {
+		if task.Status == taskmodel.StatusPending && task.NextRunnable {
+			return writeNextTask(out, task)
+		}
+	}
+	for _, task := range tasks {
+		if task.Status != taskmodel.StatusPending {
+			continue
+		}
+		return writeNextTask(out, task)
+	}
+	return nil
+}
+
+func writeNextTask(out io.Writer, task taskmodel.Task) error {
+	if _, err := fmt.Fprintf(out, "Next task: %s\n", statusTaskBrief(task)); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(out, "Next pass: workflow=%s phase=%s profile=%s next=%s\n",
+		optionalStatusValue(task.Workflow),
+		optionalStatusValue(task.Phase),
+		optionalStatusValue(task.RunProfile),
+		optionalStatusValue(task.NextState),
+	)
+	return err
+}
+
+func statusTaskBrief(task taskmodel.Task) string {
+	id := optionalStatusValue(task.ID)
+	summary := oneLine(task.Summary)
+	if summary == "" {
+		summary = oneLine(task.Task)
+	}
+	if summary == "" {
+		return id
+	}
+	return id + " - " + summary
 }
 
 func writeLatestRunStatus(out io.Writer, run ledger.Run, events []ledger.Event) error {

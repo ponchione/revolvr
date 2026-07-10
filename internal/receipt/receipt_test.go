@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"revolvr/internal/ledger"
 )
 
 func TestParseValidReceipt(t *testing.T) {
@@ -134,6 +136,45 @@ func TestFormatFallbackReceipt(t *testing.T) {
 	}
 	if got, want := ParseVerificationCommands(reparsed.RawBody), []string{"go test ./..."}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("fallback verification commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestCheckReceiptVerdictUsesTerminalOutcomeAndFinalizedVerdict(t *testing.T) {
+	tests := []struct {
+		name string
+		run  ledger.Run
+		data validationEventData
+		got  Verdict
+		pass bool
+	}{
+		{
+			name: "completed run fallback",
+			run:  ledger.Run{Status: ledger.StatusCompleted},
+			got:  VerdictCompleted,
+			pass: true,
+		},
+		{
+			name: "failed outcome mismatch",
+			run:  ledger.Run{Status: ledger.StatusFailed},
+			data: validationEventData{outcome: "verification_failed"},
+			got:  VerdictCompleted,
+		},
+		{
+			name: "explicit finalized verdict",
+			run:  ledger.Run{Status: ledger.StatusFailed},
+			data: validationEventData{outcome: "commit_failed", receiptVerdict: VerdictBlocked},
+			got:  VerdictBlocked,
+			pass: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			check := checkReceiptVerdict(Receipt{Verdict: tt.got}, tt.run, tt.data)
+			if check.Passed != tt.pass {
+				t.Fatalf("verdict check = %+v, want passed=%v", check, tt.pass)
+			}
+		})
 	}
 }
 

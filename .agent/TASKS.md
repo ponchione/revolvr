@@ -12,6 +12,41 @@
 
 ## Current Backlog
 
+- [x] Add task workflow/phase metadata parsing and defaults.
+  Scope: extend `internal/taskfile` frontmatter parsing for durable workflow metadata without changing runtime behavior yet. Support optional `workflow` and `phase` keys, default missing workflow to `mixed-pass-v1` and missing phase to `implement`, and accept the initial phases `implement`, `audit`, `document`, and `simplify`.
+  Acceptance: existing `.agent/tasks/*.md` files without workflow metadata still load as pending implement-phase tasks; invalid workflow or phase values fail clearly; known frontmatter parsing remains deterministic; task selection order is unchanged.
+  Verification: add focused `internal/taskfile` tests for defaults, valid explicit metadata, invalid metadata, duplicate keys, and unchanged runnable ordering; run `go test ./internal/taskfile` and `go test ./...`.
+
+- [x] Add a pass-policy model mapping phases to profiles and outcome semantics.
+  Scope: introduce a small runtime policy model for `mixed-pass-v1` that maps each phase to a profile, whether no-change success is allowed, and the next durable phase. Keep the model independent from `runonce` orchestration in this slice.
+  Acceptance: `implement` maps to `implementer` and requires meaningful changes; `audit` maps to `auditor` and permits no-change success; `document` maps to `documentor` and permits no-change success; `simplify` maps to `simplifier` and permits no-change success; invalid workflow/phase combinations fail with actionable errors.
+  Verification: add focused policy tests for every phase, phase order, terminal completion, no-change permissions, and invalid inputs; run the policy package tests and `go test ./...`.
+
+- [x] Teach `runonce` to load the profile for the selected task phase.
+  Scope: after selecting the canonical task file, resolve its workflow phase through the pass-policy model and load the mapped repo-authored profile instead of always loading `implementer`. Include workflow/phase/profile identity in task-selection context where it is useful for later audit.
+  Acceptance: implement-phase tasks still load `.agent/profiles/implementer.md`; audit and document phases load their existing profiles; missing mapped profiles block before Codex with a clear message; context manifests continue recording the exact profile file used.
+  Verification: add `internal/runonce` coverage for implement/audit/document profile selection, missing mapped profile failure, and context manifest source metadata; run `go test ./internal/runonce ./internal/prompt` and `go test ./...`.
+
+- [x] Allow policy-permitted no-change success and durable phase advancement.
+  Scope: update `runonce` finalization so successful phases advance the selected task file before the commit gate when policy allows it. Implementation no-change remains blocked; audit/document/simplify may succeed without code changes, advance the task phase or complete the task, and commit the task-file metadata transition.
+  Acceptance: implement with no changes still produces `no_changes`; implement with changes advances to audit instead of completing the durable task; audit/document/simplify pass with no code changes can advance cleanly; the final successful phase marks the task completed; ledger events and receipts make the phase outcome auditable.
+  Verification: add `internal/runonce` tests for implement no-change refusal, implement-to-audit advancement, no-change audit/document/simplify advancement, final completion, and changed-file capture after task metadata updates; run `go test ./internal/runonce ./internal/app` and `go test ./...`.
+
+- [x] Seed `.agent/profiles/simplifier.md`.
+  Scope: add a repo-authored simplifier profile and init template. The profile should direct the agent to reduce unnecessary complexity, duplication, and line count only when meaningful, create helpers only when they reduce real duplication or complexity, and stop cleanly when no simplification is worthwhile.
+  Acceptance: `revolvr init` seeds `simplifier.md` without overwriting an existing file; the checked-in profile is concise and aligned with auditor/documentor style; tests cover template content and non-overwrite behavior.
+  Verification: update focused prompt/CLI init tests; run `go test ./internal/prompt ./internal/cli` and `go test ./...`.
+
+- [x] Surface task workflow state in CLI, TUI, status, and timeline views.
+  Scope: expose task workflow/phase state through app status/task adapters, CLI task/status output, TUI Dashboard/Tasks/Run Detail surfaces, and timeline rows for phase selection or advancement events. Keep raw task files canonical.
+  Acceptance: operators can see the current phase, next phase or completion state, and selected profile without opening the task file; empty and legacy task states render coherently; raw ledger events remain available for audit.
+  Verification: add focused `internal/app`, `internal/cli`, and `internal/tui` tests for task list/status rendering, TUI task markers, run detail/timeline phase rows, and legacy/default metadata; run `go test ./internal/app ./internal/cli ./internal/tui` and `go test ./...`.
+
+- [x] Document the mixed-pass task workflow.
+  Scope: update operator-facing docs to explain durable tasks versus passes, task-file workflow metadata, phase order, profile responsibilities, no-change success for audit/document/simplify, and how Revolvr advances phases.
+  Acceptance: README or an appropriate operator doc shows a minimal mixed-pass task file, explains `implement -> audit -> document -> simplify -> completed`, names the four profiles, and clarifies that Revolvr owns phase transitions based on receipts/outcomes.
+  Verification: run `go test ./...`, relevant CLI help commands if docs mention them, and `git diff --check`.
+
 - [x] Add a Markdown spec-to-task parser that preserves human-readable acceptance and verification notes.
   Scope: create a small internal parser for a documented Markdown task format without adding dependencies. Support repeated task sections with a required task body and optional summary, acceptance, and verification notes; preserve unknown section text in the generated task body.
   Acceptance: parser returns ordered task specs suitable for `internal/app.AddTask`; empty task text and malformed sections produce clear errors with line context; multiline task text remains readable in Codex prompts.

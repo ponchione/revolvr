@@ -77,6 +77,58 @@ func TestLoadDefaultsIDAndStatus(t *testing.T) {
 	if got, want := task.Status, StatusPending; got != want {
 		t.Fatalf("task status = %q, want %q", got, want)
 	}
+	if got, want := task.Workflow, DefaultWorkflow; got != want {
+		t.Fatalf("task workflow = %q, want %q", got, want)
+	}
+	if got, want := task.Phase, DefaultPhase; got != want {
+		t.Fatalf("task phase = %q, want %q", got, want)
+	}
+}
+
+func TestLoadExplicitWorkflowAndPhase(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "explicit-workflow.md", `---
+workflow: mixed-pass-v1
+phase: audit
+---
+# Explicit Workflow
+`)
+
+	task, err := Load(repo, path)
+	if err != nil {
+		t.Fatalf("load task file: %v", err)
+	}
+
+	if got, want := task.Workflow, WorkflowMixedPassV1; got != want {
+		t.Fatalf("task workflow = %q, want %q", got, want)
+	}
+	if got, want := task.Phase, PhaseAudit; got != want {
+		t.Fatalf("task phase = %q, want %q", got, want)
+	}
+}
+
+func TestLoadAcceptsEveryPhase(t *testing.T) {
+	repo := t.TempDir()
+	phases := []string{PhaseImplement, PhaseAudit, PhaseDocument, PhaseSimplify}
+
+	for _, phase := range phases {
+		t.Run(phase, func(t *testing.T) {
+			path := writeTaskFile(t, repo, phase+".md", fmt.Sprintf(`---
+workflow: mixed-pass-v1
+phase: %s
+---
+# %s Phase
+`, phase, strings.Title(phase)))
+
+			task, err := Load(repo, path)
+			if err != nil {
+				t.Fatalf("load task file: %v", err)
+			}
+			if got := task.Phase; got != phase {
+				t.Fatalf("task phase = %q, want %q", got, phase)
+			}
+		})
+	}
 }
 
 func TestLoadRejectsMissingH1(t *testing.T) {
@@ -109,6 +161,84 @@ status: ready
 	}
 }
 
+func TestLoadRejectsInvalidWorkflow(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "bad-workflow.md", `---
+workflow: single-pass-v1
+---
+# Bad Workflow
+`)
+
+	_, err := Load(repo, path)
+	if err == nil {
+		t.Fatal("load task file succeeded, want invalid workflow error")
+	}
+	if !strings.Contains(err.Error(), `invalid workflow "single-pass-v1"`) {
+		t.Fatalf("error = %v, want invalid workflow", err)
+	}
+}
+
+func TestLoadRejectsInvalidPhase(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "bad-phase.md", `---
+phase: review
+---
+# Bad Phase
+`)
+
+	_, err := Load(repo, path)
+	if err == nil {
+		t.Fatal("load task file succeeded, want invalid phase error")
+	}
+	if !strings.Contains(err.Error(), `invalid phase "review"`) {
+		t.Fatalf("error = %v, want invalid phase", err)
+	}
+}
+
+func TestLoadRejectsDuplicateWorkflowAndPhase(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name: "workflow",
+			content: `---
+workflow: mixed-pass-v1
+workflow: mixed-pass-v1
+---
+# Duplicate Workflow
+`,
+			want: `duplicate frontmatter key "workflow"`,
+		},
+		{
+			name: "phase",
+			content: `---
+phase: implement
+phase: audit
+---
+# Duplicate Phase
+`,
+			want: `duplicate frontmatter key "phase"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			path := writeTaskFile(t, repo, tt.name+".md", tt.content)
+
+			_, err := Load(repo, path)
+			if err == nil {
+				t.Fatal("load task file succeeded, want duplicate frontmatter key error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %v, want %s", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadRejectsUnsafeProfile(t *testing.T) {
 	repo := t.TempDir()
 	path := writeTaskFile(t, repo, "bad-profile.md", `---
@@ -123,6 +253,16 @@ profile: ../implementer
 	}
 	if !strings.Contains(err.Error(), "invalid profile name") {
 		t.Fatalf("error = %v, want invalid profile name", err)
+	}
+}
+
+func TestLoadRejectsUnsafeTaskID(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "bad-id.md", "---\nid: task with spaces\n---\n# Bad ID\n")
+
+	_, err := Load(repo, path)
+	if err == nil || !strings.Contains(err.Error(), `invalid task id "task with spaces"`) {
+		t.Fatalf("error = %v, want invalid task id", err)
 	}
 }
 
@@ -145,11 +285,73 @@ func TestLoadRejectsPathOutsideTasksDir(t *testing.T) {
 	}
 }
 
+func TestLoadAndUpdateRejectSymlinkedTaskFile(t *testing.T) {
+	repo := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.md")
+	outsideContent := "# Outside\n"
+	writeFile(t, outside, outsideContent)
+	taskDir := filepath.Join(repo, TasksDir)
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("create task dir: %v", err)
+	}
+	linkPath := filepath.Join(taskDir, "linked.md")
+	if err := os.Symlink(outside, linkPath); err != nil {
+		t.Fatalf("create task symlink: %v", err)
+	}
+
+	for _, operation := range []struct {
+		name string
+		run  func() error
+	}{
+		{name: "load", run: func() error {
+			_, err := Load(repo, filepath.Join(TasksDir, "linked.md"))
+			return err
+		}},
+		{name: "update", run: func() error {
+			_, err := UpdateStatus(repo, filepath.Join(TasksDir, "linked.md"), StatusBlocked)
+			return err
+		}},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			err := operation.run()
+			if err == nil || !strings.Contains(err.Error(), "is a symbolic link") {
+				t.Fatalf("error = %v, want symbolic link rejection", err)
+			}
+		})
+	}
+	content, err := os.ReadFile(outside)
+	if err != nil {
+		t.Fatalf("read outside file: %v", err)
+	}
+	if got := string(content); got != outsideContent {
+		t.Fatalf("outside content = %q, want unchanged %q", got, outsideContent)
+	}
+}
+
+func TestCreateRejectsTasksDirectorySymlinkOutsideRepository(t *testing.T) {
+	repo := t.TempDir()
+	outside := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".agent"), 0o755); err != nil {
+		t.Fatalf("create agent dir: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(repo, TasksDir)); err != nil {
+		t.Fatalf("create tasks directory symlink: %v", err)
+	}
+
+	_, err := Create(repo, CreateInput{ID: "outside-task", Title: "Outside Task", Body: "Do not write outside."})
+	if err == nil || !strings.Contains(err.Error(), "resolves outside repository root") {
+		t.Fatalf("create error = %v, want outside repository rejection", err)
+	}
+	if entries, readErr := os.ReadDir(outside); readErr != nil || len(entries) != 0 {
+		t.Fatalf("outside directory entries = %v err=%v, want empty", entries, readErr)
+	}
+}
+
 func TestListRunnableOrdersByPriorityThenFilename(t *testing.T) {
 	repo := t.TempDir()
-	writeTaskFile(t, repo, "030-later.md", taskMarkdown("later", "pending", "30"))
-	writeTaskFile(t, repo, "010-alpha.md", taskMarkdown("alpha", "pending", "10"))
-	writeTaskFile(t, repo, "010-beta.md", taskMarkdown("beta", "pending", "10"))
+	writeTaskFile(t, repo, "030-later.md", taskMarkdownWithPhase("later", "pending", "30", PhaseDocument))
+	writeTaskFile(t, repo, "010-alpha.md", taskMarkdownWithPhase("alpha", "pending", "10", PhaseImplement))
+	writeTaskFile(t, repo, "010-beta.md", taskMarkdownWithPhase("beta", "pending", "10", PhaseAudit))
 	writeTaskFile(t, repo, "999-unprioritized.md", "# Unprioritized\n")
 	writeTaskFile(t, repo, "001-completed.md", taskMarkdown("completed", "completed", "1"))
 	writeTaskFile(t, repo, "002-running.md", taskMarkdown("running", "running", "2"))
@@ -333,6 +535,25 @@ id: duplicated
 	}
 }
 
+func TestSelectNextRejectsDuplicateTaskIDs(t *testing.T) {
+	repo := t.TempDir()
+	writeTaskFile(t, repo, "010-one.md", "---\nid: duplicated\nstatus: pending\n---\n# One\n")
+	writeTaskFile(t, repo, "020-two.md", "---\nid: duplicated\nstatus: pending\n---\n# Two\n")
+
+	_, ok, err := SelectNext(repo)
+	if err == nil {
+		t.Fatal("select next duplicate id succeeded, want error")
+	}
+	if ok {
+		t.Fatal("select next duplicate id ok=true, want false")
+	}
+	for _, want := range []string{"duplicated", "010-one.md", "020-two.md"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("duplicate selection error = %v, want %q", err, want)
+		}
+	}
+}
+
 func TestUpdateBlockedToPendingUpdatesOnlyBlockedTasks(t *testing.T) {
 	repo := t.TempDir()
 	blockedPath := writeTaskFile(t, repo, "blocked.md", taskMarkdown("blocked", "blocked", "1"))
@@ -471,6 +692,215 @@ Body stays put.
 	}
 }
 
+func TestUpdateStatusPreservesWorkflowAndPhase(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "workflow-phase.md", `---
+id: workflow-phase
+workflow: mixed-pass-v1
+phase: document
+status: pending
+---
+# Workflow Phase
+
+Body stays put.
+`)
+
+	task, err := UpdateStatus(repo, path, StatusBlocked)
+	if err != nil {
+		t.Fatalf("update task status: %v", err)
+	}
+	if got, want := task.Workflow, WorkflowMixedPassV1; got != want {
+		t.Fatalf("task workflow = %q, want %q", got, want)
+	}
+	if got, want := task.Phase, PhaseDocument; got != want {
+		t.Fatalf("task phase = %q, want %q", got, want)
+	}
+
+	content := readRepoFile(t, repo, path)
+	want := `---
+id: workflow-phase
+workflow: mixed-pass-v1
+phase: document
+status: blocked
+---
+# Workflow Phase
+
+Body stays put.
+`
+	if content != want {
+		t.Fatalf("updated content = %q, want %q", content, want)
+	}
+}
+
+func TestUpdateMetadataReplacesStatusAndPhase(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "advance.md", `---
+id: advance-task
+workflow: mixed-pass-v1
+phase: audit
+status: pending
+priority: 4
+unknown: preserved
+---
+# Advance Task
+
+Body stays put.
+`)
+
+	task, err := UpdateMetadata(repo, path, MetadataUpdate{
+		Status: StatusPending,
+		Phase:  PhaseDocument,
+	})
+	if err != nil {
+		t.Fatalf("update task metadata: %v", err)
+	}
+	if got, want := task.Status, StatusPending; got != want {
+		t.Fatalf("task status = %q, want %q", got, want)
+	}
+	if got, want := task.Phase, PhaseDocument; got != want {
+		t.Fatalf("task phase = %q, want %q", got, want)
+	}
+
+	content := readRepoFile(t, repo, path)
+	want := `---
+id: advance-task
+workflow: mixed-pass-v1
+phase: document
+status: pending
+priority: 4
+unknown: preserved
+---
+# Advance Task
+
+Body stays put.
+`
+	if content != want {
+		t.Fatalf("updated content = %q, want %q", content, want)
+	}
+}
+
+func TestUpdateMetadataInsertsMissingPhase(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "missing-phase.md", `---
+id: missing-phase
+status: pending
+---
+# Missing Phase
+
+Body stays put.
+`)
+
+	task, err := UpdateMetadata(repo, path, MetadataUpdate{
+		Status: StatusPending,
+		Phase:  PhaseAudit,
+	})
+	if err != nil {
+		t.Fatalf("update task metadata: %v", err)
+	}
+	if got, want := task.Phase, PhaseAudit; got != want {
+		t.Fatalf("task phase = %q, want %q", got, want)
+	}
+
+	content := readRepoFile(t, repo, path)
+	want := `---
+id: missing-phase
+status: pending
+phase: audit
+---
+# Missing Phase
+
+Body stays put.
+`
+	if content != want {
+		t.Fatalf("updated content = %q, want %q", content, want)
+	}
+}
+
+func TestUpdateMetadataAddsFrontmatterWhenMissing(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "plain-metadata.md", "# Plain Metadata\n\nBody stays put.\n")
+
+	task, err := UpdateMetadata(repo, path, MetadataUpdate{
+		Status: StatusPending,
+		Phase:  PhaseAudit,
+	})
+	if err != nil {
+		t.Fatalf("update task metadata: %v", err)
+	}
+	if got, want := task.Status, StatusPending; got != want {
+		t.Fatalf("task status = %q, want %q", got, want)
+	}
+	if got, want := task.Phase, PhaseAudit; got != want {
+		t.Fatalf("task phase = %q, want %q", got, want)
+	}
+
+	content := readRepoFile(t, repo, path)
+	want := `---
+status: pending
+phase: audit
+---
+
+# Plain Metadata
+
+Body stays put.
+`
+	if content != want {
+		t.Fatalf("updated content = %q, want %q", content, want)
+	}
+}
+
+func TestUpdateMetadataFromSnapshotDiscardsInterveningTaskMutation(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "snapshot.md", `---
+id: stable-task
+status: pending
+workflow: mixed-pass-v1
+phase: audit
+priority: 4
+---
+# Stable Task
+
+Original body.
+`)
+	snapshot, err := Load(repo, path)
+	if err != nil {
+		t.Fatalf("load task snapshot: %v", err)
+	}
+	writeRepoFile(t, repo, path, `---
+id: replaced-task
+status: completed
+workflow: mixed-pass-v1
+phase: simplify
+priority: 99
+---
+# Replaced Task
+
+Mutated body.
+`)
+
+	updated, err := UpdateMetadataFromSnapshot(repo, snapshot, MetadataUpdate{Status: StatusBlocked})
+	if err != nil {
+		t.Fatalf("update from snapshot: %v", err)
+	}
+	if updated.ID != "stable-task" || updated.Status != StatusBlocked || updated.Phase != PhaseAudit || updated.Priority != 4 {
+		t.Fatalf("updated task = %+v, want original identity/metadata with blocked status", updated)
+	}
+	want := `---
+id: stable-task
+status: blocked
+workflow: mixed-pass-v1
+phase: audit
+priority: 4
+---
+# Stable Task
+
+Original body.
+`
+	if got := readRepoFile(t, repo, path); got != want {
+		t.Fatalf("restored task = %q, want %q", got, want)
+	}
+}
+
 func taskMarkdown(title string, status string, priority string) string {
 	return fmt.Sprintf(`---
 status: %s
@@ -478,6 +908,17 @@ priority: %s
 ---
 # %s
 `, status, priority, title)
+}
+
+func taskMarkdownWithPhase(title string, status string, priority string, phase string) string {
+	return fmt.Sprintf(`---
+status: %s
+priority: %s
+workflow: mixed-pass-v1
+phase: %s
+---
+# %s
+`, status, priority, phase, title)
 }
 
 func taskSourcePaths(tasks []Task) []string {

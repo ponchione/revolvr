@@ -7,6 +7,7 @@ import (
 
 	"revolvr/internal/codexexec"
 	"revolvr/internal/runonce"
+	"revolvr/internal/taskmodel"
 )
 
 const loopFailureGuardrailLimit = 2
@@ -194,6 +195,9 @@ func resultHasRunSummary(result runonce.Result) bool {
 
 func loopFailureRequiresInspection(result runonce.Result) bool {
 	if result.Outcome == runonce.OutcomeBlocked {
+		return true
+	}
+	if result.Task.Status == taskmodel.StatusBlocked {
 		return true
 	}
 	if strings.TrimSpace(result.PostRunChanged.CaptureError) != "" {

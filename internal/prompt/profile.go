@@ -75,6 +75,11 @@ func DefaultRunProfileTemplates() []RunProfileTemplate {
 			Content: "You are the documentor for this Revolvr pass.\n\n" +
 				"Update operator-facing documentation for the selected change. Keep wording concise, accurate, and aligned with the current CLI behavior.",
 		},
+		{
+			Name: "simplifier",
+			Content: "You are the simplifier for this Revolvr pass.\n\n" +
+				"Reduce unnecessary complexity, duplication, and line count only when doing so is meaningful. Preserve behavior, avoid clever abstractions, create helpers only when they reduce real duplication or complexity, and stop cleanly when no simplification is worthwhile.",
+		},
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 
 const (
 	ValidationCheckIdentity            = "identity"
+	ValidationCheckVerdict             = "verdict"
 	ValidationCheckCompletionTime      = "completion_time"
 	ValidationCheckCommitSHA           = "commit_sha"
 	ValidationCheckChangedFiles        = "changed_files"
@@ -77,6 +78,7 @@ func ValidateRunReceipt(input ValidationInput) (ValidationResult, error) {
 		ReceiptPath: receiptPath,
 	}
 	result.add(checkReceiptIdentity(parsed, run))
+	result.add(checkReceiptVerdict(parsed, run, eventData))
 	result.add(checkReceiptCompletionTime(parsed, run))
 	result.add(checkReceiptCommitSHA(parsed, run, eventData))
 	result.add(checkReceiptChangedFiles(parsed, eventData))
@@ -149,6 +151,38 @@ func checkReceiptIdentity(r Receipt, run ledger.Run) ValidationCheck {
 		details = append(details, fmt.Sprintf("receipt task %q does not match ledger task %q", r.Task, run.Task))
 	}
 	return validationCheck(ValidationCheckIdentity, details)
+}
+
+func checkReceiptVerdict(r Receipt, run ledger.Run, data validationEventData) ValidationCheck {
+	expected := data.receiptVerdict
+	if expected == "" {
+		expected = verdictForOutcome(data.outcome)
+	}
+	if expected == "" && run.Status == ledger.StatusCompleted {
+		expected = VerdictCompleted
+	}
+	details := []string{}
+	if expected != "" && r.Verdict != expected {
+		details = append(details, fmt.Sprintf("receipt verdict %q does not match finalized verdict %q", r.Verdict, expected))
+	}
+	return validationCheck(ValidationCheckVerdict, details)
+}
+
+func verdictForOutcome(outcome string) Verdict {
+	switch strings.TrimSpace(outcome) {
+	case "committed":
+		return VerdictCompleted
+	case "codex_failed":
+		return VerdictCodexFailed
+	case "verification_failed":
+		return VerdictVerificationFailed
+	case "no_changes":
+		return VerdictNoChanges
+	case "blocked", "commit_failed":
+		return VerdictBlocked
+	default:
+		return ""
+	}
 }
 
 func checkReceiptCompletionTime(r Receipt, run ledger.Run) ValidationCheck {
@@ -273,6 +307,8 @@ type validationEventData struct {
 	verification      []VerificationEntry
 	commitFound       bool
 	commitSHA         string
+	outcome           string
+	receiptVerdict    Verdict
 }
 
 func validationEventDataFromEvents(events []ledger.Event) validationEventData {
@@ -307,6 +343,15 @@ func validationEventDataFromEvents(events []ledger.Event) validationEventData {
 			if decodeValidationPayload(event, &payload) {
 				data.commitFound = true
 				data.commitSHA = strings.TrimSpace(payload.CommitSHA)
+			}
+		case ledger.EventRunCompleted, ledger.EventRunFailed:
+			var payload struct {
+				Outcome        string  `json:"outcome"`
+				ReceiptVerdict Verdict `json:"receipt_verdict"`
+			}
+			if decodeValidationPayload(event, &payload) {
+				data.outcome = strings.TrimSpace(payload.Outcome)
+				data.receiptVerdict = Verdict(strings.TrimSpace(string(payload.ReceiptVerdict)))
 			}
 		}
 	}

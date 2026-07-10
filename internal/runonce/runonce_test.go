@@ -63,11 +63,15 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	if result.Commit.CommitSHA != "abc123def456" {
 		t.Fatalf("commit sha = %q, want abc123def456", result.Commit.CommitSHA)
 	}
-	if result.Task.Status != taskmodel.StatusCompleted {
-		t.Fatalf("task status = %q, want completed", result.Task.Status)
+	if result.Task.Status != taskmodel.StatusPending {
+		t.Fatalf("task status = %q, want pending", result.Task.Status)
 	}
-	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
-		t.Fatalf("file task status = %q, want completed", got)
+	updatedTask := loadRunTask(t, env, selected.SourcePath)
+	if got := updatedTask.Status; got != taskfile.StatusPending {
+		t.Fatalf("file task status = %q, want pending", got)
+	}
+	if got := updatedTask.Phase; got != taskfile.PhaseAudit {
+		t.Fatalf("file task phase = %q, want audit", got)
 	}
 	if result.Run.Status != ledger.StatusCompleted {
 		t.Fatalf("run status = %q, want completed", result.Run.Status)
@@ -163,7 +167,7 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	})
 }
 
-func TestRunSuccessfulCommitChangedFilesIncludeCompletedTaskFile(t *testing.T) {
+func TestRunSuccessfulCommitChangedFilesIncludeAdvancedTaskFile(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
 	selected := writeRunTask(t, env, "task-commit-status", "Commit task status")
@@ -189,8 +193,12 @@ func TestRunSuccessfulCommitChangedFilesIncludeCompletedTaskFile(t *testing.T) {
 					Paths:        []string{"internal/feature.go"},
 				}, nil
 			case 2:
-				if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
-					t.Fatalf("task status before commit capture = %q, want completed", got)
+				updated := loadRunTask(t, env, selected.SourcePath)
+				if got := updated.Status; got != taskfile.StatusPending {
+					t.Fatalf("task status before commit capture = %q, want pending", got)
+				}
+				if got := updated.Phase; got != taskfile.PhaseAudit {
+					t.Fatalf("task phase before commit capture = %q, want audit", got)
 				}
 				return gitstate.Capture{
 					Kind:         gitstate.CaptureKindChanged,
@@ -227,8 +235,661 @@ func TestRunSuccessfulCommitChangedFilesIncludeCompletedTaskFile(t *testing.T) {
 	if got, want := commitChangedFiles, []string{"internal/feature.go", selected.SourcePath}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("commit changed files = %#v, want %#v", got, want)
 	}
-	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
-		t.Fatalf("file task status = %q, want completed", got)
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if got := updated.Status; got != taskfile.StatusPending {
+		t.Fatalf("file task status = %q, want pending", got)
+	}
+	if got := updated.Phase; got != taskfile.PhaseAudit {
+		t.Fatalf("file task phase = %q, want audit", got)
+	}
+}
+
+func TestRunPolicyPermittedNoChangePhaseAdvancement(t *testing.T) {
+	tests := []struct {
+		name          string
+		phase         string
+		profileName   string
+		profileText   string
+		wantPhase     string
+		wantStatus    string
+		wantCompleted bool
+	}{
+		{
+			name:        "audit advances to document",
+			phase:       taskfile.PhaseAudit,
+			profileName: "auditor",
+			profileText: "Auditor profile for a no-change phase run.\n\nConfirm the implementation.",
+			wantPhase:   taskfile.PhaseDocument,
+			wantStatus:  taskfile.StatusPending,
+		},
+		{
+			name:        "document advances to simplify",
+			phase:       taskfile.PhaseDocument,
+			profileName: "documentor",
+			profileText: "Documentor profile for a no-change phase run.\n\nUpdate durable docs only when needed.",
+			wantPhase:   taskfile.PhaseSimplify,
+			wantStatus:  taskfile.StatusPending,
+		},
+		{
+			name:          "simplify completes task",
+			phase:         taskfile.PhaseSimplify,
+			profileName:   "simplifier",
+			profileText:   "Simplifier profile for a no-change phase run.\n\nSimplify only when worthwhile.",
+			wantPhase:     taskfile.PhaseSimplify,
+			wantStatus:    taskfile.StatusCompleted,
+			wantCompleted: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			env := newTestEnv(t)
+			writeTestRunProfile(t, env.workDir, tt.profileName, tt.profileText)
+			selected := writeRunTaskWithPhase(t, env, "task-"+tt.phase+"-success", "Advance "+tt.phase+" work", tt.phase)
+
+			var changedCaptureCalls int
+			var runnerPayload string
+			var commitChangedFiles []string
+			result, err := Run(ctx, Config{
+				WorkingDir:  env.workDir,
+				LedgerStore: env.ledger,
+				DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+					return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+				},
+				ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+					changedCaptureCalls++
+					switch changedCaptureCalls {
+					case 1:
+						before := loadRunTask(t, env, selected.SourcePath)
+						if got := before.Phase; got != tt.phase {
+							t.Fatalf("task phase before metadata update = %q, want %q", got, tt.phase)
+						}
+						return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+					case 2:
+						after := loadRunTask(t, env, selected.SourcePath)
+						if got := after.Status; got != tt.wantStatus {
+							t.Fatalf("task status before commit capture = %q, want %q", got, tt.wantStatus)
+						}
+						if got := after.Phase; got != tt.wantPhase {
+							t.Fatalf("task phase before commit capture = %q, want %q", got, tt.wantPhase)
+						}
+						return gitstate.Capture{
+							Kind:         gitstate.CaptureKindChanged,
+							ChangedFiles: []string{selected.SourcePath},
+							Paths:        []string{selected.SourcePath},
+						}, nil
+					default:
+						t.Fatalf("changed capture call %d, want exactly 2", changedCaptureCalls)
+						return gitstate.Capture{}, nil
+					}
+				},
+				CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+					runnerPayload = cfg.Prompt
+					return codexexec.Result{ExitCode: 0, FinalMessage: "done"}, nil
+				},
+				VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+					return passedVerificationResult("go test ./..."), nil
+				},
+				CommitRunner: func(_ context.Context, cfg commit.Config) (commit.Result, error) {
+					commitChangedFiles = changedFiles(*cfg.PostRunChanged)
+					return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123", ChangedFiles: commitChangedFiles}, nil
+				},
+				Clock: env.clock,
+			})
+			if err != nil {
+				t.Fatalf("run once: %v", err)
+			}
+
+			if result.Outcome != OutcomeCommitted {
+				t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
+			}
+			if changedCaptureCalls != 2 {
+				t.Fatalf("changed capture calls = %d, want 2", changedCaptureCalls)
+			}
+			if !strings.Contains(runnerPayload, strings.TrimSpace(tt.profileText)) {
+				t.Fatalf("context payload missing selected profile:\n%s", runnerPayload)
+			}
+			if got, want := commitChangedFiles, []string{selected.SourcePath}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("commit changed files = %#v, want %#v", got, want)
+			}
+
+			updated := loadRunTask(t, env, selected.SourcePath)
+			if got := updated.Status; got != tt.wantStatus {
+				t.Fatalf("file task status = %q, want %q", got, tt.wantStatus)
+			}
+			if got := updated.Phase; got != tt.wantPhase {
+				t.Fatalf("file task phase = %q, want %q", got, tt.wantPhase)
+			}
+			if got := result.Task.Status; got != tt.wantStatus {
+				t.Fatalf("result task status = %q, want %q", got, tt.wantStatus)
+			}
+			if tt.wantCompleted && result.Task.CompletedAt == nil {
+				t.Fatal("result task completed at = nil, want completion timestamp")
+			}
+			if !tt.wantCompleted && result.Task.CompletedAt != nil {
+				t.Fatalf("result task completed at = %s, want nil", *result.Task.CompletedAt)
+			}
+			if result.Run.Status != ledger.StatusCompleted || result.Run.CommitSHA != "abc123" {
+				t.Fatalf("run status/commit = %s/%s, want completed/abc123", result.Run.Status, result.Run.CommitSHA)
+			}
+			if result.Receipt.Verdict != receipt.VerdictCompleted {
+				t.Fatalf("receipt verdict = %q, want completed", result.Receipt.Verdict)
+			}
+			if result.Receipt.VerificationStatus != "passed" || result.Receipt.CommitSHA != "abc123" {
+				t.Fatalf("receipt verification/commit = %q/%q, want passed/abc123", result.Receipt.VerificationStatus, result.Receipt.CommitSHA)
+			}
+			if got, want := result.Receipt.ChangedFiles, []string{selected.SourcePath}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("receipt changed files = %#v, want %#v", got, want)
+			}
+
+			history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+			if err != nil || !ok {
+				t.Fatalf("get run history ok=%v err=%v", ok, err)
+			}
+			var terminal struct {
+				Phase                  string `json:"phase"`
+				NextPhase              string `json:"next_phase"`
+				CompletesTask          bool   `json:"completes_task"`
+				PhaseTransitionApplied bool   `json:"phase_transition_applied"`
+				TaskStatus             string `json:"task_status"`
+				TaskPhase              string `json:"task_phase"`
+			}
+			if !decodeTestEventPayload(t, history.Events, ledger.EventRunCompleted, &terminal) {
+				t.Fatal("run completed event not found")
+			}
+			if got := terminal.Phase; got != tt.phase {
+				t.Fatalf("terminal phase = %q, want %q", got, tt.phase)
+			}
+			if got := terminal.TaskStatus; got != tt.wantStatus {
+				t.Fatalf("terminal task status = %q, want %q", got, tt.wantStatus)
+			}
+			if got := terminal.TaskPhase; got != tt.wantPhase {
+				t.Fatalf("terminal task phase = %q, want %q", got, tt.wantPhase)
+			}
+			if got := terminal.CompletesTask; got != tt.wantCompleted {
+				t.Fatalf("terminal completes task = %v, want %v", got, tt.wantCompleted)
+			}
+			if !terminal.PhaseTransitionApplied {
+				t.Fatal("terminal phase_transition_applied = false, want true")
+			}
+		})
+	}
+}
+
+func TestRunCommitFailureAfterMetadataUpdateDoesNotAdvancePhase(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeTestRunProfile(t, env.workDir, "auditor", "Auditor profile.\n\nReview before document.")
+	selected := writeRunTaskWithPhase(t, env, "task-audit-commit-fail", "Audit commit failure", taskfile.PhaseAudit)
+
+	var changedCaptureCalls int
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			changedCaptureCalls++
+			switch changedCaptureCalls {
+			case 1:
+				return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+			default:
+				return gitstate.Capture{
+					Kind:         gitstate.CaptureKindChanged,
+					ChangedFiles: []string{selected.SourcePath},
+					Paths:        []string{selected.SourcePath},
+				}, nil
+			}
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0, FinalMessage: "done"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			return commit.Result{Status: commit.StatusFailed, Message: "git commit failed"}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+
+	if result.Outcome != OutcomeCommitFailed {
+		t.Fatalf("outcome = %s, want commit_failed; message=%s", result.Outcome, result.Message)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if got := updated.Status; got != taskfile.StatusBlocked {
+		t.Fatalf("file task status = %q, want blocked", got)
+	}
+	if got := updated.Phase; got != taskfile.PhaseAudit {
+		t.Fatalf("file task phase = %q, want original audit", got)
+	}
+	if result.Task.Status != taskmodel.StatusBlocked {
+		t.Fatalf("result task status = %q, want blocked", result.Task.Status)
+	}
+	if changedCaptureCalls != 3 {
+		t.Fatalf("changed capture calls = %d, want pre-transition, post-transition, and post-rollback captures", changedCaptureCalls)
+	}
+	if got, want := result.Receipt.ChangedFiles, []string{selected.SourcePath}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("receipt changed files = %#v, want final rollback state %#v", got, want)
+	}
+	if result.Receipt.Verdict != receipt.VerdictBlocked {
+		t.Fatalf("receipt verdict = %q, want blocked", result.Receipt.Verdict)
+	}
+	history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if err != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, err)
+	}
+	var terminal struct {
+		TaskStatus             string          `json:"task_status"`
+		TaskPhase              string          `json:"task_phase"`
+		ChangedFiles           []string        `json:"changed_files"`
+		ReceiptVerdict         receipt.Verdict `json:"receipt_verdict"`
+		PhaseTransitionApplied bool            `json:"phase_transition_applied"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) {
+		t.Fatal("run failed event not found")
+	}
+	if terminal.TaskStatus != taskfile.StatusBlocked || terminal.TaskPhase != taskfile.PhaseAudit || terminal.ReceiptVerdict != receipt.VerdictBlocked || !terminal.PhaseTransitionApplied {
+		t.Fatalf("terminal lifecycle payload = %+v, want blocked audit rollback", terminal)
+	}
+	if got, want := terminal.ChangedFiles, []string{selected.SourcePath}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("terminal changed files = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunRealGitCommitFailureRestagesBlockedOriginalPhase(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	runTestGit(t, workDir, "init", "-q")
+	runTestGit(t, workDir, "config", "user.name", "Revolvr Test")
+	runTestGit(t, workDir, "config", "user.email", "revolvr-test@example.invalid")
+	if err := os.WriteFile(filepath.Join(workDir, ".git", "info", "exclude"), []byte("/.revolvr/\n"), 0o644); err != nil {
+		t.Fatalf("write git exclude: %v", err)
+	}
+
+	now := time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
+	runs, err := ledger.OpenWithClock(ctx, filepath.Join(t.TempDir(), "ledger.sqlite"), func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	t.Cleanup(func() { _ = runs.Close() })
+	env := testEnv{workDir: workDir, ledger: runs, now: now}
+	writeTestRunProfile(t, workDir, "auditor", "Auditor profile.")
+	selected := writeRunTaskWithPhase(t, env, "task-real-commit-fail", "Real commit failure", taskfile.PhaseAudit)
+	runTestGit(t, workDir, "add", ".")
+	runTestGit(t, workDir, "commit", "-q", "-m", "Initial task")
+	hookPath := filepath.Join(workDir, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hookPath, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		t.Fatalf("write failing pre-commit hook: %v", err)
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:  workDir,
+		LedgerStore: runs,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0, FinalMessage: "audit complete"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		Clock: func() time.Time { return now.Add(time.Minute) },
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCommitFailed || result.Commit.Status != commit.StatusFailed {
+		t.Fatalf("outcome/commit = %s/%s, want commit_failed/failed", result.Outcome, result.Commit.Status)
+	}
+	working := loadRunTask(t, env, selected.SourcePath)
+	if working.Status != taskfile.StatusBlocked || working.Phase != taskfile.PhaseAudit {
+		t.Fatalf("working task status/phase = %s/%s, want blocked/audit", working.Status, working.Phase)
+	}
+	indexCommand := exec.Command("git", "show", ":"+selected.SourcePath)
+	indexCommand.Dir = workDir
+	indexBytes, indexErr := indexCommand.CombinedOutput()
+	if indexErr != nil {
+		t.Fatalf("read staged task: %v\n%s", indexErr, indexBytes)
+	}
+	if !strings.Contains(string(indexBytes), "status: blocked") || !strings.Contains(string(indexBytes), "phase: audit") || strings.Contains(string(indexBytes), "phase: document") {
+		t.Fatalf("staged task did not match blocked original phase:\n%s", indexBytes)
+	}
+	history, ok, historyErr := runs.GetRunWithEvents(ctx, result.Run.ID)
+	if historyErr != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, historyErr)
+	}
+	var terminal struct {
+		TaskRestageApplied bool   `json:"task_restage_applied"`
+		TaskRestageError   string `json:"task_restage_error"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) || !terminal.TaskRestageApplied || terminal.TaskRestageError != "" {
+		t.Fatalf("terminal restage evidence = %+v, want successful restage", terminal)
+	}
+
+	if _, changed, retryErr := taskfile.UpdateBlockedToPending(workDir, selected.ID); retryErr != nil || !changed {
+		t.Fatalf("retry blocked task changed=%v err=%v", changed, retryErr)
+	}
+	statusCommand := exec.Command("git", "status", "--short", "--untracked-files=all")
+	statusCommand.Dir = workDir
+	statusBytes, statusErr := statusCommand.CombinedOutput()
+	if statusErr != nil {
+		t.Fatalf("git status after retry: %v\n%s", statusErr, statusBytes)
+	}
+	if !strings.Contains(string(statusBytes), selected.SourcePath) {
+		t.Fatalf("git status after retry = %q, want dirty partial work to remain visible", statusBytes)
+	}
+}
+
+func TestRunRejectsSelectedTaskMutationAndRestoresSnapshot(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-mutated", "Keep durable task identity")
+	mutated := `---
+id: replacement-task
+status: completed
+workflow: mixed-pass-v1
+phase: simplify
+---
+# Replacement Task
+
+Mutated instructions.
+`
+	var captureCalls int
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			captureCalls++
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: []string{selected.SourcePath}, Paths: []string{selected.SourcePath}}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			if err := os.WriteFile(filepath.Join(env.workDir, selected.SourcePath), []byte(mutated), 0o644); err != nil {
+				return codexexec.Result{}, err
+			}
+			return codexexec.Result{ExitCode: 0, FinalMessage: "changed task metadata"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "unexpected"}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeBlocked || commitCalled {
+		t.Fatalf("outcome=%s commitCalled=%v, want blocked before commit", result.Outcome, commitCalled)
+	}
+	if !strings.Contains(result.Message, "selected task changed during the pass") {
+		t.Fatalf("message = %q, want selected-task mutation", result.Message)
+	}
+	restored := loadRunTask(t, env, selected.SourcePath)
+	if restored.ID != selected.ID || restored.Title != selected.Title || restored.Status != taskfile.StatusBlocked || restored.Phase != taskfile.PhaseImplement {
+		t.Fatalf("restored task = %+v, want original identity/body at blocked implement phase", restored)
+	}
+	if !strings.Contains(restored.ContextBody, "Keep durable task identity") || strings.Contains(restored.ContextBody, "Mutated instructions") {
+		t.Fatalf("restored task body is not the selected snapshot:\n%s", restored.ContextBody)
+	}
+	if result.Receipt.TaskID != selected.ID || result.Receipt.Verdict != receipt.VerdictBlocked {
+		t.Fatalf("receipt identity/verdict = %q/%q, want %q/blocked", result.Receipt.TaskID, result.Receipt.Verdict, selected.ID)
+	}
+	if captureCalls != 2 {
+		t.Fatalf("changed capture calls = %d, want post-Codex and post-restore", captureCalls)
+	}
+}
+
+func TestRunImplementTaskFileOnlyChangeIsNotMeaningful(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-file-only", "Require meaningful implementation")
+	var captureCalls int
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			captureCalls++
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: []string{selected.SourcePath}, Paths: []string{selected.SourcePath}}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0, FinalMessage: "no implementation change"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeNoChanges || commitCalled {
+		t.Fatalf("outcome=%s commitCalled=%v, want no_changes before commit", result.Outcome, commitCalled)
+	}
+	if result.Commit.Status != commit.StatusRefused || result.Commit.RefusalReason != commit.ReasonNoChanges {
+		t.Fatalf("commit result = %+v, want meaningful no-changes refusal", result.Commit)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseImplement {
+		t.Fatalf("task status/phase = %s/%s, want blocked/implement", updated.Status, updated.Phase)
+	}
+	if captureCalls != 2 {
+		t.Fatalf("changed capture calls = %d, want pre-transition and final failure captures", captureCalls)
+	}
+}
+
+func TestRunImplementPreExistingDirtyFileDoesNotCountAsNewMeaningfulChange(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-preexisting-only", "Do not reuse pre-existing changes")
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:            env.workDir,
+		LedgerStore:           env.ledger,
+		AllowPreExistingDirty: true,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty, DirtyFiles: []string{"internal/already-dirty.go"}, Paths: []string{"internal/already-dirty.go"}}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: []string{"internal/already-dirty.go", selected.SourcePath}, Paths: []string{"internal/already-dirty.go", selected.SourcePath}}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeNoChanges || commitCalled {
+		t.Fatalf("outcome=%s commitCalled=%v, want no_changes without commit", result.Outcome, commitCalled)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseImplement {
+		t.Fatalf("task status/phase = %s/%s, want blocked/implement", updated.Status, updated.Phase)
+	}
+}
+
+func TestRunChangedFileCaptureFailureBlocksBeforeTransitionAndCommit(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-capture-failure", "Capture changed files")
+	var captureCalls int
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			captureCalls++
+			if captureCalls == 1 {
+				return gitstate.Capture{}, errors.New("git status unavailable")
+			}
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: []string{selected.SourcePath}, Paths: []string{selected.SourcePath}}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeBlocked || commitCalled {
+		t.Fatalf("outcome=%s commitCalled=%v, want blocked before commit", result.Outcome, commitCalled)
+	}
+	if result.Commit.RefusalReason != commit.ReasonGitStateCaptureFailed || !strings.Contains(result.Message, "git status unavailable") {
+		t.Fatalf("commit/message = %+v / %q, want capture refusal evidence", result.Commit, result.Message)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseImplement {
+		t.Fatalf("task status/phase = %s/%s, want blocked/implement", updated.Status, updated.Phase)
+	}
+	history, ok, historyErr := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if historyErr != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, historyErr)
+	}
+	var terminal struct {
+		CaptureError string `json:"capture_error"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) || !strings.Contains(terminal.CaptureError, "git status unavailable") {
+		t.Fatalf("terminal capture error = %q, want original capture failure", terminal.CaptureError)
+	}
+}
+
+func TestRunCommitRunnerErrorPreservesResultAndRollsBackPhase(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeTestRunProfile(t, env.workDir, "auditor", "Auditor profile.")
+	selected := writeRunTaskWithPhase(t, env, "task-commit-error", "Commit runner error", taskfile.PhaseAudit)
+	var captureCalls int
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			captureCalls++
+			if captureCalls == 1 {
+				return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+			}
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: []string{selected.SourcePath}, Paths: []string{selected.SourcePath}}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			return commit.Result{Status: commit.StatusFailed, Message: "git process unavailable"}, errors.New("start git: executable not found")
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCommitFailed || result.Commit.Status != commit.StatusFailed || result.Commit.Message != "git process unavailable" {
+		t.Fatalf("outcome/commit = %s / %+v, want preserved commit runner failure", result.Outcome, result.Commit)
+	}
+	if !strings.Contains(result.Message, "start git: executable not found") {
+		t.Fatalf("message = %q, want commit runner error", result.Message)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseAudit {
+		t.Fatalf("task status/phase = %s/%s, want blocked/original audit", updated.Status, updated.Phase)
+	}
+	if result.Run.Status != ledger.StatusFailed || result.Receipt.Verdict != receipt.VerdictBlocked {
+		t.Fatalf("run/receipt = %s/%s, want failed/blocked", result.Run.Status, result.Receipt.Verdict)
+	}
+}
+
+func TestRunTaskRollbackFailureStillFinalizesLedgerEvidence(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeTestRunProfile(t, env.workDir, "auditor", "Auditor profile.")
+	selected := writeRunTaskWithPhase(t, env, "task-rollback-error", "Rollback failure", taskfile.PhaseAudit)
+	var captureCalls int
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			captureCalls++
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			if removeErr := os.RemoveAll(filepath.Join(env.workDir, taskfile.TasksDir)); removeErr != nil {
+				t.Fatalf("remove tasks directory: %v", removeErr)
+			}
+			return commit.Result{Status: commit.StatusFailed, Message: "git commit failed"}, nil
+		},
+		Clock: env.clock,
+	})
+	if err == nil || !strings.Contains(err.Error(), "update task after failed run") {
+		t.Fatalf("run error = %v, want task rollback failure", err)
+	}
+	if result.Outcome != OutcomeCommitFailed || result.Run.Status != ledger.StatusFailed || result.Receipt.Verdict != receipt.VerdictBlocked {
+		t.Fatalf("result outcome/run/receipt = %s/%s/%s, want commit_failed/failed/blocked", result.Outcome, result.Run.Status, result.Receipt.Verdict)
+	}
+	if _, statErr := os.Stat(filepath.Join(env.workDir, selected.SourcePath)); !os.IsNotExist(statErr) {
+		t.Fatalf("removed task stat error = %v, want missing task", statErr)
+	}
+	history, ok, historyErr := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if historyErr != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, historyErr)
+	}
+	var terminal struct {
+		TaskUpdateError string          `json:"task_update_error"`
+		ReceiptVerdict  receipt.Verdict `json:"receipt_verdict"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) {
+		t.Fatal("run failed event not found after task rollback error")
+	}
+	if terminal.TaskUpdateError == "" || terminal.ReceiptVerdict != receipt.VerdictBlocked {
+		t.Fatalf("terminal rollback evidence = %+v, want task error and blocked receipt", terminal)
 	}
 }
 
@@ -270,7 +931,8 @@ func TestRunSelectsLowestPriorityPendingTaskFileByPriorityThenFilename(t *testin
 func TestRunSecondPassAfterCompletionReturnsNoTask(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	writeRunTask(t, env, "task-once", "Do one task")
+	writeTestRunProfile(t, env.workDir, "simplifier", "Simplifier test profile.\n\nComplete the final phase.")
+	writeRunTaskWithPhase(t, env, "task-once", "Do one task", taskfile.PhaseSimplify)
 
 	state := &fakeCommandState{
 		t:                 t,
@@ -338,8 +1000,9 @@ func TestRunSecondPendingTaskAfterSuccessfulFileTaskCommitStartsClean(t *testing
 		t.Fatalf("write readme: %v", err)
 	}
 	writeTestRunProfile(t, workDir, prompt.DefaultRunProfileName, defaultRunProfileTemplateContent(t))
-	firstTask := writeRunTaskFile(t, env, "010-first.md", taskFileMarkdown("task-first", "First Task", taskfile.StatusPending, ptrInt(10)))
-	secondTask := writeRunTaskFile(t, env, "020-second.md", taskFileMarkdown("task-second", "Second Task", taskfile.StatusPending, ptrInt(20)))
+	writeTestRunProfile(t, workDir, "simplifier", "Simplifier test profile.\n\nComplete the final phase.")
+	firstTask := writeRunTaskFile(t, env, "010-first.md", taskFileMarkdownWithPhase("task-first", "First Task", taskfile.StatusPending, taskfile.PhaseSimplify))
+	secondTask := writeRunTaskFile(t, env, "020-second.md", taskFileMarkdownWithPhase("task-second", "Second Task", taskfile.StatusPending, taskfile.PhaseSimplify))
 	runTestGit(t, workDir, "add", ".")
 	runTestGit(t, workDir, "commit", "-q", "-m", "Initial file tasks")
 
@@ -503,6 +1166,184 @@ func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
 	}
 }
 
+func TestRunLoadsProfileForSelectedTaskPhase(t *testing.T) {
+	tests := []struct {
+		name           string
+		phase          string
+		profileName    string
+		profileContent string
+	}{
+		{
+			name:           "default implement metadata",
+			profileName:    prompt.DefaultRunProfileName,
+			profileContent: "Implementer profile selected by default task metadata.\n\nMake the focused change.",
+		},
+		{
+			name:           "explicit implement phase",
+			phase:          taskfile.PhaseImplement,
+			profileName:    prompt.DefaultRunProfileName,
+			profileContent: "Implementer profile selected by explicit implement phase.\n\nMake the focused change.",
+		},
+		{
+			name:           "audit phase",
+			phase:          taskfile.PhaseAudit,
+			profileName:    "auditor",
+			profileContent: "Auditor profile selected by audit phase.\n\nReview the completed work.",
+		},
+		{
+			name:           "document phase",
+			phase:          taskfile.PhaseDocument,
+			profileName:    "documentor",
+			profileContent: "Documentor profile selected by document phase.\n\nUpdate operator-facing docs.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			env := newTestEnv(t)
+			writeTestRunProfile(t, env.workDir, tt.profileName, tt.profileContent)
+
+			var selected taskfile.Task
+			if tt.phase == "" {
+				selected = writeRunTask(t, env, "task-"+tt.profileName+"-default", "Use the default phase")
+			} else {
+				selected = writeRunTaskWithPhase(t, env, "task-"+tt.profileName+"-"+tt.phase, "Use "+tt.phase+" phase", tt.phase)
+			}
+
+			codexCalled := false
+			var runnerPayload string
+			result, err := Run(ctx, Config{
+				WorkingDir:     env.workDir,
+				LedgerStore:    env.ledger,
+				DirtyCapture:   cleanDirtyCapture,
+				ChangedCapture: emptyChangedCapture,
+				CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+					codexCalled = true
+					runnerPayload = cfg.Prompt
+					return codexexec.Result{ExitCode: 1}, nil
+				},
+				Clock: env.clock,
+			})
+			if err != nil {
+				t.Fatalf("run once: %v", err)
+			}
+			if result.Outcome != OutcomeCodexFailed {
+				t.Fatalf("outcome = %s, want codex_failed", result.Outcome)
+			}
+			if !codexCalled {
+				t.Fatal("codex runner was not called")
+			}
+
+			loadedProfileContent := strings.TrimSpace(tt.profileContent)
+			if !strings.Contains(runnerPayload, loadedProfileContent) {
+				t.Fatalf("context payload missing selected profile content %q:\n%s", loadedProfileContent, runnerPayload)
+			}
+
+			manifest := readContextManifestArtifact(t, env, result.Run.ID)
+			if got := manifest.ProfileName; got != tt.profileName {
+				t.Fatalf("manifest profile name = %q, want %q", got, tt.profileName)
+			}
+			runProfile := manifestSourceByLabel(t, manifest, "run_profile")
+			if got, want := runProfile.Path, prompt.RunProfileSourcePath(tt.profileName); got != want {
+				t.Fatalf("run profile source path = %q, want %q", got, want)
+			}
+			if got, want := runProfile.SHA256, sha256HexTest([]byte(loadedProfileContent)); got != want {
+				t.Fatalf("run profile sha256 = %q, want %q", got, want)
+			}
+			if got, want := runProfile.ByteSize, len([]byte(loadedProfileContent)); got != want {
+				t.Fatalf("run profile byte size = %d, want %d", got, want)
+			}
+
+			var taskSelected struct {
+				Workflow    string `json:"workflow"`
+				Phase       string `json:"phase"`
+				ProfileName string `json:"profile_name"`
+			}
+			history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+			if err != nil || !ok {
+				t.Fatalf("get run history ok=%v err=%v", ok, err)
+			}
+			if !decodeTestEventPayload(t, history.Events, ledger.EventTaskSelected, &taskSelected) {
+				t.Fatal("task selected event not found")
+			}
+			if got, want := taskSelected.Workflow, taskfile.WorkflowMixedPassV1; got != want {
+				t.Fatalf("task selected workflow = %q, want %q", got, want)
+			}
+			wantPhase := tt.phase
+			if wantPhase == "" {
+				wantPhase = taskfile.PhaseImplement
+			}
+			if got := taskSelected.Phase; got != wantPhase {
+				t.Fatalf("task selected phase = %q, want %q", got, wantPhase)
+			}
+			if got := taskSelected.ProfileName; got != tt.profileName {
+				t.Fatalf("task selected profile name = %q, want %q", got, tt.profileName)
+			}
+			selectedTask := manifestSourceByLabel(t, manifest, "selected_task")
+			if got, want := selectedTask.Path, selected.SourcePath; got != want {
+				t.Fatalf("selected task source path = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestRunTaskFrontmatterProfileDoesNotOverridePhasePolicy(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeTestRunProfile(t, env.workDir, "auditor", "UNIQUE FRONTMATTER AUDITOR PROFILE")
+	selected := writeRunTaskFile(t, env, "profile-override.md", `---
+id: task-profile-override
+status: pending
+workflow: mixed-pass-v1
+phase: implement
+profile: auditor
+---
+# Profile Override
+
+Use the policy-selected profile.
+`)
+
+	var payload string
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+			payload = cfg.Prompt
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCodexFailed {
+		t.Fatalf("outcome = %s, want codex_failed", result.Outcome)
+	}
+	if !strings.Contains(payload, "You are the implementer for this Revolvr pass.") {
+		t.Fatalf("context payload missing implementer policy profile:\n%s", payload)
+	}
+	if strings.Contains(payload, "UNIQUE FRONTMATTER AUDITOR PROFILE") {
+		t.Fatalf("context payload used task frontmatter profile:\n%s", payload)
+	}
+	history, ok, historyErr := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if historyErr != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, historyErr)
+	}
+	var taskSelected struct {
+		TaskID      string `json:"task_id"`
+		ProfileName string `json:"profile_name"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventTaskSelected, &taskSelected) {
+		t.Fatal("task selected event not found")
+	}
+	if taskSelected.TaskID != selected.ID || taskSelected.ProfileName != "implementer" {
+		t.Fatalf("task selected payload = %+v, want stable task and implementer", taskSelected)
+	}
+}
+
 func TestRunSmokeScriptTaskFileManifestUsesExactPreRunBytes(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
@@ -560,13 +1401,10 @@ func TestRunSmokeScriptTaskFileManifestUsesExactPreRunBytes(t *testing.T) {
 	}
 }
 
-func TestRunBlocksBeforeCodexWhenDefaultProfileMissing(t *testing.T) {
+func TestRunBlocksBeforeCodexWhenMappedProfileMissing(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	if err := os.Remove(filepath.Join(env.workDir, prompt.RunProfileSourcePath(prompt.DefaultRunProfileName))); err != nil {
-		t.Fatalf("remove default profile: %v", err)
-	}
-	writeRunTask(t, env, "task-missing-profile", "Require a profile file")
+	selected := writeRunTaskWithPhase(t, env, "task-missing-profile", "Require a phase-selected profile file", taskfile.PhaseSimplify)
 
 	codexCalled := false
 	result, err := Run(ctx, Config{
@@ -592,7 +1430,7 @@ func TestRunBlocksBeforeCodexWhenDefaultProfileMissing(t *testing.T) {
 	}
 	for _, want := range []string{
 		"load run profile failed",
-		filepath.Join(".agent", "profiles", "implementer.md"),
+		filepath.Join(".agent", "profiles", "simplifier.md"),
 		"run `revolvr init` or create the profile file",
 	} {
 		if !strings.Contains(result.Message, want) {
@@ -602,6 +1440,16 @@ func TestRunBlocksBeforeCodexWhenDefaultProfileMissing(t *testing.T) {
 	contextPayloadPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.md")
 	if _, err := os.Stat(contextPayloadPath); !os.IsNotExist(err) {
 		t.Fatalf("context payload artifact stat err = %v, want not exist", err)
+	}
+	contextManifestPath := filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.json")
+	if _, err := os.Stat(contextManifestPath); !os.IsNotExist(err) {
+		t.Fatalf("context manifest artifact stat err = %v, want not exist", err)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusBlocked {
+		t.Fatalf("file task status = %q, want blocked", got)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Phase; got != taskfile.PhaseSimplify {
+		t.Fatalf("file task phase = %q, want simplify", got)
 	}
 }
 
@@ -639,8 +1487,8 @@ func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T)
 	if result.Outcome != OutcomeCommitted {
 		t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
 	}
-	if result.Task.Status != taskmodel.StatusCompleted || result.Run.Status != ledger.StatusCompleted {
-		t.Fatalf("task/run status = %s/%s, want completed/completed", result.Task.Status, result.Run.Status)
+	if result.Task.Status != taskmodel.StatusPending || result.Run.Status != ledger.StatusCompleted {
+		t.Fatalf("task/run status = %s/%s, want pending/completed", result.Task.Status, result.Run.Status)
 	}
 
 	warnings := receiptWarningEvents(t, env.ledger, result.Run.ID)
@@ -833,7 +1681,8 @@ func TestRunDoesNotWarnWhenReceiptFactsMatchHarness(t *testing.T) {
 func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	selected := writeRunTask(t, env, "task-verify", "Break verification")
+	writeTestRunProfile(t, env.workDir, "auditor", "Auditor profile for verification failure.\n\nReview before document.")
+	selected := writeRunTaskWithPhase(t, env, "task-verify", "Break verification", taskfile.PhaseAudit)
 	state := &fakeCommandState{
 		t:                t,
 		workDir:          env.workDir,
@@ -863,6 +1712,9 @@ func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusBlocked {
 		t.Fatalf("file task status = %q, want blocked", got)
 	}
+	if got := loadRunTask(t, env, selected.SourcePath).Phase; got != taskfile.PhaseAudit {
+		t.Fatalf("file task phase = %q, want audit", got)
+	}
 	if result.Run.Status != ledger.StatusFailed {
 		t.Fatalf("run status = %q, want failed", result.Run.Status)
 	}
@@ -886,7 +1738,7 @@ func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 func TestRunBlocksWhenNoChangesAfterSuccessfulVerification(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
-	writeRunTask(t, env, "task-no-change", "Make no changes")
+	selected := writeRunTask(t, env, "task-no-change", "Make no changes")
 	state := &fakeCommandState{
 		t:                t,
 		workDir:          env.workDir,
@@ -915,6 +1767,13 @@ func TestRunBlocksWhenNoChangesAfterSuccessfulVerification(t *testing.T) {
 	}
 	if result.Task.Status != taskmodel.StatusBlocked {
 		t.Fatalf("task status = %q, want blocked", result.Task.Status)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if got := updated.Status; got != taskfile.StatusBlocked {
+		t.Fatalf("file task status = %q, want blocked", got)
+	}
+	if got := updated.Phase; got != taskfile.PhaseImplement {
+		t.Fatalf("file task phase = %q, want implement", got)
 	}
 	if state.gitAddOrCommitCalls != 0 {
 		t.Fatalf("git add/commit calls = %d, want 0", state.gitAddOrCommitCalls)
@@ -1015,8 +1874,8 @@ func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *tes
 	if result.Message != "pre-existing dirty files are present" {
 		t.Fatalf("message = %q, want dirty preflight message", result.Message)
 	}
-	if codexCalled || changedCalled || verificationCalled || commitCalled {
-		t.Fatalf("called codex=%v changed=%v verification=%v commit=%v, want all false", codexCalled, changedCalled, verificationCalled, commitCalled)
+	if codexCalled || !changedCalled || verificationCalled || commitCalled {
+		t.Fatalf("called codex=%v changed=%v verification=%v commit=%v, want only final changed-files capture", codexCalled, changedCalled, verificationCalled, commitCalled)
 	}
 	if result.Task.Status != taskmodel.StatusBlocked {
 		t.Fatalf("task status = %q, want blocked", result.Task.Status)
@@ -1043,6 +1902,7 @@ func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *tes
 		ledger.EventTaskSelected,
 		ledger.EventRunArtifacts,
 		ledger.EventChangedFilesCaptured,
+		ledger.EventChangedFilesCaptured,
 		ledger.EventReceiptSynthesized,
 		ledger.EventRunFailed,
 	})
@@ -1067,6 +1927,58 @@ func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *tes
 	}
 	if _, found, err := lock.ReadSourceWriter(ctx, env.workDir); err != nil || found {
 		t.Fatalf("lock after dirty preflight found=%v err=%v, want released", found, err)
+	}
+}
+
+func TestRunBlocksWhenPreRunDirtyCaptureReportsFailure(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-dirty-capture", "Require trustworthy dirty capture")
+	codexCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{
+				Kind:         gitstate.CaptureKindDirty,
+				CaptureError: "git status exited with code 128",
+			}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{
+				Kind:         gitstate.CaptureKindChanged,
+				ChangedFiles: []string{selected.SourcePath},
+				Paths:        []string{selected.SourcePath},
+			}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalled = true
+			return codexexec.Result{ExitCode: 0}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if codexCalled || result.Outcome != OutcomeBlocked {
+		t.Fatalf("codexCalled=%v outcome=%s, want blocked before Codex", codexCalled, result.Outcome)
+	}
+	if !strings.Contains(result.Message, "capture pre-run dirty state failed") || !strings.Contains(result.Message, "128") {
+		t.Fatalf("message = %q, want dirty capture failure", result.Message)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseImplement {
+		t.Fatalf("task status/phase = %s/%s, want blocked/implement", updated.Status, updated.Phase)
+	}
+	history, ok, historyErr := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if historyErr != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, historyErr)
+	}
+	var terminal struct {
+		PreRunCaptureError string `json:"pre_run_capture_error"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) || !strings.Contains(terminal.PreRunCaptureError, "128") {
+		t.Fatalf("terminal pre-run capture error = %q, want captured failure", terminal.PreRunCaptureError)
 	}
 }
 
@@ -1140,11 +2052,15 @@ func TestRunAllowsPreExistingDirtyWhenConfigured(t *testing.T) {
 	if result.Run.CommitSHA != "abc123" {
 		t.Fatalf("run commit sha = %q, want abc123", result.Run.CommitSHA)
 	}
-	if result.Task.Status != taskmodel.StatusCompleted {
-		t.Fatalf("task status = %q, want completed", result.Task.Status)
+	if result.Task.Status != taskmodel.StatusPending {
+		t.Fatalf("task status = %q, want pending", result.Task.Status)
 	}
-	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusCompleted {
-		t.Fatalf("file task status = %q, want completed", got)
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if got := updated.Status; got != taskfile.StatusPending {
+		t.Fatalf("file task status = %q, want pending", got)
+	}
+	if got := updated.Phase; got != taskfile.PhaseAudit {
+		t.Fatalf("file task phase = %q, want audit", got)
 	}
 }
 
@@ -1187,6 +2103,101 @@ func TestRunUpdatesParsedReceiptWhenVerificationFails(t *testing.T) {
 	}
 	if state.gitAddOrCommitCalls != 0 {
 		t.Fatalf("git add/commit calls = %d, want 0", state.gitAddOrCommitCalls)
+	}
+}
+
+func TestRunBlocksBeforeVerificationAndCommitWhenReceiptCannotBeSynthesized(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-receipt-write", "Require durable receipt")
+	verificationCalled := false
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: []string{selected.SourcePath}, Paths: []string{selected.SourcePath}}, nil
+		},
+		CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+			receiptRel := contextPayloadValue(t, cfg.Prompt, "Receipt path")
+			if mkdirErr := os.MkdirAll(filepath.Join(cfg.WorkingDir, receiptRel), 0o755); mkdirErr != nil {
+				return codexexec.Result{}, mkdirErr
+			}
+			return codexexec.Result{ExitCode: 0, FinalMessage: "done"}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			verificationCalled = true
+			return passedVerificationResult("go test ./..."), nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "unexpected"}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeBlocked || verificationCalled || commitCalled {
+		t.Fatalf("outcome=%s verificationCalled=%v commitCalled=%v, want blocked before verification/commit", result.Outcome, verificationCalled, commitCalled)
+	}
+	if !strings.Contains(result.Message, "prepare run receipt failed") || result.ReceiptError == "" {
+		t.Fatalf("message/error = %q / %q, want receipt preparation failure", result.Message, result.ReceiptError)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseImplement {
+		t.Fatalf("task status/phase = %s/%s, want blocked/implement", updated.Status, updated.Phase)
+	}
+	if result.Run.Status != ledger.StatusFailed {
+		t.Fatalf("run status = %s, want failed", result.Run.Status)
+	}
+	history, ok, historyErr := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if historyErr != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, historyErr)
+	}
+	var terminal struct {
+		ReceiptError string `json:"receipt_error"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) || terminal.ReceiptError == "" {
+		t.Fatalf("terminal receipt error = %q, want finalization failure evidence", terminal.ReceiptError)
+	}
+}
+
+func TestRunLedgerCompletionFailureStillBlocksTaskAndFinalizesReceipt(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-ledger-failure", "Handle ledger failure")
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			if closeErr := env.ledger.Close(); closeErr != nil {
+				t.Fatalf("close ledger: %v", closeErr)
+			}
+			return codexexec.Result{ExitCode: 2, FinalMessage: "failed"}, nil
+		},
+		Clock: env.clock,
+	})
+	if err == nil {
+		t.Fatal("run once succeeded, want ledger completion error")
+	}
+	if result.Outcome != OutcomeCodexFailed || result.Run.Status != ledger.StatusRunning || result.LedgerError == nil {
+		t.Fatalf("result outcome/run/ledger = %s/%s/%v, want codex_failed/running/error", result.Outcome, result.Run.Status, result.LedgerError)
+	}
+	updated := loadRunTask(t, env, selected.SourcePath)
+	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseImplement {
+		t.Fatalf("task status/phase = %s/%s, want blocked/implement despite ledger failure", updated.Status, updated.Phase)
+	}
+	if result.Receipt.Verdict != receipt.VerdictCodexFailed {
+		t.Fatalf("receipt verdict = %q, want codex_failed", result.Receipt.Verdict)
+	}
+	if _, receiptErr := os.Stat(result.ReceiptPath); receiptErr != nil {
+		t.Fatalf("final receipt stat: %v", receiptErr)
 	}
 }
 
@@ -1403,6 +2414,11 @@ func writeRunTask(t *testing.T, env testEnv, id string, title string) taskfile.T
 	return writeRunTaskFile(t, env, id+".md", taskFileMarkdown(id, title, taskfile.StatusPending, nil))
 }
 
+func writeRunTaskWithPhase(t *testing.T, env testEnv, id string, title string, phase string) taskfile.Task {
+	t.Helper()
+	return writeRunTaskFile(t, env, id+".md", taskFileMarkdownWithPhase(id, title, taskfile.StatusPending, phase))
+}
+
 func writeRunTaskFile(t *testing.T, env testEnv, name string, content string) taskfile.Task {
 	t.Helper()
 	path := filepath.Join(env.workDir, taskfile.TasksDir, name)
@@ -1436,6 +2452,19 @@ func taskFileMarkdown(id string, title string, status string, priority *int) str
 	if priority != nil {
 		fmt.Fprintf(&out, "priority: %d\n", *priority)
 	}
+	out.WriteString("---\n")
+	fmt.Fprintf(&out, "# %s\n\n", title)
+	fmt.Fprintf(&out, "%s\n", title)
+	return out.String()
+}
+
+func taskFileMarkdownWithPhase(id string, title string, status string, phase string) string {
+	var out strings.Builder
+	out.WriteString("---\n")
+	fmt.Fprintf(&out, "id: %s\n", id)
+	fmt.Fprintf(&out, "workflow: %s\n", taskfile.WorkflowMixedPassV1)
+	fmt.Fprintf(&out, "phase: %s\n", phase)
+	fmt.Fprintf(&out, "status: %s\n", status)
 	out.WriteString("---\n")
 	fmt.Fprintf(&out, "# %s\n\n", title)
 	fmt.Fprintf(&out, "%s\n", title)
@@ -1809,6 +2838,20 @@ func manifestSourceByLabel(t *testing.T, manifest prompt.ContextManifest, label 
 	}
 	t.Fatalf("manifest source %q not found: %+v", label, manifest.Sources)
 	return prompt.ContextSource{}
+}
+
+func readContextManifestArtifact(t *testing.T, env testEnv, runID string) prompt.ContextManifest {
+	t.Helper()
+	contextManifestPath := filepath.Join(env.workDir, ".revolvr", "runs", runID, "context.json")
+	manifestBytes, err := os.ReadFile(contextManifestPath)
+	if err != nil {
+		t.Fatalf("read context manifest artifact: %v", err)
+	}
+	var manifest prompt.ContextManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("unmarshal context manifest: %v\n%s", err, manifestBytes)
+	}
+	return manifest
 }
 
 func sha256HexTest(content []byte) string {

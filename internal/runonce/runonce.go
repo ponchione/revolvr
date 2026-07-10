@@ -1,6 +1,7 @@
 package runonce
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"revolvr/internal/id"
 	"revolvr/internal/ledger"
 	"revolvr/internal/lock"
+	"revolvr/internal/passpolicy"
 	"revolvr/internal/prompt"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
@@ -116,6 +118,11 @@ type Result struct {
 	Commit             commit.Result
 	ReceiptWarnings    []ReceiptWarning
 	LedgerError        error
+
+	phasePolicy            passpolicy.Policy
+	phaseTransitionApplied bool
+	selectedFileTask       taskfile.Task
+	changedCaptureError    string
 }
 
 func Run(ctx context.Context, cfg Config) (Result, error) {
@@ -164,6 +171,14 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	task := taskFromFileTask(fileTask)
 	result.Task = task
 	result.FileTask = fileTask
+	result.selectedFileTask = fileTask
+
+	policy, err := passpolicy.Lookup(fileTask.Workflow, fileTask.Phase)
+	if err != nil {
+		result.Message = "lookup pass policy failed: " + err.Error()
+		return result, err
+	}
+	result.phasePolicy = policy
 
 	run, err := ledgerStore.CreateRun(ctx, ledger.RunSpec{
 		ID:     runID,
@@ -179,9 +194,12 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		"task_id": fileTask.ID,
 	})
 	appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventTaskSelected, map[string]any{
-		"task_id": fileTask.ID,
-		"task":    fileTask.ContextBody,
-		"summary": fileTask.Title,
+		"task_id":      fileTask.ID,
+		"task":         fileTask.ContextBody,
+		"summary":      fileTask.Title,
+		"workflow":     fileTask.Workflow,
+		"phase":        fileTask.Phase,
+		"profile_name": policy.ProfileName,
 	})
 
 	paths := newRunPaths(run.ID)
@@ -203,6 +221,15 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 	result.PreRunDirty = preRunDirty
+	if result.PreRunDirty.CaptureError != "" {
+		appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventChangedFilesCaptured, map[string]any{
+			"pre_run_dirty_files": dirtyFileList(result.PreRunDirty),
+			"changed_files":       []string{},
+			"capture_error":       result.PreRunDirty.CaptureError,
+		})
+		result.Message = "capture pre-run dirty state failed: " + result.PreRunDirty.CaptureError
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
 	if !cfg.AllowPreExistingDirty && hasPreExistingDirty(result.PreRunDirty) {
 		appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventChangedFilesCaptured, map[string]any{
 			"pre_run_dirty_files": dirtyFileList(result.PreRunDirty),
@@ -213,7 +240,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
 
-	runProfile, err := prompt.LoadRunProfile(workDir, prompt.DefaultRunProfileName)
+	runProfile, err := prompt.LoadRunProfile(workDir, policy.ProfileName)
 	if err != nil {
 		result.Message = "load run profile failed: " + err.Error()
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
@@ -308,6 +335,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		result.Message = codexFailureMessage(result.Codex)
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeCodexFailed, receipt.VerdictCodexFailed, "not_run", "")
 	}
+	if !receiptMatches(result.Receipt, result.Run.ID, result.Task.ID) {
+		result.Message = "prepare run receipt failed"
+		if result.ReceiptError != "" {
+			result.Message += ": " + result.ReceiptError
+		}
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
 
 	verificationResult, err := cfg.VerificationRunner(ctx, verification.Config{
 		WorkingDir:            workDir,
@@ -335,15 +369,41 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeVerificationFailed, receipt.VerdictVerificationFailed, verificationStatus, "")
 	}
 
-	if result.PostRunChanged.CaptureError == "" && len(changedFiles(result.PostRunChanged)) > 0 {
-		updatedFileTask, err := taskfile.UpdateStatus(workDir, result.FileTask.SourcePath, taskfile.StatusCompleted)
-		if err != nil {
-			result.Message = "update task status before commit failed: " + err.Error()
-			return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
+	if unchanged, snapshotErr := selectedTaskSnapshotUnchanged(workDir, result.selectedFileTask); !unchanged {
+		result.Message = "selected task changed during the pass"
+		if snapshotErr != nil {
+			result.Message += ": " + snapshotErr.Error()
 		}
-		result.FileTask = updatedFileTask
-		result.Task = taskFromFileTask(updatedFileTask)
-		captureAndRecordChangedFiles(ctx, cfg, ledgerStore, &result, workDir)
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
+	}
+	if result.PostRunChanged.CaptureError != "" {
+		result.Commit = gitStateCaptureRefusal(result.PostRunChanged.CaptureError)
+		result.Message = result.Commit.Message
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
+	}
+	if !policy.AllowNoChangeSuccess && !hasMeaningfulPreTransitionChanges(result.PreRunDirty, result.PostRunChanged, result.selectedFileTask.SourcePath) {
+		result.Commit = commit.Result{
+			Status:        commit.StatusRefused,
+			RefusalReason: commit.ReasonNoChanges,
+			Message:       "there are no meaningful changes to commit",
+		}
+		result.Message = result.Commit.Message
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeNoChanges, receipt.VerdictNoChanges, verificationStatus, "")
+	}
+
+	updatedFileTask, err := applyPolicyTransition(workDir, result.selectedFileTask, policy)
+	if err != nil {
+		result.Message = "update task workflow metadata before commit failed: " + err.Error()
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
+	}
+	result.FileTask = updatedFileTask
+	result.Task = taskFromFileTask(updatedFileTask)
+	result.phaseTransitionApplied = true
+	captureAndRecordChangedFiles(ctx, cfg, ledgerStore, &result, workDir)
+	if result.PostRunChanged.CaptureError != "" {
+		result.Commit = gitStateCaptureRefusal(result.PostRunChanged.CaptureError)
+		result.Message = result.Commit.Message
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
 	}
 
 	commitResult, err := cfg.CommitRunner(ctx, commit.Config{
@@ -364,11 +424,11 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		Ledger:                   ledgerStore,
 		CommandRunner:            commitCommandRunner(cfg.CommandRunner),
 	})
+	result.Commit = commitResult
 	if err != nil {
 		result.Message = "auto-commit gate failed: " + err.Error()
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
 	}
-	result.Commit = commitResult
 	if commitResult.LedgerError != nil {
 		setLedgerError(&result, commitResult.LedgerError)
 	}
@@ -547,11 +607,71 @@ func captureAndRecordChangedFiles(ctx context.Context, cfg Config, runs *ledger.
 	} else {
 		result.PostRunChanged = postRunChanged
 	}
+	if result.PostRunChanged.CaptureError != "" && result.changedCaptureError == "" {
+		result.changedCaptureError = result.PostRunChanged.CaptureError
+	}
 	appendEvent(ctx, result, runs, result.Run.ID, ledger.EventChangedFilesCaptured, map[string]any{
-		"pre_run_dirty_files": result.PreRunDirty.DirtyFiles,
+		"pre_run_dirty_files": dirtyFileList(result.PreRunDirty),
 		"changed_files":       result.PostRunChanged.ChangedFiles,
 		"capture_error":       result.PostRunChanged.CaptureError,
 	})
+}
+
+func selectedTaskSnapshotUnchanged(repositoryRoot string, snapshot taskfile.Task) (bool, error) {
+	current, ok, err := taskfile.FindByID(repositoryRoot, snapshot.ID)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, fmt.Errorf("selected task %q no longer exists", snapshot.ID)
+	}
+	if filepath.Clean(current.SourcePath) != filepath.Clean(snapshot.SourcePath) {
+		return false, fmt.Errorf("selected task %q moved from %s to %s", snapshot.ID, snapshot.SourcePath, current.SourcePath)
+	}
+	return bytes.Equal(current.SourceBytes, snapshot.SourceBytes), nil
+}
+
+func hasMeaningfulPreTransitionChanges(preRun gitstate.Capture, postRun gitstate.Capture, selectedTaskPath string) bool {
+	selectedTaskPath = filepath.Clean(selectedTaskPath)
+	preExisting := make(map[string]struct{})
+	for _, path := range dirtyFileList(preRun) {
+		preExisting[filepath.Clean(path)] = struct{}{}
+	}
+	for _, path := range changedFiles(postRun) {
+		path = filepath.Clean(path)
+		if path == selectedTaskPath {
+			continue
+		}
+		if _, existedBeforeRun := preExisting[path]; !existedBeforeRun {
+			return true
+		}
+	}
+	return false
+}
+
+func gitStateCaptureRefusal(captureError string) commit.Result {
+	message := "git state capture failed"
+	if strings.TrimSpace(captureError) != "" {
+		message += ": " + captureError
+	}
+	return commit.Result{
+		Status:        commit.StatusRefused,
+		RefusalReason: commit.ReasonGitStateCaptureFailed,
+		Message:       message,
+	}
+}
+
+func applyPolicyTransition(repositoryRoot string, task taskfile.Task, policy passpolicy.Policy) (taskfile.Task, error) {
+	update := taskfile.MetadataUpdate{Status: taskfile.StatusPending}
+	if policy.CompletesTask {
+		update.Status = taskfile.StatusCompleted
+	} else {
+		if strings.TrimSpace(policy.NextPhase) == "" {
+			return taskfile.Task{}, fmt.Errorf("policy phase %q does not define a next phase", policy.Phase)
+		}
+		update.Phase = policy.NextPhase
+	}
+	return taskfile.UpdateMetadataFromSnapshot(repositoryRoot, task, update)
 }
 
 func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, outcome Outcome, verdict receipt.Verdict, verificationStatus string, commitSHA string) (Result, error) {
@@ -559,11 +679,52 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 	if strings.TrimSpace(result.Message) == "" {
 		result.Message = string(outcome)
 	}
+	completedAt := cfg.Clock()
+	var finishErr error
+	var taskUpdateError string
+	var taskRestageError string
+	taskRestageApplied := false
+	if result.selectedFileTask.SourcePath != "" && outcome != OutcomeCommitted {
+		updatedFileTask, err := blockFailedTask(cfg.WorkingDir, result)
+		if err != nil {
+			taskUpdateError = err.Error()
+			finishErr = errors.Join(finishErr, fmt.Errorf("update task after failed run: %w", err))
+			result.Message += "; update task after failed run failed: " + err.Error()
+			if current, loadErr := taskfile.Load(cfg.WorkingDir, result.selectedFileTask.SourcePath); loadErr == nil {
+				result.FileTask = current
+			}
+		} else {
+			result.FileTask = updatedFileTask
+			if commitStagedChanges(result.Commit) {
+				if restageErr := stageRestoredTask(ctx, cfg, result.selectedFileTask.SourcePath); restageErr != nil {
+					taskRestageError = restageErr.Error()
+					finishErr = errors.Join(finishErr, fmt.Errorf("stage restored task after commit failure: %w", restageErr))
+					result.Message += "; stage restored task after commit failure failed: " + restageErr.Error()
+				} else {
+					taskRestageApplied = true
+				}
+			}
+		}
+		captureAndRecordChangedFiles(ctx, cfg, runs, result, cfg.WorkingDir)
+	}
+
+	if result.FileTask.SourcePath != "" {
+		result.Task = taskFromFileTask(result.FileTask)
+	}
+	if result.FileTask.Status == taskfile.StatusBlocked {
+		result.Task.Blocker = result.Message
+		blockedAt := completedAt
+		result.Task.BlockedAt = &blockedAt
+	} else if result.FileTask.Status == taskfile.StatusCompleted {
+		taskCompletedAt := completedAt
+		result.Task.CompletedAt = &taskCompletedAt
+	}
+	result.Task.UpdatedAt = completedAt
+
 	parsedReceipt := result.Receipt
 	receiptWasSynthesized := result.ReceiptSynthesized
 	entries := verificationEntries(result.Verification)
 	files := changedFiles(result.PostRunChanged)
-	completedAt := cfg.Clock()
 	finalizeRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, entries, commitSHA, result.Message, completedAt)
 	if !receiptWasSynthesized && !result.ReceiptSynthesized {
 		recordReceiptWarnings(ctx, runs, result, parsedReceipt, verdict, verificationStatus, entries, files)
@@ -576,7 +737,7 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 		eventType = ledger.EventRunCompleted
 	}
 	exitCode := result.Codex.ExitCode
-	updatedRun, ok, err := runs.CompleteRun(ctx, result.Run.ID, ledger.RunCompletion{
+	updatedRun, ok, completionErr := runs.CompleteRun(ctx, result.Run.ID, ledger.RunCompletion{
 		Status:             runStatus,
 		Summary:            result.Message,
 		CompletedAt:        completedAt,
@@ -584,46 +745,106 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 		VerificationStatus: verificationStatus,
 		CommitSHA:          commitSHA,
 	})
-	if err != nil {
-		return *result, err
-	}
-	if ok {
+	if completionErr != nil {
+		setLedgerError(result, completionErr)
+		finishErr = errors.Join(finishErr, completionErr)
+	} else if !ok {
+		completionErr = fmt.Errorf("complete run: run %q not found", result.Run.ID)
+		setLedgerError(result, completionErr)
+		finishErr = errors.Join(finishErr, completionErr)
+	} else {
 		result.Run = updatedRun
 	}
 
-	taskStatus := taskfile.StatusBlocked
-	if outcome == OutcomeCommitted {
-		taskStatus = taskfile.StatusCompleted
+	payload := map[string]any{
+		"outcome":                outcome,
+		"message":                result.Message,
+		"task_status":            result.Task.Status,
+		"task_phase":             result.FileTask.Phase,
+		"run_status":             result.Run.Status,
+		"codex_exit_code":        result.Codex.ExitCode,
+		"verification_status":    verificationStatus,
+		"commit_sha":             commitSHA,
+		"commit_status":          result.Commit.Status,
+		"commit_refusal":         result.Commit.RefusalReason,
+		"commit_message":         result.Commit.Message,
+		"changed_files":          files,
+		"capture_error":          result.changedCaptureError,
+		"pre_run_capture_error":  result.PreRunDirty.CaptureError,
+		"receipt_verdict":        verdict,
+		"receipt_actual_verdict": result.Receipt.Verdict,
+		"receipt_synthesized":    result.ReceiptSynthesized,
+		"receipt_error":          result.ReceiptError,
+		"task_update_error":      taskUpdateError,
+		"task_restage_applied":   taskRestageApplied,
+		"task_restage_error":     taskRestageError,
 	}
-	updatedFileTask, err := taskfile.UpdateStatus(cfg.WorkingDir, result.FileTask.SourcePath, taskStatus)
-	if err != nil {
-		return *result, err
+	if completionErr != nil {
+		payload["run_completion_error"] = completionErr.Error()
 	}
-	result.FileTask = updatedFileTask
-	result.Task = taskFromFileTask(updatedFileTask)
-	if taskStatus == taskfile.StatusBlocked {
-		result.Task.Blocker = result.Message
-		blockedAt := completedAt
-		result.Task.BlockedAt = &blockedAt
-	} else {
-		taskCompletedAt := completedAt
-		result.Task.CompletedAt = &taskCompletedAt
+	if result.phasePolicy.Workflow != "" {
+		payload["workflow"] = result.phasePolicy.Workflow
+		payload["phase"] = result.phasePolicy.Phase
+		payload["next_phase"] = result.phasePolicy.NextPhase
+		payload["completes_task"] = result.phasePolicy.CompletesTask
+		payload["allow_no_change_success"] = result.phasePolicy.AllowNoChangeSuccess
+		payload["phase_transition_applied"] = result.phaseTransitionApplied
 	}
-	result.Task.UpdatedAt = completedAt
+	appendEvent(ctx, result, runs, result.Run.ID, eventType, payload)
+	return *result, finishErr
+}
 
-	appendEvent(ctx, result, runs, result.Run.ID, eventType, map[string]any{
-		"outcome":             outcome,
-		"message":             result.Message,
-		"task_status":         result.Task.Status,
-		"run_status":          result.Run.Status,
-		"codex_exit_code":     result.Codex.ExitCode,
-		"verification_status": verificationStatus,
-		"commit_sha":          commitSHA,
-		"commit_status":       result.Commit.Status,
-		"commit_refusal":      result.Commit.RefusalReason,
-		"commit_message":      result.Commit.Message,
+func blockFailedTask(repositoryRoot string, result *Result) (taskfile.Task, error) {
+	return taskfile.UpdateMetadataFromSnapshot(repositoryRoot, result.selectedFileTask, taskfile.MetadataUpdate{
+		Status: taskfile.StatusBlocked,
 	})
-	return *result, nil
+}
+
+func commitStagedChanges(result commit.Result) bool {
+	for _, command := range result.Commands {
+		if len(command.Args) == 0 || command.Args[0] != "add" {
+			continue
+		}
+		return command.Error == "" && !command.TimedOut && command.ExitCode == 0
+	}
+	return false
+}
+
+func stageRestoredTask(ctx context.Context, cfg Config, sourcePath string) error {
+	commandRunner := cfg.CommandRunner
+	if commandRunner == nil {
+		commandRunner = runner.Run
+	}
+	executable := strings.TrimSpace(cfg.GitExecutable)
+	if executable == "" {
+		executable = "git"
+	}
+	timeout := cfg.GitTimeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	result := commandRunner(ctx, runner.Command{
+		Name:        executable,
+		Args:        []string{"add", "--", sourcePath},
+		Dir:         cfg.WorkingDir,
+		Timeout:     timeout,
+		StdoutLimit: cfg.GitStdoutCap,
+		StderrLimit: cfg.GitStderrCap,
+	})
+	if result.Err != nil {
+		return result.Err
+	}
+	if result.TimedOut {
+		return errors.New("git add restored task timed out")
+	}
+	if result.ExitCode != 0 {
+		message := fmt.Sprintf("git add restored task exited with code %d", result.ExitCode)
+		if stderr := strings.TrimSpace(result.Stderr); stderr != "" {
+			message += ": " + stderr
+		}
+		return errors.New(message)
+	}
+	return nil
 }
 
 func ensureRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string) {

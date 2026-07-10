@@ -242,6 +242,8 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 		"Pending tasks: 1\n" +
 		"Blocked tasks: 1\n" +
 		"Completed tasks: 1\n" +
+		"Next task: task-pending - Pending File Task\n" +
+		"Next pass: workflow=mixed-pass-v1 phase=implement profile=implementer next=audit\n" +
 		"Recent runs: 2\n" +
 		"Latest run: run-new (failed)\n" +
 		"Latest summary: verification command 0 failed\n" +
@@ -253,6 +255,23 @@ func TestStatusShowsTaskCountsAndRecentRuns(t *testing.T) {
 		"receipt: .revolvr/receipts/run-new.md\n"
 	if out != want {
 		t.Fatalf("status output = %q, want %q", out, want)
+	}
+}
+
+func TestStatusUsesPrioritySelectedNextRunnableMarker(t *testing.T) {
+	var out bytes.Buffer
+	tasks := []taskmodel.Task{
+		{ID: "task-filename-first", Status: taskmodel.StatusPending, Summary: "shown first", Workflow: "mixed-pass-v1", Phase: "implement", RunProfile: "implementer", NextState: "audit"},
+		{ID: "task-priority-first", Status: taskmodel.StatusPending, Summary: "runs first", Workflow: "mixed-pass-v1", Phase: "audit", RunProfile: "auditor", NextState: "document", NextRunnable: true},
+	}
+	if err := writeStatus(&out, tasks, nil, nil); err != nil {
+		t.Fatalf("write status: %v", err)
+	}
+	if !strings.Contains(out.String(), "Next task: task-priority-first - runs first\n") || !strings.Contains(out.String(), "Next pass: workflow=mixed-pass-v1 phase=audit profile=auditor next=document\n") {
+		t.Fatalf("status output missing priority-selected task:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "Next task: task-filename-first") {
+		t.Fatalf("status output used filename-first task:\n%s", out.String())
 	}
 }
 
@@ -376,9 +395,10 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 			for _, want := range []string{
 				"Runnable: ready to run",
 				"Next task: task-pending - Pending File Task",
-				"> next task-pending  pending  Pending File Task",
-				"  - task-blocked  ! blocked  Blocked File Task",
-				"  - task-completed  completed  Completed File Task",
+				"Workflow: mixed-pass-v1  Phase: implement  Profile: implementer  Next: audit",
+				"> next task-pending  pending  phase=implement  profile=implementer  next=audit",
+				"  - task-blocked  ! blocked  phase=implement  profile=implementer  next=audit",
+				"  - task-completed  completed  phase=implement  profile=implementer  next=audit",
 			} {
 				if !strings.Contains(tasksView.View(), want) {
 					t.Fatalf("tui tasks view missing %q:\n%s", want, tasksView.View())
@@ -402,6 +422,7 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 		"Blocked: 1",
 		"Completed: 1",
 		"Next task: task-pending - Pending File Task",
+		"Workflow: mixed-pass-v1  Phase: implement  Profile: implementer  Next: audit",
 		"Latest Run",
 		"ID: run-new",
 		"Summary: latest summary",
@@ -715,16 +736,25 @@ func TestInitCreatesStoresAndIsIdempotent(t *testing.T) {
 
 func TestInitDoesNotOverwriteExistingProfileFiles(t *testing.T) {
 	workDir := t.TempDir()
-	custom := "Custom implementer profile.\n"
-	writeCLIFile(t, filepath.Join(workDir, prompt.RunProfileSourcePath(prompt.DefaultRunProfileName)), custom)
+	customProfiles := map[string]string{
+		prompt.DefaultRunProfileName: "Custom implementer profile.\n",
+		"simplifier":                 "Custom simplifier profile.\n",
+	}
+	for name, content := range customProfiles {
+		writeCLIFile(t, filepath.Join(workDir, prompt.RunProfileSourcePath(name)), content)
+	}
 
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
 	}
 
-	assertProfileFileContent(t, workDir, prompt.DefaultRunProfileName, custom)
-	assertProfileFileContent(t, workDir, "auditor", strings.TrimRight(profileTemplateContent(t, "auditor"), "\n")+"\n")
-	assertProfileFileContent(t, workDir, "documentor", strings.TrimRight(profileTemplateContent(t, "documentor"), "\n")+"\n")
+	for _, template := range prompt.DefaultRunProfileTemplates() {
+		want, ok := customProfiles[template.Name]
+		if !ok {
+			want = strings.TrimRight(template.Content, "\n") + "\n"
+		}
+		assertProfileFileContent(t, workDir, template.Name, want)
+	}
 }
 
 func TestInitAddsStateDirToLocalGitExclude(t *testing.T) {
@@ -936,16 +966,17 @@ func TestTaskImportUnreadablePathReturnsClearErrorWithoutMutatingState(t *testin
 
 func TestTaskListShowsFileBackedTasksInTaskfileOrder(t *testing.T) {
 	workDir := t.TempDir()
-	writeCLITaskFile(t, workDir, "020-second.md", "# Second task\n\nSecond body.\n")
+	second := cliTaskMarkdownWithPhase("020-second", "pending", "Second task", "Second body.", taskfile.PhaseSimplify)
+	writeCLITaskFile(t, workDir, "020-second.md", second)
 	writeCLITaskFile(t, workDir, "010-first.md", "# First task\n\nFirst body.\n")
 
 	out, err := executeCLI(t, workDir, "task", "list")
 	if err != nil {
 		t.Fatalf("execute task list: %v", err)
 	}
-	want := "ID\tSTATUS\tTASK\tSUMMARY\n" +
-		"010-first\tpending\t# First task First body.\tFirst task\n" +
-		"020-second\tpending\t# Second task Second body.\tSecond task\n"
+	want := "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tTASK\tSUMMARY\n" +
+		"010-first\tpending\tmixed-pass-v1\timplement\timplementer\taudit\t# First task First body.\tFirst task\n" +
+		"020-second\tpending\tmixed-pass-v1\tsimplify\tsimplifier\tcompleted\t" + oneLine(second) + "\tSecond task\n"
 	if out != want {
 		t.Fatalf("task list output = %q, want %q", out, want)
 	}
@@ -2285,6 +2316,7 @@ func TestReceiptValidatePassesForConsistentRun(t *testing.T) {
 		"Receipt: .revolvr/receipts/run-valid-receipt.md\n" +
 		"Checks:\n" +
 		"identity: ok\n" +
+		"verdict: ok\n" +
 		"completion_time: ok\n" +
 		"commit_sha: ok\n" +
 		"changed_files: ok\n" +
@@ -2438,17 +2470,6 @@ func assertProfileFileContent(t *testing.T, workDir string, name string, want st
 	}
 }
 
-func profileTemplateContent(t *testing.T, name string) string {
-	t.Helper()
-	for _, template := range prompt.DefaultRunProfileTemplates() {
-		if template.Name == name {
-			return template.Content
-		}
-	}
-	t.Fatalf("profile template %q not found", name)
-	return ""
-}
-
 func writeCLIFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -2473,6 +2494,19 @@ status: %s
 
 %s
 `, id, status, title, body)
+}
+
+func cliTaskMarkdownWithPhase(id string, status string, title string, body string, phase string) string {
+	return fmt.Sprintf(`---
+id: %s
+status: %s
+workflow: %s
+phase: %s
+---
+# %s
+
+%s
+`, id, status, taskfile.WorkflowMixedPassV1, phase, title, body)
 }
 
 func taskIDSet(tasks []taskmodel.Task) map[string]bool {

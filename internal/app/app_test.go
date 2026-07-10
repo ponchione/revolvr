@@ -48,9 +48,9 @@ func TestStatusReturnsTasksRecentRunsAndLatestEvents(t *testing.T) {
 	ctx := context.Background()
 	base := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
 	writeAppTaskFile(t, workDir, "010-pending.md", appTaskMarkdown("task-pending", "pending", "Pending File Task", "pending task"))
-	writeAppTaskFile(t, workDir, "020-blocked.md", appTaskMarkdown("task-blocked", "blocked", "Blocked File Task", "blocked task"))
-	writeAppTaskFile(t, workDir, "030-completed.md", appTaskMarkdown("task-completed", "completed", "Completed File Task", "completed task"))
-	writeAppTaskFile(t, workDir, "040-running.md", appTaskMarkdown("task-running", "running", "Running File Task", "running task"))
+	writeAppTaskFile(t, workDir, "020-blocked.md", appTaskMarkdownWithPhase("task-blocked", "blocked", "Blocked File Task", "blocked task", taskfile.PhaseAudit))
+	writeAppTaskFile(t, workDir, "030-completed.md", appTaskMarkdownWithPhase("task-completed", "completed", "Completed File Task", "completed task", taskfile.PhaseSimplify))
+	writeAppTaskFile(t, workDir, "040-running.md", appTaskMarkdownWithPhase("task-running", "running", "Running File Task", "running task", taskfile.PhaseDocument))
 
 	eventTime := base
 	runs, err := ledger.OpenWithClock(ctx, paths.LedgerDBPath, func() time.Time { return eventTime })
@@ -95,6 +95,14 @@ func TestStatusReturnsTasksRecentRunsAndLatestEvents(t *testing.T) {
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("task statuses = %#v, want %#v", got, want)
 	}
+	if got, want := taskWorkflowStates(result.Tasks), []taskWorkflowState{
+		{ID: "task-pending", Workflow: taskfile.WorkflowMixedPassV1, Phase: taskfile.PhaseImplement, RunProfile: "implementer", NextState: taskfile.PhaseAudit},
+		{ID: "task-blocked", Workflow: taskfile.WorkflowMixedPassV1, Phase: taskfile.PhaseAudit, RunProfile: "auditor", NextState: taskfile.PhaseDocument},
+		{ID: "task-completed", Workflow: taskfile.WorkflowMixedPassV1, Phase: taskfile.PhaseSimplify, RunProfile: "simplifier", NextState: taskmodel.StatusCompleted},
+		{ID: "task-running", Workflow: taskfile.WorkflowMixedPassV1, Phase: taskfile.PhaseDocument, RunProfile: "documentor", NextState: taskfile.PhaseSimplify},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("task workflow states = %#v, want %#v", got, want)
+	}
 	if got, want := runIDs(result.RecentRuns), []string{"run-new"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("recent runs = %#v, want %#v", got, want)
 	}
@@ -107,8 +115,8 @@ func TestListTasksReturnsFileBackedTasksInTaskfileOrder(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()
 	first := appTaskMarkdown("task-first", "pending", "First File Task", "First body.")
-	second := appTaskMarkdown("task-second", "blocked", "Second File Task", "Second body.")
-	third := appTaskMarkdown("task-third", "completed", "Third File Task", "Third body.")
+	second := appTaskMarkdownWithPhase("task-second", "blocked", "Second File Task", "Second body.", taskfile.PhaseAudit)
+	third := appTaskMarkdownWithPhase("task-third", "completed", "Third File Task", "Third body.", taskfile.PhaseSimplify)
 	writeAppTaskFile(t, workDir, "020-second.md", second)
 	writeAppTaskFile(t, workDir, "010-first.md", first)
 	writeAppTaskFile(t, workDir, "030-third.md", third)
@@ -134,10 +142,66 @@ func TestListTasksReturnsFileBackedTasksInTaskfileOrder(t *testing.T) {
 	if got, want := taskTexts(tasks), []string{first, second, third}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("task text = %#v, want %#v", got, want)
 	}
+	if got, want := taskWorkflowStates(tasks), []taskWorkflowState{
+		{ID: "task-first", Workflow: taskfile.WorkflowMixedPassV1, Phase: taskfile.PhaseImplement, RunProfile: "implementer", NextState: taskfile.PhaseAudit},
+		{ID: "task-second", Workflow: taskfile.WorkflowMixedPassV1, Phase: taskfile.PhaseAudit, RunProfile: "auditor", NextState: taskfile.PhaseDocument},
+		{ID: "task-third", Workflow: taskfile.WorkflowMixedPassV1, Phase: taskfile.PhaseSimplify, RunProfile: "simplifier", NextState: taskmodel.StatusCompleted},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("task workflow states = %#v, want %#v", got, want)
+	}
 	for _, task := range tasks {
 		if !task.CreatedAt.IsZero() || !task.UpdatedAt.IsZero() || task.Blocker != "" || task.BlockedAt != nil || task.CompletedAt != nil {
 			t.Fatalf("file-backed task metadata = %+v, want zero timestamps and no blocker/completion metadata", task)
 		}
+	}
+}
+
+func TestListTasksMarksPrioritySelectedTaskWithoutReordering(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTaskFile(t, workDir, "010-first.md", `---
+id: task-first
+status: pending
+priority: 50
+---
+# First By Filename
+`)
+	writeAppTaskFile(t, workDir, "020-priority.md", `---
+id: task-priority
+status: pending
+priority: 1
+phase: audit
+---
+# First By Priority
+`)
+
+	tasks, err := ListTasks(ctx, Config{WorkDir: workDir})
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if got, want := taskIDs(tasks), []string{"task-first", "task-priority"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("task order = %#v, want filename order %#v", got, want)
+	}
+	if tasks[0].NextRunnable || !tasks[1].NextRunnable {
+		t.Fatalf("next-runnable flags = %v/%v, want false/true", tasks[0].NextRunnable, tasks[1].NextRunnable)
+	}
+	next, ok, err := taskfile.SelectNext(workDir)
+	if err != nil || !ok {
+		t.Fatalf("select next ok=%v err=%v", ok, err)
+	}
+	if next.ID != tasks[1].ID {
+		t.Fatalf("selected task = %q, want marked task %q", next.ID, tasks[1].ID)
+	}
+}
+
+func TestTaskFromFileTaskReportsPolicyLookupErrors(t *testing.T) {
+	_, err := taskFromFileTask(taskfile.Task{
+		ID:       "task-invalid-policy",
+		Workflow: "future-workflow",
+		Phase:    taskfile.PhaseImplement,
+	})
+	if err == nil || !strings.Contains(err.Error(), `resolve workflow state for task "task-invalid-policy": lookup pass policy: unsupported workflow "future-workflow"`) {
+		t.Fatalf("task adaptation error = %v, want task and policy context", err)
 	}
 }
 
@@ -250,6 +314,7 @@ func TestValidateReceiptReturnsPersistedValidationResult(t *testing.T) {
 	}
 	wantChecks := map[string]string{
 		receipt.ValidationCheckIdentity:            "ok",
+		receipt.ValidationCheckVerdict:             "ok",
 		receipt.ValidationCheckCompletionTime:      "ok",
 		receipt.ValidationCheckCommitSHA:           "ok",
 		receipt.ValidationCheckChangedFiles:        "ok",
@@ -467,6 +532,53 @@ func TestTaskAddListAndRetryOperations(t *testing.T) {
 	}
 	if retried.Status != taskmodel.StatusPending || retried.Blocker != "" || retried.BlockedAt != nil {
 		t.Fatalf("retried task = %+v, want pending with blocker state cleared", retried)
+	}
+}
+
+func TestRetryTaskPreservesPhaseIdentityBodyAndMetadata(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTaskFile(t, workDir, "retry-audit.md", `---
+id: retry-audit
+status: blocked
+workflow: mixed-pass-v1
+phase: audit
+profile: ignored-frontmatter-profile
+priority: 7
+custom: preserved
+---
+# Retry Audit
+
+Keep this body byte-for-byte.
+`)
+	path := filepath.Join(taskfile.TasksDir, "retry-audit.md")
+
+	retried, err := RetryTask(ctx, Config{WorkDir: workDir}, "retry-audit")
+	if err != nil {
+		t.Fatalf("retry task: %v", err)
+	}
+	if retried.ID != "retry-audit" || retried.Status != taskmodel.StatusPending || retried.Phase != taskfile.PhaseAudit || retried.RunProfile != "auditor" {
+		t.Fatalf("retried task = %+v, want same audit task pending under auditor policy", retried)
+	}
+	want := `---
+id: retry-audit
+status: pending
+workflow: mixed-pass-v1
+phase: audit
+profile: ignored-frontmatter-profile
+priority: 7
+custom: preserved
+---
+# Retry Audit
+
+Keep this body byte-for-byte.
+`
+	content, readErr := os.ReadFile(filepath.Join(workDir, path))
+	if readErr != nil {
+		t.Fatalf("read retried task: %v", readErr)
+	}
+	if got := string(content); got != want {
+		t.Fatalf("retried task content = %q, want only status changed to %q", got, want)
 	}
 }
 
@@ -851,6 +963,15 @@ func TestRunLoopStopsImmediatelyWhenOutcomeNeedsInspection(t *testing.T) {
 				PostRunChanged: gitstate.Capture{ChangedFiles: []string{"internal/feature.go"}},
 			},
 		},
+		{
+			name: "durably blocked failed task",
+			result: runonce.Result{
+				Outcome: runonce.OutcomeVerificationFailed,
+				Run:     ledger.Run{ID: "run-blocked-task"},
+				Task:    taskmodel.Task{ID: "task-blocked", Status: taskmodel.StatusBlocked},
+				Message: "verification failed without product changes",
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -976,6 +1097,28 @@ func taskSummaries(tasks []taskmodel.Task) []string {
 		summaries = append(summaries, task.Summary)
 	}
 	return summaries
+}
+
+type taskWorkflowState struct {
+	ID         string
+	Workflow   string
+	Phase      string
+	RunProfile string
+	NextState  string
+}
+
+func taskWorkflowStates(tasks []taskmodel.Task) []taskWorkflowState {
+	states := make([]taskWorkflowState, 0, len(tasks))
+	for _, task := range tasks {
+		states = append(states, taskWorkflowState{
+			ID:         task.ID,
+			Workflow:   task.Workflow,
+			Phase:      task.Phase,
+			RunProfile: task.RunProfile,
+			NextState:  task.NextState,
+		})
+	}
+	return states
 }
 
 func importedTaskIDs(tasks []ImportedTask) []string {
@@ -1172,6 +1315,19 @@ status: %s
 
 %s
 `, id, status, title, body)
+}
+
+func appTaskMarkdownWithPhase(id string, status string, title string, body string, phase string) string {
+	return fmt.Sprintf(`---
+id: %s
+status: %s
+workflow: %s
+phase: %s
+---
+# %s
+
+%s
+`, id, status, taskfile.WorkflowMixedPassV1, phase, title, body)
 }
 
 func createAppPreflightState(t *testing.T, workDir string) {

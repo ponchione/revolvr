@@ -22,11 +22,26 @@ const (
 	StatusBlocked   = "blocked"
 )
 
+const (
+	WorkflowMixedPassV1 = "mixed-pass-v1"
+	DefaultWorkflow     = WorkflowMixedPassV1
+)
+
+const (
+	PhaseImplement = "implement"
+	PhaseAudit     = "audit"
+	PhaseDocument  = "document"
+	PhaseSimplify  = "simplify"
+	DefaultPhase   = PhaseImplement
+)
+
 type Task struct {
 	ID          string
 	Title       string
 	Profile     string
 	Status      string
+	Workflow    string
+	Phase       string
 	Priority    int
 	HasPriority bool
 	ContextBody string
@@ -38,6 +53,11 @@ type CreateInput struct {
 	ID    string
 	Title string
 	Body  string
+}
+
+type MetadataUpdate struct {
+	Status string
+	Phase  string
 }
 
 func Create(repositoryRoot string, input CreateInput) (Task, error) {
@@ -114,6 +134,9 @@ func List(repositoryRoot string) ([]Task, error) {
 		return nil, err
 	}
 	dir := filepath.Join(root, TasksDir)
+	if err := validateResolvedTaskDirectory(root, dir); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -132,11 +155,16 @@ func List(repositoryRoot string) ([]Task, error) {
 	sort.Strings(names)
 
 	tasks := make([]Task, 0, len(names))
+	tasksByID := make(map[string]Task, len(names))
 	for _, name := range names {
 		task, err := Load(root, filepath.Join(TasksDir, name))
 		if err != nil {
 			return nil, err
 		}
+		if previous, exists := tasksByID[task.ID]; exists {
+			return nil, fmt.Errorf("task id %q is duplicated in %s and %s", task.ID, previous.SourcePath, task.SourcePath)
+		}
+		tasksByID[task.ID] = task
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
@@ -228,9 +256,13 @@ func UpdateBlockedToPending(repositoryRoot string, taskID string) (Task, bool, e
 }
 
 func UpdateStatus(repositoryRoot string, path string, status string) (Task, error) {
-	status = strings.TrimSpace(status)
-	if !validStatus(status) {
-		return Task{}, fmt.Errorf("invalid status %q", status)
+	return UpdateMetadata(repositoryRoot, path, MetadataUpdate{Status: status})
+}
+
+func UpdateMetadata(repositoryRoot string, path string, update MetadataUpdate) (Task, error) {
+	update, err := validateMetadataUpdate(update)
+	if err != nil {
+		return Task{}, err
 	}
 
 	root, err := repositoryRootAbs(repositoryRoot)
@@ -243,23 +275,71 @@ func UpdateStatus(repositoryRoot string, path string, status string) (Task, erro
 	}
 	raw, err := os.ReadFile(absPath)
 	if err != nil {
-		return Task{}, fmt.Errorf("update task status %s: %w", sourcePath, err)
+		return Task{}, fmt.Errorf("update task metadata %s: %w", sourcePath, err)
 	}
-	if _, err := parse(raw, sourcePath); err != nil {
-		return Task{}, fmt.Errorf("update task status %s: %w", sourcePath, err)
-	}
+	return updateMetadataFromBytes(sourcePath, absPath, raw, update)
+}
 
-	updated, err := updateStatusBytes(raw, status)
+func UpdateMetadataFromSnapshot(repositoryRoot string, snapshot Task, update MetadataUpdate) (Task, error) {
+	update, err := validateMetadataUpdate(update)
 	if err != nil {
-		return Task{}, fmt.Errorf("update task status %s: %w", sourcePath, err)
+		return Task{}, err
 	}
-	if err := os.WriteFile(absPath, updated, 0o644); err != nil {
-		return Task{}, fmt.Errorf("update task status %s: %w", sourcePath, err)
+	if strings.TrimSpace(snapshot.SourcePath) == "" {
+		return Task{}, errors.New("update task metadata from snapshot: source path is required")
+	}
+	if len(snapshot.SourceBytes) == 0 {
+		return Task{}, errors.New("update task metadata from snapshot: source bytes are required")
 	}
 
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, err
+	}
+	sourcePath, absPath, err := resolveTaskPath(root, snapshot.SourcePath)
+	if err != nil {
+		return Task{}, err
+	}
+	parsed, err := parse(snapshot.SourceBytes, sourcePath)
+	if err != nil {
+		return Task{}, fmt.Errorf("update task metadata from snapshot %s: %w", sourcePath, err)
+	}
+	if parsed.ID != snapshot.ID {
+		return Task{}, fmt.Errorf("update task metadata from snapshot %s: task id changed from %q to %q", sourcePath, snapshot.ID, parsed.ID)
+	}
+	return updateMetadataFromBytes(sourcePath, absPath, snapshot.SourceBytes, update)
+}
+
+func validateMetadataUpdate(update MetadataUpdate) (MetadataUpdate, error) {
+	update.Status = strings.TrimSpace(update.Status)
+	update.Phase = strings.TrimSpace(update.Phase)
+	if update.Status == "" && update.Phase == "" {
+		return MetadataUpdate{}, errors.New("update task metadata: no metadata update requested")
+	}
+	if update.Status != "" && !validStatus(update.Status) {
+		return MetadataUpdate{}, fmt.Errorf("invalid status %q", update.Status)
+	}
+	if update.Phase != "" && !validPhase(update.Phase) {
+		return MetadataUpdate{}, fmt.Errorf("invalid phase %q", update.Phase)
+	}
+	return update, nil
+}
+
+func updateMetadataFromBytes(sourcePath string, absPath string, raw []byte, update MetadataUpdate) (Task, error) {
+	if _, err := parse(raw, sourcePath); err != nil {
+		return Task{}, fmt.Errorf("update task metadata %s: %w", sourcePath, err)
+	}
+
+	updated, err := updateMetadataBytes(raw, update)
+	if err != nil {
+		return Task{}, fmt.Errorf("update task metadata %s: %w", sourcePath, err)
+	}
 	task, err := parse(updated, sourcePath)
 	if err != nil {
-		return Task{}, fmt.Errorf("update task status %s: %w", sourcePath, err)
+		return Task{}, fmt.Errorf("update task metadata %s: %w", sourcePath, err)
+	}
+	if err := writeFileAtomically(absPath, updated, 0o644); err != nil {
+		return Task{}, fmt.Errorf("update task metadata %s: %w", sourcePath, err)
 	}
 	return task, nil
 }
@@ -270,8 +350,10 @@ func writeNewTaskFile(root string, taskID string, title string, body string, gen
 		return Task{}, fmt.Errorf("create task file: create %s: %w", TasksDir, err)
 	}
 
-	sourcePath := filepath.Join(TasksDir, taskID+".md")
-	absPath := filepath.Join(root, sourcePath)
+	sourcePath, absPath, err := resolveTaskPath(root, filepath.Join(TasksDir, taskID+".md"))
+	if err != nil {
+		return Task{}, fmt.Errorf("create task file: %w", err)
+	}
 	content := createTaskMarkdown(taskID, title, body)
 	file, err := os.OpenFile(absPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
@@ -340,6 +422,24 @@ func parse(raw []byte, sourcePath string) (Task, error) {
 		return Task{}, fmt.Errorf("invalid profile name %q", profile)
 	}
 
+	workflow, workflowSet := meta["workflow"]
+	workflow = strings.TrimSpace(workflow)
+	if !workflowSet {
+		workflow = DefaultWorkflow
+	}
+	if !validWorkflow(workflow) {
+		return Task{}, fmt.Errorf("invalid workflow %q", workflow)
+	}
+
+	phase, phaseSet := meta["phase"]
+	phase = strings.TrimSpace(phase)
+	if !phaseSet {
+		phase = DefaultPhase
+	}
+	if !validPhase(phase) {
+		return Task{}, fmt.Errorf("invalid phase %q", phase)
+	}
+
 	var priority int
 	hasPriority := false
 	if rawPriority, prioritySet := meta["priority"]; prioritySet {
@@ -357,12 +457,17 @@ func parse(raw []byte, sourcePath string) (Task, error) {
 		base := filepath.Base(sourcePath)
 		taskID = strings.TrimSuffix(base, filepath.Ext(base))
 	}
+	if !validTaskID(taskID) {
+		return Task{}, fmt.Errorf("invalid task id %q", taskID)
+	}
 
 	return Task{
 		ID:          taskID,
 		Title:       title,
 		Profile:     profile,
 		Status:      status,
+		Workflow:    workflow,
+		Phase:       phase,
 		Priority:    priority,
 		HasPriority: hasPriority,
 		ContextBody: string(raw),
@@ -391,7 +496,7 @@ func parseFrontmatter(lines []string) (map[string]string, int, error) {
 		key = strings.ToLower(strings.TrimSpace(key))
 		value = trimScalar(strings.TrimSpace(value))
 		switch key {
-		case "id", "profile", "status", "priority":
+		case "id", "profile", "status", "priority", "workflow", "phase":
 			if _, exists := meta[key]; exists {
 				return nil, 0, fmt.Errorf("duplicate frontmatter key %q", key)
 			}
@@ -403,20 +508,22 @@ func parseFrontmatter(lines []string) (map[string]string, int, error) {
 	return nil, 0, errors.New("unterminated frontmatter")
 }
 
-func updateStatusBytes(raw []byte, status string) ([]byte, error) {
+func updateMetadataBytes(raw []byte, update MetadataUpdate) ([]byte, error) {
 	markdown := normalizeLineEndings(string(raw))
 	lines := strings.Split(markdown, "\n")
 	if len(lines) > 0 && strings.TrimSpace(lines[0]) == "---" {
-		return updateStatusInFrontmatter(lines, status)
+		return updateMetadataInFrontmatter(lines, update)
 	}
 
 	var out strings.Builder
-	fmt.Fprintf(&out, "---\nstatus: %s\n---\n\n", status)
+	out.WriteString("---\n")
+	writeMetadataUpdate(&out, update)
+	out.WriteString("---\n\n")
 	out.WriteString(markdown)
 	return []byte(out.String()), nil
 }
 
-func updateStatusInFrontmatter(lines []string, status string) ([]byte, error) {
+func updateMetadataInFrontmatter(lines []string, update MetadataUpdate) ([]byte, error) {
 	end := -1
 	for i := 1; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) == "---" {
@@ -430,25 +537,50 @@ func updateStatusInFrontmatter(lines []string, status string) ([]byte, error) {
 
 	out := make([]string, 0, len(lines)+1)
 	out = append(out, lines[0])
-	replaced := false
+	replacedStatus := update.Status == ""
+	replacedPhase := update.Phase == ""
 	for i := 1; i < end; i++ {
-		if isStatusFrontmatterLine(lines[i]) {
-			out = append(out, "status: "+status)
-			replaced = true
-			continue
+		switch frontmatterKey(lines[i]) {
+		case "status":
+			if update.Status != "" {
+				out = append(out, "status: "+update.Status)
+				replacedStatus = true
+				continue
+			}
+		case "phase":
+			if update.Phase != "" {
+				out = append(out, "phase: "+update.Phase)
+				replacedPhase = true
+				continue
+			}
 		}
 		out = append(out, lines[i])
 	}
-	if !replaced {
-		out = append(out, "status: "+status)
+	if !replacedStatus {
+		out = append(out, "status: "+update.Status)
+	}
+	if !replacedPhase {
+		out = append(out, "phase: "+update.Phase)
 	}
 	out = append(out, lines[end:]...)
 	return []byte(strings.Join(out, "\n")), nil
 }
 
-func isStatusFrontmatterLine(line string) bool {
+func writeMetadataUpdate(out *strings.Builder, update MetadataUpdate) {
+	if update.Status != "" {
+		fmt.Fprintf(out, "status: %s\n", update.Status)
+	}
+	if update.Phase != "" {
+		fmt.Fprintf(out, "phase: %s\n", update.Phase)
+	}
+}
+
+func frontmatterKey(line string) string {
 	key, _, ok := strings.Cut(strings.TrimSpace(line), ":")
-	return ok && strings.EqualFold(strings.TrimSpace(key), "status")
+	if !ok {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(key))
 }
 
 func normalizeLineEndings(markdown string) string {
@@ -535,6 +667,19 @@ func validStatus(status string) bool {
 	}
 }
 
+func validWorkflow(workflow string) bool {
+	return workflow == WorkflowMixedPassV1
+}
+
+func validPhase(phase string) bool {
+	switch phase {
+	case PhaseImplement, PhaseAudit, PhaseDocument, PhaseSimplify:
+		return true
+	default:
+		return false
+	}
+}
+
 func validTaskID(taskID string) bool {
 	if taskID == "" || taskID == "." || taskID == ".." {
 		return false
@@ -581,6 +726,45 @@ func repositoryRootAbs(repositoryRoot string) (string, error) {
 	return root, nil
 }
 
+func writeFileAtomically(path string, content []byte, defaultPerm os.FileMode) error {
+	perm := defaultPerm
+	if info, err := os.Stat(path); err == nil {
+		perm = info.Mode().Perm()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	dir := filepath.Dir(path)
+	temp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	closed := false
+	defer func() {
+		if !closed {
+			_ = temp.Close()
+		}
+		_ = os.Remove(tempPath)
+	}()
+
+	if err := temp.Chmod(perm); err != nil {
+		return err
+	}
+	if _, err := temp.Write(content); err != nil {
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		closed = true
+		return err
+	}
+	closed = true
+	return os.Rename(tempPath, path)
+}
+
 func resolveTaskPath(root string, path string) (string, string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -603,5 +787,84 @@ func resolveTaskPath(root string, path string) (string, string, error) {
 	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return "", "", fmt.Errorf("task file path %s is outside %s", path, TasksDir)
 	}
+	if err := validateResolvedTaskPath(root, taskDir, absPath, path); err != nil {
+		return "", "", err
+	}
 	return filepath.Join(TasksDir, rel), absPath, nil
+}
+
+func validateResolvedTaskPath(root string, taskDir string, absPath string, displayPath string) error {
+	resolvedTaskDir, err := validatedResolvedTaskDirectory(root, taskDir)
+	if err != nil {
+		return err
+	}
+	if resolvedTaskDir == "" {
+		return nil
+	}
+
+	if info, err := os.Lstat(absPath); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("task file path %s is a symbolic link", displayPath)
+		}
+		resolvedPath, resolveErr := filepath.EvalSymlinks(absPath)
+		if resolveErr != nil {
+			return fmt.Errorf("resolve task file path %s symlinks: %w", displayPath, resolveErr)
+		}
+		if !pathWithin(resolvedTaskDir, resolvedPath) {
+			return fmt.Errorf("task file path %s resolves outside %s", displayPath, TasksDir)
+		}
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect task file path %s: %w", displayPath, err)
+	}
+
+	resolvedParent, err := filepath.EvalSymlinks(filepath.Dir(absPath))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("resolve task file parent for %s: %w", displayPath, err)
+	}
+	if !pathWithin(resolvedTaskDir, resolvedParent) {
+		return fmt.Errorf("task file path %s resolves outside %s", displayPath, TasksDir)
+	}
+	return nil
+}
+
+func validateResolvedTaskDirectory(root string, taskDir string) error {
+	_, err := validatedResolvedTaskDirectory(root, taskDir)
+	return err
+}
+
+func validatedResolvedTaskDirectory(root string, taskDir string) (string, error) {
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root symlinks: %w", err)
+	}
+	resolvedTaskDir, err := filepath.EvalSymlinks(taskDir)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("resolve %s symlinks: %w", TasksDir, err)
+		}
+		resolvedParent, parentErr := filepath.EvalSymlinks(filepath.Dir(taskDir))
+		if parentErr != nil {
+			if errors.Is(parentErr, os.ErrNotExist) {
+				return "", nil
+			}
+			return "", fmt.Errorf("resolve %s parent symlinks: %w", TasksDir, parentErr)
+		}
+		resolvedTaskDir = filepath.Join(resolvedParent, filepath.Base(taskDir))
+	}
+	if !pathWithin(resolvedRoot, resolvedTaskDir) {
+		return "", fmt.Errorf("task directory %s resolves outside repository root", TasksDir)
+	}
+	return resolvedTaskDir, nil
+}
+
+func pathWithin(base string, target string) bool {
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel))
 }
