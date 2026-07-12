@@ -111,6 +111,13 @@ type RunWithEvents struct {
 	Events []Event
 }
 
+// Snapshot is an exact, deterministic read model for export and retention.
+// Runs are ordered by start time then ID and events retain their global IDs.
+type Snapshot struct {
+	Runs       []RunWithEvents
+	MaxEventID int64
+}
+
 func Open(ctx context.Context, path string) (*Store, error) {
 	return OpenWithClock(ctx, path, nil)
 }
@@ -527,6 +534,74 @@ func (s *Store) GetRunWithEvents(ctx context.Context, runID string) (RunWithEven
 		return RunWithEvents{}, false, err
 	}
 	return RunWithEvents{Run: run, Events: events}, true, nil
+}
+
+// ReadSnapshot reads all runs and their raw event payloads from one SQLite
+// read transaction. It never initializes or mutates the ledger.
+func (s *Store) ReadSnapshot(ctx context.Context) (Snapshot, error) {
+	if err := s.ready(); err != nil {
+		return Snapshot{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("read ledger snapshot: begin: %w", err)
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `
+SELECT id, task_id, task, status, summary, started_at, completed_at,
+       duration_seconds, codex_exit_code, verification_status, commit_sha
+FROM runs ORDER BY started_at ASC, id ASC`)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("read ledger snapshot: runs: %w", err)
+	}
+	var runs []Run
+	for rows.Next() {
+		run, scanErr := scanRun(rows)
+		if scanErr != nil {
+			rows.Close()
+			return Snapshot{}, fmt.Errorf("read ledger snapshot: run: %w", scanErr)
+		}
+		runs = append(runs, run)
+	}
+	if err := rows.Close(); err != nil {
+		return Snapshot{}, fmt.Errorf("read ledger snapshot: close runs: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return Snapshot{}, fmt.Errorf("read ledger snapshot: runs: %w", err)
+	}
+
+	out := Snapshot{Runs: make([]RunWithEvents, 0, len(runs))}
+	for _, run := range runs {
+		eventRows, queryErr := tx.QueryContext(ctx, `
+SELECT id, run_id, event_type, event_data, created_at
+FROM events WHERE run_id = ? ORDER BY id ASC`, run.ID)
+		if queryErr != nil {
+			return Snapshot{}, fmt.Errorf("read ledger snapshot: events for %q: %w", run.ID, queryErr)
+		}
+		var events []Event
+		for eventRows.Next() {
+			event, scanErr := scanEvidenceEvent(eventRows)
+			if scanErr != nil {
+				eventRows.Close()
+				return Snapshot{}, fmt.Errorf("read ledger snapshot: event for %q: %w", run.ID, scanErr)
+			}
+			events = append(events, event)
+			if event.ID > out.MaxEventID {
+				out.MaxEventID = event.ID
+			}
+		}
+		if err := eventRows.Close(); err != nil {
+			return Snapshot{}, fmt.Errorf("read ledger snapshot: close events: %w", err)
+		}
+		if err := eventRows.Err(); err != nil {
+			return Snapshot{}, fmt.Errorf("read ledger snapshot: events for %q: %w", run.ID, err)
+		}
+		out.Runs = append(out.Runs, RunWithEvents{Run: run, Events: events})
+	}
+	if err := tx.Commit(); err != nil {
+		return Snapshot{}, fmt.Errorf("read ledger snapshot: commit read transaction: %w", err)
+	}
+	return out, nil
 }
 
 func (s *Store) init(ctx context.Context) error {

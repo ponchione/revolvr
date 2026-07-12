@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/id"
@@ -19,6 +20,7 @@ import (
 	"revolvr/internal/lock"
 	"revolvr/internal/pathguard"
 	"revolvr/internal/prompt"
+	"revolvr/internal/redact"
 )
 
 const supervisorProvenanceSchemaVersion = "revolvr-supervisor-provenance-v1"
@@ -33,6 +35,8 @@ type SourceSnapshotter func(context.Context, gitstate.SourceSnapshotConfig) (git
 
 type Config struct {
 	RepositoryRoot      string
+	ExecutionRoot       string
+	WorkspaceID         string
 	TaskID              string
 	Dossier             autonomous.TaskDossier
 	Audit               *autonomous.AuditReport
@@ -54,10 +58,14 @@ type Config struct {
 	CodexVersion                   string
 	EffectiveConfigSchema          string
 	EffectiveConfigSHA256          string
+	SafetyPolicySHA256             string
 	CodexTimeout                   time.Duration
 	CodexStdoutCap                 int
 	CodexStderrCap                 int
 	CodexCommandRunner             codexexec.CommandRunner
+	Redactor                       *redact.Redactor
+	SafetyPolicy                   *autonomoussafety.Policy
+	SafetyPreflight                *autonomoussafety.PreflightResult
 
 	GitExecutable     string
 	GitTimeout        time.Duration
@@ -77,15 +85,17 @@ type Artifact struct {
 }
 
 type Artifacts struct {
-	Prompt         Artifact `json:"prompt"`
-	Schema         Artifact `json:"schema"`
-	RawOutput      Artifact `json:"raw_output"`
-	Decision       Artifact `json:"decision"`
-	Provenance     Artifact `json:"provenance"`
-	SourceEvidence Artifact `json:"source_evidence"`
-	Diagnostics    Artifact `json:"diagnostics"`
-	CodexStdout    Artifact `json:"codex_stdout"`
-	CodexStderr    Artifact `json:"codex_stderr"`
+	Dossier         Artifact `json:"dossier"`
+	DossierManifest Artifact `json:"dossier_manifest"`
+	Prompt          Artifact `json:"prompt"`
+	Schema          Artifact `json:"schema"`
+	RawOutput       Artifact `json:"raw_output"`
+	Decision        Artifact `json:"decision"`
+	Provenance      Artifact `json:"provenance"`
+	SourceEvidence  Artifact `json:"source_evidence"`
+	Diagnostics     Artifact `json:"diagnostics"`
+	CodexStdout     Artifact `json:"codex_stdout"`
+	CodexStderr     Artifact `json:"codex_stderr"`
 }
 
 type DossierProvenance struct {
@@ -119,31 +129,39 @@ type Result struct {
 
 type normalizedConfig struct {
 	Config
-	root       string
-	runID      string
-	decisionID string
+	root          string
+	executionRoot string
+	runID         string
+	decisionID    string
 }
 
 type artifactPaths struct {
-	prompt         string
-	schema         string
-	rawOutput      string
-	decision       string
-	provenance     string
-	sourceEvidence string
-	diagnostics    string
-	codexStdout    string
-	codexStderr    string
+	dossier         string
+	dossierManifest string
+	prompt          string
+	schema          string
+	rawOutput       string
+	decision        string
+	provenance      string
+	sourceEvidence  string
+	diagnostics     string
+	codexStdout     string
+	codexStderr     string
 }
 
 type supervisorProvenance struct {
-	SchemaVersion string                         `json:"schema_version"`
-	RunID         string                         `json:"run_id"`
-	TaskID        string                         `json:"task_id"`
-	Dossier       autonomous.TaskDossierManifest `json:"dossier_manifest"`
-	Profile       ProfileProvenance              `json:"profile"`
-	Invocation    codexexec.InvocationProvenance `json:"invocation"`
-	Artifacts     Artifacts                      `json:"artifacts"`
+	SchemaVersion        string                            `json:"schema_version"`
+	RunID                string                            `json:"run_id"`
+	TaskID               string                            `json:"task_id"`
+	Dossier              autonomous.TaskDossierManifest    `json:"dossier_manifest"`
+	Profile              ProfileProvenance                 `json:"profile"`
+	Invocation           codexexec.InvocationProvenance    `json:"invocation"`
+	Artifacts            Artifacts                         `json:"artifacts"`
+	PromptByteSize       int                               `json:"prompt_byte_size"`
+	PromptTokenEstimator string                            `json:"prompt_token_estimator"`
+	PromptTokenEstimate  int                               `json:"prompt_token_estimate"`
+	SafetyPolicy         *autonomoussafety.Policy          `json:"safety_policy,omitempty"`
+	SafetyPreflight      *autonomoussafety.PreflightResult `json:"safety_preflight,omitempty"`
 }
 
 type sourceEvidence struct {
@@ -244,6 +262,21 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "prompt", err, sourceEvidence{}, false)
 	}
+	if normalized.Redactor != nil {
+		promptBytes = []byte(normalized.Redactor.String(string(promptBytes)))
+	}
+	dossierBytes := append([]byte(nil), normalized.Dossier.Markdown...)
+	manifestBytes, err := autonomous.MarshalTaskDossierManifest(normalized.Dossier.Manifest)
+	if err != nil {
+		return reject(ctx, normalized, paths, result, "dossier_manifest", err, sourceEvidence{}, false)
+	}
+	result.Artifacts.Dossier, err = writeArtifact(normalized.root, paths.dossier, dossierBytes)
+	if err == nil {
+		result.Artifacts.DossierManifest, err = writeArtifact(normalized.root, paths.dossierManifest, manifestBytes)
+	}
+	if err != nil {
+		return reject(ctx, normalized, paths, result, "artifact", err, sourceEvidence{}, false)
+	}
 	result.Artifacts.Prompt, err = writeArtifact(normalized.root, paths.prompt, promptBytes)
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "artifact", err, sourceEvidence{}, false)
@@ -255,7 +288,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 
 	invocation, _, err := codexexec.PrepareInvocation(codexexec.InvocationConfig{
 		Executable:             normalized.CodexExecutable,
-		WorkingDir:             normalized.root,
+		WorkingDir:             normalized.executionRoot,
+		ArtifactRoot:           normalized.root,
 		Model:                  normalized.CodexModel,
 		ReasoningEffort:        normalized.CodexReasoningEffort,
 		Ephemeral:              normalized.CodexEphemeral,
@@ -267,6 +301,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		CodexVersion:           normalized.CodexVersion,
 		EffectiveConfigSchema:  normalized.EffectiveConfigSchema,
 		EffectiveConfigSHA256:  normalized.EffectiveConfigSHA256,
+		SafetyPolicySHA256:     normalized.SafetyPolicySHA256,
 	})
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "invocation", err, sourceEvidence{}, false)
@@ -276,13 +311,18 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	result.Invocation = invocation
 	provenanceBytes, err := marshalIndented(supervisorProvenance{
-		SchemaVersion: supervisorProvenanceSchemaVersion,
-		RunID:         normalized.runID,
-		TaskID:        normalized.TaskID,
-		Dossier:       normalized.Dossier.Manifest,
-		Profile:       result.Profile,
-		Invocation:    invocation,
-		Artifacts:     result.Artifacts,
+		SchemaVersion:        supervisorProvenanceSchemaVersion,
+		RunID:                normalized.runID,
+		TaskID:               normalized.TaskID,
+		Dossier:              normalized.Dossier.Manifest,
+		Profile:              result.Profile,
+		Invocation:           invocation,
+		Artifacts:            result.Artifacts,
+		PromptByteSize:       len(promptBytes),
+		PromptTokenEstimator: autonomous.DossierTokenEstimatorSchema,
+		PromptTokenEstimate:  (len(promptBytes) + 3) / 4,
+		SafetyPolicy:         normalized.SafetyPolicy,
+		SafetyPreflight:      normalized.SafetyPreflight,
 	})
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "provenance", err, sourceEvidence{}, false)
@@ -292,29 +332,37 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return reject(ctx, normalized, paths, result, "artifact", err, sourceEvidence{}, false)
 	}
 	if _, err := normalized.Ledger.AppendEvent(ctx, run.ID, ledger.EventSupervisorPrepared, map[string]any{
-		"run_id":     run.ID,
-		"task_id":    normalized.TaskID,
-		"dossier":    result.Dossier,
-		"profile":    result.Profile,
-		"invocation": result.Invocation,
-		"artifacts":  result.Artifacts,
+		"run_id":           run.ID,
+		"task_id":          normalized.TaskID,
+		"dossier":          result.Dossier,
+		"profile":          result.Profile,
+		"invocation":       result.Invocation,
+		"artifacts":        result.Artifacts,
+		"safety_policy":    normalized.SafetyPolicy,
+		"safety_preflight": normalized.SafetyPreflight,
 	}); err != nil {
 		return reject(ctx, normalized, paths, result, "ledger", fmt.Errorf("record prepared supervisor pass: %w", err), sourceEvidence{}, false)
 	}
 
-	sourceLock, err := lock.AcquireSourceWriter(ctx, lock.Config{
+	lockConfig := lock.Config{
 		WorkingDir: normalized.root,
 		RunID:      normalized.runID,
 		PID:        normalized.SourceLockPID,
 		Timeout:    normalized.SourceLockTimeout,
 		Clock:      normalized.Clock,
-	})
+	}
+	if normalized.executionRoot != normalized.root {
+		lockConfig.ControlRoot = normalized.root
+		lockConfig.ExecutionRoot = normalized.executionRoot
+		lockConfig.WorkspaceID = normalized.WorkspaceID
+	}
+	sourceLock, err := lock.AcquireSourceWriter(ctx, lockConfig)
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "source_lock", err, sourceEvidence{}, false)
 	}
 
 	snapshotCfg := gitstate.SourceSnapshotConfig{
-		WorkingDir:    normalized.root,
+		WorkingDir:    normalized.executionRoot,
 		GitExecutable: normalized.GitExecutable,
 		Timeout:       normalized.GitTimeout,
 		StdoutCap:     normalized.GitStdoutCap,
@@ -336,7 +384,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 
 	codexResult, codexRunErr := codexexec.Run(ctx, codexexec.Config{
 		Executable:                normalized.CodexExecutable,
-		WorkingDir:                normalized.root,
+		WorkingDir:                normalized.executionRoot,
+		ArtifactRoot:              normalized.root,
 		Prompt:                    string(promptBytes),
 		Model:                     normalized.CodexModel,
 		ReasoningEffort:           normalized.CodexReasoningEffort,
@@ -353,6 +402,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		Ledger:                    normalized.Ledger,
 		CommandRunner:             normalized.CodexCommandRunner,
 		Provenance:                invocation,
+		Redactor:                  normalized.Redactor,
 	})
 	result.Codex = codexResult
 
@@ -504,6 +554,20 @@ func normalize(cfg Config) (normalizedConfig, error) {
 	if err != nil || !info.IsDir() {
 		return normalizedConfig{}, fmt.Errorf("run supervisor: repository root is not a readable directory: %w", err)
 	}
+	executionRoot := abs
+	if strings.TrimSpace(cfg.ExecutionRoot) != "" {
+		executionRoot, err = filepath.Abs(cfg.ExecutionRoot)
+		if err != nil {
+			return normalizedConfig{}, fmt.Errorf("run supervisor: resolve execution root: %w", err)
+		}
+		executionRoot, err = filepath.EvalSymlinks(executionRoot)
+		if err != nil {
+			return normalizedConfig{}, fmt.Errorf("run supervisor: resolve execution root: %w", err)
+		}
+		if executionRoot != abs && strings.TrimSpace(cfg.WorkspaceID) == "" {
+			return normalizedConfig{}, errors.New("run supervisor: distinct execution root requires workspace ID")
+		}
+	}
 	if err := validateTaskID(cfg.TaskID); err != nil {
 		return normalizedConfig{}, err
 	}
@@ -533,6 +597,14 @@ func normalize(cfg Config) (normalizedConfig, error) {
 	if !cfg.CodexEphemeral {
 		return normalizedConfig{}, errors.New("run supervisor: only fresh ephemeral Codex sessions are supported")
 	}
+	if cfg.SafetyPolicy != nil || cfg.SafetyPreflight != nil {
+		if cfg.SafetyPolicy == nil || cfg.SafetyPreflight == nil || !cfg.SafetyPreflight.Ready || cfg.SafetyPolicy.PolicySHA256 != cfg.SafetyPreflight.PolicySHA256 || cfg.SafetyPolicySHA256 != cfg.SafetyPolicy.PolicySHA256 {
+			return normalizedConfig{}, errors.New("run supervisor: exact ready safety policy and preflight authority are required together")
+		}
+		if err := cfg.SafetyPolicy.Validate(); err != nil {
+			return normalizedConfig{}, fmt.Errorf("run supervisor: %w", err)
+		}
+	}
 	if cfg.CodexTimeout <= 0 {
 		cfg.CodexTimeout = 30 * time.Minute
 	}
@@ -554,23 +626,25 @@ func normalize(cfg Config) (normalizedConfig, error) {
 	} else if cfg.SourceLockTimeout < minimumLock {
 		return normalizedConfig{}, fmt.Errorf("run supervisor: source lock timeout %s is shorter than required pass window %s", cfg.SourceLockTimeout, minimumLock)
 	}
-	return normalizedConfig{Config: cfg, root: abs, runID: runID, decisionID: decisionID}, nil
+	return normalizedConfig{Config: cfg, root: abs, executionRoot: executionRoot, runID: runID, decisionID: decisionID}, nil
 }
 
 func prepareArtifactPaths(root, runID string) (artifactPaths, error) {
 	base := filepath.ToSlash(filepath.Join(".revolvr", "runs", runID))
 	paths := artifactPaths{
-		prompt:         base + "/supervisor-prompt.md",
-		schema:         base + "/supervisor-output-schema.json",
-		rawOutput:      base + "/supervisor-output.json",
-		decision:       base + "/supervisor-decision.json",
-		provenance:     base + "/supervisor-provenance.json",
-		sourceEvidence: base + "/supervisor-source.json",
-		diagnostics:    base + "/supervisor-diagnostics.json",
-		codexStdout:    base + "/codex.jsonl",
-		codexStderr:    base + "/codex.stderr",
+		dossier:         base + "/supervisor-dossier.md",
+		dossierManifest: base + "/supervisor-dossier-manifest.json",
+		prompt:          base + "/supervisor-prompt.md",
+		schema:          base + "/supervisor-output-schema.json",
+		rawOutput:       base + "/supervisor-output.json",
+		decision:        base + "/supervisor-decision.json",
+		provenance:      base + "/supervisor-provenance.json",
+		sourceEvidence:  base + "/supervisor-source.json",
+		diagnostics:     base + "/supervisor-diagnostics.json",
+		codexStdout:     base + "/codex.jsonl",
+		codexStderr:     base + "/codex.stderr",
 	}
-	for _, path := range []string{paths.prompt, paths.schema, paths.rawOutput, paths.decision, paths.provenance, paths.sourceEvidence, paths.diagnostics, paths.codexStdout, paths.codexStderr} {
+	for _, path := range []string{paths.dossier, paths.dossierManifest, paths.prompt, paths.schema, paths.rawOutput, paths.decision, paths.provenance, paths.sourceEvidence, paths.diagnostics, paths.codexStdout, paths.codexStderr} {
 		if _, err := pathguard.Resolve(root, path); err != nil {
 			return artifactPaths{}, fmt.Errorf("prepare supervisor artifact path %q: %w", path, err)
 		}
@@ -580,15 +654,17 @@ func prepareArtifactPaths(root, runID string) (artifactPaths, error) {
 
 func artifactsWithPaths(paths artifactPaths) Artifacts {
 	return Artifacts{
-		Prompt:         Artifact{Path: paths.prompt},
-		Schema:         Artifact{Path: paths.schema},
-		RawOutput:      Artifact{Path: paths.rawOutput},
-		Decision:       Artifact{Path: paths.decision},
-		Provenance:     Artifact{Path: paths.provenance},
-		SourceEvidence: Artifact{Path: paths.sourceEvidence},
-		Diagnostics:    Artifact{Path: paths.diagnostics},
-		CodexStdout:    Artifact{Path: paths.codexStdout},
-		CodexStderr:    Artifact{Path: paths.codexStderr},
+		Dossier:         Artifact{Path: paths.dossier},
+		DossierManifest: Artifact{Path: paths.dossierManifest},
+		Prompt:          Artifact{Path: paths.prompt},
+		Schema:          Artifact{Path: paths.schema},
+		RawOutput:       Artifact{Path: paths.rawOutput},
+		Decision:        Artifact{Path: paths.decision},
+		Provenance:      Artifact{Path: paths.provenance},
+		SourceEvidence:  Artifact{Path: paths.sourceEvidence},
+		Diagnostics:     Artifact{Path: paths.diagnostics},
+		CodexStdout:     Artifact{Path: paths.codexStdout},
+		CodexStderr:     Artifact{Path: paths.codexStderr},
 	}
 }
 

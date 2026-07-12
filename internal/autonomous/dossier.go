@@ -17,6 +17,8 @@ import (
 
 const DossierManifestSchemaVersion = "autonomous-task-dossier-manifest-v1"
 
+const RoleDossierManifestSchemaVersion = "autonomous-role-dossier-manifest-v1"
+
 type VerificationStatus string
 
 const (
@@ -35,6 +37,7 @@ const (
 	DossierSourceKindReceipt            DossierSourceKind = "receipt"
 	DossierSourceKindGitSnapshot        DossierSourceKind = "git_snapshot"
 	DossierSourceKindRepositoryGuidance DossierSourceKind = "repository_guidance"
+	DossierSourceKindRepositoryMap      DossierSourceKind = "repository_map"
 )
 
 type TaskSpecSource struct {
@@ -49,6 +52,20 @@ type GuidanceSource struct {
 	Path    string `json:"path"`
 	Label   string `json:"label,omitempty"`
 	Content []byte `json:"-"`
+}
+
+// RepositoryMapSource is deterministic, committed-tree-derived context. Its
+// content may have been recomputed or loaded from a validated content-addressed
+// cache; cache provenance never changes the rendered bytes.
+type RepositoryMapSource struct {
+	ID                  string `json:"id"`
+	CommitSHA           string `json:"commit_sha"`
+	TreeSHA             string `json:"tree_sha"`
+	Content             []byte `json:"-"`
+	CacheKey            string `json:"cache_key,omitempty"`
+	CacheResult         string `json:"cache_result,omitempty"`
+	CacheManifestSHA256 string `json:"cache_manifest_sha256,omitempty"`
+	CacheDiagnostic     string `json:"cache_diagnostic,omitempty"`
 }
 
 // ReceiptSource is manifest-only provenance for exact receipt bytes that
@@ -112,11 +129,13 @@ type TaskDossierInput struct {
 	Receipts        []ReceiptSource
 	Git             *GitSnapshot
 	Guidance        []GuidanceSource
+	RepositoryMap   *RepositoryMapSource
 }
 
 type TaskDossier struct {
 	Markdown []byte
 	Manifest TaskDossierManifest
+	input    *TaskDossierInput
 }
 
 type TaskDossierManifest struct {
@@ -126,6 +145,10 @@ type TaskDossierManifest struct {
 	DossierByteSize int                     `json:"dossier_byte_size"`
 	Sources         []DossierSourceRecord   `json:"sources"`
 	ProjectionFacts []DossierProjectionFact `json:"projection_facts"`
+	Projection      *DossierProjection      `json:"projection,omitempty"`
+	Sections        []DossierSectionFact    `json:"sections,omitempty"`
+	TokenEstimate   *DossierTokenEstimate   `json:"token_estimate,omitempty"`
+	Cache           *DossierCacheFact       `json:"cache,omitempty"`
 }
 
 type DossierSourceRecord struct {
@@ -184,7 +207,11 @@ func BuildTaskDossier(in TaskDossierInput) (TaskDossier, error) {
 		Sources:         sources,
 		ProjectionFacts: append([]DossierProjectionFact(nil), normalized.facts...),
 	}
-	return TaskDossier{Markdown: markdown, Manifest: manifest}, nil
+	cloned, err := cloneTaskDossierInput(in)
+	if err != nil {
+		return TaskDossier{}, err
+	}
+	return TaskDossier{Markdown: markdown, Manifest: manifest, input: &cloned}, nil
 }
 
 func MarshalTaskDossierManifest(manifest TaskDossierManifest) ([]byte, error) {
@@ -232,6 +259,11 @@ func validateAndNormalizeDossierInput(in TaskDossierInput) (normalizedDossierInp
 	}
 	if in.Git != nil {
 		if err := validateGitSnapshot(*in.Git); err != nil {
+			return normalizedDossierInput{}, err
+		}
+	}
+	if in.RepositoryMap != nil {
+		if err := validateRepositoryMapSource(*in.RepositoryMap); err != nil {
 			return normalizedDossierInput{}, err
 		}
 	}
@@ -629,6 +661,9 @@ func buildDossierSourceRecords(in normalizedDossierInput) ([]DossierSourceRecord
 	for _, source := range in.guidance {
 		records = append(records, rawDossierSourceRecord(DossierSourceKindRepositoryGuidance, source.ID, source.Path, source.Content))
 	}
+	if in.input.RepositoryMap != nil {
+		records = append(records, rawDossierSourceRecord(DossierSourceKindRepositoryMap, in.input.RepositoryMap.ID, "", in.input.RepositoryMap.Content))
+	}
 	return records, nil
 }
 
@@ -674,6 +709,9 @@ func renderTaskDossierMarkdown(in normalizedDossierInput) []byte {
 	writeRecentRuns(&out, in)
 	writeGitSnapshot(&out, in.input.Git)
 	writeGuidance(&out, in.guidance)
+	if in.input.RepositoryMap != nil {
+		writeRepositoryMap(&out, in.input.RepositoryMap)
+	}
 	writeProjectionFacts(&out, in.facts)
 	return out.Bytes()
 }
@@ -716,7 +754,11 @@ func writeExecutionState(out *bytes.Buffer, state ExecutionState) {
 	writeField(out, "Acceptance progress", acceptanceProgress(state.AcceptanceCriteria))
 	writeField(out, "Finding resolution progress", findingResolutionProgress(state.FindingResolutions))
 	if state.NeedsInput != nil {
-		writeField(out, "Needs input", state.NeedsInput.Reason)
+		if state.NeedsInput.CurrentQuestion == nil {
+			writeField(out, "Needs input (legacy, non-answerable)", state.NeedsInput.Reason)
+		} else {
+			writeField(out, "Current needs-input identity", fmt.Sprintf("%s revision=%d content=%s", state.NeedsInput.CurrentQuestion.QuestionID, state.NeedsInput.CurrentQuestion.Revision, state.NeedsInput.CurrentQuestion.ContentSHA256))
+		}
 	}
 	if state.Terminal != nil {
 		writeField(out, "Terminal reason", state.Terminal.Reason)
@@ -729,6 +771,7 @@ func writeExecutionState(out *bytes.Buffer, state ExecutionState) {
 	} else {
 		writeDecisionReference(out, *state.LatestDecision)
 	}
+	writeWorkspaceEvidence(out, state.Workspace)
 
 	out.WriteString("\n### Attempts and Budgets\n\n")
 	writeField(out, "Total attempts", fmt.Sprint(state.Attempts.TotalAttempts))
@@ -824,7 +867,92 @@ func writeExecutionState(out *bytes.Buffer, state ExecutionState) {
 			writeEvidence(out, "  Evidence", occurrence.Evidence)
 		}
 	}
+	writeInputLifecycle(out, state)
 	out.WriteByte('\n')
+}
+
+func writeWorkspaceEvidence(out *bytes.Buffer, workspace *TaskWorkspace) {
+	if workspace == nil {
+		return
+	}
+	out.WriteString("\n### Task Workspace\n\n")
+	writeField(out, "Workspace ID", workspace.WorkspaceID)
+	writeField(out, "Control root", workspace.ControlRoot)
+	writeField(out, "Execution root", workspace.ExecutionRoot)
+	writeField(out, "Git common directory", workspace.GitCommonDir)
+	writeField(out, "Harness branch", workspace.BranchRef)
+	writeField(out, "Ownership marker", workspace.OwnerMarker)
+	writeField(out, "Status", string(workspace.Status))
+	writeField(out, "Baseline commit", workspace.BaselineSHA)
+	writeField(out, "Current HEAD", workspace.HeadSHA)
+	writeField(out, "Current tree", workspace.TreeSHA)
+	writeField(out, "Current source revision", workspace.SourceRevision)
+	writeField(out, "Known-good checkpoint", fmt.Sprintf("sequence=%d commit=%s tree=%s source=%s operation=%s provenance=%s", workspace.Checkpoint.Sequence, workspace.Checkpoint.CommitSHA, workspace.Checkpoint.TreeSHA, workspace.Checkpoint.SourceRevision, workspace.Checkpoint.OperationID, workspace.Checkpoint.Provenance))
+	if len(workspace.RetainedRefs) == 0 {
+		writeField(out, "Retained failed/ambiguous refs", "none")
+	} else {
+		out.WriteString("- Retained failed/ambiguous refs:\n")
+		for _, retained := range workspace.RetainedRefs {
+			fmt.Fprintf(out, "  - %s commit=%s tree=%s source=%s reason=%s operation=%s\n", retained.Ref, retained.CommitSHA, retained.TreeSHA, retained.SourceRevision, retained.Reason, retained.OperationID)
+		}
+	}
+	if workspace.LastRecovery != nil {
+		writeField(out, "Last recovery", fmt.Sprintf("%s operation=%s from=%s to=%s retained=%s source=%s", workspace.LastRecovery.Kind, workspace.LastRecovery.OperationID, workspace.LastRecovery.FromCommitSHA, workspace.LastRecovery.ToCommitSHA, workspace.LastRecovery.RetainedRef, workspace.LastRecovery.SourceRevision))
+	}
+}
+
+func writeInputLifecycle(out *bytes.Buffer, state ExecutionState) {
+	if len(state.Input.Questions) == 0 {
+		return
+	}
+	out.WriteString("\n### Needs-Input Questions and Answers\n\n")
+	for i, record := range state.Input.Questions {
+		identity := record.Question.Identity()
+		status := "unanswered"
+		var answer *InputAnswerRecord
+		var resume *InputResumeRecord
+		for j := range state.Input.Answers {
+			if state.Input.Answers[j].Question == identity {
+				answer = &state.Input.Answers[j]
+				status = "answered"
+			}
+		}
+		for j := range state.Input.Resumes {
+			if state.Input.Resumes[j].Question == identity {
+				resume = &state.Input.Resumes[j]
+				status = "resumed"
+			}
+		}
+		if i < len(state.Input.Questions)-1 && resume == nil {
+			status = "superseded"
+		}
+		fmt.Fprintf(out, "- Question %s revision=%d content=%s status=%s source=%s decision=%s recorded=%s\n", identity.QuestionID, identity.Revision, identity.ContentSHA256, status, record.SourceRevision, record.Decision.DecisionID, record.RecordedAt.UTC().Format(time.RFC3339Nano))
+		fmt.Fprintf(out, "  - Exact question: %s\n", record.Question.Question)
+		fmt.Fprintf(out, "  - Blocking reason: %s\n", record.Question.BlockingReason)
+		out.WriteString("  - Options:\n")
+		for _, option := range record.Question.Options {
+			fmt.Fprintf(out, "    - %s: %s\n", option.ID, option.Meaning)
+		}
+		fmt.Fprintf(out, "  - Recommendation: %s — %s\n", record.Question.Recommendation.OptionID, record.Question.Recommendation.Rationale)
+		writeEvidence(out, "  Question evidence", record.Question.Evidence)
+		if len(record.Question.IndependentWork) == 0 {
+			out.WriteString("  - Independent work: none\n")
+		} else {
+			out.WriteString("  - Independent work:\n")
+			for _, work := range record.Question.IndependentWork {
+				fmt.Fprintf(out, "    - %s action=%s profile=%s source_effect=%s independent_of=%s: %s\n", work.ID, work.Action, work.WorkerProfile, work.SourceEffect, strings.Join(work.IndependentOfOptionIDs, ","), work.Description)
+			}
+		}
+		if answer == nil {
+			out.WriteString("  - Answer: none (recommendation not selected automatically)\n")
+		} else {
+			fmt.Fprintf(out, "  - Answer: %s option=%s provenance=%s/%s answered=%s\n", answer.AnswerID, answer.OptionID, answer.Provenance.Kind, answer.Provenance.Actor, answer.AnsweredAt.UTC().Format(time.RFC3339Nano))
+			writeEvidence(out, "  Answer provenance evidence", answer.Provenance.Evidence)
+		}
+		if resume != nil {
+			fmt.Fprintf(out, "  - Resume: %s answer=%s resumed=%s\n", resume.ResumeID, resume.AnswerID, resume.ResumedAt.UTC().Format(time.RFC3339Nano))
+		}
+	}
 }
 
 func writePlan(out *bytes.Buffer, plan *TaskPlan) {

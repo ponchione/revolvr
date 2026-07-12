@@ -31,6 +31,19 @@ func TestRunCapturesSuccessfulCommandOutput(t *testing.T) {
 	}
 }
 
+func TestRunCanReplaceAmbientEnvironment(t *testing.T) {
+	command := helperCommand("environment")
+	command.ReplaceEnv = true
+	command.Env = append(command.Env, "ONLY_ALLOWED=present")
+	result := Run(context.Background(), command)
+	if result.Err != nil || result.ExitCode != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	if got, want := strings.TrimSpace(result.Stdout), "allowed=present ambient="; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+}
+
 func TestRunReportsNonZeroExitCode(t *testing.T) {
 	result := Run(context.Background(), helperCommand("nonzero"))
 
@@ -150,6 +163,9 @@ func TestHelperProcess(t *testing.T) {
 	case "truncate":
 		fmt.Fprint(os.Stdout, strings.Repeat("x", 10))
 		fmt.Fprint(os.Stderr, strings.Repeat("y", 9))
+		os.Exit(0)
+	case "environment":
+		fmt.Fprintf(os.Stdout, "allowed=%s ambient=%s\n", os.Getenv("ONLY_ALLOWED"), os.Getenv("HOME"))
 		os.Exit(0)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown helper mode %q\n", os.Getenv("RUNNER_HELPER_MODE"))

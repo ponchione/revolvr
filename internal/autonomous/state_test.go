@@ -3,6 +3,7 @@ package autonomous
 import (
 	"encoding/json"
 	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -243,6 +244,7 @@ func TestDecisionReferenceValidateSupportsEveryAction(t *testing.T) {
 		ActionSimplify,
 		ActionComplete,
 		ActionBlock,
+		ActionNeedsInput,
 	}
 	for _, action := range actions {
 		t.Run(string(action), func(t *testing.T) {
@@ -415,6 +417,8 @@ func TestExecutionStateValidateSupportsEveryLifecycle(t *testing.T) {
 		LifecycleStateCompleted,
 		LifecycleStateBlocked,
 		LifecycleStateCancelled,
+		LifecycleStateSuperseded,
+		LifecycleStateAbandoned,
 	}
 	for _, lifecycle := range states {
 		t.Run(string(lifecycle), func(t *testing.T) {
@@ -872,7 +876,19 @@ func validExecutionState(lifecycle LifecycleState) ExecutionState {
 	switch lifecycle {
 	case LifecycleStateNeedsInput:
 		state.NeedsInput = &NeedsInputDetail{Reason: "The task specification leaves two incompatible behaviors unresolved."}
-	case LifecycleStateBlocked, LifecycleStateCancelled:
+	case LifecycleStateFinalizing:
+		state.Finalization = &FinalizationDetail{
+			SchemaVersion: FinalizationDetailSchemaVersion,
+			OperationID:   "finalize-one",
+			RunID:         "finalization-run",
+			Stage:         FinalizationStageAdmitted,
+			FrozenEvidence: FinalizationArtifact{
+				Path: ".revolvr/autonomous/tasks/task-1/completion/completion-evidence.json", SHA256: strings.Repeat("f", 64), ByteSize: 10,
+			},
+			OriginalTaskSHA256: strings.Repeat("e", 64),
+			AdmittedAt:         time.Date(2026, 7, 12, 1, 0, 0, 0, time.UTC),
+		}
+	case LifecycleStateBlocked, LifecycleStateCancelled, LifecycleStateSuperseded, LifecycleStateAbandoned:
 		state.Terminal = &TerminalDetail{Reason: "Execution stopped with an explicit durable reason."}
 	}
 	return state

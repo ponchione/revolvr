@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"revolvr/internal/artifactretention"
+	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
@@ -57,7 +60,10 @@ type VerificationRunner func(context.Context, verification.Config) (verification
 type CommitRunner func(context.Context, commit.Config) (commit.Result, error)
 
 type Config struct {
-	WorkingDir string
+	WorkingDir         string
+	SafetyDeclaration  autonomoussafety.Declaration
+	RetentionPolicy    artifactretention.Policy
+	NotificationPolicy autonomousnotification.Policy
 
 	LedgerStore *ledger.Store
 	LedgerPath  string
@@ -522,6 +528,26 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 		return Config{}, "", fmt.Errorf("resolve working directory: %w", err)
 	}
 	cfg.WorkingDir = workDir
+	if cfg.SafetyDeclaration.SchemaVersion == "" {
+		cfg.SafetyDeclaration = autonomoussafety.DefaultDeclaration()
+	}
+	if cfg.RetentionPolicy.SchemaVersion == "" {
+		cfg.RetentionPolicy = artifactretention.DefaultPolicy()
+	}
+	if cfg.NotificationPolicy.SchemaVersion == "" {
+		cfg.NotificationPolicy = autonomousnotification.DefaultPolicy()
+	}
+	if err := cfg.RetentionPolicy.Validate(); err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
+	if err := cfg.SafetyDeclaration.Validate(); err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
+	notificationPolicy, err := cfg.NotificationPolicy.Normalize(cfg.SafetyDeclaration.Redaction.EnvironmentVariables)
+	if err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
+	cfg.NotificationPolicy = notificationPolicy
 	cfg.CodexExecutable = strings.TrimSpace(cfg.CodexExecutable)
 	if cfg.CodexExecutable == "" {
 		cfg.CodexExecutable = codexexec.DefaultExecutable

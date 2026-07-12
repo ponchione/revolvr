@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,8 +13,17 @@ import (
 	"github.com/spf13/cobra"
 
 	"revolvr/internal/app"
+	"revolvr/internal/artifactretention"
+	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomousarchive"
+	"revolvr/internal/autonomousdaemon"
+	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/autonomousqueue"
+	"revolvr/internal/autonomoustaskrun"
+	"revolvr/internal/autonomousview"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
+	"revolvr/internal/ledgerexport"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
@@ -24,15 +34,22 @@ import (
 const defaultVersion = "dev"
 
 type Options struct {
-	Version             string
-	Out                 io.Writer
-	Err                 io.Writer
-	WorkDir             string
-	RunOnce             RunOnceFunc
-	TUIRunner           TUIRunFunc
-	DoctorCommandRunner DoctorCommandRunner
-	ExecutableLookPath  ExecutableLookPath
+	Version              string
+	Out                  io.Writer
+	Err                  io.Writer
+	WorkDir              string
+	RunOnce              RunOnceFunc
+	RunTaskUntilTerminal TaskRunFunc
+	RunQueue             QueueRunFunc
+	RunDaemon            DaemonRunFunc
+	TUIRunner            TUIRunFunc
+	DoctorCommandRunner  DoctorCommandRunner
+	ExecutableLookPath   ExecutableLookPath
 }
+
+type TaskRunFunc func(context.Context, app.Config, app.TaskRunInput) (autonomoustaskrun.Result, error)
+type QueueRunFunc func(context.Context, app.Config, app.QueueInput) (autonomousqueue.Result, error)
+type DaemonRunFunc func(context.Context, app.Config, app.DaemonInput) (autonomousdaemon.Result, error)
 
 type RunOnceFunc = app.RunOnceRunner
 type TUIRunFunc func(context.Context, app.StatusResult, tuiapp.RunOptions) error
@@ -66,6 +83,10 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(
 		newInitCommand(opts),
 		newTaskCommand(opts),
+		newArchiveCommand(opts),
+		newArtifactCommand(opts),
+		newLedgerCommand(opts),
+		newNotificationCommand(opts),
 		newConfigCommand(opts),
 		newRunCommand(opts),
 		newDoctorCommand(opts),
@@ -76,6 +97,386 @@ func NewRootCommand(opts Options) *cobra.Command {
 	)
 
 	return root
+}
+
+type notificationObservation struct {
+	Result autonomousnotification.Result
+	Err    error
+}
+
+func collectNotifications(target *[]notificationObservation) app.NotificationObserver {
+	return func(result autonomousnotification.Result, err error) {
+		*target = append(*target, notificationObservation{Result: result, Err: err})
+	}
+}
+
+func writeNotificationObservations(out io.Writer, values []notificationObservation) error {
+	for _, value := range values {
+		if value.Err != nil {
+			if _, err := fmt.Fprintf(out, "Notification warning: delivery=%s event=%s stage=%s attempts=%d detail=%s error=%s\n", value.Result.DeliveryID, value.Result.Event, value.Result.Stage, value.Result.Attempts, oneLine(value.Result.Detail), oneLine(value.Err.Error())); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := fmt.Fprintf(out, "Notification: delivery=%s event=%s stage=%s attempts=%d replayed=%t\n", value.Result.DeliveryID, value.Result.Event, value.Result.Stage, value.Result.Attempts, value.Result.Replayed); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func newNotificationCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{Use: "notification", Short: "Inspect durable external notification deliveries", Args: cobra.NoArgs, RunE: runHelp}
+	cmd.AddCommand(
+		&cobra.Command{Use: "list", Short: "List durable notification deliveries", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+			values, err := app.ListNotifications(app.Config{WorkDir: opts.WorkDir})
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), "DELIVERY ID\tEVENT\tSTAGE\tATTEMPTS\tUPDATED AT"); err != nil {
+				return err
+			}
+			for _, value := range values {
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%d\t%s\n", value.DeliveryID, value.Event, value.Stage, value.Attempts, cliTime(value.UpdatedAt)); err != nil {
+					return err
+				}
+			}
+			return nil
+		}},
+		&cobra.Command{Use: "show <delivery-id>", Short: "Show one durable notification delivery", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+			value, err := app.ShowNotification(app.Config{WorkDir: opts.WorkDir}, args[0])
+			if err != nil {
+				return err
+			}
+			p, j := value.Payload, value.Journal
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Delivery ID: %s\nEvent ID: %s\nEvent: %s\nOccurred at: %s\nSubject: %s\nOutcome: %s\nStop reason: %s\nStage: %s\nAttempts: %d\nDetail: %s\nPayload SHA-256: %s\nPolicy SHA-256: %s\nEffective config: %s sha256:%s\n", p.DeliveryID, p.EventID, p.Event, cliTime(p.OccurredAt), p.SubjectKind, p.Outcome, p.StopReason, j.Stage, len(j.Attempts), oneLine(j.Detail), value.Intent.PayloadSHA256, p.HookPolicySHA256, p.EffectiveConfigSchema, p.EffectiveConfigSHA256); err != nil {
+				return err
+			}
+			for _, attempt := range j.Attempts {
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Attempt %d: exit=%d timeout=%t cancelled=%t retryable=%t stdout_truncated=%d stderr_truncated=%d error=%s\n", attempt.Number, attempt.ExitCode, attempt.TimedOut, attempt.Cancelled, attempt.Retryable, attempt.StdoutTruncatedBytes, attempt.StderrTruncatedBytes, oneLine(attempt.Error)); err != nil {
+					return err
+				}
+			}
+			return nil
+		}},
+	)
+	return cmd
+}
+
+func newArtifactCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{Use: "artifact", Short: "Plan, apply, and inspect artifact retention", Args: cobra.NoArgs, RunE: runHelp}
+	cmd.AddCommand(newArtifactGCCommand(opts))
+	return cmd
+}
+func newArtifactGCCommand(opts Options) *cobra.Command {
+	var operationID, plannedAtRaw, planID string
+	var apply, resume bool
+	cmd := &cobra.Command{Use: "gc", Short: "Plan artifact GC by default; mutation requires explicit --apply", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		if resume {
+			if !apply {
+				return errors.New("artifact gc: --resume requires --apply")
+			}
+			result, err := app.ResumeArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, operationID)
+			if result.Journal.OperationID != "" {
+				_ = writeGCResult(cmd.OutOrStdout(), result)
+			}
+			return err
+		}
+		plannedAt, err := parseRetentionUTC("planned-at", plannedAtRaw)
+		if err != nil {
+			return err
+		}
+		plan, err := app.PlanArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.GCPlanInput{OperationID: operationID, FrozenAt: plannedAt})
+		if err != nil {
+			return err
+		}
+		if err := writeGCPlan(cmd.OutOrStdout(), plan); err != nil {
+			return err
+		}
+		if !apply {
+			return nil
+		}
+		if strings.TrimSpace(planID) == "" || planID != plan.PlanID {
+			return errors.New("artifact gc: --apply requires the exact --plan-id printed by dry-run")
+		}
+		result, err := app.ApplyArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.GCApplyInput{Plan: plan})
+		if writeErr := writeGCResult(cmd.OutOrStdout(), result); writeErr != nil {
+			return writeErr
+		}
+		return err
+	}}
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "stable GC operation identity")
+	cmd.Flags().StringVar(&plannedAtRaw, "planned-at", "", "frozen planning time in UTC RFC3339Nano")
+	cmd.Flags().BoolVar(&apply, "apply", false, "apply the exact dry-run plan")
+	cmd.Flags().StringVar(&planID, "plan-id", "", "exact plan ID required with --apply")
+	cmd.Flags().BoolVar(&resume, "resume", false, "resume the admitted operation journal")
+	_ = cmd.MarkFlagRequired("operation-id")
+	cmd.AddCommand(&cobra.Command{Use: "inspect <operation-id>", Short: "Inspect a durable GC journal", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		journal, found, err := app.InspectArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("artifact gc inspect: operation not found")
+		}
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "GC operation: %s\nStage: %s\nPlan ID: %s\nCompleted actions: %d/%d\nExport ID: %s\nCancelled: %t\nSequence: %d\n", journal.OperationID, journal.Stage, journal.Plan.PlanID, len(journal.CompletedPaths), journal.Plan.Totals.Compress+journal.Plan.Totals.Prune, journal.ExportID, journal.Cancelled, journal.Sequence)
+		return err
+	}})
+	return cmd
+}
+
+func writeGCPlan(out io.Writer, plan artifactretention.Plan) error {
+	if _, err := fmt.Fprintf(out, "Artifact GC dry-run\nOperation ID: %s\nPlan ID: %s\nFrozen at: %s\nPolicy: %s mutation_enabled=%t\nLedger: high_water=%d sha256=%s\nTotals: candidates=%d pinned=%d retain=%d compress=%d prune=%d remaining=%d bytes_before=%d bytes_after=%d\nRequired verified export: %t\nActions:\n", plan.OperationID, plan.PlanID, plan.FrozenAt.Format(time.RFC3339Nano), plan.PolicySHA256, plan.Policy.MutationEnabled, plan.Ledger.HighWaterEventID, plan.Ledger.SHA256, plan.Totals.Candidates, plan.Totals.Pinned, plan.Totals.Retained, plan.Totals.Compress, plan.Totals.Prune, plan.Totals.RemainingEligible, plan.Totals.BytesBefore, plan.Totals.BytesAfter, plan.RequiredExport); err != nil {
+		return err
+	}
+	for _, action := range plan.Actions {
+		if _, err := fmt.Fprintf(out, "%s\t%s\t%s\t%s\t%d->%d\n", action.Kind, action.Class, action.Path, action.Reason, action.Source.ByteSize, action.BytesAfter); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func writeGCResult(out io.Writer, result artifactretention.ApplyResult) error {
+	if result.Journal.OperationID == "" {
+		return nil
+	}
+	_, err := fmt.Fprintf(out, "GC result: operation=%s stage=%s completed=%d export=%s replayed=%t resumable=%t cancelled=%t\n", result.Journal.OperationID, result.Journal.Stage, len(result.Journal.CompletedPaths), result.Journal.ExportID, result.Replayed, result.Resumable, result.Journal.Cancelled)
+	return err
+}
+
+func newLedgerCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{Use: "ledger", Short: "Export and validate immutable ledger history", Args: cobra.NoArgs, RunE: runHelp}
+	cmd.AddCommand(newLedgerExportCommand(opts))
+	return cmd
+}
+func newLedgerExportCommand(opts Options) *cobra.Command {
+	var operationID, exportedAtRaw, predecessor string
+	var after, through int64
+	cmd := &cobra.Command{Use: "export", Short: "Create a deterministic immutable ledger export", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		exportedAt, err := parseRetentionUTC("exported-at", exportedAtRaw)
+		if err != nil {
+			return err
+		}
+		result, err := app.ExportLedger(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.LedgerExportInput{OperationID: operationID, ExportedAt: exportedAt, Bounds: ledgerexport.Bounds{AfterEventID: after, ThroughEventID: through}, PredecessorID: predecessor})
+		if err != nil {
+			return err
+		}
+		m := result.Manifest
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Ledger export: %s\nManifest: %s\nRuns: %d\nEvents: %d\nHigh water: %d\nRecords SHA-256: %s\nLegacy payloads: %d\nReplayed: %t\n", m.ExportID, result.ManifestPath, m.RunCount, m.EventCount, m.HighWaterEventID, m.Records.SHA256, m.LegacyPayloadCount, result.Replayed)
+		return err
+	}}
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "stable export operation identity")
+	cmd.Flags().StringVar(&exportedAtRaw, "exported-at", "", "frozen export time in UTC RFC3339Nano")
+	cmd.Flags().Int64Var(&after, "after-event-id", 0, "exclude events through this event ID")
+	cmd.Flags().Int64Var(&through, "through-event-id", 0, "include through this event ID (default snapshot high-water)")
+	cmd.Flags().StringVar(&predecessor, "predecessor-id", "", "exact predecessor export ID for an incremental export")
+	_ = cmd.MarkFlagRequired("operation-id")
+	_ = cmd.MarkFlagRequired("exported-at")
+	cmd.AddCommand(&cobra.Command{Use: "verify <export-id>", Short: "Verify an immutable ledger export", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		report, err := app.VerifyLedgerExport(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
+		if err != nil {
+			return err
+		}
+		if err := writeExportChecks(cmd.OutOrStdout(), "Ledger export verification", report.ExportID, report.Passed, report.Checks); err != nil {
+			return err
+		}
+		if !report.Passed {
+			return errors.New("ledger export verify: checks failed")
+		}
+		return nil
+	}})
+	cmd.AddCommand(&cobra.Command{Use: "replay-validate <export-id>", Short: "Reconstruct and validate exported logical history", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		report, err := app.ReplayValidateLedgerExport(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Replay: export=%s runs=%d events=%d terminal=%d artifacts=%d passed=%t\n", report.ExportID, report.RunCount, report.EventCount, report.TerminalRuns, report.ArtifactPaths, report.Passed); err != nil {
+			return err
+		}
+		if !report.Passed {
+			return errors.New("ledger export replay-validate: checks failed")
+		}
+		return nil
+	}})
+	return cmd
+}
+func writeExportChecks(out io.Writer, label, id string, passed bool, checks []ledgerexport.Check) error {
+	if _, err := fmt.Fprintf(out, "%s: %t\nExport ID: %s\n", label, passed, id); err != nil {
+		return err
+	}
+	for _, check := range checks {
+		status := "PASS"
+		if !check.Passed {
+			status = "FAIL"
+		}
+		if _, err := fmt.Fprintf(out, "%s\t%s\t%s\n", status, check.Name, oneLine(check.Detail)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func parseRetentionUTC(label, value string) (time.Time, error) {
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%s must be RFC3339Nano: %w", label, err)
+	}
+	_, offset := parsed.Zone()
+	if offset != 0 {
+		return time.Time{}, fmt.Errorf("%s must be UTC", label)
+	}
+	return parsed.UTC(), nil
+}
+
+func newArchiveCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{Use: "archive", Short: "Archive, inspect, verify, and reopen terminal tasks", Args: cobra.NoArgs, RunE: runHelp}
+	cmd.AddCommand(newArchiveListCommand(opts), newArchiveShowCommand(opts), newArchiveVerifyCommand(opts), newArchiveCreateCommand(opts), newArchiveReopenCommand(opts))
+	return cmd
+}
+
+func newArchiveListCommand(opts Options) *cobra.Command {
+	return &cobra.Command{Use: "list", Short: "List tracked terminal task archives", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		entries, err := app.ListArchives(cmd.Context(), app.Config{WorkDir: opts.WorkDir})
+		if err != nil {
+			return err
+		}
+		if len(entries) == 0 {
+			_, err = fmt.Fprint(cmd.OutOrStdout(), "No archives.\n")
+			return err
+		}
+		if _, err := fmt.Fprint(cmd.OutOrStdout(), "ARCHIVE ID\tTASK ID\tDISPOSITION\tARCHIVED AT\tPATH\n"); err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			m := entry.Manifest
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", m.ArchiveID, m.TaskID, m.Disposition, cliTime(m.ArchivedAt), entry.ManifestPath); err != nil {
+				return err
+			}
+		}
+		return nil
+	}}
+}
+
+func newArchiveShowCommand(opts Options) *cobra.Command {
+	return &cobra.Command{Use: "show <archive-id-or-task-id>", Short: "Show one tracked terminal task archive", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		entry, err := app.ShowArchive(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
+		if err != nil {
+			return err
+		}
+		m := entry.Manifest
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Archive ID: %s\nTask ID: %s\nDisposition: %s\nReason: %s\nProvenance: %s\nArchived at: %s\nManifest: %s\nTask: %s\nCompletion: %s\n", m.ArchiveID, m.TaskID, m.Disposition, oneLine(m.Reason), oneLine(m.Provenance), cliTime(m.ArchivedAt), entry.ManifestPath, m.ArchivedTask.Path, optionalArchiveArtifact(m.CompletionCapsule))
+		return err
+	}}
+}
+
+func newArchiveVerifyCommand(opts Options) *cobra.Command {
+	return &cobra.Command{Use: "verify <archive-id-or-task-id>", Short: "Verify one tracked terminal task archive without mutation", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		report, err := app.VerifyArchive(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
+		if err != nil {
+			return err
+		}
+		status := "passed"
+		if !report.Passed {
+			status = "failed"
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Archive verification: %s\nArchive ID: %s\nTask ID: %s\nChecks:\n", status, report.ArchiveID, report.TaskID); err != nil {
+			return err
+		}
+		failures := 0
+		for _, check := range report.Checks {
+			checkStatus := "PASS"
+			if !check.Passed {
+				checkStatus = "FAIL"
+				failures++
+			}
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", checkStatus, check.Name, oneLine(check.Detail)); err != nil {
+				return err
+			}
+		}
+		if failures > 0 {
+			return archiveVerificationError{ArchiveID: report.ArchiveID, FailureCount: failures}
+		}
+		return nil
+	}}
+}
+
+func newArchiveCreateCommand(opts Options) *cobra.Command {
+	var operationID, runID, disposition, reason, provenance, terminalAtRaw, archivedAtRaw string
+	cmd := &cobra.Command{Use: "create <task-id>", Short: "Move one exact terminal task into its tracked archive", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		terminalAt, err := parseExplicitUTC("terminal-at", terminalAtRaw)
+		if err != nil {
+			return err
+		}
+		archivedAt, err := parseExplicitUTC("archived-at", archivedAtRaw)
+		if err != nil {
+			return err
+		}
+		result, err := app.ArchiveTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.ArchiveTaskInput{TaskID: args[0], OperationID: operationID, ArchiveRunID: runID, Disposition: autonomousarchive.Disposition(disposition), Reason: reason, Provenance: provenance, TerminalAt: terminalAt, ArchivedAt: archivedAt})
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Archived task %s.\nArchive ID: %s\nDisposition: %s\nManifest: %s\nCommit: %s\nRecovery stage: %s\nReplayed: %t\n", result.Entry.Manifest.TaskID, result.Entry.Manifest.ArchiveID, result.Entry.Manifest.Disposition, result.Entry.ManifestPath, result.CommitSHA, result.Journal.Stage, result.Replayed)
+		return err
+	}}
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "unique archive operation identity")
+	cmd.Flags().StringVar(&runID, "run-id", "", "optional exact archive ledger run identity")
+	cmd.Flags().StringVar(&disposition, "disposition", "", "terminal disposition: completed, cancelled, superseded, or abandoned")
+	cmd.Flags().StringVar(&reason, "reason", "", "exact terminal reason")
+	cmd.Flags().StringVar(&provenance, "provenance", "", "trusted operator or harness authority")
+	cmd.Flags().StringVar(&terminalAtRaw, "terminal-at", "", "terminal authority time in UTC RFC3339Nano")
+	cmd.Flags().StringVar(&archivedAtRaw, "archived-at", "", "frozen archive routing time in UTC RFC3339Nano")
+	_ = cmd.MarkFlagRequired("operation-id")
+	_ = cmd.MarkFlagRequired("disposition")
+	_ = cmd.MarkFlagRequired("reason")
+	_ = cmd.MarkFlagRequired("provenance")
+	_ = cmd.MarkFlagRequired("terminal-at")
+	_ = cmd.MarkFlagRequired("archived-at")
+	return cmd
+}
+
+func newArchiveReopenCommand(opts Options) *cobra.Command {
+	var operationID, newTaskID, authority, reason, reopenedAtRaw string
+	cmd := &cobra.Command{Use: "reopen <archive-id-or-task-id>", Short: "Create a new pending lifecycle from a verified archive", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		reopenedAt, err := parseExplicitUTC("reopened-at", reopenedAtRaw)
+		if err != nil {
+			return err
+		}
+		result, err := app.ReopenArchive(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.ReopenArchiveInput{Selector: args[0], OperationID: operationID, NewTaskID: newTaskID, Authority: authority, Reason: reason, ReopenedAt: reopenedAt})
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Reopened archive %s.\nNew task ID: %s\nTask: %s\nState: %s\nCommit: %s\nReplayed: %t\n", result.Record.ArchiveID, result.Record.NewTaskID, result.Record.Task.Path, result.Record.State.Path, result.Record.CommitSHA, result.Replayed)
+		return err
+	}}
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "unique reopen operation identity")
+	cmd.Flags().StringVar(&newTaskID, "new-task-id", "", "new active task identity")
+	cmd.Flags().StringVar(&authority, "authority", "", "trusted operator or harness authority")
+	cmd.Flags().StringVar(&reason, "reason", "", "reason for the new lifecycle")
+	cmd.Flags().StringVar(&reopenedAtRaw, "reopened-at", "", "reopen time in UTC RFC3339Nano")
+	_ = cmd.MarkFlagRequired("operation-id")
+	_ = cmd.MarkFlagRequired("new-task-id")
+	_ = cmd.MarkFlagRequired("authority")
+	_ = cmd.MarkFlagRequired("reason")
+	_ = cmd.MarkFlagRequired("reopened-at")
+	return cmd
+}
+
+func parseExplicitUTC(label, value string) (time.Time, error) {
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("archive: %s must be RFC3339Nano: %w", label, err)
+	}
+	_, offset := parsed.Zone()
+	if offset != 0 {
+		return time.Time{}, fmt.Errorf("archive: %s must be UTC", label)
+	}
+	return parsed.UTC(), nil
+}
+
+func optionalArchiveArtifact(value *autonomousarchive.Artifact) string {
+	if value == nil {
+		return "omitted"
+	}
+	return value.Path
 }
 
 func newInitCommand(opts Options) *cobra.Command {
@@ -116,10 +517,271 @@ func newTaskCommand(opts Options) *cobra.Command {
 		newTaskAddCommand(opts),
 		newTaskImportCommand(opts),
 		newTaskListCommand(opts),
+		newTaskShowCommand(opts),
+		newTaskWhyCommand(opts),
 		newTaskRetryCommand(opts),
 		newTaskUnblockCommand(opts),
 	)
 	return cmd
+}
+
+func newTaskShowCommand(opts Options) *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "show <active-task-id-or-archive-selector>",
+		Short: "Show autonomous task evidence without mutating it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			view, err := app.ShowAutonomousTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				raw, err := autonomousview.Marshal(view)
+				if err != nil {
+					return err
+				}
+				_, err = cmd.OutOrStdout().Write(raw)
+				return err
+			}
+			return writeAutonomousTaskView(cmd.OutOrStdout(), view)
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "emit the validated deterministic projection as JSON")
+	return cmd
+}
+
+func newTaskWhyCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "why <active-task-id-or-archive-selector>",
+		Short: "Explain autonomous routing and readiness evidence",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			view, err := app.ShowAutonomousTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, args[0])
+			if err != nil {
+				return err
+			}
+			return writeAutonomousWhy(cmd.OutOrStdout(), view)
+		},
+	}
+}
+
+func writeAutonomousTaskView(out io.Writer, view autonomousview.View) error {
+	write := func(format string, args ...any) error { _, err := fmt.Fprintf(out, format, args...); return err }
+	if err := write("Autonomous task\nSource: %s\nTask ID: %s\nTitle: %s\nTask path: %s\nTask identity: sha256:%s bytes:%d\nWorkflow: %s\nTask status: %s\nLifecycle: %s\nState: %s sha256:%s bytes:%d schema:%s\n", view.Identity.SourceKind, view.Identity.TaskID, displayText(view.Identity.Title), view.Identity.TaskPath, displayText(view.Identity.TaskSHA256), view.Identity.TaskByteSize, view.Identity.Workflow, view.Identity.TaskStatus, displayText(view.Identity.Lifecycle), displayText(view.Identity.StatePath), displayText(view.Identity.StateSHA256), view.Identity.StateByteSize, displayText(view.Identity.StateSchema)); err != nil {
+		return err
+	}
+	if view.Identity.SourceKind == autonomousview.SourceArchive {
+		if err := write("Archive: %s disposition:%s verification:unverified\n", view.Identity.ArchiveID, view.Identity.ArchiveDisposition); err != nil {
+			return err
+		}
+	}
+	if err := write("Summary\nPhase: %s\nPlan progress: %d/%d\nAcceptance progress: %d/%d\nOpen findings: blocking=%d non_blocking=%d\nAttempts: total=%d consecutive_failures=%d\n", displayText(view.Summary.Phase), view.Summary.Plan.Completed, view.Summary.Plan.Total, view.Summary.Acceptance.Completed, view.Summary.Acceptance.Total, view.Summary.OpenBlockingFindings, view.Summary.OpenNonBlockingFindings, view.Summary.TotalAttempts, view.Summary.ConsecutiveFailures); err != nil {
+		return err
+	}
+	if err := writeAutonomousWhy(out, view); err != nil {
+		return err
+	}
+	if err := write("Plan\n"); err != nil {
+		return err
+	}
+	if view.Plan == nil {
+		if err := write("none\n"); err != nil {
+			return err
+		}
+	} else {
+		if err := write("ID: %s revision:%d supersedes:%s completed:%t\n", view.Plan.ID, view.Plan.Revision, displayText(view.Plan.SupersedesPlanID), view.Plan.Completed); err != nil {
+			return err
+		}
+		for i, step := range view.Plan.Steps {
+			if err := write("%d. [%s] %s: %s", i+1, step.Status, step.ID, oneLine(step.Description)); err != nil {
+				return err
+			}
+			if step.Rationale != "" {
+				if err := write(" | rationale: %s", oneLine(step.Rationale)); err != nil {
+					return err
+				}
+			}
+			if err := write("\n"); err != nil {
+				return err
+			}
+			if err := writeEvidence(out, step.Evidence, "   evidence"); err != nil {
+				return err
+			}
+		}
+	}
+	if err := write("Acceptance\n"); err != nil {
+		return err
+	}
+	if len(view.Acceptance) == 0 {
+		if err := write("none\n"); err != nil {
+			return err
+		}
+	}
+	for _, item := range view.Acceptance {
+		if err := write("[%s] %s: %s", item.Status, item.ID, oneLine(item.Description)); err != nil {
+			return err
+		}
+		if item.Rationale != "" {
+			if err := write(" | rationale: %s", oneLine(item.Rationale)); err != nil {
+				return err
+			}
+		}
+		if err := write("\n"); err != nil {
+			return err
+		}
+		if err := writeEvidence(out, item.Evidence, "  evidence"); err != nil {
+			return err
+		}
+	}
+	if err := write("Findings\n"); err != nil {
+		return err
+	}
+	if len(view.Findings) == 0 {
+		if err := write("none\n"); err != nil {
+			return err
+		}
+	}
+	for _, finding := range view.Findings {
+		if err := write("[%s/%s] %s: %s\n  correction: %s\n  introduced: audit_revision=%d run=%s\n  current: audit_revision=%d run=%s", finding.Status, finding.Significance, finding.ID, oneLine(finding.Summary), oneLine(finding.RequiredCorrection), finding.IntroducedBy.Revision, displayText(finding.IntroducedBy.RunID), finding.CurrentAudit.Revision, displayText(finding.CurrentAudit.RunID)); err != nil {
+			return err
+		}
+		if finding.ResolutionRationale != "" {
+			if err := write("\n  resolution rationale: %s", oneLine(finding.ResolutionRationale)); err != nil {
+				return err
+			}
+		}
+		if finding.SupersedingFindingID != "" {
+			if err := write("\n  superseded by: %s", finding.SupersedingFindingID); err != nil {
+				return err
+			}
+		}
+		if err := write("\n"); err != nil {
+			return err
+		}
+	}
+	if err := write("Attempts and budgets\nTotal: %d\nConsecutive failures: %d\n", view.Attempts.Total, view.Attempts.ConsecutiveFailures); err != nil {
+		return err
+	}
+	if len(view.Attempts.PerAction) == 0 {
+		if err := write("Per action: none\n"); err != nil {
+			return err
+		}
+	} else {
+		for _, item := range view.Attempts.PerAction {
+			if err := write("Per action: %s=%d\n", item.Action, item.Attempts); err != nil {
+				return err
+			}
+		}
+	}
+	for _, budget := range view.Attempts.Budgets {
+		if budget.Mode == "limited" {
+			if err := write("Budget %s: limited limit=%d consumed=%d remaining=%d exhausted=%t unit=%s\n", budget.Name, budget.Limit, budget.Consumed, budget.Remaining, budget.Exhausted, budget.Unit); err != nil {
+				return err
+			}
+		} else {
+			if err := write("Budget %s: %s consumed=%d unit=%s\n", budget.Name, displayText(budget.Mode), budget.Consumed, budget.Unit); err != nil {
+				return err
+			}
+		}
+	}
+	if len(view.Attempts.Stops) == 0 {
+		if err := write("Stops: none\n"); err != nil {
+			return err
+		}
+	} else {
+		if err := write("Stops: %s\n", strings.Join(view.Attempts.Stops, ",")); err != nil {
+			return err
+		}
+	}
+	for _, event := range view.Attempts.Events {
+		if err := write("Attempt %d: %s %s action=%s outcome=%s run=%s occurrence=%s at=%s\n", event.Sequence, event.AttemptID, event.Kind, event.Action, displayText(event.Outcome), displayText(event.RunID), displayText(event.OccurrenceID), event.CreatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
+			return err
+		}
+	}
+	if err := write("Operator input\nState: %s\n", view.Input.State); err != nil {
+		return err
+	}
+	if view.Input.QuestionID != "" {
+		if err := write("Question: %s revision=%d sha256=%s\n%s\nBlocking reason: %s\n", view.Input.QuestionID, view.Input.Revision, view.Input.ContentSHA256, oneLine(view.Input.Question), oneLine(view.Input.BlockingReason)); err != nil {
+			return err
+		}
+		for _, option := range view.Input.Options {
+			if err := write("Option %s: %s\n", option.ID, oneLine(option.Meaning)); err != nil {
+				return err
+			}
+		}
+		if err := write("Recommendation: %s (%s)\n", view.Input.RecommendationOption, oneLine(view.Input.RecommendationRationale)); err != nil {
+			return err
+		}
+	}
+	archivedAt := "none"
+	if !view.Terminal.ArchivedAt.IsZero() {
+		archivedAt = view.Terminal.ArchivedAt.UTC().Format(time.RFC3339Nano)
+	}
+	if err := write("Verification\nState: %s\nRun: %s occurrence:%s source:%s status:%s purpose:%s final_gate:%s\nAudit\nState: %s\nRevision: %d run:%s source:%s disposition:%s findings:%d artifact:%s\nWorkspace\nState: %s\nID: %s status:%s branch:%s source:%s checkpoint:%d/%s\nTerminal/archive\nState: %s\nReason: %s\nFinalization stage: %s\nArchive ID: %s disposition:%s archived_at:%s verified_now:%t\n", view.Verification.State, displayText(view.Verification.RunID), displayText(view.Verification.OccurrenceID), displayText(view.Verification.SourceRevision), displayText(view.Verification.Status), displayText(view.Verification.Purpose), displayText(view.Verification.FinalGate), view.Audit.State, view.Audit.Revision, displayText(view.Audit.RunID), displayText(view.Audit.SourceRevision), displayText(view.Audit.Disposition), view.Audit.FindingCount, displayText(view.Audit.ArtifactPath), view.Workspace.State, displayText(view.Workspace.WorkspaceID), displayText(view.Workspace.Status), displayText(view.Workspace.BranchRef), displayText(view.Workspace.SourceRevision), view.Workspace.CheckpointSequence, displayText(view.Workspace.CheckpointCommit), view.Terminal.State, displayText(view.Terminal.Reason), displayText(view.Terminal.FinalizationStage), displayText(view.Terminal.ArchiveID), displayText(view.Terminal.Disposition), archivedAt, view.Terminal.VerifiedNow); err != nil {
+		return err
+	}
+	if err := write("Provenance and raw references\n"); err != nil {
+		return err
+	}
+	if len(view.Provenance.References) == 0 {
+		if err := write("none\n"); err != nil {
+			return err
+		}
+	}
+	for _, ref := range view.Provenance.References {
+		if err := write("- %s path=%s run=%s sha256=%s bytes=%d | %s\n", ref.Kind, displayText(ref.Path), displayText(ref.RunID), displayText(ref.SHA256), ref.ByteSize, oneLine(ref.Detail)); err != nil {
+			return err
+		}
+	}
+	if err := write("Diagnostics\n"); err != nil {
+		return err
+	}
+	if len(view.Diagnostics) == 0 {
+		return write("none\n")
+	}
+	for _, item := range view.Diagnostics {
+		if err := write("- %s section=%s reference=%s | %s\n", item.Code, item.Section, displayText(item.Reference), oneLine(item.Detail)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeAutonomousWhy(out io.Writer, view autonomousview.View) error {
+	if _, err := fmt.Fprintf(out, "Why and routing\nLatest decision: %s\nCurrently admitted action: %s\nScheduler readiness: %s\nNext supervisor action: %s\n", view.Why.LatestDecision, view.Why.CurrentlyAdmittedAction, view.Why.SchedulerReadiness, view.Why.NextSupervisorAction); err != nil {
+		return err
+	}
+	if len(view.Why.Reasons) == 0 {
+		_, err := fmt.Fprint(out, "Reasons: none\n")
+		return err
+	}
+	for _, reason := range view.Why.Reasons {
+		if _, err := fmt.Fprintf(out, "- %s: %s\n", reason.Code, oneLine(reason.Text)); err != nil {
+			return err
+		}
+		if err := writeEvidence(out, reason.Evidence, "  evidence"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeEvidence(out io.Writer, values []autonomous.EvidenceReference, prefix string) error {
+	for _, item := range values {
+		if _, err := fmt.Fprintf(out, "%s: %s %s | %s\n", prefix, item.Kind, item.Reference, oneLine(item.Detail)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func displayText(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "none"
+	}
+	return oneLine(value)
 }
 
 func newTaskAddCommand(opts Options) *cobra.Command {
@@ -198,17 +860,21 @@ func newTaskListCommand(opts Options) *cobra.Command {
 				_, err = fmt.Fprint(cmd.OutOrStdout(), "No tasks.\n")
 				return err
 			}
-			if _, err := fmt.Fprint(cmd.OutOrStdout(), "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tTASK\tSUMMARY\n"); err != nil {
+			if _, err := fmt.Fprint(cmd.OutOrStdout(), "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tDEPENDS_ON\tTAGS\tCONFLICTS\tPARENT\tTASK\tSUMMARY\n"); err != nil {
 				return err
 			}
 			for _, task := range tasks {
-				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 					task.ID,
 					task.Status,
 					task.Workflow,
 					task.Phase,
 					task.RunProfile,
 					task.NextState,
+					strings.Join(task.DependsOn, ","),
+					strings.Join(task.Tags, ","),
+					strings.Join(task.Conflicts, ","),
+					task.ParentTaskID,
 					oneLine(task.Task),
 					oneLine(task.Summary),
 				); err != nil {
@@ -331,11 +997,107 @@ func newRunCommand(opts Options) *cobra.Command {
 	}
 	var once bool
 	var maxPasses int
+	var untilTerminal, queueMode, daemonMode bool
+	var taskID, operationID string
+	var maxCycles, maxTasks, maxSweeps int64
+	var daemonPoll, daemonDebounce time.Duration
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run one harness pass",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			selected := 0
+			if once {
+				selected++
+			}
+			if cmd.Flags().Changed("max-passes") {
+				selected++
+			}
+			if untilTerminal {
+				selected++
+			}
+			if queueMode {
+				selected++
+			}
+			if daemonMode {
+				selected++
+			}
+			if selected > 1 {
+				return errors.New("run: --once, --max-passes, --until-terminal, --queue, and --daemon are mutually exclusive")
+			}
+			autonomousMode := untilTerminal || queueMode || daemonMode
+			if !autonomousMode && (cmd.Flags().Changed("task") || cmd.Flags().Changed("operation-id") || cmd.Flags().Changed("max-cycles") || cmd.Flags().Changed("max-tasks") || cmd.Flags().Changed("max-sweeps") || cmd.Flags().Changed("daemon-poll") || cmd.Flags().Changed("daemon-debounce")) {
+				return errors.New("run: autonomous operation and bound flags require --until-terminal, --queue, or --daemon")
+			}
+			if !untilTerminal && cmd.Flags().Changed("task") {
+				return errors.New("run: --task requires --until-terminal")
+			}
+			if !daemonMode && (cmd.Flags().Changed("max-sweeps") || cmd.Flags().Changed("daemon-poll") || cmd.Flags().Changed("daemon-debounce")) {
+				return errors.New("run: daemon timing and sweep flags require --daemon")
+			}
+			if untilTerminal && cmd.Flags().Changed("max-tasks") {
+				return errors.New("run: --max-tasks requires --queue or --daemon")
+			}
+			if untilTerminal {
+				if maxCycles <= 0 {
+					return errors.New("run: --max-cycles must be positive")
+				}
+				runner := opts.RunTaskUntilTerminal
+				if runner == nil {
+					runner = app.RunTaskUntilTerminal
+				}
+				var notifications []notificationObservation
+				result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.TaskRunInput{OperationID: operationID, TaskID: taskID, MaxCycles: maxCycles, Notification: collectNotifications(&notifications)})
+				if result.StopReason != "" {
+					if writeErr := writeTaskRunSummary(cmd.OutOrStdout(), result, maxCycles); writeErr != nil {
+						return writeErr
+					}
+				}
+				if writeErr := writeNotificationObservations(cmd.OutOrStdout(), notifications); writeErr != nil {
+					return writeErr
+				}
+				return err
+			}
+			if queueMode {
+				if maxCycles <= 0 || maxTasks <= 0 {
+					return errors.New("run: --max-cycles and --max-tasks must be positive")
+				}
+				runner := opts.RunQueue
+				if runner == nil {
+					runner = app.RunQueue
+				}
+				var notifications []notificationObservation
+				result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.QueueInput{OperationID: operationID, MaxTasks: maxTasks, MaxCycles: maxCycles, Notification: collectNotifications(&notifications)})
+				if result.StopReason != "" {
+					if writeErr := writeQueueSummary(cmd.OutOrStdout(), result); writeErr != nil {
+						return writeErr
+					}
+				}
+				if writeErr := writeNotificationObservations(cmd.OutOrStdout(), notifications); writeErr != nil {
+					return writeErr
+				}
+				return err
+			}
+			if daemonMode {
+				if maxCycles <= 0 || maxTasks <= 0 || maxSweeps <= 0 || daemonPoll <= 0 || daemonDebounce <= 0 {
+					return errors.New("run: daemon cycles, tasks, sweeps, poll, and debounce bounds must be positive")
+				}
+				runner := opts.RunDaemon
+				if runner == nil {
+					runner = app.RunDaemon
+				}
+				var notifications []notificationObservation
+				result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.DaemonInput{OperationID: operationID, MaxTasks: maxTasks, MaxCycles: maxCycles, MaxSweeps: maxSweeps, Poll: daemonPoll, Debounce: daemonDebounce, Notification: collectNotifications(&notifications)})
+				if result.StopReason != "" {
+					if writeErr := writeDaemonSummary(cmd.OutOrStdout(), result); writeErr != nil {
+						return writeErr
+					}
+				}
+				if writeErr := writeNotificationObservations(cmd.OutOrStdout(), notifications); writeErr != nil {
+					return writeErr
+				}
+				return err
+			}
 			if once {
 				return runSinglePass(cmd, opts.WorkDir, runOnce)
 			}
@@ -347,7 +1109,44 @@ func newRunCommand(opts Options) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&once, "once", false, "run one selected task")
 	cmd.Flags().IntVar(&maxPasses, "max-passes", 0, "run up to N fresh passes")
+	cmd.Flags().BoolVar(&untilTerminal, "until-terminal", false, "run one pinned autonomous task until a terminal stop")
+	cmd.Flags().BoolVar(&queueMode, "queue", false, "run ready autonomous tasks sequentially until exhausted")
+	cmd.Flags().BoolVar(&daemonMode, "daemon", false, "watch readiness authority and run bounded autonomous queue sweeps")
+	cmd.Flags().StringVar(&taskID, "task", "", "exact autonomous task ID (default selects once)")
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "durable autonomous operation ID to start or resume")
+	cmd.Flags().Int64Var(&maxCycles, "max-cycles", 50, "maximum fresh autonomous supervisor cycles")
+	cmd.Flags().Int64Var(&maxTasks, "max-tasks", 100, "maximum tasks in one bounded queue sweep")
+	cmd.Flags().Int64Var(&maxSweeps, "max-sweeps", 1000, "maximum bounded daemon queue sweeps")
+	cmd.Flags().DurationVar(&daemonPoll, "daemon-poll", time.Second, "daemon readiness polling interval")
+	cmd.Flags().DurationVar(&daemonDebounce, "daemon-debounce", 500*time.Millisecond, "daemon stable-change debounce interval")
 	return cmd
+}
+
+func writeTaskRunSummary(out io.Writer, result autonomoustaskrun.Result, maxCycles int64) error {
+	actions := make([]string, 0, len(result.Statistics.Actions))
+	for _, action := range result.Statistics.Actions {
+		actions = append(actions, fmt.Sprintf("%s:%d", action.Action, action.Count))
+	}
+	_, err := fmt.Fprintf(out, "Task run: task=%s operation=%s cycles=%d/%d stop=%s replayed=%t\nLast: action=%s decision=%s run=%s\nStats: supervisors=%d/%d attempts=%d/%d verification=%d audits=%d corrections=%d optional=%d commits=%d checkpoints=%d actions=%s\nDetail: %s\n", result.TaskID, result.OperationID, result.Statistics.CyclesStarted, maxCycles, result.StopReason, result.Replayed, result.LastAction, result.LastDecisionID, result.LastRunID, result.Statistics.SupervisorCompleted, result.Statistics.SupervisorStarted, result.Statistics.AttemptsCompleted, result.Statistics.AttemptsAdmitted, result.Statistics.VerificationRuns, result.Statistics.Audits, result.Statistics.Corrections, result.Statistics.OptionalRoles, result.Statistics.SourceCommits, result.Statistics.CheckpointAdvances, strings.Join(actions, ","), oneLine(result.StopDetail))
+	return err
+}
+
+func writeQueueSummary(out io.Writer, result autonomousqueue.Result) error {
+	if _, err := fmt.Fprintf(out, "Queue: operation=%s mode=%s stop=%s replayed=%t tasks=%d selections=%d\n", result.OperationID, result.Mode, result.StopReason, result.Replayed, len(result.Outcomes), result.Statistics.Selections); err != nil {
+		return err
+	}
+	for _, outcome := range result.Outcomes {
+		if _, err := fmt.Fprintf(out, "Task: id=%s operation=%s stop=%s replayed=%t detail=%s\n", outcome.TaskID, outcome.TaskOperationID, outcome.StopReason, outcome.Replayed, oneLine(outcome.StopDetail)); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintf(out, "Remaining: ready=%s waiting=%s\nDetail: %s\n", strings.Join(result.RemainingReady, ","), strings.Join(result.RemainingWaiting, ","), oneLine(result.StopDetail))
+	return err
+}
+
+func writeDaemonSummary(out io.Writer, result autonomousdaemon.Result) error {
+	_, err := fmt.Fprintf(out, "Daemon: stop=%s sweeps=%d wakes=%d fingerprint=%s detail=%s\n", result.StopReason, result.Sweeps, len(result.Wakes), result.LastFingerprint, oneLine(result.StopDetail))
+	return err
 }
 
 func runSinglePass(cmd *cobra.Command, workDir string, runOnce RunOnceFunc) error {
@@ -470,6 +1269,29 @@ func newTUICommand(opts Options) *cobra.Command {
 						Progress:  progress,
 						OnPass:    onPass,
 					})
+				},
+				RunTask: func(runCtx context.Context, taskID string, maxCycles int64, progress autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
+					runner := opts.RunTaskUntilTerminal
+					if runner == nil {
+						runner = app.RunTaskUntilTerminal
+					}
+					return runner(runCtx, cfg, app.TaskRunInput{TaskID: taskID, MaxCycles: maxCycles, Progress: progress})
+				},
+				ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
+					return app.ListAutonomousTaskSelectors(ctx, cfg)
+				},
+				LoadAutonomous: func(selector string) (autonomousview.View, error) {
+					return app.ShowAutonomousTask(ctx, cfg, selector)
+				},
+				AnswerInput: func(input app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+					return app.AnswerAutonomousInput(ctx, cfg, input)
+				},
+				RunQueue: func(runCtx context.Context, maxTasks, maxCycles int64, progress autonomousqueue.Progress) (autonomousqueue.Result, error) {
+					runner := opts.RunQueue
+					if runner == nil {
+						runner = app.RunQueue
+					}
+					return runner(runCtx, cfg, app.QueueInput{MaxTasks: maxTasks, MaxCycles: maxCycles, Progress: progress})
 				},
 			})
 		},
@@ -597,6 +1419,9 @@ func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run,
 	if err := writeNextTaskStatus(out, tasks); err != nil {
 		return err
 	}
+	if err := writeNextAutonomousStatus(out, tasks); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintf(out, "Recent runs: %d\n", len(recentRuns)); err != nil {
 		return err
 	}
@@ -605,6 +1430,22 @@ func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run,
 		return err
 	}
 	return writeLatestRunStatus(out, recentRuns[0], latestEvents)
+}
+
+func writeNextAutonomousStatus(out io.Writer, tasks []taskmodel.Task) error {
+	for _, task := range tasks {
+		if task.NextAutonomous {
+			_, err := fmt.Fprintf(out, "Next autonomous task: %s (ready)\n", statusTaskBrief(task))
+			return err
+		}
+	}
+	for _, task := range tasks {
+		if task.Workflow == taskfile.WorkflowAutonomousV1 && task.Status == taskmodel.StatusPending {
+			_, err := fmt.Fprintf(out, "Next autonomous task: none (%s)\n", optionalStatusValue(task.ReadinessReason))
+			return err
+		}
+	}
+	return nil
 }
 
 func writeNextTaskStatus(out io.Writer, tasks []taskmodel.Task) error {
@@ -844,6 +1685,15 @@ func cliTime(t time.Time) string {
 type receiptValidationError struct {
 	RunID        string
 	FailureCount int
+}
+
+type archiveVerificationError struct {
+	ArchiveID    string
+	FailureCount int
+}
+
+func (e archiveVerificationError) Error() string {
+	return fmt.Sprintf("archive verification failed for %s (%d failed checks)", optionalStatusValue(e.ArchiveID), e.FailureCount)
 }
 
 func (e receiptValidationError) Error() string {

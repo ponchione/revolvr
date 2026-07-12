@@ -139,7 +139,7 @@ func TestEvaluateLifecycleMatrix(t *testing.T) {
 				setLifecycle(&in.State, lifecycle)
 				_, err := Evaluate(in)
 				wantAllowed := lifecycle == autonomous.LifecycleStateReady ||
-					(lifecycle == autonomous.LifecycleStatePending && (action == autonomous.ActionPlan || action == autonomous.ActionBlock))
+					(lifecycle == autonomous.LifecycleStatePending && (action == autonomous.ActionPlan || action == autonomous.ActionBlock || action == autonomous.ActionNeedsInput))
 				if wantAllowed && err != nil {
 					t.Fatalf("Evaluate() error = %v", err)
 				}
@@ -592,8 +592,14 @@ func validInput(action autonomous.Action) Input {
 		SuccessCriteria: []string{"The authorized action records concrete evidence."},
 		Inputs:          []autonomous.EvidenceReference{evidence(autonomous.EvidenceKindTask, ".agent/tasks/task-1.md")},
 	}
-	if action == autonomous.ActionComplete || action == autonomous.ActionBlock {
+	if action == autonomous.ActionComplete || action == autonomous.ActionBlock || action == autonomous.ActionNeedsInput {
 		decision.SuccessCriteria = nil
+	}
+	if action == autonomous.ActionNeedsInput {
+		question := autonomous.NeedsInputQuestion{TaskID: taskID, QuestionID: "product-mode", Revision: 1, Question: "Which behavior?", BlockingReason: "The task is ambiguous.", Options: []autonomous.NeedsInputOption{{ID: "keep", Meaning: "Keep behavior."}, {ID: "change", Meaning: "Change behavior."}}, Recommendation: autonomous.NeedsInputRecommendation{OptionID: "keep", Rationale: "Safer."}, Evidence: append([]autonomous.EvidenceReference(nil), decision.Inputs...)}
+		hash, _ := autonomous.QuestionContentSHA256(question)
+		question.ContentSHA256 = hash
+		decision.NeedsInput = &question
 	}
 	if action == autonomous.ActionCorrect {
 		decision.FindingIDs = []string{"finding-one"}
@@ -670,6 +676,7 @@ func allActions() []autonomous.Action {
 		autonomous.ActionSimplify,
 		autonomous.ActionComplete,
 		autonomous.ActionBlock,
+		autonomous.ActionNeedsInput,
 	}
 }
 
@@ -678,9 +685,16 @@ func setLifecycle(state *autonomous.ExecutionState, lifecycle autonomous.Lifecyc
 	state.NeedsInput = nil
 	state.Terminal = nil
 	state.LatestDecision = nil
+	state.Finalization = nil
 	switch lifecycle {
 	case autonomous.LifecycleStateNeedsInput:
 		state.NeedsInput = &autonomous.NeedsInputDetail{Reason: "A product choice is required."}
+	case autonomous.LifecycleStateFinalizing:
+		state.Finalization = &autonomous.FinalizationDetail{
+			SchemaVersion: autonomous.FinalizationDetailSchemaVersion, OperationID: "finalize-one", RunID: "finalization-run", Stage: autonomous.FinalizationStageAdmitted,
+			FrozenEvidence:     autonomous.FinalizationArtifact{Path: ".revolvr/autonomous/tasks/task-1/completion/completion-evidence.json", SHA256: strings.Repeat("f", 64), ByteSize: 10},
+			OriginalTaskSHA256: strings.Repeat("e", 64), AdmittedAt: time.Date(2026, 7, 12, 1, 0, 0, 0, time.UTC),
+		}
 	case autonomous.LifecycleStateCompleted:
 		state.Plan = completedPlan()
 		state.AcceptanceCriteria = []autonomous.AcceptanceCriterion{acceptance(autonomous.AcceptanceStatusSatisfied)}

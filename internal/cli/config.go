@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"revolvr/internal/app"
+	"revolvr/internal/autonomousnotification"
 	"revolvr/internal/verification"
 )
 
@@ -47,6 +48,30 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Codex timeout: %s", cfg.CodexTimeout),
 		fmt.Sprintf("Effective config schema: %s", result.EffectiveConfigSchema),
 		fmt.Sprintf("Effective config SHA-256: %s", result.EffectiveConfigSHA256),
+		fmt.Sprintf("Autonomy safety schema: %s", cfg.SafetyDeclaration.SchemaVersion),
+		fmt.Sprintf("Autonomy mode: %s", cfg.SafetyDeclaration.Mode),
+		fmt.Sprintf("Worktree isolation: Git/source isolation only; not a security sandbox"),
+		fmt.Sprintf("External isolation: expectation=%s enforcement=%s attestation=%t", cfg.SafetyDeclaration.ExternalIsolation.Expectation, cfg.SafetyDeclaration.ExternalIsolation.Enforcement, cfg.SafetyDeclaration.ExternalIsolation.Attestation != nil),
+		fmt.Sprintf("Network policy: access=%s enforcement=%s attestation=%t", cfg.SafetyDeclaration.Network.Access, cfg.SafetyDeclaration.Network.Enforcement, cfg.SafetyDeclaration.Network.Attestation != nil),
+		fmt.Sprintf("Git hooks policy: %s trusted=%d", cfg.SafetyDeclaration.Hooks.Policy, len(cfg.SafetyDeclaration.Hooks.Trusted)),
+		fmt.Sprintf("Environment policy: inherit_host=%t allow=%s", cfg.SafetyDeclaration.Environment.InheritHost, formatVerificationArgs(cfg.SafetyDeclaration.Environment.Allow)),
+		fmt.Sprintf("Secret redaction sources: environment_variables=%s", formatVerificationArgs(cfg.SafetyDeclaration.Redaction.EnvironmentVariables)),
+		fmt.Sprintf("Fully unattended acknowledgement present: %t", strings.TrimSpace(cfg.SafetyDeclaration.Acknowledgement) != ""),
+		fmt.Sprintf("Retention policy schema: %s", cfg.RetentionPolicy.SchemaVersion),
+		fmt.Sprintf("Retention mutation enabled: %t", cfg.RetentionPolicy.MutationEnabled),
+		fmt.Sprintf("Retention recent run count: %d", cfg.RetentionPolicy.RecentRunCount),
+		fmt.Sprintf("Retention ages: compress=%s prune=%s", cfg.RetentionPolicy.CompressAfter, cfg.RetentionPolicy.PruneAfter),
+		fmt.Sprintf("Retention classes: codex_jsonl=%t codex_stderr=%t prune_compressed=%t", cfg.RetentionPolicy.CompressCodexJSONL, cfg.RetentionPolicy.CompressCodexStderr, cfg.RetentionPolicy.PruneCompressedStreams),
+		fmt.Sprintf("Retention verified export required: %t", cfg.RetentionPolicy.RequireVerifiedExport),
+		fmt.Sprintf("Retention operation bounds: files=%d bytes=%d", cfg.RetentionPolicy.MaxFilesPerOperation, cfg.RetentionPolicy.MaxBytesPerOperation),
+		fmt.Sprintf("Notification policy schema: %s", cfg.NotificationPolicy.SchemaVersion),
+		fmt.Sprintf("Notifications enabled: %t", cfg.NotificationPolicy.Enabled),
+		fmt.Sprintf("Notification events: %s", formatNotificationEvents(cfg.NotificationPolicy.Events)),
+		fmt.Sprintf("Notification executable: %s", cfg.NotificationPolicy.Executable),
+		fmt.Sprintf("Notification argument count: %d", len(cfg.NotificationPolicy.Args)),
+		fmt.Sprintf("Notification directory: %s", cfg.NotificationPolicy.Directory),
+		fmt.Sprintf("Notification environment names: %s", formatVerificationArgs(cfg.NotificationPolicy.EnvironmentNames)),
+		fmt.Sprintf("Notification bounds: timeout=%s stdout=%d stderr=%d attempts=%d retry_delay=%s", cfg.NotificationPolicy.Timeout, cfg.NotificationPolicy.StdoutCap, cfg.NotificationPolicy.StderrCap, cfg.NotificationPolicy.MaximumAttempts, cfg.NotificationPolicy.RetryDelay),
 		fmt.Sprintf("Git executable: %s", effectiveString(cfg.GitExecutable, defaultGitExecutable)),
 		fmt.Sprintf("Git timeout: %s", effectiveDuration(cfg.GitTimeout, defaultGitTimeout)),
 		fmt.Sprintf("Verification missing policy: %s", cfg.MissingVerificationPolicy),
@@ -82,6 +107,14 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		}
 	}
 	return nil
+}
+
+func formatNotificationEvents(events []autonomousnotification.Event) string {
+	values := make([]string, len(events))
+	for i, event := range events {
+		values[i] = string(event)
+	}
+	return formatVerificationArgs(values)
 }
 
 func formatVerificationCommand(index int, command verification.Command) string {

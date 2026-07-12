@@ -20,8 +20,11 @@ import (
 
 // TaskSpec is a parsed task ready to map to internal/app.AddTaskInput.
 type TaskSpec struct {
-	Task    string
-	Summary string
+	Task      string
+	Summary   string
+	DependsOn []string
+	Tags      []string
+	Conflicts []string
 }
 
 type taskSection struct {
@@ -51,6 +54,9 @@ const (
 	sectionSummary
 	sectionAcceptance
 	sectionVerification
+	sectionDependsOn
+	sectionTags
+	sectionConflicts
 )
 
 // Parse parses a Markdown task import document.
@@ -141,12 +147,13 @@ func parseTaskSections(lines []string) ([]taskSection, error) {
 
 func buildTaskSpec(section taskSection) (TaskSpec, error) {
 	var (
-		parts          []string
-		hasTaskBody    bool
-		summary        = oneLine(section.headingSummary)
-		seenSummary    bool
-		seenAcceptance bool
-		seenVerify     bool
+		parts                      []string
+		hasTaskBody                bool
+		summary                    = oneLine(section.headingSummary)
+		seenSummary                bool
+		seenAcceptance             bool
+		seenVerify                 bool
+		dependsOn, tags, conflicts []string
 	)
 
 	if body := linesText(section.bodyLines); body != "" {
@@ -190,6 +197,32 @@ func buildTaskSpec(section taskSection) (TaskSpec, error) {
 			}
 			seenVerify = true
 			parts = append(parts, sectionMarkdown(sub, content))
+		case sectionDependsOn, sectionTags, sectionConflicts:
+			if content == "" {
+				return TaskSpec{}, parseError(sub.startLine, "%s section is empty", sub.title)
+			}
+			items, err := metadataList(sub.lines)
+			if err != nil {
+				return TaskSpec{}, parseError(sub.startLine, "%s: %v", sub.title, err)
+			}
+			switch sectionKindFor(sub.title) {
+			case sectionDependsOn:
+				if dependsOn != nil {
+					return TaskSpec{}, parseError(sub.startLine, "duplicate Depends On section")
+				}
+				dependsOn = items
+			case sectionTags:
+				if tags != nil {
+					return TaskSpec{}, parseError(sub.startLine, "duplicate Tags section")
+				}
+				tags = items
+			case sectionConflicts:
+				if conflicts != nil {
+					return TaskSpec{}, parseError(sub.startLine, "duplicate Conflicts section")
+				}
+				conflicts = items
+			}
+			parts = append(parts, sectionMarkdown(sub, content))
 		default:
 			if unknown := sectionMarkdown(sub, content); unknown != "" {
 				parts = append(parts, unknown)
@@ -201,9 +234,39 @@ func buildTaskSpec(section taskSection) (TaskSpec, error) {
 		return TaskSpec{}, parseError(section.startLine, "task section has empty task text")
 	}
 	return TaskSpec{
-		Task:    strings.Join(parts, "\n\n"),
-		Summary: summary,
+		Task:      strings.Join(parts, "\n\n"),
+		Summary:   summary,
+		DependsOn: dependsOn,
+		Tags:      tags,
+		Conflicts: conflicts,
 	}, nil
+}
+
+func metadataList(lines []string) ([]string, error) {
+	var result []string
+	seen := map[string]struct{}{}
+	for _, line := range lines {
+		value := strings.TrimSpace(line)
+		if value == "" {
+			continue
+		}
+		if !strings.HasPrefix(value, "- ") {
+			return nil, fmt.Errorf("expected one '- value' item per line")
+		}
+		value = strings.TrimSpace(strings.TrimPrefix(value, "- "))
+		if value == "" || strings.ContainsAny(value, " ,\t\r\n") {
+			return nil, fmt.Errorf("invalid metadata item %q", value)
+		}
+		if _, ok := seen[value]; ok {
+			return nil, fmt.Errorf("duplicate metadata item %q", value)
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no metadata items")
+	}
+	return result, nil
 }
 
 func splitLines(markdown string) []string {
@@ -282,6 +345,12 @@ func sectionKindFor(title string) sectionKind {
 		return sectionAcceptance
 	case "verification", "verification notes":
 		return sectionVerification
+	case "depends on", "depends_on":
+		return sectionDependsOn
+	case "tags":
+		return sectionTags
+	case "conflicts":
+		return sectionConflicts
 	default:
 		return sectionUnknown
 	}

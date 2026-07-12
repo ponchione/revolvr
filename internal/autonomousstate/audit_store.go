@@ -62,8 +62,8 @@ func (s *Store) LoadAuditHistory(ctx context.Context, taskID string) ([]AuditHis
 }
 
 // LoadCommittedAuditHistory walks the immutable state-transition chain
-// backwards from canonical state across planning, audit, attempt, and
-// optional-role records. This excludes orphan audit files while retaining
+// backwards from canonical state across planning, audit, attempt, optional-role,
+// input-lifecycle, and workspace records. This excludes orphan audit files while retaining
 // reports that predate later evidence-only transitions.
 func (s *Store) LoadCommittedAuditHistory(ctx context.Context, taskID string) ([]AuditHistorySnapshot, error) {
 	task, err := s.canonicalTask(taskID)
@@ -90,6 +90,18 @@ func (s *Store) LoadCommittedAuditHistory(ctx context.Context, taskID string) ([
 		return nil, err
 	}
 	optionalRoles, err := s.readAllOptionalRoleHistory(task)
+	if err != nil {
+		return nil, err
+	}
+	inputs, err := s.readAllInputHistory(task)
+	if err != nil {
+		return nil, err
+	}
+	workspaces, err := s.readAllWorkspaceHistory(task)
+	if err != nil {
+		return nil, err
+	}
+	finalizations, err := s.readAllFinalizationHistory(task)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +138,21 @@ func (s *Store) LoadCommittedAuditHistory(ctx context.Context, taskID string) ([
 			return nil, err
 		}
 	}
+	for i := range inputs {
+		if err := add(inputs[i].Record.ResultingState, edge{previous: inputs[i].Record.PreviousState}); err != nil {
+			return nil, err
+		}
+	}
+	for i := range workspaces {
+		if err := add(workspaces[i].Record.ResultingState, edge{previous: workspaces[i].Record.PreviousState}); err != nil {
+			return nil, err
+		}
+	}
+	for i := range finalizations {
+		if err := add(finalizations[i].Record.ResultingState, edge{previous: finalizations[i].Record.PreviousState}); err != nil {
+			return nil, err
+		}
+	}
 	key := fmt.Sprintf("%s/%d", current.SHA256, current.ByteSize)
 	seen := map[string]bool{}
 	var committed []AuditHistorySnapshot
@@ -151,8 +178,8 @@ func (s *Store) LoadCommittedAuditHistory(ctx context.Context, taskID string) ([
 
 // LoadCurrentAudit performs no writes. Current authority is the newest audit
 // on the immutable transition chain ending at canonical state; later planning,
-// attempt-accounting, or optional-role evidence does not hide an otherwise
-// current source-bound audit.
+// attempt-accounting, optional-role, or input-lifecycle evidence does not hide
+// an otherwise current source-bound audit.
 func (s *Store) LoadCurrentAudit(ctx context.Context, taskID string) (AuditSnapshot, bool, error) {
 	task, err := s.canonicalTask(taskID)
 	if err != nil {

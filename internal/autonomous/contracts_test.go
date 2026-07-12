@@ -23,15 +23,59 @@ func TestSupervisorDecisionValidateSupportsEveryAction(t *testing.T) {
 		{name: "simplify", action: ActionSimplify, profile: WorkerProfileSimplifier, criteria: []string{"Unnecessary complexity is removed without behavior changes."}},
 		{name: "complete", action: ActionComplete},
 		{name: "block", action: ActionBlock},
+		{name: "needs input", action: ActionNeedsInput},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			decision := validDecision(tt.action, tt.profile)
+			if tt.action == ActionNeedsInput {
+				decision = needsInputDecisionFixture(t)
+			}
 			decision.SuccessCriteria = tt.criteria
 			decision.FindingIDs = tt.findingIDs
 			if err := decision.Validate(); err != nil {
 				t.Fatalf("Validate() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestSupervisorDecisionChildProposalValidation(t *testing.T) {
+	evidence := EvidenceReference{Kind: EvidenceKindTask, Reference: ".agent/tasks/parent.md", Detail: "Exact parent scope."}
+	valid := SupervisorDecision{TaskID: "parent", Action: ActionBlock, Rationale: "Block parent after publishing separable work.", Inputs: []EvidenceReference{evidence}, ChildTasks: &ChildTaskProposalSet{ParentTaskID: "parent", ProposalID: "proposal-one", Children: []ChildTaskProposal{{Key: "bounded-child", Title: "Bounded child", Scope: "Implement only the cited bounded behavior.", SuccessCriteria: []string{"Behavior is verified."}, ParentBehavior: ChildIndependent, Evidence: []EvidenceReference{evidence}}}}}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid child proposal: %v", err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*SupervisorDecision)
+		want   string
+	}{
+		{"worker action", func(d *SupervisorDecision) {
+			d.Action = ActionImplement
+			d.WorkerProfile = WorkerProfileImplementer
+			d.SuccessCriteria = []string{"Done."}
+		}, "allowed only"},
+		{"wrong parent", func(d *SupervisorDecision) { d.ChildTasks.ParentTaskID = "other" }, "parent_task_id"},
+		{"duplicate scope", func(d *SupervisorDecision) {
+			d.ChildTasks.Children = append(d.ChildTasks.Children, d.ChildTasks.Children[0])
+			d.ChildTasks.Children[1].Key = "other"
+		}, "equivalent scope"},
+		{"unaccepted evidence", func(d *SupervisorDecision) { d.ChildTasks.Children[0].Evidence[0].Reference = "invented" }, "outside"},
+		{"dependent without edge", func(d *SupervisorDecision) { d.ChildTasks.Children[0].ParentBehavior = ChildDependsOnParent }, "must depend"},
+		{"forbidden authority", func(d *SupervisorDecision) { d.ChildTasks.Children[0].Scope = "Request sandbox bypass for the worker." }, "forbidden"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			copyValue := valid
+			set := *valid.ChildTasks
+			set.Children = append([]ChildTaskProposal(nil), valid.ChildTasks.Children...)
+			set.Children[0].Evidence = append([]EvidenceReference(nil), valid.ChildTasks.Children[0].Evidence...)
+			copyValue.ChildTasks = &set
+			tt.mutate(&copyValue)
+			if err := copyValue.Validate(); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error=%v want %q", err, tt.want)
 			}
 		})
 	}

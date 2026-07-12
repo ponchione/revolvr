@@ -134,6 +134,152 @@ verification:
 	}
 }
 
+func TestCheckRunConfigAutonomySafetyPolicy(t *testing.T) {
+	workDir := t.TempDir()
+	writeConfigTestFile(t, workDir, `
+autonomy:
+  schema_version: revolvr-autonomous-safety-declaration-v1
+  mode: fully_unattended
+  external_isolation:
+    expectation: container
+    enforcement: external_attestation
+    attestation: {authority: operator, evidence: container-record, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+  network:
+    access: denied
+    enforcement: external_attestation
+    attestation: {authority: operator, evidence: firewall-record, sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+  hooks:
+    policy: disabled
+  environment:
+    inherit_host: false
+    allow: [PATH]
+  redaction:
+    schema_version: revolvr-secret-redaction-policy-v1
+    environment_variables: [API_TOKEN]
+  acknowledgement: revolvr-fully-unattended-v1:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+`)
+	result, err := CheckRunConfig(workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := result.Effective.SafetyDeclaration
+	if got.Mode != "fully_unattended" || got.ExternalIsolation.Attestation == nil || got.Network.Access != "denied" || got.Hooks.Policy != "disabled" || got.Environment.InheritHost || len(got.Redaction.EnvironmentVariables) != 1 {
+		t.Fatalf("declaration = %+v", got)
+	}
+	first := result.EffectiveConfigSHA256
+	writeConfigTestFile(t, workDir, strings.ReplaceAll(string(mustReadConfig(t, workDir)), "access: denied", "access: restricted"))
+	changed, err := CheckRunConfig(workDir)
+	if err != nil || changed.EffectiveConfigSHA256 == first {
+		t.Fatalf("material change hash = %q, %v", changed.EffectiveConfigSHA256, err)
+	}
+}
+
+func TestCheckRunConfigRejectsUnknownAutonomySafetyValues(t *testing.T) {
+	for _, test := range []struct{ name, content, want string }{
+		{"mode", "autonomy:\n  mode: future\n", "unknown mode"},
+		{"network", "autonomy:\n  network:\n    access: future\n", "unknown access"},
+		{"hooks", "autonomy:\n  hooks:\n    policy: future\n", "unknown policy"},
+		{"unknown field", "autonomy:\n  permission: all\n", "field permission not found"},
+		{"ambient and allow", "autonomy:\n  environment:\n    inherit_host: true\n    allow: [PATH]\n", "cannot be combined"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			workDir := t.TempDir()
+			writeConfigTestFile(t, workDir, test.content)
+			if _, err := CheckRunConfig(workDir); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
+func TestCheckRunConfigRetentionPolicyAndFingerprint(t *testing.T) {
+	workDir := t.TempDir()
+	writeConfigTestFile(t, workDir, "retention:\n  schema_version: revolvr-artifact-retention-policy-v1\n  mutation_enabled: true\n  recent_run_count: 3\n  compress_after_seconds: 60\n  prune_after_seconds: 120\n  minimum_compress_bytes: 10\n  prune_compressed_streams: true\n  require_verified_export: true\n  max_files_per_operation: 2\n  max_bytes_per_operation: 1000\n")
+	result, err := CheckRunConfig(workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := result.Effective.RetentionPolicy
+	if !p.MutationEnabled || p.RecentRunCount != 3 || p.CompressAfter.Seconds() != 60 || !p.PruneCompressedStreams {
+		t.Fatalf("retention=%+v", p)
+	}
+	first := result.EffectiveConfigSHA256
+	writeConfigTestFile(t, workDir, strings.ReplaceAll(string(mustReadConfig(t, workDir)), "recent_run_count: 3", "recent_run_count: 4"))
+	changed, err := CheckRunConfig(workDir)
+	if err != nil || changed.EffectiveConfigSHA256 == first {
+		t.Fatalf("retention fingerprint did not change: %v", err)
+	}
+}
+
+func TestCheckRunConfigRejectsInvalidRetention(t *testing.T) {
+	for _, test := range []struct{ name, content, want string }{{"negative", "retention:\n  compress_after_seconds: -1\n", "cannot be negative"}, {"contradictory", "retention:\n  compress_after_seconds: 20\n  prune_after_seconds: 10\n", "cannot exceed"}, {"unsafe prune", "retention:\n  prune_compressed_streams: true\n  require_verified_export: false\n", "requires a verified"}, {"unknown", "retention:\n  delete_everything: true\n", "field delete_everything not found"}} {
+		t.Run(test.name, func(t *testing.T) {
+			workDir := t.TempDir()
+			writeConfigTestFile(t, workDir, test.content)
+			if _, err := CheckRunConfig(workDir); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error=%v", err)
+			}
+		})
+	}
+}
+
+func TestCheckRunConfigNotificationPolicyAndFingerprint(t *testing.T) {
+	workDir := t.TempDir()
+	writeConfigTestFile(t, workDir, `
+autonomy:
+  redaction:
+    environment_variables: [HOOK_TOKEN]
+notifications:
+  schema_version: revolvr-notification-policy-v1
+  enabled: true
+  events: [task_completed, task_blocked, task_needs_input, safety_stop, queue_drained, daemon_failed]
+  executable: notify-test
+  args: [--stdin]
+  directory: repository_root
+  environment_names: [HOOK_TOKEN]
+  timeout_seconds: 4
+  stdout_cap_bytes: 100
+  stderr_cap_bytes: 101
+  maximum_attempts: 3
+  retry_delay_seconds: 2
+`)
+	result, err := CheckRunConfig(workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := result.Effective.NotificationPolicy
+	if !p.Enabled || p.Executable != "notify-test" || len(p.Events) != 6 || p.MaximumAttempts != 3 || p.Timeout.Seconds() != 4 || p.EnvironmentNames[0] != "HOOK_TOKEN" {
+		t.Fatalf("policy=%+v", p)
+	}
+	first := result.EffectiveConfigSHA256
+	writeConfigTestFile(t, workDir, strings.ReplaceAll(string(mustReadConfig(t, workDir)), "maximum_attempts: 3", "maximum_attempts: 2"))
+	changed, err := CheckRunConfig(workDir)
+	if err != nil || changed.EffectiveConfigSHA256 == first {
+		t.Fatalf("notification fingerprint did not change: %v", err)
+	}
+}
+
+func TestCheckRunConfigRejectsInvalidNotificationPolicy(t *testing.T) {
+	base := "autonomy:\n  redaction:\n    environment_variables: [HOOK_TOKEN]\n"
+	for _, test := range []struct{ name, config, want string }{
+		{"unknown field", "notifications:\n  typo: true\n", "field typo not found"},
+		{"unknown event", "notifications:\n  enabled: true\n  events: [future]\n  executable: hook\n", "unknown"},
+		{"duplicate event", "notifications:\n  enabled: true\n  events: [task_completed, task_completed]\n  executable: hook\n", "duplicate event"},
+		{"missing executable", "notifications:\n  enabled: true\n  events: [task_completed]\n", "executable is required"},
+		{"unredacted environment", "notifications:\n  enabled: true\n  events: [task_completed]\n  executable: hook\n  environment_names: [OTHER]\n  timeout_seconds: 1\n  stdout_cap_bytes: 1\n  stderr_cap_bytes: 1\n  maximum_attempts: 1\n", "not covered"},
+		{"excess attempts", "notifications:\n  enabled: true\n  events: [task_completed]\n  executable: hook\n  timeout_seconds: 1\n  stdout_cap_bytes: 1\n  stderr_cap_bytes: 1\n  maximum_attempts: 6\n", "between 1 and"},
+		{"disabled material", "notifications:\n  enabled: false\n  executable: hook\n", "disabled policy"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			workDir := t.TempDir()
+			writeConfigTestFile(t, workDir, base+test.config)
+			if _, err := CheckRunConfig(workDir); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error=%v", err)
+			}
+		})
+	}
+}
+
 func mustReadConfig(t *testing.T, workDir string) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(workDir, ".revolvr", DefaultConfigFile))

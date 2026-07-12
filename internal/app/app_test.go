@@ -487,6 +487,9 @@ verification:
 	want := []PreflightCheck{
 		{Status: PreflightOK, Name: "state", Detail: "initialized at " + filepath.Join(workDir, ".revolvr")},
 		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
+		{Status: PreflightOK, Name: "autonomy safety", Detail: "mode=operator_attended; operator remains responsible for host, network, hooks, and credentials; worktree isolation is Git/source isolation only"},
+		{Status: PreflightOK, Name: "artifact retention", Detail: "schema=revolvr-artifact-retention-policy-v1 mutation_enabled=false recent_runs=20"},
+		{Status: PreflightOK, Name: "notification hooks", Detail: "disabled; no executable lookup, environment load, outbox write, or process start"},
 		{Status: PreflightOK, Name: "codex executable", Detail: "/fake/bin/codex-test"},
 		{Status: PreflightOK, Name: "codex model", Detail: "gpt-5.6-sol"},
 		{Status: PreflightOK, Name: "codex reasoning effort", Detail: "xhigh"},
@@ -530,6 +533,9 @@ verification:
 	want := []PreflightCheck{
 		{Status: PreflightFail, Name: "state", Detail: "not initialized; run `revolvr init`"},
 		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
+		{Status: PreflightOK, Name: "autonomy safety", Detail: "mode=operator_attended; operator remains responsible for host, network, hooks, and credentials; worktree isolation is Git/source isolation only"},
+		{Status: PreflightOK, Name: "artifact retention", Detail: "schema=revolvr-artifact-retention-policy-v1 mutation_enabled=false recent_runs=20"},
+		{Status: PreflightOK, Name: "notification hooks", Detail: "disabled; no executable lookup, environment load, outbox write, or process start"},
 		{Status: PreflightFail, Name: "codex executable", Detail: `"missing-codex" not found: executable missing-codex not found`},
 		{Status: PreflightOK, Name: "codex model", Detail: "gpt-5.6-sol"},
 		{Status: PreflightOK, Name: "codex reasoning effort", Detail: "xhigh"},
@@ -543,6 +549,44 @@ verification:
 	}
 	if !reflect.DeepEqual(result.Checks, want) {
 		t.Fatalf("preflight checks = %#v, want %#v", result.Checks, want)
+	}
+}
+
+func TestPreflightDoesNotClaimFullyUnattendedReadinessWithoutTaskWorkspace(t *testing.T) {
+	workDir := t.TempDir()
+	createAppPreflightState(t, workDir)
+	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+autonomy:
+  mode: fully_unattended
+  external_isolation:
+    expectation: container
+    enforcement: external_attestation
+    attestation: {authority: operator, evidence: container, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+  network:
+    access: denied
+    enforcement: external_attestation
+    attestation: {authority: operator, evidence: firewall, sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+  hooks: {policy: disabled}
+  environment: {inherit_host: false}
+  acknowledgement: revolvr-fully-unattended-v1:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+verification:
+  commands: [{name: go}]
+`)
+	result, err := Preflight(context.Background(), Config{WorkDir: workDir}, PreflightInput{CommandRunner: readyPreflightCommandRunner(t), LookPath: preflightLookPath(map[string]string{"codex": "/fake/bin/codex", "git": "/fake/bin/git"})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Ready {
+		t.Fatal("fully unattended doctor was ready without an admitted task workspace")
+	}
+	found := false
+	for _, check := range result.Checks {
+		if check.Name == "autonomy safety" && check.Status == PreflightFail && strings.Contains(check.Detail, "task/workspace-bound") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("checks = %+v", result.Checks)
 	}
 }
 
@@ -868,6 +912,24 @@ Create third.
 		if task.Workflow != taskfile.WorkflowMixedPassV1 || task.Phase != taskfile.PhaseImplement || task.RunProfile != "implementer" {
 			t.Fatalf("imported task lifecycle = %+v, want default mixed-pass implement task", task)
 		}
+	}
+}
+
+func TestTaskImportPreservesSchedulingMetadata(t *testing.T) {
+	workDir := t.TempDir()
+	result, err := ImportTasksFromMarkdown(context.Background(), Config{WorkDir: workDir}, ImportTasksFromMarkdownInput{Markdown: []byte("## Task: Scheduled\nDo it.\n\n### Depends On\n- upstream\n\n### Tags\n- api\n\n### Conflicts\n- shared-db\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Tasks) != 1 {
+		t.Fatalf("tasks=%d", len(result.Tasks))
+	}
+	loaded, found, err := taskfile.FindByID(workDir, result.Tasks[0].ID)
+	if err != nil || !found {
+		t.Fatalf("load=%v %v", found, err)
+	}
+	if strings.Join(loaded.DependsOn, ",") != "upstream" || strings.Join(loaded.Tags, ",") != "api" || strings.Join(loaded.Conflicts, ",") != "shared-db" {
+		t.Fatalf("loaded=%#v", loaded)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
+	"revolvr/internal/redact"
 	"revolvr/internal/runner"
 )
 
@@ -188,6 +189,45 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 	}
 	if completedPayload["exit_code"] != float64(0) || completedPayload["usage_found"] != true {
 		t.Fatalf("completed payload = %#v", completedPayload)
+	}
+}
+
+func TestRunRedactsPersistentAndReturnedCodexOutput(t *testing.T) {
+	workDir := t.TempDir()
+	secret := "token-super-secret"
+	redactor, _, err := redact.New(redact.Policy{SchemaVersion: redact.PolicySchemaVersion, EnvironmentVariables: []string{"TOKEN"}}, func(name string) (string, bool) { return secret, name == "TOKEN" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := Run(context.Background(), Config{
+		WorkingDir: workDir, Prompt: "safe prompt", Redactor: redactor,
+		Artifacts: ArtifactPaths{StdoutJSONL: "run/codex.jsonl", Stderr: "run/codex.stderr", LastMessage: "run/final.json"},
+		CommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			line := `{"type":"turn.completed","final_message":"` + secret + `"}`
+			command.OnStdoutLine(line)
+			command.OnStderrLine("stderr " + secret)
+			if err := os.WriteFile(argAfter(command.Args, "--output-last-message"), []byte(`{"value":"`+secret+`"}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			return runner.Result{ExitCode: 0, Stdout: line + "\n", Stderr: "stderr " + secret, Err: errors.New("wrapped " + secret)}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for label, value := range map[string]string{"stdout": result.Stdout.Content, "stderr": result.Stderr.Content, "error": result.Err.Error(), "final": result.FinalMessage} {
+		if strings.Contains(value, secret) || !strings.Contains(value, redact.Replacement) {
+			t.Fatalf("%s not redacted: %q", label, value)
+		}
+	}
+	for _, path := range []string{result.Artifacts.StdoutJSONL, result.Artifacts.Stderr, result.Artifacts.LastMessage} {
+		raw, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if strings.Contains(string(raw), secret) {
+			t.Fatalf("artifact %s leaked secret", path)
+		}
 	}
 }
 

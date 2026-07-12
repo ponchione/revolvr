@@ -2,17 +2,757 @@
 
 ## Current Focus
 
-No task is currently in progress. AW-16 is complete and verified. The next
-unchecked task is `AW-17`, structured `needs_input` handling. AW-17 has not
-been started. A detailed fresh-session kickoff prompt is available at
-`.agent/AW_17_KICKOFF_PROMPT.md`. The AW-01 through AW-16 baseline and handoff
-are committed; the next pass should begin by confirming a clean worktree.
+AW-29 is complete. AW-30 is the next unchecked task and must be started in a
+new fresh session. The AW-01 through AW-16 baseline remains committed at
+`28371e4`; AW-17 through AW-29 are intentionally uncommitted and must be
+preserved unless the operator commits them first.
+
+## AW-29 Completion (2026-07-12)
+
+- Selected task: AW-29 — add configurable, bounded external notification hooks
+  for unattended terminal outcomes.
+- Ownership and contracts: new dependency-free `internal/autonomousnotification`
+  owns strict `revolvr-notification-policy-v1`, canonical map-free
+  `revolvr-notification-payload-v1`, deterministic event/delivery identity,
+  durable intent/payload/journal/history, bounded execution/retry/restart, and
+  read-only inspection. It owns no task lifecycle, scheduling, finalization,
+  archive, safety classification, ledger authority, metrics, or concurrency.
+- Events and source authority: the exact allowlist is `task_completed`,
+  `task_blocked`, `task_needs_input`, `safety_stop`, `queue_drained`, and
+  `daemon_failed`. App adapters consume only terminal AW-22 task-run operations,
+  terminal AW-24 queue operations, typed AW-17 question history, and bounded
+  foreground daemon results backed by an exact durable queue occurrence.
+  Legacy reason-only input and daemon failures without durable occurrence
+  evidence are refused. Queue task outcomes reuse their exact task-operation
+  adapters, so direct, queue, daemon, and replay paths derive the same identity.
+- Payload: canonical compact JSON with one newline includes stable event and
+  delivery IDs, exact UTC source occurrence, hashed repository identity,
+  effective-config and hook-policy identities, typed subject/outcome/stop,
+  bounded redacted detail, fixed applicable/inapplicable task/task-run/worker/
+  question/queue/daemon/archive/safety/terminal/evidence references, and sorted
+  omission facts. Newly completed tasks explicitly omit archive authority.
+- Configuration: strict top-level `notifications` YAML is disabled by default
+  and part of `revolvr-effective-run-config-v4`. Enabled policy requires an
+  explicit event allowlist, exact executable/ordered argv, fixed
+  `repository_root` directory, replacement environment names, positive bounded
+  timeout/caps/attempts, and bounded retry delay. Unknown fields/events,
+  duplicates, unsupported directories, empty executable, invalid bounds, and
+  hook environment names outside AW-19 redaction coverage fail closed.
+- Permissions and secrets: hooks run through `runner.Command` with no shell,
+  canonical JSON stdin, repository-root directory, exact argv, `ReplaceEnv`,
+  and only configured environment values. Runtime rejects missing/empty secret
+  sources and policy material containing a configured secret. Payload strings,
+  captured output/errors, resolved authority display, app diagnostics, and CLI
+  evidence are redacted; config/doctor expose names/counts and never values.
+- Durable delivery: `.revolvr/autonomous/notifications/<delivery-id>/` contains
+  immutable `intent.json`, exact `payload.json`, synchronized immutable
+  transition history, canonical replaceable `journal.json`, and a delivery
+  lock. Paths reject traversal, unsafe evidence, hard links, writable modes,
+  and symlinked runtime namespaces. Payload is durable before invocation;
+  history precedes journal replacement; exact material replays and conflicts
+  fail explicitly; valid history ahead of a missing/lagging journal is
+  reconstructed read-only and rolled forward by the next delivery transition.
+- Retry/restart: success is terminal and never intentionally starts another
+  process. Nonzero exits and timeouts retry deterministically up to at most five
+  configured total attempts; missing executable/secret, invalid material,
+  unsafe paths, and conflicts are nonretryable. Cancellation starts no new
+  attempt and interrupts runner/delay. An interrupted running attempt is
+  recorded as retryable before a bounded retry. Every attempt reuses identical
+  payload bytes and delivery ID. External exactly-once is not claimed across
+  receiver-success/local-crash; receivers can deduplicate the stable key.
+- Integration and locks: direct task and queue wrappers release the global
+  autonomous-execution lease before dispatch. Queue-internal task runs do not
+  dispatch; the enclosing durable outcomes adapt once after lease release.
+  Daemon sweeps dispatch after their queue lease, and daemon failure adaptation
+  does not reinterpret cancellation, normal sweep limits, or safety as failure.
+  No source/state/Git/admin/child/archive/retention lock is held during a hook.
+- Failure isolation and operator surface: notification success/failure is
+  journaled and reported through a panic-isolated app observer; CLI renders
+  bounded warnings after the unchanged source result. Hook failure cannot
+  modify task/state/question/workspace/checkpoint/queue/daemon/archive/Git or
+  source ledger authority and never hides the source error. `notification
+  list/show` is strict redacted read-only inspection and never retries.
+- Compatibility: disabled policy performs no notification lookup, secret load,
+  directory/lock/ledger/temp creation, or process start. Existing task/queue/
+  daemon, mixed-pass, archive, retention/export, AW-27 views, AW-28 TUI refresh,
+  config/status/show behavior remains compatible aside from the intentional
+  effective-config v4 identity and additive config/doctor/help output. Outbox
+  evidence is deliberately separate from ledger/export/retention schemas.
+- Tests added: six-event payload golden hashes, determinism, strict decode,
+  redaction, caller-slice ownership, policy defaults/validation/hash sensitivity,
+  disabled no-op, exact stdin/argv/directory/replacement environment, payload-
+  before-process, timeout/nonzero retry/exhaustion, cancellation, byte-identical
+  retry, terminal replay, running/history-ahead restart, symlink refusal,
+  configured-secret absence, task safety failure isolation, lease release,
+  source byte preservation, app replay deduplication, CLI warning/list, and
+  read-only noncreation.
+- Verification passed: required AW-28 baseline; required AW-29 focused package
+  matrix; repeated focused notification/app/CLI/config tests; `go test -count=1
+  ./...`; `go vet ./internal/app ./internal/cli ./internal/runonce
+  ./internal/autonomousnotification`; `git diff --check`; root/run/notification
+  help, notification list, config check, and status smokes. Doctor rendered the
+  deterministic disabled notification fact and failed only the established
+  accumulated dirty-worktree check.
+- No live Codex/model, real receiver/webhook/network request, repository/Git
+  hook, daemon service, archive/retention mutation, metric/evaluation, parallel
+  worker, dependency, commit, push, reset, clean, restore, checkout, or stash
+  was used.
+- Remaining work: AW-30 owns metrics and deterministic evaluations. AW-31 owns
+  bounded parallel workers. Neither was started.
+- Blockers: none.
+
+## AW-28 Completion (2026-07-12)
+
+- Selected task: AW-28 — add autonomous workflow visibility and safe controls
+  to the TUI.
+- Information architecture: added additive `6 Workflow` navigation while
+  preserving Dashboard, Tasks, Runs, Run Detail, Preflight, Help, Add Task,
+  and existing number-key behavior. Tasks can open their exact workflow
+  evidence directly; a bounded app selector list includes active tasks and
+  tracked archives, including archive-only repositories.
+- Projection ownership/rendering: Workflow consumes only the injected AW-27
+  `autonomousview.View`. Stable plain-text sections render identity/lifecycle,
+  decision/current worker/readiness/why, plan, acceptance, findings,
+  attempts/budgets, typed input, verification/audit, workspace/checkpoint,
+  terminal/archive, provenance/raw references, and diagnostics. It does not
+  parse state JSON or open stores. Explicit none/not-available/unlimited/
+  unverified facts remain readable without color.
+- Async/selection behavior: selector and evidence loads are Bubble Tea
+  commands bound to exact selectors and monotonic request tokens. Stale
+  responses are ignored, errors remain visible, explicit refresh refetches,
+  selection is preserved by task identity, and an active task transitioning
+  into an archive follows the same task ID to the archive selector. Long
+  detail uses the shared viewport with page/top/bottom movement and coherent
+  narrow wrapping.
+- App boundaries: new read-only `ListAutonomousTaskSelectors` performs strict
+  task/archive discovery without loading state, verifying archives, or
+  creating runtime evidence; display labels and errors use configured-secret
+  redaction. New `AnswerAutonomousInput` reloads exact current task/question
+  authority, calls canonical AW-17 answer then resume operations with exact
+  identity/CAS/provenance, and returns typed partial success when answer
+  persistence succeeds but resume fails. Exact retry resumes that existing
+  answer without duplication.
+- Safe controls: `U` continues to run only the exact selected ready active
+  pending autonomous task. `Q` starts the existing bounded sequential AW-24
+  queue with 100-task/50-cycle defaults. Both require established preflight,
+  share the TUI one-active-operation state, compose the app/global execution
+  lease, stream typed progress, retain final stop evidence, refresh status and
+  workflow evidence, and use idempotent `c` cancellation that waits for the
+  typed terminal result.
+- Input control: only current typed questions expose `a Answer`; legacy input,
+  archives, missing callbacks, and stale/already-resumed authority fail closed.
+  Every ordered option and the recommendation are visible, no option is
+  preselected, and submission requires an explicit selection plus a second
+  confirmation. TUI operator provenance is explicit. Answer-persisted/
+  resume-failed state is shown rather than guessed away.
+- Archive/read-only/redaction: Workflow archive display uses strict AW-27 Show
+  and says `unverified`; it never runs Verify, create, reopen, finalization,
+  workspace cleanup, retention, daemon installation, model work, notification,
+  metrics, or parallel execution. Read-only selector/view tests preserve
+  bytes, mtimes, directory entries, and cache absence. Raw control selectors
+  are not rendered; redacted labels/projections are the display authority.
+- Tests added: active/archive selector discovery and redaction; exact answer,
+  stale refusal, answer/resume success, persisted-answer recovery; projection
+  loading/error-token behavior, active-to-archive preservation, every lifecycle
+  label, comprehensive evidence rendering, narrow/resize/scroll behavior,
+  explicit option/confirmation semantics, queue progress/overlap/cancellation,
+  and CLI callback wiring. Existing TUI snapshots and mixed-pass controls stay
+  byte-compatible outside the additive Workflow/help surfaces.
+- Files changed for AW-28: `internal/app/autonomous_input.go` and tests;
+  `internal/tui/model.go` plus `autonomous_test.go`; `internal/cli/root.go` plus
+  `tui_autonomous_test.go`; `README.md`; durable state/handoff/decision files;
+  and the consumed AW-28 kickoff prompt deletion.
+- Verification passed: mandated AW-27 baseline; required AW-28 focused package
+  suite; `go test -count=1 ./...`; `go vet ./internal/app ./internal/tui
+  ./internal/cli`; `git diff --check`; root/TUI/task-show help, config check,
+  and status smokes. No live Codex/model, network, hook, daemon, archive
+  mutation/verification, retention mutation, notification, metric/evaluation,
+  parallel worker, commit, push, reset, clean, restore, checkout, or stash ran.
+- Remaining work: AW-29 owns external notifications. AW-30 metrics/evaluations
+  and AW-31 bounded parallel workers remain untouched.
+- Blockers: none.
+
+## AW-27 Completion (2026-07-12)
+
+- Selected task: AW-27 — expose autonomous plans, acceptance, findings,
+  attempts/budgets, provenance, and routing explanations through read-only app
+  and CLI projections.
+- Projection ownership: new dependency-free `internal/autonomousview` owns the
+  strict map-free `autonomous-task-view-v1` contract, deep-cloned pure
+  projection, deterministic canonical JSON, typed diagnostics, configured
+  string redaction, and explicit why-reason precedence. It performs no
+  filesystem, Git, SQLite, clock, environment, command, cache, model, or
+  mutation work.
+- Projection contents: identity/source kind, exact task/state/archive
+  identities, lifecycle summary, ordered plan steps, acceptance dispositions,
+  audit finding introduction/current audit/resolution facts, total/per-action
+  attempts, unset/limited/unlimited retry/elapsed/token/action budgets, attempt
+  references and stops, typed/legacy input, current verification/audit,
+  workspace/checkpoint, terminal/finalization/archive facts, provenance/raw
+  references, and bounded omissions are represented without public maps.
+- Why semantics: the view distinguishes `latest_decision`,
+  `currently_admitted_action`, `scheduler_readiness`, and
+  `next_supervisor_action`. A current admission is shown only when exact typed
+  decision evidence and the durable in-flight/terminal lifecycle agree.
+  Otherwise the result is `undetermined_requires_supervisor`; lifecycle or plan
+  position never predicts the next decision. Terminal archives/tasks report
+  no next supervisor action.
+- Active selection and snapshot: app `ShowAutonomousTask` duplicate-checks all
+  canonical active tasks and strict archive manifests, rejects active/archive
+  and multi-archive ambiguity, loads only exact `autonomous-v1` task/state
+  authority through `taskfile`/`autonomousstate`, reconstructs committed audit
+  history read-only, bounds and strictly reads the latest decision artifact,
+  then rechecks task/state/audit/decision identities before returning. A
+  changing snapshot fails instead of mixing evidence.
+- Archive selection: `autonomousarchive.LoadEvidence` extends strict `Show`
+  with exact archived task, terminal state, and completed-only frozen-evidence
+  loading. It does not run full `Verify`; views say `unverified` and
+  `archive_verification_not_run`. Cancelled/superseded/abandoned archives
+  explicitly mark completion evidence not applicable. Completed archives can
+  project the frozen exact decision, final verification, and clean audit.
+- Sparse/malformed behavior: required canonical task/state/archive bytes fail
+  closed. Missing plans, audits, verification, decisions, workspaces, input,
+  and provenance remain explicit. Malformed optional committed audit history
+  degrades to a diagnostic while valid state still renders; a malformed latest
+  accepted decision payload makes the route unknown and cannot admit work.
+  Mixed-pass tasks return a clear autonomous-evidence-unavailable view.
+- Scheduler explanation: ordinary active views project pending/lifecycle and
+  active dependency readiness. They never silently treat strict archive Show
+  as verified dependency authority; an archived dependency remains waiting
+  with `archive_dependency_unverified` until the separate full verification
+  boundary runs. No conflict occupancy or worker is invented by viewing.
+- CLI surface: `revolvr task show <active-task-id-or-archive-selector>` renders
+  one stable plain-text evidence report; `--json` emits the validated canonical
+  projection. `revolvr task why <selector>` renders the focused routing/gate
+  explanation. Output uses stable section/order, UTC RFC3339Nano exact times,
+  explicit none/unset/unlimited/unverified/not-applicable wording, no color,
+  width, locale, relative time, or ambient clock.
+- Read-only/redaction: viewing acquires no mutation lease, opens no writable
+  ledger, creates no task/state/archive/cache/lock/WAL/receipt/export/sidecar,
+  and never invokes archive verification, retention, workspace recovery, Git,
+  Codex, verification, audit, notification, metrics, or parallel work.
+  Existing AW-19 configured environment secrets are loaded at the app boundary
+  and removed from human and JSON projections and returned errors.
+- Compatibility: existing task list/status/run show/archive show/verify,
+  config/doctor/receipt/TUI and mixed-pass behavior remain unchanged. AW-26
+  cache entries are neither populated nor repaired; before/after smokes proved
+  `.revolvr/cache/dossier` stayed absent. No dependency or TUI workflow control
+  was added.
+- Tests added: strict/deterministic projection JSON, unknown fields, caller
+  immutability, typed input without recommendation selection, lifecycle why
+  states, plan/acceptance/finding/budget facts, redaction, active read-only tree
+  identity, malformed optional audit history, malformed latest decision,
+  cancellation, hard canonical-state failure, mixed-pass absence, cancelled
+  archive omissions/unverified status, active/archive ambiguity, byte-stable
+  human/why output, JSON CLI output, all lifecycle rendering labels, and help.
+- Verification passed: required AW-26 baseline; required broad AW-27 focused
+  packages; repeated `go test -count=1 ./...`; focused changed-package `go
+  vet`; `git diff --check`; root/task/show/why help, config check, and status
+  smokes; and explicit dossier-cache noncreation proof.
+- No live Codex/model, network request, hook, dependency addition, source task
+  execution, archive verification/reopen/create, workspace recovery, retention
+  mutation, notification, metric/evaluation, parallel worker, commit, push,
+  reset, clean, restore, checkout, or stash was used.
+- Remaining work: AW-28 owns TUI autonomous workflow visibility and controls.
+  AW-29 notifications, AW-30 metrics/evaluations, and AW-31 bounded parallel
+  workers remain untouched.
+- Blockers: none.
+
+## AW-26 Completion (2026-07-12)
+
+- Selected task: AW-26 — cache immutable dossier context by exact Git/source
+  identity and render role-specific supervisor and worker projections.
+- Cache ownership: new dependency-free `internal/dossiercache` owns schema
+  `revolvr-dossier-cache-v1`, algorithm `git-tree-path-map-v1`, strict typed
+  source/key/entry manifests, deterministic repository-map rendering, lookup,
+  immutable synchronized publication, and deterministic corruption evidence.
+  Entries live only under `.revolvr/cache/dossier/v1/<key>/` and contain
+  `manifest.json` plus `repository-map.md`.
+- Cache identity and source classification: keys bind canonical hashed control
+  and execution roots, exact commit and tree object IDs, producer/schema,
+  path/byte bounds, and ordered applicable guidance path/content/size facts.
+  Only committed-tree repository-map material is cached. Canonical task/state,
+  plan/acceptance/findings/input/attempt/budget/workspace evidence,
+  verification/audit/receipts/history, dirty status/diff, profiles, safety,
+  config, schemas, routes, and prompts remain live per-call evidence.
+- Repository map: assembly uses bounded read-only `git rev-parse` and
+  `git ls-tree -r -z` output, never ambient mtimes or worktree content. Paths
+  are canonical and sorted; `.git` and `.revolvr` are excluded; Go,
+  documentation, configuration, command, and generic facts are conservative;
+  symlink and submodule entries are labeled metadata-only. Whole-path caps and
+  exact total/included/omitted/truncated facts are visible.
+- Cache behavior: cold misses recompute and publish; valid hits return exact
+  cached bytes; identical publication replays; changed HEAD/tree, guidance,
+  bounds, algorithm, worktree/root identity produce another key. Strict reads
+  reject nonregular, symlinked, hard-linked, unsafe-mode, oversized,
+  noncanonical, unknown-field, key/source/hash/size/count/token-inconsistent,
+  partial, or unsupported entries. Corrupt/unsupported bytes are never used;
+  safe Git recomputation proceeds with the original deterministic diagnostic
+  retained in the role manifest, without overwriting/deleting the corrupt
+  entry.
+- Source freshness: existing full source snapshots still bracket the entire
+  assembly/supervision window. Assembly additionally reloads canonical task
+  and applicable guidance bytes after Git/cache collection, and refuses
+  same-HEAD task/guidance mutation. Dirty/untracked/status/diff and workspace
+  facts remain live, so a cache hit never authorizes source, task, state,
+  profile, safety, config, or route admission.
+- Role projection: pure `autonomous.ProjectTaskDossier` and
+  `ReprojectTaskDossier` cover exactly supervisor, planner, implementer,
+  auditor, corrector, documentor, and simplifier. Existing action/profile
+  pairs map fail-closed to one role. Exact task/state/plan/acceptance/Git/
+  guidance/map evidence remains in every view; verification, audit/finding,
+  recent-history, and legacy projection sections follow an explicit tested
+  role matrix with named deterministic omissions. Caller evidence is cloned.
+- Size/token facts: schema `autonomous-role-dossier-manifest-v1` records each
+  section's exact total/included bytes and items, omissions/reasons, final
+  dossier hash/size, and deterministic `utf8-bytes-ceil-div-4-v1` estimates.
+  The manifest states that estimates are not actual Codex usage. Exact prompt
+  byte size and estimate are recorded separately in supervisor/worker
+  provenance; AW-15 receipt accounting remains actual usage authority.
+- Exact sent evidence: supervisor runs retain `supervisor-dossier.md` and
+  `supervisor-dossier-manifest.json`; workers retain `worker-dossier.md` and
+  `worker-dossier-manifest.json`, alongside the existing exact full prompt,
+  profile, output schema, output, source, stream, receipt, and provenance
+  artifacts. Worker prompt construction validates that dossier role/hash/size
+  exactly match the admitted route. Ledger artifact extraction and export now
+  preserve the dossier paths; provenance embeds cache result/key/entry
+  manifest identity, role/policy, dossier facts, prompt facts, task/source/
+  profile/config/safety/run identities.
+- Retention/redaction/observability: AW-25 inventory remains ledger-derived and
+  does not classify or evict the shared cache namespace. Runs remain
+  inspectable/exportable after cache loss because exact dossiers are copied
+  into each run. No status/show/config/doctor/TUI/archive/GC read populates or
+  repairs the cache; smoke tests proved config/status leave it absent. No new
+  operator config was required because projection/cache bounds are fixed
+  harness policy in this slice. README documents the behavior and limits.
+- Tests added/extended: deterministic key/map/order/classification/bounds;
+  miss/hit/replay/HEAD and guidance invalidation; corruption recomputation;
+  control-root and cancellation isolation; role snapshots/matrix/unknown
+  combinations/caller immutability/cross-task isolation; same-HEAD guidance
+  mutation; exact supervisor/worker dossier artifacts, manifest identities,
+  prompt inclusion, and ledger extraction/export compatibility.
+- Verification passed: required AW-25 baseline; required broad AW-26 focused
+  packages; repeated `go test -count=1 ./...`; focused `go vet`; `git diff
+  --check`; CLI help, config check, and status smokes; explicit proof ordinary
+  config/status reads did not create `.revolvr/cache/dossier`.
+- No dependency, live Codex/model, network request, hook, arbitrary repository
+  binary, source-task mutation, archive/reopen, cache eviction, notification,
+  metric/evaluation, parallel worker, commit, push, reset, clean, restore,
+  checkout, or stash was used.
+- Remaining work: AW-27 owns broad app/CLI plan/findings/acceptance/why-next
+  evidence views. AW-28 TUI workflow controls, AW-29 notifications, AW-30
+  metrics/evaluations, and AW-31 parallel workers remain untouched.
+- Blockers: none.
+
+## AW-25 Completion (2026-07-12)
+
+- Selected task: AW-25 — artifact retention, compression, garbage collection,
+  and deterministic ledger export/replay validation.
+- Ownership: new `internal/artifactretention` owns the versioned retention
+  policy, exact stream inventory, transitive pin closure, deterministic typed
+  plans, deterministic gzip compatibility, mutation lease, quarantine, and
+  restartable synchronized GC journal/history. New `internal/ledgerexport`
+  owns read-only SQLite snapshot export, immutable canonical JSONL/manifest
+  publication, verification, and logical replay; live ledger row deletion was
+  deliberately not added.
+- Policy/config: schema `revolvr-artifact-retention-policy-v1` is harness-only,
+  map-free, strict YAML and part of `revolvr-effective-run-config-v3` identity.
+  Defaults disable mutation, pin 20 recent runs, compress after seven days,
+  retain for 90 days, admit only Codex JSONL/stderr, require verified export
+  for pruning, and bound operations to 100 files/1 GiB. Config check and doctor
+  expose the effective nonsecret policy; negative, overflowed,
+  contradictory, unknown, and destructive-without-export values fail.
+- Inventory/pins: candidates originate only from exact ledger artifact events
+  under `.revolvr/runs/<run-id>/`, with regular-file/mode/link/path, SHA-256,
+  byte-size, and frozen-mtime checks. Active task identity conservatively pins
+  every associated run; nonterminal and recent runs pin directly; canonical
+  autonomous/archive/queue/task-run/child/completion/recovery JSON references
+  pin exact paths and referenced run IDs transitively. Incomplete GC recovery
+  evidence pins while cleaned operations do not. Unknown stream-shaped files,
+  ambiguous ownership, missing required representations, symlinks, hard links,
+  unsafe modes, traversal, and changing ledger/files fail closed.
+- Compression/read compatibility: eligible old original streams are replaced
+  only by standard-library deterministic gzip with fixed headers plus
+  `revolvr-compressed-artifact-v1` manifest recording original/compressed
+  SHA-256 and size and original mtime. Compression is bounded, cancellable,
+  atomic/synchronized, verifies compressed and decompressed readback, rejects
+  corrupt/dual/divergent forms, and reconciles an interrupted exact dual
+  publication. Receipt validation and worker JSONL metric recovery transparently
+  consume the admitted logical representation without changing ledger paths.
+- Export/replay: `revolvr-ledger-export-v1` manifests and canonical
+  `revolvr-ledger-export-record-v1` JSONL preserve every run field, exact global
+  event ID/type/time, byte-exact base64 payload, explicit legacy/versioned
+  payload schema, range/high-water/source-ledger identities, counts/hashes,
+  predecessor lineage, and verified compressed-representation facts. Export
+  uses immutable SQLite reads, detects source changes and configured secrets,
+  recovers identical orphan stream publication, and never prunes SQL rows.
+  Verify checks canonical paths/types/links, source coverage, stream hashes,
+  counts/range gaps/order/payload schemas/predecessors/secrets and compressed
+  facts. Replay reconstructs exact logical histories, terminal status, ordered
+  events, artifacts, verification/commit/finalization/archive/task-run/queue
+  payload evidence without executing work or mutating the live ledger.
+- GC transaction: dry-run requires one operation ID and frozen UTC time and
+  performs no runtime creation or SQLite write. The plan binds policy/config,
+  repository/ledger/high-water, ordered pins/actions, source and expected gzip
+  identities, exact byte counts/bounds, export requirement, and content-derived
+  plan identity. Apply requires that exact ID, recomputes authority before
+  admission, takes the outer retention and autonomous-execution leases, probes
+  active Git-admin/child/source writers, and revalidates ledger/high-water and
+  current pins before every action. Stage order is admitted, verified/replayed
+  export, compression, quarantine prune, completed journal, bounded cleanup,
+  cleaned journal. Immutable synchronized history precedes journal replacement;
+  cancellation records a resumable result and exact retries reconcile without
+  duplicate export/compression/quarantine/deletion.
+- App/CLI/docs: app exposes plan/apply/resume/inspect and export/verify/replay
+  APIs. CLI adds default-dry-run `artifact gc`, explicit exact-plan apply,
+  inspect/resume, and `ledger export`, `verify`, and `replay-validate`. Output is
+  deterministic and narrow; no TUI retention controls or AW-27/AW-28 evidence
+  screens were added. README documents safe defaults, policy, operations, and
+  compatibility.
+- Tests added: policy/default/hash/config parsing; deterministic empty and
+  candidate plans; active/recent pins; unknown-file refusal; deterministic and
+  cancelled gzip; compressed reads; exact apply/replay; interrupted dual
+  publication recovery; cancelled journal resume; compression-before-prune;
+  verified export before quarantine; compressed-reference export; immutable
+  deterministic export; exact legacy payloads; tamper/secret refusal; logical
+  terminal replay; doctor/config visibility; CLI dry-run/no-write/apply guard
+  and export verify/replay snapshots.
+- Verification passed: required AW-24 baseline; focused AW-25 packages; repeated
+  `go test -count=1 ./...`; focused `go vet`; `git diff --check`; artifact/ledger
+  CLI help; config check; and status. No live model, network, hook, source task,
+  archive/reopen, notification, cache, metric, parallel worker, current-repo GC
+  mutation, commit, push, reset, clean, restore, checkout, or stash was invoked.
+- Remaining work: AW-26 exclusively owns Git-SHA dossier caching and
+  role-specific projections. AW-27/AW-28 retain broad evidence screens/TUI
+  controls; AW-29 notifications, AW-30 metrics/evaluations, and AW-31 bounded
+  parallelism remain untouched.
+- Blockers: none.
+
+## AW-24 Completion (2026-07-12)
+
+- Selected task: AW-24 — queue-until-exhausted and daemon-safe continuation.
+- Queue ownership: new `internal/autonomousqueue` owns a versioned sequential
+  queue operation above AW-23 scheduling and AW-22 exact-task execution. It
+  persists exact mode/config/safety/bounds/times/sweep, fresh scheduling
+  fingerprints, derived task-operation IDs, in-flight selection, ordered task
+  outcomes, authority-bound exclusions, statistics, remaining work, and typed
+  stop evidence under `.revolvr/autonomous/queues/<operation-id>/`.
+- Durability/recovery: synchronized immutable history is written before every
+  mutable checkpoint replacement with canonical JSON, contained non-symlink
+  paths, exclusive history, atomic same-directory rename, directory sync, and
+  strict readback. Newer valid history recovers a lagging checkpoint. Selection
+  is durable before AW-22 starts; in-flight restart reopens only the same
+  derived operation; exact terminal replay starts no work; changed operation
+  material, malformed/divergent state, or conflicting task results fail closed.
+- Fresh selection/fairness: every boundary reloads duplicate-checked active
+  tasks/states, completed verified/reconciled archives, and complete child
+  publication authority, then uses the scheduler's pure canonically ordered
+  classification. Safe completed/blocked/input/task-cancelled/budget/
+  no-progress/max-cycle stops are recorded and yield to unrelated work.
+  Queue-local exclusions bind the exact task/state/status/lifecycle authority
+  and vanish only after material change, preventing starvation without changing
+  priority, dependencies, status, budgets, or task bytes.
+- Stop classification: deterministic precedence distinguishes `drained`,
+  `waiting_dependencies`, `waiting_input`, `waiting_blocked`, queue-owned
+  `budget_exhausted`, `cancelled`, `safety_stop`, and
+  `unsafe_or_ambiguous`. Unsafe results or uncertain runner errors stop before
+  another task. Summaries retain every terminal task and its AW-22 operation.
+- Dependency/child/archive behavior: completion unlocks dependency chains and
+  diamonds on the next exact graph; newly published independent children can
+  enter later selections; dependent children remain waiting; completed archive
+  authority unlocks but is never selected. Incomplete child publication,
+  malformed graph/archive/state, missing state, or disappeared pinned authority
+  is queue-fatal. Queue execution never archives, reopens, answers input,
+  retries/unblocks, restores/cleans, or mutates scheduling metadata.
+- Locks: new `internal/autonomousexec` is the outer one-active autonomous
+  execution lease shared by direct AW-22 app runs and queue sweeps. The queue's
+  internal AW-22 path does not reacquire it, avoiding self-deadlock. Queue
+  operation leases are outer to task execution and never acquired by
+  Git-admin, state, child-publication, or source-writer owners. Daemon waiting
+  holds none of those locks.
+- Daemon: new `internal/autonomousdaemon` provides foreground injected polling
+  and stable debounce only. Explicit fully-unattended AW-19 authority is
+  required. Exact pre/post-sweep fingerprints preserve events arriving during
+  a sweep; transient/equivalent samples start no duplicate sweep; cancellation
+  interrupts poll/debounce; safety/ambiguity stops; and an explicit maximum
+  bounds sweeps. Wake count/fingerprint are stored with the next durable queue
+  sweep and ledger evidence. No dependency or platform-specific watcher was
+  added.
+- Ledger/redaction: deterministic queue ledger runs content-compare and
+  deduplicate admitted, selection, task-stopped, daemon-wake, and stopped
+  events. Terminal ledger completion follows readable terminal checkpoint
+  persistence. Configured-secret redaction covers stop details, outcomes,
+  checkpoints/history, ledger payloads, progress, app results, and CLI output;
+  progress callback panics are isolated.
+- App/CLI/TUI: app exposes one-shot queue and foreground daemon operations,
+  reusing production AW-22 assembly without CLI recursion. CLI adds mutually
+  exclusive `run --queue` and `run --daemon`, stable operation ID, positive
+  task/cycle/sweep/poll/debounce bounds, and deterministic ordered summaries.
+  Mixed-pass `--once`/`--max-passes`, exact `--until-terminal`, archive,
+  status/show/receipt/config/doctor, and current TUI `U`/`R`/`L` behavior remain
+  compatible. Broad TUI queue controls remain AW-28; concurrency remains AW-31.
+- Tests added: independent multi-task order; blocked/input safe skip; waiting
+  precedence; dependency diamond unlock; child appearance between selections;
+  starvation prevention; queue budget; safety/unsafe/cancellation; exact
+  derived operation recovery after selection-history crash; terminal replay and
+  operation conflict; queue/driver lock cancellation; ledger deduplication;
+  secret redaction; daemon attended refusal, stable debounce, transient events,
+  event-during-sweep, cancellation, safety stop; scheduling fingerprint
+  exclusion of queue/ledger self-effects; app composition; and CLI flags/
+  summaries.
+- Verification passed: required AW-23 baseline; focused AW-24 package suite;
+  repeated `go test -count=1 ./...`; focused `go vet`; `git diff --check`;
+  `go run ./cmd/revolvr run --help`; `go run ./cmd/revolvr config check`; and
+  `go run ./cmd/revolvr status`.
+- No live Codex/model session, network request, hook, dependency, commit, push,
+  destructive Git command, archive mutation, workspace cleanup, notification,
+  retention operation, or parallel task execution was invoked.
+- Remaining work: AW-25 owns retention/compression/GC and ledger export/replay.
+  AW-26 and later retain caching, broad evidence screens/TUI controls,
+  notifications, metrics/evaluations, and parallel workers.
+- Blockers: none.
+
+## AW-23 Completion (2026-07-12)
+
+- Selected task: AW-23 — dependency-aware scheduling and supervised child
+  tasks.
+- Canonical metadata: taskfile now strictly projects and parses source-ordered
+  comma-separated `depends_on`, `tags`, and `conflicts`, plus immutable child
+  parent/proposal/decision/run/evidence/behavior lineage. Status updates,
+  finalization projections, archive/reopen byte preservation, ordinary add,
+  and Markdown import retain the metadata; unknown frontmatter and original
+  line endings/final-newline behavior remain byte-preserved.
+- Scheduler: new pure `internal/autonomousscheduler` validates one exact
+  duplicate-checked active snapshot plus caller-supplied verified/reconciled
+  archive evidence. Missing/self/duplicate edges, cycles, duplicate IDs, and
+  active/archive ambiguity fail closed with deterministic evidence. Only
+  completed active or completed archived identities unlock dependents;
+  archived identities are never selections. Readiness distinguishes waiting,
+  blocked, needs-input, conflict, wrong-workflow, and nonpending states.
+- Ordering/conflicts: ready tasks retain ascending priority semantics, then
+  canonical source path and task ID. Conflicts are symmetric when either task
+  names the other or both share a stable conflict key, and apply only against
+  exact occupied identities in this sequential slice.
+- AW-22 composition: omitted-task admission selects once through the scheduler
+  above `autonomoustaskrun`; explicit new operations receive the same gate
+  before workspace/model work. Existing durable operation identity bypasses
+  ambient reselection on restart. The pinned loop still returns after its one
+  task's terminal/max-cycle/budget/input/safety outcome and never consumes a
+  second task.
+- Child contract: block/needs-input decisions may carry at most four bounded
+  structured child proposals whose exact material evidence is a subset of the
+  accepted supervisor inputs. Stable keys, distinct normalized scopes,
+  bounded title/scope/criteria/lists, dependencies/tags/conflicts, and typed
+  parent behavior are required; broad roadmap/command/permission/network/
+  environment/sandbox authority is rejected. Dependent children name the
+  parent edge; independent children cannot name or bypass it.
+- Child publication: new `internal/autonomouschild` derives deterministic
+  collision-resistant IDs, canonical task/state paths, initial pending state,
+  and `autonomous-child-lineage-v1`. One global child-publication lock protects
+  a versioned journal with immutable history-before-journal stages. State is
+  published before task visibility; incomplete journals make scheduling fail
+  closed; exact retry rolls forward, changed operation material conflicts, and
+  user-owned collisions are never overwritten. Parent task/state/history are
+  read and hash-revalidated but never mutated.
+- Evidence/accounting/safety: child publication starts no worker, verification,
+  commit, finalization, archive, nested Codex, or AW-15 attempt. Three
+  idempotently reconciled supervisor-run ledger events cover proposal admitted,
+  children published, and completion. Configured secret values are refused
+  before child task/state persistence.
+- App/CLI/TUI: app projections expose dependency/tag/conflict/parent metadata,
+  deterministic autonomous readiness, and next-autonomous identity. Task list
+  adds narrow scheduling columns; status reports next autonomous readiness;
+  TUI detail shows scheduling facts and `U` refuses a selected non-ready task.
+  Mixed-pass selection and `--once`/`--max-passes` remain unchanged.
+- Tests added: strict metadata round-trip/CRLF/no-final-newline/status
+  preservation; import preservation; DAG/diamond-style readiness, completed
+  archive, missing/duplicate/ambiguous/cycle diagnostics, priority ties,
+  lifecycle reasons, and conflicts; explicit AW-22 dependency admission and
+  pinned one-task behavior; child schema bounds/authority; deterministic
+  creation, parent immutability, state lineage, ledger deduplication,
+  crash/restart, changed-operation conflict, partial-publication fail-closed,
+  and secret refusal; app and TUI admission coverage.
+- Verification passed: required AW-22 baseline; required focused AW-23 package
+  suite; `go test -count=1 ./...`; focused `go vet`; `git diff --check`; and
+  non-model CLI help/config/status smoke commands.
+- Remaining work: AW-24 owns queue-until-exhausted, daemon/watch continuation,
+  fairness, and moving to a second ready task. AW-25 and later retain retention,
+  caching, broad evidence screens, notifications, metrics, and concurrency.
+- Blockers: none.
+
+## AW-22 Completion (2026-07-12)
+
+- Selected task: AW-22 — run one selected autonomous task until terminal.
+- Ownership and identity: `internal/autonomoustaskrun.RunTaskUntilTerminal`
+  owns only the exact-task loop, typed stop/result/statistics contract, durable
+  operation checkpoint/history, replay, and operation lease. Explicit task ID
+  or deterministic next-autonomous selection occurs once; the exact task,
+  original task/state identities, workspace/checkpoint, effective config,
+  max-cycle mode/value, evidence, counters, and stop are pinned. It never
+  selects a replacement task after completion, block, input, cancellation,
+  budget/max-cycle exhaustion, safety stop, or archive movement.
+- Durability and locks: operation schema `autonomous-task-run-operation-v1`
+  lives under `.revolvr/autonomous/task-runs/<operation-id>/`. Immutable
+  synchronized history precedes mutable checkpoint replacement; recovery
+  reads the newest valid history when it is ahead of the checkpoint. Exact
+  replay is idempotent, changed task/config/limit conflicts, and an ambiguous
+  in-flight external cycle stops without starting work. The separate operation
+  lease is outermost and never acquired by Git-admin/state/source owners.
+- Cycle/admission order: every cycle reconstructs current durable authority
+  and calls bounded `autonomouscycle` once. Its nil-compatible `BeforeWorker`
+  seam runs only after exact decision/policy/source admission and performs
+  AW-15 CAS admission before any worker. Ordinary plan/implement/audit work is
+  completed/accounted once, then persisted through existing owners before the
+  next fresh supervisor cycle.
+- Correction and optional roles: admitted `correct` results continue through
+  `autonomouscorrection` for fast verification, distinct final verification,
+  exact finding resolution, independent re-audit, and audit persistence before
+  AW-15 completion. Admitted document/simplify results continue through the
+  new `autonomousoptional.Continue` boundary for no-op/source-change
+  accounting, final verification, fresh audit, occurrence persistence, and
+  exact replay; it never starts or charges the already-run worker again.
+- Terminal owners: AW-17 persists needs-input without an attempt; new
+  `internal/autonomousblock` re-evaluates the exact block route, records
+  immutable `autonomous-block-transition-v1` evidence, CASes the state to
+  blocked, and publishes blocked task status; AW-20 alone performs completion
+  finalization through ledger completion. Completed results are deliberately
+  terminal-but-unarchived because AW-21 authority remains a separate explicit
+  operation.
+- Workspaces/safety: the app prepares or reopens the exact AW-18 workspace,
+  uses it for every cycle, and advances only verified committed checkpoints.
+  AW-19 preflight and redaction remain authoritative. Operation checkpoint,
+  history, ledger, progress, result, CLI, and TUI summaries receive redacted
+  detail; caller cancellation stops new work and already-admitted accounting
+  uses non-cancelled persistence without rewriting task cancellation.
+- Limits/statistics: default CLI/TUI max cycles is 50; API callers may select a
+  positive limited value or unlimited mode. Equality stops before cycle N+1
+  and never alters AW-15 budgets. Ordered durable statistics include cycle and
+  supervisor counts, attempts, action counts, verification, audit, correction,
+  optional-role, commit, and checkpoint totals.
+- Ledger evidence: one deterministic operation ledger run records versioned
+  admitted, cycle-started, cycle-completed, restarted, and stopped summaries.
+  Exact retry deduplicates events and terminal run completion; loop completion
+  is never claimed before AW-20 finalization.
+- App/CLI/TUI: app exposes the typed operation; CLI adds
+  `run --until-terminal [--task] [--operation-id] [--max-cycles]`, rejects
+  incompatible mode flags and nonpositive limits, and renders deterministic
+  stop/evidence statistics. TUI `U` pins the selected pending autonomous task,
+  reuses preflight/one-active-run/cancel/progress/refresh behavior, and never
+  starts the next row. Existing `run --once`, `run --max-passes`, archive
+  commands, and mixed-pass routing remain unchanged.
+- Tests: fake/temp-repository coverage includes completion, correction,
+  needs-input, explicit block, every projected budget/no-progress/safety stop,
+  cancellation before and during a cycle, max-cycle equality, exact replay,
+  immutable-history crash recovery, ambiguous in-flight refusal, selected-task
+  pinning, second-task byte/state isolation, loop-ledger deduplication,
+  redaction, renderer panic isolation, block CAS/replay/conflict, optional
+  pre-admitted continuation, CLI flag/stat rendering, TUI pin/cancel/refresh,
+  and pre-worker admission ordering. Existing owner packages retain deeper
+  finalization/archive/workspace/safety/correction/optional failure matrices.
+- Verification passed: required AW-21 baseline; required focused AW-22 package
+  suite including `internal/autonomoustaskrun` and `internal/autonomousblock`;
+  repeated `go test -count=1 ./...`; focused `go vet` for every AW-22 changed
+  package; `git diff --check`; `go run ./cmd/revolvr run --help`;
+  `go run ./cmd/revolvr config check`; and read-only `go run ./cmd/revolvr
+  status`.
+- No live Codex/model session, network request, hook, dependency addition,
+  commit, push, destructive Git command, workspace cleanup, archive mutation,
+  queue, scheduler, daemon, notification, metric framework, or concurrency was
+  used or added.
+- Remaining work: AW-23 owns dependency-aware scheduling and supervised child
+  tasks. AW-24 and later retain queues/daemon, retention, projections,
+  notifications, metrics/evaluations, and concurrency.
+- Blockers: none.
 
 ## Dogfood Timestamp Verification
 
 - 2026-07-08T13:04:17Z live run `019f41d3-9120-7a77-92fd-d799f76ba000`: verifies receipt timestamp finalization after the prior fix by writing the receipt with the prompt-provided stale timestamp.
 
 ## Last Run
+
+Task completed on 2026-07-12:
+
+- Selected task: AW-21 — move terminal tasks into tracked archives with verify and reopen support.
+- Files changed: added `internal/autonomousarchive` contracts, storage, transaction coordinator, scoped Git reconciliation, read-only verification, reopen coordinator, and focused real-Git/ledger tests; added app and CLI archive operations/tests; extended autonomous lifecycle/reopen lineage and taskfile terminal status/reopen publication contracts; added archive/reopen ledger event types; updated README and durable `.agent` state; removed the consumed AW-21 kickoff prompt after final verification.
+- Ownership and entry points: `autonomousarchive.Archive`, `List`, `Show`, `Verify`, and `Reopen` are isolated bounded operations. They never invoke Codex, a supervisor/worker, verification command, audit, correction, optional roles, source restoration/cleanup, a scheduler, or a loop. Ordinary `taskfile` list/find/select remains active-only under `.agent/tasks/*.md`; archive discovery scans only the canonical tracked archive hierarchy.
+- Dispositions and authority: schema `autonomous-task-archive-authority-v1` covers exactly completed, cancelled, superseded, and abandoned. Task/state contracts now represent those terminal outcomes; blocked and needs-input remain active and fail archive admission. Non-completed outcomes require matching terminal task/state disposition and exact reason plus trusted provenance and terminal time; their manifest explicitly omits completion authority.
+- Completed admission: completed tasks require finalization stage `ledger_completed`, exact completed task and canonical terminal-state identities, AW-20 frozen evidence/capsule/manifest, final source/workspace/checkpoint, final-purpose verification, independent clean audit, safety policy, and exact terminal finalization ledger event/run evidence. `completion.md` is copied byte-for-byte from the verified AW-20 runtime capsule and is never rerendered.
+- Identity/layout/manifest: archive IDs are deterministic SHA-256-derived values over task/operation/disposition/frozen UTC archive time. That UTC time alone selects `.agent/archive/YYYY/MM/<task-id>/`; tracked files are `task.md`, `archive.json`, and completed-only `completion.md`. Schema `autonomous-task-archive-manifest-v1` binds operation/archive/task/disposition/reason/provenance/terminal/archive times, original/archived task, state, applicable AW-20 and ledger identities, expected paths, and explicit omissions. The administrative commit SHA is recorded non-recursively in runtime history and ledger evidence.
+- Path/collision behavior: exact replay is allowed only for identical operation/content. Different archive/task/operation/lineage content conflicts. Strict list/show rejects duplicate archive/task IDs, malformed date depth, foreign files/directories, traversal, absolute paths, symlinks, unsafe file modes, hard-link counts, wrong types, and different pre-existing target bytes. Active selection never sees archived files.
+- Locks and transaction order: archive takes control-root `.revolvr/locks/git-admin.lock` before the task's canonical `state.lock`, rejects live control-root or workspace source writers, then validates task/state/finalization/artifacts/ledger/Git/index/worktree authority. Each stage writes synchronized immutable `autonomous-task-archive-transition-v1` history before atomic journal replacement. Order is admitted; archive files published; exact active task removed; administrative commit reconciled; archive ledger completed. After admission, persistence uses a non-cancelled context and retry rolls forward exact partial effects without reset, clean, restore, stash, broad deletion, or overwrite.
+- Git administration: archive commits contain only the exact tracked archive additions and optional active-task deletion and carry `Archive-Operation`, `Archive-ID`, `Task-ID`, `Disposition`, and `Terminal-Identity` lines. Reopen commits contain only the new active task. Pre/post HEAD comparison, one HEAD retry, unborn repositories, advanced-HEAD command failure, indeterminate outcomes, exact commit-tree paths/bytes, and unrelated dirt/staging refusal are enforced.
+- Ledger/runtime evidence: archive creation uses one exact run and idempotent versioned prepared/files-published/active-removed/commit-reconciled/completed events. Runtime journals/history remain directly addressable after active-task removal and no longer depend on `autonomousstate.canonicalTask`. Material event/run reuse conflicts; successful retry creates no duplicate history, events, commits, or archive entry.
+- Read-only verification: ordered named checks cross archive schema/path/date/task bytes and terminal metadata; canonical terminal state; AW-20 frozen/capsule/manifest/final source/workspace/checkpoint/verification/audit/safety/ledger evidence; archive journal/history/ledger; administrative commit identity/tree/bytes; active-task exclusion/reopen lineage; and configured-secret absence. It opens SQLite immutable/read-only and does not repair, normalize, stage, commit, create sidecars, update ledger, or change file mtimes.
+- Reopen semantics: reopen first verifies the archive immediately before admission and always creates a new task ID. Schema `autonomous-reopen-lineage-v1` in the new pending state binds archive/task/disposition/archive commit, operator/harness authority, reason, operation, and time. Only task id/status/state reference change; exact spec, unknown metadata, CRLF/LF, and no-final-newline behavior are preserved. State/task publication and the path-scoped reopen commit recover idempotently; a second/conflicting reopen fails; the immutable archive remains canonical and no run starts.
+- Redaction: configured secret values are rejected before tracked task/capsule/manifest publication and checked again by read-only verification. AW-20 remains responsible for redacting completion artifacts; AW-21 never rewrites exact task or capsule bytes to conceal a leak.
+- Tests added: deterministic UTC paths/archive IDs and strict list/show; completed AW-20 byte-copy and evidence verification; cancelled/superseded/abandoned archives; blocked rejection; exact active selection exclusion; crash after active removal and roll-forward with single ledger effects; operation conflicts; secret and symlink refusal; tamper detection; read-only HEAD/status/ledger/mtime preservation; reopen/new pending lifecycle/lineage/selection/replay/second-reopen refusal; partial reopen state/task recovery; app list/show; CLI list/show/help/explicit-UTC validation.
+- Verification run: preserved required AW-20 baseline; `gofmt -w` on every AW-21 Go file; required focused package suite including `internal/autonomousarchive`; `go test -count=1 ./...`; `go vet` across every changed Go package; `git diff --check`; `go run ./cmd/revolvr archive --help`; `go run ./cmd/revolvr archive list`; archive verify/reopen help smoke commands.
+- Verification result: all focused real-Git/filesystem/ledger/app/CLI tests, the complete repository suite, changed-package vet, diff validation, and non-model CLI smoke commands passed. No live Codex/model, hook, network request, dependency, push, force, destructive Git command, source-worktree cleanup, scheduler, terminal loop, or TUI archive operation was used.
+- Remaining work: AW-22 owns the run-one-task-until-terminal loop. AW-21 added no dependency scheduling, queue/daemon, retention/GC/export, dossier caching, broad autonomous CLI/TUI evidence screens, notifications, metrics/evaluations, or concurrency.
+- Blockers: none.
+
+Task completed on 2026-07-12:
+
+- Selected task: AW-20 — add transactional terminal finalization and completion capsules.
+- Files changed: added `internal/autonomousfinalization` contracts, deterministic capsule/manifest rendering, immutable artifact handling, and bounded coordinator; added finalization detail/stage validation under `internal/autonomous`; added `autonomous-finalization-transition-v1` history/CAS persistence under `internal/autonomousstate` and extended committed-audit traversal; added finalization ledger event types and a pure task metadata projection helper; added focused domain, golden, gate, ordering, redaction, crash/retry, stale-evidence, ledger-deduplication, and integration tests; updated `README.md` and durable `.agent` state; removed the consumed AW-20 kickoff prompt after verification.
+- Ownership and entry point: `autonomousfinalization.Finalize` consumes one exact frozen `complete` authorization and never starts Codex, a worker, verification, audit, correction, optional roles, a source commit, restoration, archive movement, or a loop. It recomputes `autonomouspolicy.Evaluate` from the exact complete decision/reference/state/source/final verification/audit and requires a caller-owned bounded live evidence revalidator before admission and again before task terminalization.
+- Frozen evidence: schema `autonomous-completion-frozen-evidence-v1` binds the original and projected-completed task bytes, canonical state hash/size, decision/reference/route, current source, exact ready/restored checkpointed workspace, safety policy/preflight/config, completed plan, acceptance dispositions, final-purpose tiered verification, independent clean audit, finding and optional-role histories, completed attempt/budget evidence, ordered commits/runs/provenance, and harness admission/terminal times. Exact state/task hashes are recomputed; stale identity, fast/flaky/missing verification, findings-bearing/stale audit, pending acceptance, open attempts, workspace/checkpoint/source/policy drift, and malformed commit/run evidence fail closed.
+- Lifecycle and persistence: `autonomous-finalization-state-v1` advances monotonically through `admitted`, `capsule_materialized`, `task_completed`, `state_completed`, and `ledger_completed`. `ExecutionState.Validate` requires detail for `finalizing`, permits legacy completed snapshots without it, requires AW-20 completed snapshots to have reached state completion, and prevents immutable authority/artifact/task/time rewrites or regression. Each canonical replacement has an immutable finalization history record written first under the shared task `state.lock`, exact state CAS, synchronized atomic rename, strict readback, replay/conflict/stale handling, and committed-audit graph continuity.
+- Artifacts and capsule: immutable `completion-evidence.json`, deterministic human-readable `completion.md`, and `completion-manifest.json` live under `.revolvr/autonomous/tasks/<task-id>/completion/`. Canonical contained paths, non-symlink parents, same-directory temporary files, bounded modes, file/directory sync, atomic rename, exact hash/size readback, collision refusal, deterministic source ordering, explicit waiver/not-applicable/finding/optional/commit/run facts, omission records, and nonrecursive manifest hashing are enforced. AW-19 configured-secret redaction is applied to all three persistent artifacts.
+- Task/state/ledger choice and order: AW-20 changes only the canonical autonomous task status from pending to completed and freezes/validates the exact projected bytes; archive movement remains AW-21. Ordering is frozen artifact; admitted state; exact finalization run/prepared evidence; capsule/manifest; materialized state; task status; task-completed state; completed lifecycle/terminal detail; exact terminal event/run completion; ledger-completed state. No metadata-only source commit is made. Durable reconciliation uses a non-cancelled context, identical operation/stage/artifact/run/event effects replay, and conflicting reuse fails closed.
+- Tests added: finalization-detail lifecycle/monotonicity/immutability; byte-for-byte capsule golden and deterministic rerender; missing/pending/stale/fast/unsafe gates; explicit waiver/not-applicable and reconciled ordered commit rendering plus duplicate refusal; exact state/task/workspace/safety/config authority; crash after capsule rename with resumable admitted state; stale live evidence refusal after freeze; retry through task/state/ledger completion; exact terminal replay with one event of each type; and configured-secret removal from frozen evidence, capsule, and manifest.
+- Verification run: preserved AW-19 focused baseline; `gofmt -w` on all AW-20 Go files; required focused package suite including `internal/autonomousfinalization`; `go test -count=1 ./...`; `go vet ./internal/autonomous ./internal/autonomousstate ./internal/autonomousfinalization ./internal/autonomouspolicy ./internal/taskfile ./internal/ledger`; `git diff --check`.
+- Verification result: all focused tests, the complete repository suite, focused vet checks, and diff validation passed. No live Codex/model, verification command outside tests, hook, network request, dependency, source mutation/commit, destructive Git operation, archive, autonomous CLI/TUI run, scheduler, or loop was used.
+- Remaining work: AW-21 owns tracked terminal archives, archive verification, and reopen support. AW-20 added no archive paths/moves, run-until-terminal loop, scheduler/queue, retention, CLI/TUI autonomous evidence surface, notification, metrics, daemon, or concurrency behavior.
+- Blockers: none.
+
+Task completed on 2026-07-12:
+
+- Selected task: AW-19 — define the unattended-execution safety boundary and preflight.
+- Files changed: added `internal/autonomoussafety/contracts.go`, `preflight.go`, and focused tests; added dependency-free `internal/redact`; extended app/runonce strict config parsing and `revolvr-effective-run-config-v2` fingerprinting; extended deterministic config/doctor projections and tests; integrated safety authority, protected-path admission, provenance, environment projection, and redaction into `autonomouscycle`, `supervisor`, `codexexec`, `runner`, and AW-15 outcome classification; updated `README.md`, `scripts/dogfood-live.sh`, and durable `.agent` state; removed `.agent/AW_19_KICKOFF_PROMPT.md` after final verification.
+- Modes and acknowledgement: `operator_attended` is the explicit compatibility default for existing mixed-pass/local dogfood and keeps dangerous bypass/network/environment/hook responsibility visible. `fully_unattended` is never inferred and requires a ready/restored exact AW-18 task workspace, externally attested container/OS isolation, explicit externally attested network posture, non-ambient environment handling, trusted/absent hooks, resolved command provenance, redaction readiness, and exact `revolvr-fully-unattended-v1:<policy-sha256>` acknowledgement. Material policy changes invalidate stale acknowledgement.
+- Roots and protected authority: preflight consumes exact canonical control/execution/common-dir/owner/branch/checkpoint/current-source workspace evidence and derives harness-only run/receipt/lock/state-history roots plus the model source root. It rejects missing, symlinked, duplicate/overlapping, moved, or noncanonical roots. Protected classes cover Git common/worktree administration, ownership markers, locks, state/history, ledger, task specs, profiles, repository guidance, and safety config. Model changes to protected paths stop before verification/commit; task/model output is not a source of commands, environment, roots, network, hooks, or bypass permissions.
+- External isolation, network, and hooks: worktree evidence explicitly says Git/source isolation is not a security sandbox. Full autonomy requires stable operator-authored external-isolation/network attestations and rejects unknown network posture or ambient environment. Hook preflight resolves effective `core.hooksPath`, bounds/truncation-checks Git evidence, inventories executable regular hooks without running or modifying them, rejects symlinks/outside paths for full autonomy, and requires exact trusted path/content identities or an actually empty/disabled hook set.
+- Command/environment provenance: Codex, Git, and every flat/tiered verification command are resolved to executable content identities with exact argv, canonical directory, ordered configured environment, timeout, and output caps. Fully unattended execution can replace the ambient environment with an explicit allowed-name projection; operator-attended compatibility retains current inheritance. Commands remain bounded non-shell `runner.Command` values from harness/config authority.
+- Redaction: configured secret sources are environment-variable names only; values never enter effective config, hashes, config/doctor output, or policy provenance. Deterministic longest-first replacement covers overlapping/repeated values and is applied to Codex JSONL/stderr/final-output artifacts, returned stdout/stderr/errors, progress, and ledger summaries; redaction source/match facts and raw/redacted sizes remain visible. The autonomous command-runner projection redacts verification/Git/commit evidence before downstream persistence.
+- Runtime ordering and provenance: `autonomouscycle.Run` performs the task/workspace/source/config-bound safety preflight before dossier assembly, supervisor, or worker Codex. Failure returns typed `safety_preflight_failed` and starts no supervisor/worker/verification/commit. If an AW-15 caller already durably admitted the enclosing operation, the stop is charged once as safety evidence. Supervisor and worker invocation/provenance retain the same safety-policy SHA-256 and full redacted policy/preflight projection; protected path checks run before verification/commit.
+- Tests added/updated: strict mode/policy/config unknown-value handling; effective-hash sensitivity; missing/stale/valid acknowledgement; external/network/environment combinations; workspace/source identity; symlinked roots; protected task/profile/guidance/Git paths; default/disabled hooks and hook drift; executable provenance and caps; environment replacement; configured-secret overlap, error/output/artifact/ledger redaction; deterministic config/doctor visibility; safety failure before any Codex; and identical supervisor/worker policy identity. Existing AW-17 input, AW-18 workspace/checkpoint, AW-01–AW-16 autonomous, and mixed-pass behavior remain covered by the complete suite.
+- Verification run: AW-18 focused baseline; `gofmt -w <all changed Go files>`; required focused package suite including `internal/autonomoussafety` and `internal/redact`; repeated `go test -count=1 ./...`; focused `go vet` for all changed packages; `git diff --check`; `go run ./cmd/revolvr config check`; expected-nonzero `go run ./cmd/revolvr doctor` on the intentionally dirty accumulated worktree, which rendered the new safety check correctly and failed only worktree cleanliness.
+- Verification result: all focused tests, the complete repository suite, focused vet checks, config smoke, and diff validation passed. Doctor produced deterministic safety visibility and the expected dirty-worktree nonzero result. No live model/Codex, hook, verification command during preflight, container, network request, dependency addition, destructive Git operation, commit, or autonomous CLI/TUI run was used.
+- Remaining work: AW-20 owns transactional terminal finalization/completion capsules. AW-19 added no finalization/archive, repeated supervision loop, scheduler/queue, autonomous CLI/TUI controls, retention, notification, metrics, daemon, or concurrency behavior.
+- Blockers: none.
+
+Task completed on 2026-07-12:
+
+- Selected task: AW-18 — isolate autonomous tasks in dedicated Git worktrees with checkpoint recovery.
+- Files changed: added typed workspace/checkpoint/recovery contracts in `internal/autonomous/workspace.go`; extended execution-state validation and deterministic dossier rendering; added `internal/autonomousworkspace` Git administration, reconciliation, restoration, cleanup, and state-application boundaries; added immutable `autonomous-workspace-transition-v1` history and canonical-state compare-and-swap persistence under `internal/autonomousstate`; extended committed-audit reconstruction; separated control and execution roots through dossier assembly, supervisor, one-cycle worker, correction, optional-role, Codex artifact, and tiered-verification paths; added control-root workspace-scoped source locks; added focused contract, persistence, runtime, lock, and real-Git integration tests; updated durable `.agent` state and removed the consumed AW-18 kickoff prompt.
+- Workspace authority: `autonomous.TaskWorkspace` records exact task/workspace IDs, canonical absolute control/execution/common-dir/marker paths, deterministic harness branch ref, baseline/current HEAD/tree/source identities, known-good checkpoint sequence and provenance, retained failed/ambiguous refs, recovery evidence, status, and harness times. Immutable ownership fields cannot change across execution-state transitions; checkpoint/retained evidence cannot regress or disappear.
+- Deterministic ownership: workspace IDs hash canonical control root, Git common directory, and task ID. Branches are `refs/heads/revolvr/tasks/<validated-task>-<collision-resistant-id>` and worktrees live only at `.revolvr/autonomous/worktrees/<workspace-id>`. A canonical control-root ownership marker is written and synchronized before ref/worktree creation. Names, paths, branch prefixes, directories, `.git` files, or registry entries alone never grant ownership.
+- Creation/reopen recovery: preparation captures an exact commit baseline and creates a linked worktree from Git objects, never from the primary index/filesystem. Primary modified, staged, deleted, untracked, and concurrently edited bytes remain outside the task checkout. Exact marker/ref/registry/`.git` link/common-dir/branch/HEAD/tree/source evidence is revalidated. Marker-before-ref and ref-before-registration interruption windows recover idempotently; foreign branches, registered worktrees, unregistered paths, symlinked namespaces, and marker mismatches conflict without adoption or deletion.
+- Checkpoints and ambiguity: the baseline is checkpoint sequence one. `ReconcileCommit` accepts only an exact caller-observed distinct post-commit HEAD, preserving the established pre/post-HEAD rule; unknown advances receive immutable `refs/revolvr/retained/<workspace>/ambiguous-*` refs. A clean reconciled source can advance the known-good checkpoint with exact commit/tree/source/provenance evidence. Command, exit, bounded output/truncation, directory, and harness timestamps remain observable.
+- Failed restoration and cleanup: restoration first revalidates exact ownership and refuses an active source writer or ignored files that cannot be safely retained. It captures staged/tracked/untracked failed bytes in a synthetic immutable commit/ref, then and only then runs narrow `reset --hard <checkpoint>` plus `clean -fd` inside the owned execution worktree and verifies exact post-restore HEAD/tree/source cleanliness. Cleanup revalidates twice under the Git-admin lock and refuses dirty, ignored, locked, busy, advanced, ambiguous, mismatched, or retained-evidence workspaces; it removes only the exact registration and exact expected harness ref. User-owned refs/worktrees/files are never deleted.
+- Persistence and locks: `autonomousworkspace.Apply` records already-observed Git transitions through the shared per-task `state.lock`. Workspace history uses exact state SHA-256/byte-size CAS, immutable history-before-state replacement, same-directory temporary state files, flush/rename/directory sync/readback, replay/conflict/stale-write classification, and after-rename recovery. Committed audit-history traversal now includes workspace edges. Git administration uses a control-root global `git-admin.lock`; source writers use control-root `.revolvr/locks/workspaces/<workspace-id>/source-writer.lock` metadata naming the exact execution root. The order is Git-admin lock before workspace inspection/mutation; source execution never takes the Git-admin lock.
+- Runtime root split: canonical task/spec, profiles/guidance, state/history, ledger, receipts, schemas, and artifacts stay control-rooted. Dossier Git evidence, supervisor source snapshots, Codex working directory, changed-file capture, verification, commits, correction final verification, and optional-role source work use the admitted execution root. Codex and tiered verification have explicit control-root artifact roots. `autonomouscycle.Run`/`RunInWorkspace` fail closed without a validated workspace matching durable state; needs-input remains no-worker/no-mutation and mixed-pass behavior is unchanged.
+- Tests added: deterministic workspace JSON/dossier projection; contract/transition validation; state CAS/replay/conflict/stale/after-rename recovery; committed-audit traversal; real-Git exact-baseline create with modified/staged/deleted/untracked/concurrent primary edits; two-task isolation; owned creation-window recovery; branch/registered-worktree/symlink conflicts; restart reopen; successful commit reconciliation/checkpoint advancement; ambiguous advanced-HEAD retention; failed dirty/untracked state retention and exact restore; dirty/ignored/locked/active-writer/evidence-losing cleanup refusal; exact cleanup; workspace-scoped source-lock placement; and one-cycle control/execution/artifact routing.
+- Verification run: `gofmt -w <all changed Go files>`; AW-17 baseline focused tests; `go test -count=1 ./internal/autonomous ./internal/autonomousstate ./internal/gitstate ./internal/lock ./internal/commit ./internal/autonomouscycle ./internal/autonomousattempt ./internal/autonomouscorrection ./internal/autonomousoptional ./internal/autonomousinput ./internal/autonomouspolicy ./internal/autonomousverification ./internal/autonomousworkspace`; `go test -count=1 ./...`; `go vet ./internal/autonomous ./internal/autonomousstate ./internal/autonomousworkspace ./internal/autonomousassembly ./internal/autonomouscycle ./internal/autonomousattempt ./internal/autonomouscorrection ./internal/autonomousoptional ./internal/autonomousinput ./internal/autonomouspolicy ./internal/autonomousverification ./internal/codexexec ./internal/supervisor ./internal/lock ./internal/commit ./internal/gitstate`; `git diff --check`.
+- Verification result: all focused real-Git/unit/runtime tests, the complete repository suite, focused vet checks, and diff validation passed. No live Codex/model, nested session, autonomous CLI/TUI/runonce execution, dependency addition, or Git commit was used. Destructive Git commands ran only inside temporary test repositories and only after exact harness-worktree ownership validation.
+- Remaining work: AW-19 owns unattended permission/sandbox/preflight, protected paths, secret redaction, network policy, and dangerous-bypass acknowledgement. AW-18 adds no security sandbox, finalization/archive, repeated supervisor loop, scheduler/queue, retention, notifications, metrics, concurrency, or operator-facing workspace command.
+- Blockers: none.
+
+Task completed on 2026-07-12:
+
+- Selected task: AW-17 — add structured `needs_input` handling.
+- Files changed: extended `internal/autonomous` supervisor/state/dossier contracts and tests; added isolated `internal/autonomousinput`; added `internal/autonomousstate/input_history.go`, `input_store.go`, and focused tests; extended pure `internal/autonomouspolicy`, supervisor schema/parser/prompt/execution tests, one-cycle terminal routing, attempt decision signatures, committed audit-history traversal, canonical supervisor profile/template/tests, and durable `.agent` state/handoff files; removed `.agent/AW_17_KICKOFF_PROMPT.md` after completion.
+- Supervisor contract: added terminal-for-now `needs_input` with no worker, strategy, correction authority, or success criteria. Its task-bound question has a stable lower-case ID, positive revision, exact question and blocking reason, at least two distinct stable option IDs/meanings, one recommendation referencing an offered option plus rationale, typed evidence, and a deterministic SHA-256 over all control-relevant content. The parser deterministically assigns a missing content hash and rejects a supplied mismatch. Independent work is optional and limited to exact read-only plan/planner or audit/auditor declarations that name every offered option in canonical order; it is a projection, never a route.
+- Durable lifecycle: canonical execution state now retains immutable ordered question, answer, and resume records plus an exact current-question identity. Answers bind task, question ID/revision/content SHA-256, one offered option ID, stable answer ID, operator provenance/evidence, and harness-supplied timestamp. Resume binds the exact durable answer and restores only the recorded pending/ready lifecycle. Superseding questions retain the prior identity and use consecutive revisions for the same question ID. Unknown, wrong-task, stale, changed-content/option, superseded, contradictory, double-answer, and double-resume operations fail closed. Exact operation replay is idempotent; material reuse conflicts. Legacy `{\"reason\": ...}` snapshots remain readable/renderable but cannot authorize answer or resume.
+- Persistence and recovery: schema `autonomous-input-transition-v1` stores one immutable question/answer/resume transition per operation under `.revolvr/autonomous/tasks/<task-id>/history/input/`. It validates canonical task/path ownership, shares `state.lock`, uses exact SHA-256/byte-size CAS twice, writes and synchronizes immutable history before same-directory temporary state replacement, atomically renames, synchronizes directories, and strictly reads back. Failures before rename leave only a non-authoritative orphan reusable by exact retry; failures after rename reopen as committed replay. Committed audit reconstruction now traverses planning, audit, attempt, optional-role, question, answer, and resume transitions, so input evidence never hides the latest committed audit.
+- Safety and routing: pure policy admits a valid `needs_input` decision only from pending/ready with safe source evidence and returns a distinct no-worker route. A suspended task rejects all ordinary routing until an exact answer and explicit resume. `EvaluateNeedsInputYield` returns typed clean/unsafe results for task/state/question/provenance/source/in-flight gates; dirty, unknown, mismatched, stale, malformed, legacy, or source-mutating-in-flight state cannot yield. `EvaluateIndependentWork` exposes only a previously validated read-only declaration and starts nothing. The one-cycle coordinator returns `needs_input_authorized` without worker, verification, audit, commit, task/state persistence, or recommendation selection. Answer/resume persistence does not create attempts or change AW-15 counters/budgets.
+- Dossier and compatibility: deterministic dossiers render current and prior unanswered, answered, resumed, or superseded questions; exact options and recommendation; independent work; answer provenance; and legacy non-answerable state. Existing AW-01 through AW-16 decision JSON and zero-input execution-state bytes remain compatible through an omitted empty input projection. Mixed-pass behavior, `passpolicy`, `runonce`, task Markdown, verification, audit/finding ownership, optional roles, CLI, and TUI remain unchanged.
+- Tests added/updated: deterministic question/decision JSON, deterministic supervisor schema, parser-assigned identity, every malformed field composition, invalid/duplicate/ambiguous options and recommendations, exact/dependent/unsafe independent work, all-action compatibility, no-worker cycle behavior, unanswered route refusal, clean/dirty/unknown/in-flight/stale/malformed/provenance yield gates, answer persistence/provenance, unknown/wrong-task/stale/changed/superseded/contradictory answers, question/answer/resume replay and conflicts, explicit/double resume, append-only rewrite/disappearance rejection, unrelated evidence/budget preservation, legacy fail-closed behavior, restart, failures before/after state rename, and audit reconstruction through all three input transitions.
+- Verification run: `gofmt -w <all changed Go files>`; `go test -count=1 ./internal/autonomous ./internal/autonomouspolicy ./internal/autonomousstate ./internal/autonomousinput ./internal/supervisor ./internal/autonomouscycle ./internal/autonomousattempt ./internal/prompt`; `go test -count=1 ./...`; `go vet ./internal/autonomous ./internal/autonomousinput ./internal/autonomouspolicy ./internal/autonomousstate ./internal/supervisor ./internal/autonomouscycle ./internal/autonomousattempt ./internal/prompt`; `git diff --check`.
+- Verification result: all focused tests, the complete repository suite, focused vet checks, and diff validation passed. No live model/Codex, nested session, CLI/TUI autonomous execution, destructive Git command, dependency addition, or commit was used.
+- Remaining work: AW-18 is the next unchecked task and owns per-task Git worktree isolation and checkpoint recovery. AW-17 added no worktree, safety-preflight, finalization/archive, repeated loop, scheduler/queue, notification, CLI, or TUI surface.
+- Blockers: none.
 
 Task completed on 2026-07-11:
 

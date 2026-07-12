@@ -11,6 +11,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"revolvr/internal/artifactretention"
+	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/runonce"
@@ -39,11 +42,88 @@ type RunConfigCheckResult struct {
 }
 
 type fileConfig struct {
-	Codex        codexConfig        `yaml:"codex"`
-	Git          gitConfig          `yaml:"git"`
-	Verification verificationConfig `yaml:"verification"`
-	Commit       commitConfig       `yaml:"commit"`
-	Output       outputConfig       `yaml:"output"`
+	Codex         codexConfig        `yaml:"codex"`
+	Git           gitConfig          `yaml:"git"`
+	Verification  verificationConfig `yaml:"verification"`
+	Commit        commitConfig       `yaml:"commit"`
+	Output        outputConfig       `yaml:"output"`
+	Autonomy      autonomyConfig     `yaml:"autonomy"`
+	Retention     retentionConfig    `yaml:"retention"`
+	Notifications notificationConfig `yaml:"notifications"`
+}
+
+type notificationConfig struct {
+	SchemaVersion     string   `yaml:"schema_version"`
+	Enabled           *bool    `yaml:"enabled"`
+	Events            []string `yaml:"events"`
+	Executable        string   `yaml:"executable"`
+	Args              []string `yaml:"args"`
+	Directory         string   `yaml:"directory"`
+	EnvironmentNames  []string `yaml:"environment_names"`
+	TimeoutSeconds    *int64   `yaml:"timeout_seconds"`
+	StdoutCapBytes    *int     `yaml:"stdout_cap_bytes"`
+	StderrCapBytes    *int     `yaml:"stderr_cap_bytes"`
+	MaximumAttempts   *int     `yaml:"maximum_attempts"`
+	RetryDelaySeconds *int64   `yaml:"retry_delay_seconds"`
+}
+
+type retentionConfig struct {
+	SchemaVersion          string `yaml:"schema_version"`
+	MutationEnabled        *bool  `yaml:"mutation_enabled"`
+	RecentRunCount         *int   `yaml:"recent_run_count"`
+	CompressAfterSeconds   *int64 `yaml:"compress_after_seconds"`
+	PruneAfterSeconds      *int64 `yaml:"prune_after_seconds"`
+	MinimumCompressBytes   *int64 `yaml:"minimum_compress_bytes"`
+	CompressCodexJSONL     *bool  `yaml:"compress_codex_jsonl"`
+	CompressCodexStderr    *bool  `yaml:"compress_codex_stderr"`
+	PruneCompressedStreams *bool  `yaml:"prune_compressed_streams"`
+	RequireVerifiedExport  *bool  `yaml:"require_verified_export"`
+	MaxFilesPerOperation   *int   `yaml:"max_files_per_operation"`
+	MaxBytesPerOperation   *int64 `yaml:"max_bytes_per_operation"`
+	DecompressionCapBytes  *int64 `yaml:"decompression_cap_bytes"`
+}
+
+type autonomyConfig struct {
+	SchemaVersion     string                  `yaml:"schema_version"`
+	Mode              string                  `yaml:"mode"`
+	ExternalIsolation externalIsolationConfig `yaml:"external_isolation"`
+	Network           networkPolicyConfig     `yaml:"network"`
+	Hooks             hookTrustConfig         `yaml:"hooks"`
+	Environment       environmentPolicyConfig `yaml:"environment"`
+	Redaction         redactionPolicyConfig   `yaml:"redaction"`
+	Acknowledgement   string                  `yaml:"acknowledgement"`
+}
+
+type attestationConfig struct {
+	Authority string `yaml:"authority"`
+	Evidence  string `yaml:"evidence"`
+	SHA256    string `yaml:"sha256"`
+}
+type externalIsolationConfig struct {
+	Expectation string             `yaml:"expectation"`
+	Enforcement string             `yaml:"enforcement"`
+	Attestation *attestationConfig `yaml:"attestation"`
+}
+type networkPolicyConfig struct {
+	Access      string             `yaml:"access"`
+	Enforcement string             `yaml:"enforcement"`
+	Attestation *attestationConfig `yaml:"attestation"`
+}
+type trustedHookConfig struct {
+	Path   string `yaml:"path"`
+	SHA256 string `yaml:"sha256"`
+}
+type hookTrustConfig struct {
+	Policy  string              `yaml:"policy"`
+	Trusted []trustedHookConfig `yaml:"trusted"`
+}
+type environmentPolicyConfig struct {
+	InheritHost *bool    `yaml:"inherit_host"`
+	Allow       []string `yaml:"allow"`
+}
+type redactionPolicyConfig struct {
+	SchemaVersion        string   `yaml:"schema_version"`
+	EnvironmentVariables []string `yaml:"environment_variables"`
 }
 
 type codexConfig struct {
@@ -141,6 +221,9 @@ func CheckRunConfig(workDir string) (RunConfigCheckResult, error) {
 func DefaultRunOnceConfig(workDir string) runonce.Config {
 	return runonce.Config{
 		WorkingDir:                     workDir,
+		SafetyDeclaration:              autonomoussafety.DefaultDeclaration(),
+		RetentionPolicy:                artifactretention.DefaultPolicy(),
+		NotificationPolicy:             autonomousnotification.DefaultPolicy(),
 		CodexExecutable:                DefaultCodexExecutable,
 		CodexModel:                     DefaultCodexModel,
 		CodexReasoningEffort:           DefaultCodexReasoningEffort,
@@ -184,6 +267,21 @@ func parseFileConfig(content []byte) (fileConfig, error) {
 }
 
 func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
+	declaration, err := cfg.Autonomy.apply(base.SafetyDeclaration)
+	if err != nil {
+		return runonce.Config{}, err
+	}
+	base.SafetyDeclaration = declaration
+	notifications, err := cfg.Notifications.apply(base.NotificationPolicy, declaration.Redaction.EnvironmentVariables)
+	if err != nil {
+		return runonce.Config{}, err
+	}
+	base.NotificationPolicy = notifications
+	retention, err := cfg.Retention.apply(base.RetentionPolicy)
+	if err != nil {
+		return runonce.Config{}, err
+	}
+	base.RetentionPolicy = retention
 	if value := strings.TrimSpace(cfg.Codex.Executable); value != "" {
 		base.CodexExecutable = value
 	}
@@ -324,6 +422,184 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	applyPositiveInt(&base.CommitStderrCap, cfg.Output.CommitStderrCapBytes)
 
 	return base, nil
+}
+
+func (cfg notificationConfig) apply(base autonomousnotification.Policy, redactionNames []string) (autonomousnotification.Policy, error) {
+	if base.SchemaVersion == "" {
+		base = autonomousnotification.DefaultPolicy()
+	}
+	if value := strings.TrimSpace(cfg.SchemaVersion); value != "" {
+		base.SchemaVersion = value
+	}
+	if cfg.Enabled != nil {
+		base.Enabled = *cfg.Enabled
+	}
+	if cfg.Events != nil {
+		base.Events = make([]autonomousnotification.Event, len(cfg.Events))
+		for i, event := range cfg.Events {
+			base.Events[i] = autonomousnotification.Event(strings.TrimSpace(event))
+		}
+	}
+	if cfg.Executable != "" {
+		base.Executable = cfg.Executable
+	}
+	if cfg.Args != nil {
+		base.Args = append([]string(nil), cfg.Args...)
+	}
+	if cfg.Directory != "" {
+		base.Directory = cfg.Directory
+	}
+	if cfg.EnvironmentNames != nil {
+		base.EnvironmentNames = append([]string(nil), cfg.EnvironmentNames...)
+	}
+	if cfg.TimeoutSeconds != nil {
+		if *cfg.TimeoutSeconds > int64((time.Duration(1<<63-1))/time.Second) {
+			return autonomousnotification.Policy{}, errors.New("notification timeout_seconds overflows duration")
+		}
+		base.Timeout = time.Duration(*cfg.TimeoutSeconds) * time.Second
+	}
+	if cfg.StdoutCapBytes != nil {
+		base.StdoutCap = *cfg.StdoutCapBytes
+	}
+	if cfg.StderrCapBytes != nil {
+		base.StderrCap = *cfg.StderrCapBytes
+	}
+	if cfg.MaximumAttempts != nil {
+		base.MaximumAttempts = *cfg.MaximumAttempts
+	}
+	if cfg.RetryDelaySeconds != nil {
+		if *cfg.RetryDelaySeconds > int64((time.Duration(1<<63-1))/time.Second) {
+			return autonomousnotification.Policy{}, errors.New("notification retry_delay_seconds overflows duration")
+		}
+		base.RetryDelay = time.Duration(*cfg.RetryDelaySeconds) * time.Second
+	}
+	return base.Normalize(redactionNames)
+}
+
+func (cfg retentionConfig) apply(base artifactretention.Policy) (artifactretention.Policy, error) {
+	if base.SchemaVersion == "" {
+		base = artifactretention.DefaultPolicy()
+	}
+	if v := strings.TrimSpace(cfg.SchemaVersion); v != "" {
+		base.SchemaVersion = v
+	}
+	if cfg.MutationEnabled != nil {
+		base.MutationEnabled = *cfg.MutationEnabled
+	}
+	if cfg.RecentRunCount != nil {
+		base.RecentRunCount = *cfg.RecentRunCount
+	}
+	if cfg.CompressAfterSeconds != nil {
+		if *cfg.CompressAfterSeconds < 0 {
+			return base, errors.New("retention compress_after_seconds cannot be negative")
+		}
+		if *cfg.CompressAfterSeconds > int64((time.Duration(1<<63-1))/time.Second) {
+			return base, errors.New("retention compress_after_seconds overflows duration")
+		}
+		base.CompressAfter = time.Duration(*cfg.CompressAfterSeconds) * time.Second
+	}
+	if cfg.PruneAfterSeconds != nil {
+		if *cfg.PruneAfterSeconds < 0 {
+			return base, errors.New("retention prune_after_seconds cannot be negative")
+		}
+		if *cfg.PruneAfterSeconds > int64((time.Duration(1<<63-1))/time.Second) {
+			return base, errors.New("retention prune_after_seconds overflows duration")
+		}
+		base.PruneAfter = time.Duration(*cfg.PruneAfterSeconds) * time.Second
+	}
+	if cfg.MinimumCompressBytes != nil {
+		base.MinimumCompressBytes = *cfg.MinimumCompressBytes
+	}
+	if cfg.CompressCodexJSONL != nil {
+		base.CompressCodexJSONL = *cfg.CompressCodexJSONL
+	}
+	if cfg.CompressCodexStderr != nil {
+		base.CompressCodexStderr = *cfg.CompressCodexStderr
+	}
+	if cfg.PruneCompressedStreams != nil {
+		base.PruneCompressedStreams = *cfg.PruneCompressedStreams
+	}
+	if cfg.RequireVerifiedExport != nil {
+		base.RequireVerifiedExport = *cfg.RequireVerifiedExport
+	}
+	if cfg.MaxFilesPerOperation != nil {
+		base.MaxFilesPerOperation = *cfg.MaxFilesPerOperation
+	}
+	if cfg.MaxBytesPerOperation != nil {
+		base.MaxBytesPerOperation = *cfg.MaxBytesPerOperation
+	}
+	if cfg.DecompressionCapBytes != nil {
+		base.DecompressionCapBytes = *cfg.DecompressionCapBytes
+	}
+	if err := base.Validate(); err != nil {
+		return artifactretention.Policy{}, err
+	}
+	return base, nil
+}
+
+func (cfg autonomyConfig) apply(base autonomoussafety.Declaration) (autonomoussafety.Declaration, error) {
+	if base.SchemaVersion == "" {
+		base = autonomoussafety.DefaultDeclaration()
+	}
+	if value := strings.TrimSpace(cfg.SchemaVersion); value != "" {
+		base.SchemaVersion = value
+	}
+	if value := strings.TrimSpace(cfg.Mode); value != "" {
+		base.Mode = autonomoussafety.Mode(value)
+	}
+	if value := strings.TrimSpace(cfg.ExternalIsolation.Expectation); value != "" {
+		base.ExternalIsolation.Expectation = autonomoussafety.IsolationExpectation(value)
+	}
+	if value := strings.TrimSpace(cfg.ExternalIsolation.Enforcement); value != "" {
+		base.ExternalIsolation.Enforcement = autonomoussafety.Enforcement(value)
+	}
+	if cfg.ExternalIsolation.Attestation != nil {
+		base.ExternalIsolation.Attestation = convertAttestation(cfg.ExternalIsolation.Attestation)
+	}
+	if value := strings.TrimSpace(cfg.Network.Access); value != "" {
+		base.Network.Access = autonomoussafety.NetworkAccess(value)
+	}
+	if value := strings.TrimSpace(cfg.Network.Enforcement); value != "" {
+		base.Network.Enforcement = autonomoussafety.Enforcement(value)
+	}
+	if cfg.Network.Attestation != nil {
+		base.Network.Attestation = convertAttestation(cfg.Network.Attestation)
+	}
+	if value := strings.TrimSpace(cfg.Hooks.Policy); value != "" {
+		base.Hooks.Policy = autonomoussafety.HookPolicy(value)
+	}
+	if cfg.Hooks.Trusted != nil {
+		base.Hooks.Trusted = make([]autonomoussafety.TrustedHook, 0, len(cfg.Hooks.Trusted))
+		for _, hook := range cfg.Hooks.Trusted {
+			base.Hooks.Trusted = append(base.Hooks.Trusted, autonomoussafety.TrustedHook{Path: strings.TrimSpace(hook.Path), SHA256: strings.TrimSpace(hook.SHA256)})
+		}
+	}
+	if cfg.Environment.InheritHost != nil {
+		base.Environment.InheritHost = *cfg.Environment.InheritHost
+	}
+	if cfg.Environment.Allow != nil {
+		base.Environment.Allow = append([]string(nil), cfg.Environment.Allow...)
+	}
+	if value := strings.TrimSpace(cfg.Redaction.SchemaVersion); value != "" {
+		base.Redaction.SchemaVersion = value
+	}
+	if cfg.Redaction.EnvironmentVariables != nil {
+		base.Redaction.EnvironmentVariables = append([]string(nil), cfg.Redaction.EnvironmentVariables...)
+	}
+	if value := strings.TrimSpace(cfg.Acknowledgement); value != "" {
+		base.Acknowledgement = value
+	}
+	if err := base.Validate(); err != nil {
+		return autonomoussafety.Declaration{}, err
+	}
+	return base, nil
+}
+
+func convertAttestation(value *attestationConfig) *autonomoussafety.Attestation {
+	if value == nil {
+		return nil
+	}
+	return &autonomoussafety.Attestation{Authority: strings.TrimSpace(value.Authority), Evidence: strings.TrimSpace(value.Evidence), SHA256: strings.TrimSpace(value.SHA256)}
 }
 
 func seconds(value int) time.Duration {

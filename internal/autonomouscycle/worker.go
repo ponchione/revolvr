@@ -40,6 +40,14 @@ func runWorker(
 	if profile.Name != string(route.WorkerProfile) || strings.TrimSpace(profile.SourcePath) == "" || strings.TrimSpace(profile.Description) == "" {
 		return failed(result, OutcomeWorkerFailed, "worker_profile", fmt.Errorf("loaded profile does not exactly match policy-selected profile %q", route.WorkerProfile))
 	}
+	role, err := autonomous.RoleForAction(route.Action, route.WorkerProfile)
+	if err != nil {
+		return failed(result, OutcomeWorkerFailed, "worker_dossier_role", err)
+	}
+	dossier, err = autonomous.ReprojectTaskDossier(dossier, role)
+	if err != nil {
+		return failed(result, OutcomeWorkerFailed, "worker_dossier_projection", err)
+	}
 	profileRaw := []byte(profile.Description)
 	result.Worker.Action = route.Action
 	result.Worker.Profile = ProfileEvidence{
@@ -100,7 +108,8 @@ func runWorker(
 
 	invocation, _, err := codexexec.PrepareInvocation(codexexec.InvocationConfig{
 		Executable:             n.CodexExecutable,
-		WorkingDir:             n.root,
+		WorkingDir:             n.executionRoot,
+		ArtifactRoot:           n.root,
 		Model:                  n.CodexModel,
 		ReasoningEffort:        n.CodexReasoningEffort,
 		Ephemeral:              n.CodexEphemeral,
@@ -116,6 +125,7 @@ func runWorker(
 		CodexVersion:          n.CodexVersion,
 		EffectiveConfigSchema: n.EffectiveConfigSchema,
 		EffectiveConfigSHA256: n.EffectiveConfigSHA256,
+		SafetyPolicySHA256:    n.safetyPolicySHA256,
 	})
 	if err != nil {
 		return failed(result, OutcomeWorkerFailed, "worker_invocation", err)
@@ -147,23 +157,9 @@ func runWorker(
 	if err != nil {
 		return failed(result, OutcomeWorkerFailed, "worker_prompt", err)
 	}
-	provenanceBytes, err := marshalIndented(workerProvenance{
-		SchemaVersion:           workerProvenanceSchemaVersion,
-		RunID:                   workerRunID,
-		TaskID:                  n.TaskID,
-		Dossier:                 dossier.Manifest,
-		Decision:                *supervisorResult.Decision,
-		Reference:               *supervisorResult.DecisionReference,
-		Route:                   route,
-		Profile:                 result.Worker.Profile,
-		Invocation:              invocation,
-		Artifacts:               result.Worker.Artifacts,
-		AdmissionSourceRevision: result.Source.AdmissionRevision,
-	})
-	if err != nil {
-		return failed(result, OutcomeWorkerFailed, "worker_provenance", err)
+	if n.redactor != nil {
+		promptBytes = []byte(n.redactor.String(string(promptBytes)))
 	}
-
 	run, err := n.Ledger.CreateRun(ctx, ledger.RunSpec{
 		ID:        workerRunID,
 		TaskID:    n.TaskID,
@@ -179,6 +175,8 @@ func runWorker(
 	appendWorkerEvent(ctx, n, &result, ledger.EventRunArtifacts, ledger.RunArtifacts{
 		ContextPayloadPath:   paths.prompt,
 		ContextManifestPath:  paths.provenance,
+		DossierPath:          paths.dossier,
+		DossierManifestPath:  paths.dossierManifest,
 		CodexStdoutJSONLPath: paths.codexStdout,
 		CodexStderrPath:      paths.codexStderr,
 		LastMessagePath:      paths.output,
@@ -188,7 +186,37 @@ func runWorker(
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "worker_ledger", result.Worker.LedgerError, receipt.VerdictBlocked, "not_run", "")
 	}
 
-	result.Worker.Artifacts.Prompt, err = writeArtifact(n.root, paths.prompt, promptBytes)
+	manifestBytes, err := autonomous.MarshalTaskDossierManifest(dossier.Manifest)
+	if err == nil {
+		result.Worker.Artifacts.Dossier, err = writeArtifact(n.root, paths.dossier, dossier.Markdown)
+	}
+	if err == nil {
+		result.Worker.Artifacts.DossierManifest, err = writeArtifact(n.root, paths.dossierManifest, manifestBytes)
+	}
+	if err == nil {
+		result.Worker.Artifacts.Prompt, err = writeArtifact(n.root, paths.prompt, promptBytes)
+	}
+	var provenanceBytes []byte
+	if err == nil {
+		provenanceBytes, err = marshalIndented(workerProvenance{
+			SchemaVersion:           workerProvenanceSchemaVersion,
+			RunID:                   workerRunID,
+			TaskID:                  n.TaskID,
+			Dossier:                 dossier.Manifest,
+			Decision:                *supervisorResult.Decision,
+			Reference:               *supervisorResult.DecisionReference,
+			Route:                   route,
+			Profile:                 result.Worker.Profile,
+			Invocation:              invocation,
+			Artifacts:               result.Worker.Artifacts,
+			PromptByteSize:          len(promptBytes),
+			PromptTokenEstimator:    autonomous.DossierTokenEstimatorSchema,
+			PromptTokenEstimate:     (len(promptBytes) + 3) / 4,
+			AdmissionSourceRevision: result.Source.AdmissionRevision,
+			SafetyPolicy:            result.SafetyPolicy,
+			SafetyPreflight:         result.SafetyPreflight,
+		})
+	}
 	if err == nil {
 		result.Worker.Artifacts.Provenance, err = writeArtifact(n.root, paths.provenance, provenanceBytes)
 	}
@@ -200,6 +228,10 @@ func runWorker(
 		"context_manifest_path":     paths.provenance,
 		"context_payload_sha256":    result.Worker.Artifacts.Prompt.SHA256,
 		"context_payload_byte_size": result.Worker.Artifacts.Prompt.ByteSize,
+		"dossier_path":              paths.dossier,
+		"dossier_manifest_path":     paths.dossierManifest,
+		"dossier_sha256":            result.Worker.Artifacts.Dossier.SHA256,
+		"dossier_byte_size":         result.Worker.Artifacts.Dossier.ByteSize,
 		"receipt_path":              paths.receipt,
 		"action":                    route.Action,
 		"profile_name":              route.WorkerProfile,
@@ -214,7 +246,8 @@ func runWorker(
 	result.Worker.Started = true
 	codexResult, codexErr := n.CodexRunner(ctx, codexexec.Config{
 		Executable:                n.CodexExecutable,
-		WorkingDir:                n.root,
+		WorkingDir:                n.executionRoot,
+		ArtifactRoot:              n.root,
 		Prompt:                    string(promptBytes),
 		Model:                     n.CodexModel,
 		ReasoningEffort:           n.CodexReasoningEffort,
@@ -235,6 +268,7 @@ func runWorker(
 		Ledger:        n.Ledger,
 		CommandRunner: codexexec.CommandRunner(n.CommandRunner),
 		Provenance:    invocation,
+		Redactor:      n.redactor,
 	})
 	if codexErr != nil {
 		if codexResult.ExitCode == 0 {
@@ -271,6 +305,12 @@ func runWorker(
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "worker_source_after", snapshotErr, receipt.VerdictSafetyLimit, "not_run", "")
 	}
 	result.Source.ChangedFiles = differencePaths(result.Source.WorkerDifference)
+	if result.SafetyPolicy == nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "protected_paths", errors.New("validated safety policy is missing"), receipt.VerdictSafetyLimit, "not_run", "")
+	}
+	if err := result.SafetyPolicy.AuthorizeModelChanges(result.Source.ChangedFiles); err != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "protected_paths", err, receipt.VerdictSafetyLimit, "not_run", "")
+	}
 
 	if err := validateTaskAndStateUnchanged(n, task, stateBefore); err != nil {
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "immutable_task_state", err, receipt.VerdictSafetyLimit, "not_run", "")
@@ -311,7 +351,7 @@ func runWorker(
 	var verificationErr error
 	if n.VerificationPlan == nil {
 		verificationResult, verificationErr = n.VerificationRunner(ctx, verification.Config{
-			WorkingDir:            n.root,
+			WorkingDir:            n.executionRoot,
 			Commands:              cloneVerificationCommands(n.VerificationCommands),
 			MissingCommandsPolicy: n.MissingVerificationPolicy,
 			Timeout:               n.VerificationTimeout,
@@ -325,7 +365,8 @@ func runWorker(
 	} else {
 		purpose := verificationPurpose(route.Action)
 		tiered, tieredErr := n.TieredVerificationRunner(ctx, autonomousverification.Config{
-			RepositoryRoot: n.root,
+			RepositoryRoot: n.executionRoot,
+			ArtifactRoot:   n.root,
 			TaskID:         n.TaskID, RunID: workerRunID, OccurrenceID: occurrenceID,
 			SourceRevision: result.Source.WorkerRevision,
 			Plan:           *n.VerificationPlan, Purpose: purpose,
@@ -365,7 +406,7 @@ func runWorker(
 
 	workerChanges := captureForWorkerChanges(changedCapture, result.Source.ChangedFiles)
 	commitResult, commitErr := n.CommitRunner(ctx, commit.Config{
-		WorkingDir:               n.root,
+		WorkingDir:               n.executionRoot,
 		RunID:                    workerRunID,
 		TaskID:                   n.TaskID,
 		TaskSummary:              task.Title,
@@ -736,7 +777,7 @@ func setWorkerLedgerError(result *Result, err error) {
 
 func gitConfig(n normalizedConfig) gitstate.Config {
 	return gitstate.Config{
-		WorkingDir:    n.root,
+		WorkingDir:    n.executionRoot,
 		GitExecutable: n.GitExecutable,
 		Timeout:       n.GitTimeout,
 		StdoutCap:     n.GitStdoutCap,

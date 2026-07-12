@@ -44,6 +44,7 @@ type AuditLoader func(context.Context, string) (autonomousstate.AuditSnapshot, b
 
 type Config struct {
 	RepositoryRoot string
+	Workspace      *autonomous.TaskWorkspace
 	TaskID         string
 	Expected       autonomousstate.ExpectedState
 	Authority      Authority
@@ -125,7 +126,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return stop(result, OutcomeSafetyStopped, "authority", err)
 	}
 	correctionCfg := n.CorrectionCycle
-	correctionCfg.RepositoryRoot, correctionCfg.TaskID, correctionCfg.State = n.RepositoryRoot, n.TaskID, snapshot.State
+	correctionCfg.RepositoryRoot, correctionCfg.Workspace, correctionCfg.TaskID, correctionCfg.State = n.RepositoryRoot, n.Workspace, n.TaskID, snapshot.State
 	correctionCfg.SourceSafety = autonomouspolicy.SourceSafetySafe
 	correctionCfg.Verification, correctionCfg.Audit, correctionCfg.CorrectionFailure = verification, audit, failureTarget
 	correctionCfg.AllowPreExistingDirty = false
@@ -171,7 +172,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return stop(result, OutcomeFinalVerificationStopped, "final_ledger", err)
 	}
-	finalResult, finalErr := n.VerificationRunner(ctx, autonomousverification.Config{RepositoryRoot: n.RepositoryRoot, TaskID: n.TaskID, RunID: finalRunID, OccurrenceID: finalOccurrenceID, SourceRevision: beforeRevision, Plan: n.FinalPlan, Purpose: autonomousverification.PurposeFinal, Timeout: n.FinalTimeout, StdoutCap: n.FinalStdoutCap, StderrCap: n.FinalStderrCap, Clock: n.Clock, AttemptID: n.IDGenerator, CommandRunner: autonomousverification.CommandRunner(correctionCfg.CommandRunner), Ledger: correctionCfg.Ledger, ArtifactPath: filepath.ToSlash(filepath.Join(".revolvr", "runs", finalRunID, "verification.json")), ArtifactWriter: correctionCfg.VerificationArtifactWriter})
+	finalResult, finalErr := n.VerificationRunner(ctx, autonomousverification.Config{RepositoryRoot: correctionSourceRoot(n), ArtifactRoot: n.RepositoryRoot, TaskID: n.TaskID, RunID: finalRunID, OccurrenceID: finalOccurrenceID, SourceRevision: beforeRevision, Plan: n.FinalPlan, Purpose: autonomousverification.PurposeFinal, Timeout: n.FinalTimeout, StdoutCap: n.FinalStdoutCap, StderrCap: n.FinalStderrCap, Clock: n.Clock, AttemptID: n.IDGenerator, CommandRunner: autonomousverification.CommandRunner(correctionCfg.CommandRunner), Ledger: correctionCfg.Ledger, ArtifactPath: filepath.ToSlash(filepath.Join(".revolvr", "runs", finalRunID, "verification.json")), ArtifactWriter: correctionCfg.VerificationArtifactWriter})
 	result.FinalVerification = finalResult
 	if finalErr == nil {
 		finalErr = finalResult.Validate()
@@ -228,7 +229,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 
 	auditCfg := n.AuditCycle
-	auditCfg.RepositoryRoot, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, n.TaskID, current.State
+	auditCfg.RepositoryRoot, auditCfg.Workspace, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, n.Workspace, n.TaskID, current.State
 	auditCfg.SourceSafety, auditCfg.Verification, auditCfg.Audit, auditCfg.CorrectionFailure = autonomouspolicy.SourceSafetySafe, &finalEvidence, nil, nil
 	auditCfg.LatestMutation = &autonomouspolicy.SourceMutation{TaskID: n.TaskID, RunID: correction.Worker.RunID, DecisionID: correction.Route.DecisionID, Action: autonomous.ActionCorrect, ResultingRevision: beforeRevision}
 	auditResult, auditErr := n.CycleRunner(ctx, auditCfg)
@@ -292,8 +293,15 @@ func normalize(ctx context.Context, cfg Config) (normalized, autonomousstate.Sna
 	if snapshot.State.Lifecycle != autonomous.LifecycleStateReady {
 		return normalized{}, snapshot, errors.New("ready lifecycle is required")
 	}
+	if cfg.Workspace != nil && (snapshot.State.Workspace == nil || snapshot.State.Workspace.WorkspaceID != cfg.Workspace.WorkspaceID || snapshot.State.Workspace.ExecutionRoot != cfg.Workspace.ExecutionRoot) {
+		return normalized{}, snapshot, errors.New("durable workspace does not match correction authority")
+	}
 	if cfg.CycleRunner == nil {
-		cfg.CycleRunner = autonomouscycle.Run
+		if cfg.Workspace != nil {
+			cfg.CycleRunner = autonomouscycle.RunInWorkspace
+		} else {
+			cfg.CycleRunner = autonomouscycle.Run
+		}
 	}
 	if cfg.VerificationRunner == nil {
 		cfg.VerificationRunner = autonomousverification.Execute
@@ -434,14 +442,27 @@ func captureSource(ctx context.Context, c autonomouscycle.Config) (gitstate.Sour
 	if fn == nil {
 		fn = gitstate.CaptureSourceSnapshot
 	}
-	return fn(ctx, gitstate.SourceSnapshotConfig{WorkingDir: c.RepositoryRoot, GitExecutable: c.GitExecutable, Timeout: c.GitTimeout, StdoutCap: c.GitStdoutCap, StderrCap: c.GitStderrCap, CommandRunner: gitstate.CommandRunner(c.CommandRunner)})
+	return fn(ctx, gitstate.SourceSnapshotConfig{WorkingDir: cycleSourceRoot(c), GitExecutable: c.GitExecutable, Timeout: c.GitTimeout, StdoutCap: c.GitStdoutCap, StderrCap: c.GitStderrCap, CommandRunner: gitstate.CommandRunner(c.CommandRunner)})
 }
 func captureDirty(ctx context.Context, c autonomouscycle.Config) (gitstate.Capture, error) {
 	fn := c.DirtyCapture
 	if fn == nil {
 		fn = gitstate.CaptureDirtyWorktree
 	}
-	return fn(ctx, gitstate.Config{WorkingDir: c.RepositoryRoot, GitExecutable: c.GitExecutable, Timeout: c.GitTimeout, StdoutCap: c.GitStdoutCap, StderrCap: c.GitStderrCap, CommandRunner: gitstate.CommandRunner(c.CommandRunner)})
+	return fn(ctx, gitstate.Config{WorkingDir: cycleSourceRoot(c), GitExecutable: c.GitExecutable, Timeout: c.GitTimeout, StdoutCap: c.GitStdoutCap, StderrCap: c.GitStderrCap, CommandRunner: gitstate.CommandRunner(c.CommandRunner)})
+}
+
+func cycleSourceRoot(c autonomouscycle.Config) string {
+	if c.Workspace != nil {
+		return c.Workspace.ExecutionRoot
+	}
+	return c.RepositoryRoot
+}
+func correctionSourceRoot(n normalized) string {
+	if n.Workspace != nil {
+		return n.Workspace.ExecutionRoot
+	}
+	return n.RepositoryRoot
 }
 func capturePaths(c gitstate.Capture) []string {
 	v := c.Paths

@@ -16,9 +16,10 @@ import (
 type RouteKind string
 
 const (
-	RouteKindWorker   RouteKind = "worker"
-	RouteKindComplete RouteKind = "complete"
-	RouteKindBlock    RouteKind = "block"
+	RouteKindWorker     RouteKind = "worker"
+	RouteKindComplete   RouteKind = "complete"
+	RouteKindBlock      RouteKind = "block"
+	RouteKindNeedsInput RouteKind = "needs_input"
 )
 
 type SourceSafety string
@@ -182,6 +183,8 @@ func Evaluate(input Input) (Route, error) {
 		kind = RouteKindComplete
 	} else if input.Decision.Action == autonomous.ActionBlock {
 		kind = RouteKindBlock
+	} else if input.Decision.Action == autonomous.ActionNeedsInput {
+		kind = RouteKindNeedsInput
 	}
 	return Route{
 		Kind:           kind,
@@ -262,6 +265,8 @@ func evaluateAction(input Input) error {
 	case autonomous.ActionComplete:
 		return evaluateCompletion(input)
 	case autonomous.ActionBlock:
+		return nil
+	case autonomous.ActionNeedsInput:
 		return nil
 	default:
 		return fmt.Errorf("action gate: unsupported action %q", input.Decision.Action)
@@ -387,16 +392,16 @@ func findingResolution(state autonomous.ExecutionState, findingID string) (auton
 func admitLifecycle(lifecycle autonomous.LifecycleState, action autonomous.Action) error {
 	switch lifecycle {
 	case autonomous.LifecycleStatePending:
-		if action == autonomous.ActionPlan || action == autonomous.ActionBlock {
+		if action == autonomous.ActionPlan || action == autonomous.ActionBlock || action == autonomous.ActionNeedsInput {
 			return nil
 		}
-		return fmt.Errorf("pending lifecycle admits only %q or %q, not %q", autonomous.ActionPlan, autonomous.ActionBlock, action)
+		return fmt.Errorf("pending lifecycle admits only %q, %q, or %q, not %q", autonomous.ActionPlan, autonomous.ActionBlock, autonomous.ActionNeedsInput, action)
 	case autonomous.LifecycleStateReady:
 		return nil
 	case autonomous.LifecycleStatePlanning, autonomous.LifecycleStateWorking, autonomous.LifecycleStateVerifying, autonomous.LifecycleStateAuditing, autonomous.LifecycleStateCorrecting:
 		return fmt.Errorf("lifecycle %q already has an operation in flight and admits no new routing", lifecycle)
 	case autonomous.LifecycleStateNeedsInput:
-		return errors.New("needs_input lifecycle admits no routing until explicit resume semantics exist")
+		return errors.New("needs_input lifecycle admits no routing until an exact durable answer and explicit resume transition")
 	case autonomous.LifecycleStateFinalizing:
 		return errors.New("finalizing lifecycle admits no new routing")
 	case autonomous.LifecycleStateCompleted, autonomous.LifecycleStateBlocked, autonomous.LifecycleStateCancelled:
@@ -602,4 +607,104 @@ func validEvidenceKind(kind autonomous.EvidenceKind) bool {
 	default:
 		return false
 	}
+}
+
+type NeedsInputYieldDisposition string
+
+const (
+	NeedsInputYieldClean  NeedsInputYieldDisposition = "clean_yield"
+	NeedsInputYieldUnsafe NeedsInputYieldDisposition = "unsafe"
+)
+
+type NeedsInputYieldReason string
+
+const (
+	NeedsInputYieldReasonClean             NeedsInputYieldReason = "clean"
+	NeedsInputYieldReasonTaskMismatch      NeedsInputYieldReason = "task_mismatch"
+	NeedsInputYieldReasonMalformedState    NeedsInputYieldReason = "malformed_state"
+	NeedsInputYieldReasonNotSuspended      NeedsInputYieldReason = "not_suspended"
+	NeedsInputYieldReasonUnsafeSource      NeedsInputYieldReason = "unsafe_source"
+	NeedsInputYieldReasonUnknownSource     NeedsInputYieldReason = "unknown_source"
+	NeedsInputYieldReasonOperationInFlight NeedsInputYieldReason = "source_operation_in_flight"
+	NeedsInputYieldReasonStaleSource       NeedsInputYieldReason = "stale_source"
+	NeedsInputYieldReasonMissingProvenance NeedsInputYieldReason = "missing_question_provenance"
+)
+
+type NeedsInputYieldInput struct {
+	TaskID                  string
+	State                   autonomous.ExecutionState
+	Source                  SourceEvidence
+	SourceOperationInFlight bool
+}
+
+type NeedsInputYieldResult struct {
+	Disposition NeedsInputYieldDisposition
+	Reason      NeedsInputYieldReason
+	Question    *autonomous.QuestionIdentity
+}
+
+// EvaluateNeedsInputYield is a pure future-scheduler gate. It does not select
+// a task or route work; it only proves whether this suspension is safe to leave.
+func EvaluateNeedsInputYield(input NeedsInputYieldInput) NeedsInputYieldResult {
+	unsafe := func(reason NeedsInputYieldReason) NeedsInputYieldResult {
+		return NeedsInputYieldResult{Disposition: NeedsInputYieldUnsafe, Reason: reason}
+	}
+	if input.TaskID == "" || input.State.TaskID != input.TaskID {
+		return unsafe(NeedsInputYieldReasonTaskMismatch)
+	}
+	if input.State.Lifecycle != autonomous.LifecycleStateNeedsInput || input.State.NeedsInput == nil || input.State.NeedsInput.CurrentQuestion == nil {
+		return unsafe(NeedsInputYieldReasonNotSuspended)
+	}
+	current := *input.State.NeedsInput.CurrentQuestion
+	var record *autonomous.InputQuestionRecord
+	for i := range input.State.Input.Questions {
+		if input.State.Input.Questions[i].Question.Identity() == current {
+			record = &input.State.Input.Questions[i]
+		}
+	}
+	if record == nil || record.Decision.Action != autonomous.ActionNeedsInput || record.Decision.Artifact.Reference == "" {
+		return unsafe(NeedsInputYieldReasonMissingProvenance)
+	}
+	if err := input.State.Validate(); err != nil {
+		return unsafe(NeedsInputYieldReasonMalformedState)
+	}
+	if input.SourceOperationInFlight {
+		return unsafe(NeedsInputYieldReasonOperationInFlight)
+	}
+	if err := validateSourceEvidence(input.Source); err != nil {
+		return unsafe(NeedsInputYieldReasonUnknownSource)
+	}
+	if input.Source.Safety == SourceSafetyUnsafe {
+		return unsafe(NeedsInputYieldReasonUnsafeSource)
+	}
+	if input.Source.Safety != SourceSafetySafe {
+		return unsafe(NeedsInputYieldReasonUnknownSource)
+	}
+	if record.SourceRevision != input.Source.Revision {
+		return unsafe(NeedsInputYieldReasonStaleSource)
+	}
+	return NeedsInputYieldResult{Disposition: NeedsInputYieldClean, Reason: NeedsInputYieldReasonClean, Question: &current}
+}
+
+type IndependentWorkResult struct {
+	Allowed bool
+	Work    *autonomous.IndependentWorkDeclaration
+	Reason  NeedsInputYieldReason
+}
+
+// EvaluateIndependentWork projects only an explicitly declared read-only
+// item after the clean-yield proof. It is not a Route and starts nothing.
+func EvaluateIndependentWork(input NeedsInputYieldInput, workID string) IndependentWorkResult {
+	yield := EvaluateNeedsInputYield(input)
+	if yield.Disposition != NeedsInputYieldClean {
+		return IndependentWorkResult{Reason: yield.Reason}
+	}
+	question := input.State.Input.Questions[len(input.State.Input.Questions)-1].Question
+	for i := range question.IndependentWork {
+		if question.IndependentWork[i].ID == workID {
+			work := question.IndependentWork[i]
+			return IndependentWorkResult{Allowed: true, Work: &work, Reason: NeedsInputYieldReasonClean}
+		}
+	}
+	return IndependentWorkResult{Reason: NeedsInputYieldReasonMissingProvenance}
 }

@@ -19,6 +19,7 @@ import (
 	"revolvr/internal/autonomousaudit"
 	"revolvr/internal/autonomousplanning"
 	"revolvr/internal/autonomouspolicy"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
@@ -32,6 +33,18 @@ import (
 	"revolvr/internal/taskfile"
 	"revolvr/internal/verification"
 )
+
+func assertCycleArtifact(t *testing.T, root string, artifact Artifact) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(artifact.Path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(raw)
+	if got := fmt.Sprintf("%x", sum); got != artifact.SHA256 || len(raw) != artifact.ByteSize {
+		t.Fatalf("artifact %s identity=%s/%d want=%s/%d", artifact.Path, got, len(raw), artifact.SHA256, artifact.ByteSize)
+	}
+}
 
 func TestRunEveryWorkerActionUsesExactProfileAndOneFreshWorker(t *testing.T) {
 	tests := []struct {
@@ -79,6 +92,17 @@ func TestRunEveryWorkerActionUsesExactProfileAndOneFreshWorker(t *testing.T) {
 			}
 			if result.Worker.Artifacts.Prompt.Path == result.Supervisor.Artifacts.Prompt.Path || !strings.Contains(result.Worker.Artifacts.Prompt.Path, result.Worker.RunID) {
 				t.Fatalf("worker/supervisor prompt paths are not isolated: worker=%q supervisor=%q", result.Worker.Artifacts.Prompt.Path, result.Supervisor.Artifacts.Prompt.Path)
+			}
+			assertCycleArtifact(t, fixture.root, result.Worker.Artifacts.Dossier)
+			assertCycleArtifact(t, fixture.root, result.Worker.Artifacts.DossierManifest)
+			dossierRaw, err := os.ReadFile(filepath.Join(fixture.root, filepath.FromSlash(result.Worker.Artifacts.Dossier.Path)))
+			if err != nil || !strings.Contains(fixture.workerPrompt, string(dossierRaw)) {
+				t.Fatalf("exact worker dossier is not retained in sent prompt: %v", err)
+			}
+			manifestRaw, err := os.ReadFile(filepath.Join(fixture.root, filepath.FromSlash(result.Worker.Artifacts.DossierManifest.Path)))
+			var manifest autonomous.TaskDossierManifest
+			if err != nil || json.Unmarshal(manifestRaw, &manifest) != nil || manifest.Projection == nil || manifest.Projection.Role != autonomous.DossierRole(tt.profile) || manifest.DossierSHA256 != result.Worker.Artifacts.Dossier.SHA256 {
+				t.Fatalf("worker dossier manifest mismatch: err=%v manifest=%+v", err, manifest)
 			}
 			if !result.Worker.Invocation.Ephemeral || containsArg(result.Worker.Invocation.Argv, "resume") || countArg(result.Worker.Invocation.Argv, "exec") != 1 {
 				t.Fatalf("worker invocation is not one fresh ephemeral exec: %+v", result.Worker.Invocation)
@@ -132,6 +156,27 @@ func TestRunEveryWorkerActionUsesExactProfileAndOneFreshWorker(t *testing.T) {
 				t.Fatal("worker source lock was not released")
 			}
 		})
+	}
+}
+
+func TestWorkerAdmissionRunsAfterPolicyBeforeWorker(t *testing.T) {
+	fixture := newCycleFixture(t, autonomous.ActionImplement)
+	fixture.withChangedWorker()
+	want := errors.New("attempt budget exhausted")
+	called := false
+	fixture.cfg.BeforeWorker = func(_ context.Context, input WorkerAdmissionInput) error {
+		called = true
+		if input.TaskID != "task-1" || input.Decision.Action != autonomous.ActionImplement || input.Route.Kind != autonomouspolicy.RouteKindWorker || input.SourceRevision == "" {
+			t.Fatalf("admission input = %+v", input)
+		}
+		return want
+	}
+	result, err := Run(context.Background(), fixture.cfg)
+	if !errors.Is(err, want) || !called {
+		t.Fatalf("Run err=%v called=%t", err, called)
+	}
+	if result.Worker.Started || result.Outcome != OutcomePolicyRejected || result.Failure == nil || result.Failure.Stage != "attempt_admission" {
+		t.Fatalf("result = %+v", result)
 	}
 }
 
@@ -227,7 +272,7 @@ func TestRunRejectsContradictoryFlatAndTieredVerification(t *testing.T) {
 }
 
 func TestRunTerminalAuthorizationsHaveNoWorkerVerificationCommitOrPersistence(t *testing.T) {
-	for _, action := range []autonomous.Action{autonomous.ActionComplete, autonomous.ActionBlock} {
+	for _, action := range []autonomous.Action{autonomous.ActionComplete, autonomous.ActionBlock, autonomous.ActionNeedsInput} {
 		t.Run(string(action), func(t *testing.T) {
 			fixture := newCycleFixture(t, action)
 			stateBefore := mustJSON(t, fixture.cfg.State)
@@ -239,6 +284,8 @@ func TestRunTerminalAuthorizationsHaveNoWorkerVerificationCommitOrPersistence(t 
 			want := OutcomeCompleteAuthorized
 			if action == autonomous.ActionBlock {
 				want = OutcomeBlockAuthorized
+			} else if action == autonomous.ActionNeedsInput {
+				want = OutcomeNeedsInputAuthorized
 			}
 			if result.Outcome != want || result.Route == nil || result.Route.Action != action {
 				t.Fatalf("terminal result = %+v, want outcome %q", result, want)
@@ -389,6 +436,122 @@ func TestRunRejectsMissingDependenciesFreshSessionConfigAndMalformedPathsBeforeS
 				t.Fatalf("invalid configuration started supervisor/worker: %d/%d", fixture.supervisorCalls, fixture.codexCalls)
 			}
 		})
+	}
+}
+
+func TestRunInWorkspaceUsesExecutionRootAndKeepsControlEvidenceAtControlRoot(t *testing.T) {
+	f := newCycleFixture(t, autonomous.ActionImplement)
+	f.withChangedWorker()
+	execution := filepath.Join(f.root, ".revolvr", "autonomous", "worktrees", "workspace-one")
+	if err := os.MkdirAll(execution, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source, err := gitstate.PolicySourceRevision(f.baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := f.now
+	workspace := autonomous.TaskWorkspace{SchemaVersion: autonomous.WorkspaceSchemaVersion, TaskID: f.cfg.TaskID, WorkspaceID: "workspace-one", ControlRoot: f.root, ExecutionRoot: execution, GitCommonDir: filepath.Join(f.root, ".git"), BranchRef: "refs/heads/revolvr/tasks/task-1-workspace", OwnerMarker: filepath.Join(f.root, ".revolvr", "autonomous", "tasks", f.cfg.TaskID, "workspace-owner.json"), BaselineSHA: strings.Repeat("1", 40), HeadSHA: strings.Repeat("1", 40), TreeSHA: strings.Repeat("2", 40), SourceRevision: source, Checkpoint: autonomous.WorkspaceCheckpoint{Sequence: 1, CommitSHA: strings.Repeat("1", 40), TreeSHA: strings.Repeat("2", 40), SourceRevision: source, OperationID: "create-workspace", Provenance: "exact baseline", CreatedAt: now}, Status: autonomous.WorkspaceStatusReady, CreatedAt: now, UpdatedAt: now}
+	f.state.Workspace = &workspace
+	f.cfg.State = f.state
+	f.cfg.Workspace = &workspace
+
+	originalAssembler := f.cfg.DossierAssembler
+	f.cfg.DossierAssembler = func(ctx context.Context, in autonomousassembly.Input) (autonomous.TaskDossier, error) {
+		if in.RepositoryRoot != f.root || in.ExecutionRoot != execution {
+			t.Fatalf("dossier roots = %q / %q", in.RepositoryRoot, in.ExecutionRoot)
+		}
+		return originalAssembler(ctx, in)
+	}
+	originalSupervisor := f.cfg.SupervisorRunner
+	f.cfg.SupervisorRunner = func(ctx context.Context, cfg supervisor.Config) (supervisor.Result, error) {
+		if cfg.RepositoryRoot != f.root || cfg.ExecutionRoot != execution || cfg.WorkspaceID != workspace.WorkspaceID {
+			t.Fatalf("supervisor roots = %+v", cfg)
+		}
+		return originalSupervisor(ctx, cfg)
+	}
+	originalCodex := f.cfg.CodexRunner
+	f.cfg.CodexRunner = func(ctx context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+		if cfg.WorkingDir != execution {
+			t.Fatalf("Codex working dir = %q", cfg.WorkingDir)
+		}
+		return originalCodex(ctx, cfg)
+	}
+	originalVerification := f.cfg.VerificationRunner
+	f.cfg.VerificationRunner = func(ctx context.Context, cfg verification.Config) (verification.Result, error) {
+		if cfg.WorkingDir != execution {
+			t.Fatalf("verification working dir = %q", cfg.WorkingDir)
+		}
+		return originalVerification(ctx, cfg)
+	}
+	originalCommit := f.cfg.CommitRunner
+	f.cfg.CommitRunner = func(ctx context.Context, cfg commit.Config) (commit.Result, error) {
+		if cfg.WorkingDir != execution {
+			t.Fatalf("commit working dir = %q", cfg.WorkingDir)
+		}
+		return originalCommit(ctx, cfg)
+	}
+	originalLock := f.cfg.LockAcquirer
+	f.cfg.LockAcquirer = func(ctx context.Context, cfg lock.Config) (SourceLock, error) {
+		if cfg.ControlRoot != f.root || cfg.ExecutionRoot != execution || cfg.WorkspaceID != workspace.WorkspaceID {
+			t.Fatalf("source lock authority = %+v", cfg)
+		}
+		return originalLock(ctx, cfg)
+	}
+	result, err := RunInWorkspace(context.Background(), f.cfg)
+	if err != nil || result.Outcome != OutcomeVerifiedChangesCommitted {
+		t.Fatalf("RunInWorkspace = %q, %v", result.Outcome, err)
+	}
+	if _, err := os.Stat(filepath.Join(f.root, ".revolvr", "runs", result.Worker.RunID, "worker-prompt.md")); err != nil {
+		t.Fatalf("control-root artifact missing: %v", err)
+	}
+	if joined := strings.Join(result.Worker.Invocation.Argv, "\n"); !strings.Contains(joined, filepath.Join(f.root, ".revolvr", "runs")) {
+		t.Fatalf("Codex artifact argv is not control-rooted: %v", result.Worker.Invocation.Argv)
+	}
+}
+
+func TestRunInWorkspaceFailsClosedWithoutWorkspace(t *testing.T) {
+	result, err := RunInWorkspace(context.Background(), Config{TaskID: "task-1"})
+	if err == nil || result.Outcome != OutcomeInvalidConfiguration || result.Failure == nil || result.Failure.Stage != "workspace" {
+		t.Fatalf("RunInWorkspace = %+v, %v", result, err)
+	}
+}
+
+func TestRunSafetyPreflightFailsBeforeSupervisorOrWorker(t *testing.T) {
+	f := newCycleFixture(t, autonomous.ActionImplement)
+	f.cfg.SafetyPreflightRunner = func(_ context.Context, input autonomoussafety.Input) (autonomoussafety.Output, error) {
+		output, err := testSafetyOutput(t, input)
+		output.Preflight.Ready = false
+		output.Preflight.Checks = []autonomoussafety.Check{{Name: "network_policy", Status: autonomoussafety.CheckFail, Detail: "proof unavailable"}}
+		return output, err
+	}
+	result, err := Run(context.Background(), f.cfg)
+	if err == nil || result.Outcome != OutcomeSafetyPreflightFailed || result.Failure == nil || result.Failure.Stage != "safety_preflight" {
+		t.Fatalf("Run = %+v, %v", result, err)
+	}
+	if f.supervisorCalls != 0 || f.codexCalls != 0 || f.verificationCalls != 0 || f.commitCalls != 0 {
+		t.Fatalf("unsafe preflight started work: supervisor/codex/verify/commit=%d/%d/%d/%d", f.supervisorCalls, f.codexCalls, f.verificationCalls, f.commitCalls)
+	}
+}
+
+func TestRunBindsSameSafetyPolicyToSupervisorAndWorkerProvenance(t *testing.T) {
+	f := newCycleFixture(t, autonomous.ActionImplement)
+	result, err := Run(context.Background(), f.cfg)
+	if err != nil || !result.Worker.Started {
+		t.Fatalf("Run = %+v, %v", result, err)
+	}
+	if result.SafetyPolicy == nil || result.SafetyPreflight == nil || result.SafetyPolicy.PolicySHA256 == "" || result.Supervisor.Invocation.SafetyPolicySHA256 != result.SafetyPolicy.PolicySHA256 || result.Worker.Invocation.SafetyPolicySHA256 != result.SafetyPolicy.PolicySHA256 {
+		t.Fatalf("safety provenance = policy=%+v preflight=%+v supervisor=%+v worker=%+v", result.SafetyPolicy, result.SafetyPreflight, result.Supervisor.Invocation, result.Worker.Invocation)
+	}
+}
+
+func TestRunRejectsModelChangeToProtectedTaskAuthority(t *testing.T) {
+	f := newCycleFixture(t, autonomous.ActionImplement)
+	protected := testSourceSnapshotAtPath("head-1", "changed\n", "100644 changed 0", ".agent/profiles/implementer.md")
+	f.snapshots = []gitstate.SourceSnapshot{f.baseline, f.baseline, f.baseline, protected}
+	result, err := Run(context.Background(), f.cfg)
+	if err == nil || result.Failure == nil || result.Failure.Stage != "protected_paths" || f.verificationCalls != 0 || f.commitCalls != 0 {
+		t.Fatalf("Run = %+v, %v; calls=%d/%d", result, err, f.verificationCalls, f.commitCalls)
 	}
 }
 
@@ -729,6 +892,10 @@ func TestRunWorkerArtifactsRemainReadableAfterLedgerReopen(t *testing.T) {
 func TestRunDeterministicWithFixedInputs(t *testing.T) {
 	first := newCycleFixture(t, autonomous.ActionBlock)
 	second := newCycleFixture(t, autonomous.ActionBlock)
+	second.cfg.RepositoryRoot = first.cfg.RepositoryRoot
+	workspace := *first.cfg.Workspace
+	second.cfg.Workspace = &workspace
+	second.cfg.State.Workspace = &workspace
 	firstResult, firstErr := Run(context.Background(), first.cfg)
 	secondResult, secondErr := Run(context.Background(), second.cfg)
 	if firstErr != nil || secondErr != nil {
@@ -835,11 +1002,23 @@ func newCycleFixture(t *testing.T, action autonomous.Action) *cycleFixture {
 		ids:                 []string{"supervisor-run", "worker-run", "verify-occurrence"},
 	}
 	fixture.configureAction(action)
+	executionRoot := filepath.Join(root, ".revolvr", "autonomous", "worktrees", "fixture-workspace")
+	if err := os.MkdirAll(executionRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fixtureSourceRevision, err := gitstate.PolicySourceRevision(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureWorkspace := autonomous.TaskWorkspace{SchemaVersion: autonomous.WorkspaceSchemaVersion, TaskID: "task-1", WorkspaceID: "fixture-workspace", ControlRoot: root, ExecutionRoot: executionRoot, GitCommonDir: filepath.Join(root, ".git"), BranchRef: "refs/heads/revolvr/tasks/task-1-fixture", OwnerMarker: filepath.Join(root, ".revolvr", "autonomous", "tasks", "task-1", "workspace-owner.json"), BaselineSHA: strings.Repeat("1", 40), HeadSHA: strings.Repeat("1", 40), TreeSHA: strings.Repeat("2", 40), SourceRevision: fixtureSourceRevision, Checkpoint: autonomous.WorkspaceCheckpoint{Sequence: 1, CommitSHA: strings.Repeat("1", 40), TreeSHA: strings.Repeat("2", 40), SourceRevision: fixtureSourceRevision, OperationID: "fixture-workspace-create", Provenance: "test baseline", CreatedAt: now}, Status: autonomous.WorkspaceStatusReady, CreatedAt: now, UpdatedAt: now}
+	fixture.state.Workspace = &fixtureWorkspace
 	fixture.supervisorSource = baseline
 	fixture.cfg = Config{
 		RepositoryRoot:                    root,
+		Workspace:                         &fixtureWorkspace,
 		TaskID:                            "task-1",
 		State:                             fixture.state,
+		SafetyDeclaration:                 autonomoussafety.DefaultDeclaration(),
 		SourceSafety:                      autonomouspolicy.SourceSafetySafe,
 		HistoryPolicy:                     autonomousassembly.HistoryPolicy{},
 		Ledger:                            fixture.ledger,
@@ -885,9 +1064,36 @@ func newCycleFixture(t *testing.T, action autonomous.Action) *cycleFixture {
 		CommitRunner:                      fixture.runCommit,
 		LockAcquirer:                      fixture.acquireLock,
 		CommandRunner:                     func(context.Context, runner.Command) runner.Result { return runner.Result{ExitCode: 0} },
+		SafetyPreflightRunner: func(_ context.Context, input autonomoussafety.Input) (autonomoussafety.Output, error) {
+			return testSafetyOutput(t, input)
+		},
 	}
 	fixture.applyActionEvidence()
 	return fixture
+}
+
+func testSafetyOutput(t *testing.T, input autonomoussafety.Input) (autonomoussafety.Output, error) {
+	t.Helper()
+	policy, err := autonomoussafety.FinalizePolicy(autonomoussafety.Policy{
+		SchemaVersion: autonomoussafety.PolicySchemaVersion, TaskID: input.TaskID, Workspace: input.Workspace,
+		Mode: autonomoussafety.ModeOperatorAttended, Codex: input.Codex,
+		ExternalIsolation: autonomoussafety.ExternalIsolation{Expectation: autonomoussafety.IsolationNone, Enforcement: autonomoussafety.EnforcementNone},
+		Network:           autonomoussafety.NetworkPolicy{Access: autonomoussafety.NetworkUnknown, Enforcement: autonomoussafety.EnforcementNone}, Hooks: autonomoussafety.HookTrust{Policy: autonomoussafety.HooksOperatorAttended},
+		Environment: autonomoussafety.EnvironmentPolicy{InheritHost: true}, RedactionPolicyHash: strings.Repeat("b", 64),
+		ProtectedPaths: []autonomoussafety.ProtectedPath{
+			{Path: filepath.Join(input.Workspace.ExecutionRoot, ".git"), Class: "worktree_git_administration"},
+			{Path: filepath.Join(input.Workspace.ExecutionRoot, ".agent", "tasks"), Class: "task_specifications"},
+			{Path: filepath.Join(input.Workspace.ExecutionRoot, ".agent", "profiles"), Class: "role_profiles"},
+			{Path: filepath.Join(input.Workspace.ExecutionRoot, "AGENTS.md"), Class: "repository_guidance"},
+		},
+		ConfigPath: input.ConfigPath, ConfigSHA256: input.ConfigSHA256,
+		WorktreeNotice: "Git worktree isolation is source/Git isolation, not a security sandbox.",
+	})
+	if err != nil {
+		return autonomoussafety.Output{}, err
+	}
+	preflight := autonomoussafety.PreflightResult{SchemaVersion: autonomoussafety.PreflightSchemaVersion, TaskID: input.TaskID, WorkspaceID: input.Workspace.WorkspaceID, SourceRevision: input.SourceRevision, PolicySHA256: policy.PolicySHA256, ConfigSHA256: input.ConfigSHA256, ObservedAt: input.ObservedAt, Ready: true, Checks: []autonomoussafety.Check{{Name: "fixture", Status: autonomoussafety.CheckOK, Detail: "validated"}}}
+	return autonomoussafety.Output{Policy: policy, Preflight: preflight}, nil
 }
 
 func (f *cycleFixture) configureAction(action autonomous.Action) {
@@ -921,6 +1127,11 @@ func (f *cycleFixture) configureAction(action autonomous.Action) {
 		}}
 	case autonomous.ActionBlock:
 		f.state.Lifecycle = autonomous.LifecycleStatePending
+	case autonomous.ActionNeedsInput:
+		question := autonomous.NeedsInputQuestion{TaskID: "task-1", QuestionID: "product-mode", Revision: 1, Question: "Which behavior?", BlockingReason: "The task permits incompatible behaviors.", Options: []autonomous.NeedsInputOption{{ID: "keep", Meaning: "Keep behavior."}, {ID: "change", Meaning: "Change behavior."}}, Recommendation: autonomous.NeedsInputRecommendation{OptionID: "keep", Rationale: "Safer."}, Evidence: append([]autonomous.EvidenceReference(nil), f.decision.Inputs...)}
+		hash, _ := autonomous.QuestionContentSHA256(question)
+		question.ContentSHA256 = hash
+		f.decision.NeedsInput = &question
 	}
 }
 
@@ -1018,10 +1229,15 @@ func (f *cycleFixture) runSupervisor(ctx context.Context, cfg supervisor.Config)
 		Artifacts:         supervisor.Artifacts{Prompt: supervisor.Artifact{Path: filepath.Join(".revolvr", "runs", cfg.RunID, "supervisor-prompt.md"), SHA256: strings.Repeat("1", 64), ByteSize: 1}},
 		Dossier:           supervisor.DossierProvenance{SchemaVersion: cfg.Dossier.Manifest.SchemaVersion, TaskID: cfg.TaskID, SHA256: cfg.Dossier.Manifest.DossierSHA256, ByteSize: cfg.Dossier.Manifest.DossierByteSize},
 		Profile:           supervisor.ProfileProvenance{Name: supervisor.SupervisorProfileName, Path: ".agent/profiles/supervisor.md", SHA256: strings.Repeat("2", 64), ByteSize: 10},
-		Invocation:        testInvocation(f.root),
-		SourceBefore:      &source,
-		SourceAfter:       &after,
-		SourceDifference:  gitstate.CompareSourceSnapshots(source, after),
+		Invocation: testInvocationWithSafety(func() string {
+			if cfg.ExecutionRoot != "" {
+				return cfg.ExecutionRoot
+			}
+			return f.root
+		}(), cfg.SafetyPolicySHA256),
+		SourceBefore:     &source,
+		SourceAfter:      &after,
+		SourceDifference: gitstate.CompareSourceSnapshots(source, after),
 	}, nil
 }
 
@@ -1047,14 +1263,18 @@ func (f *cycleFixture) runCodex(_ context.Context, cfg codexexec.Config) (codexe
 	}
 	f.workerPrompt = cfg.Prompt
 	f.workerOutputSchema = cfg.OutputSchema
-	writeFixtureFile(f.t, filepath.Join(cfg.WorkingDir, cfg.Artifacts.StdoutJSONL), []byte("{\"type\":\"turn.completed\"}\n"))
-	writeFixtureFile(f.t, filepath.Join(cfg.WorkingDir, cfg.Artifacts.Stderr), nil)
-	writeFixtureFile(f.t, filepath.Join(cfg.WorkingDir, cfg.Artifacts.LastMessage), []byte("exact worker final output"))
+	artifactRoot := cfg.ArtifactRoot
+	if artifactRoot == "" {
+		artifactRoot = cfg.WorkingDir
+	}
+	writeFixtureFile(f.t, filepath.Join(artifactRoot, cfg.Artifacts.StdoutJSONL), []byte("{\"type\":\"turn.completed\"}\n"))
+	writeFixtureFile(f.t, filepath.Join(artifactRoot, cfg.Artifacts.Stderr), nil)
+	writeFixtureFile(f.t, filepath.Join(artifactRoot, cfg.Artifacts.LastMessage), []byte("exact worker final output"))
 	if f.workerMutatesState {
 		writeFixtureFile(f.t, filepath.Join(f.root, f.task.AutonomousStatePath), []byte("worker-mutated state"))
 	}
 	if f.writeReceipt {
-		receiptPath := filepath.Join(cfg.WorkingDir, ".revolvr", "receipts", cfg.RunID+".md")
+		receiptPath := filepath.Join(artifactRoot, ".revolvr", "receipts", cfg.RunID+".md")
 		if f.malformedReceipt {
 			writeFixtureFile(f.t, receiptPath, []byte("not a receipt"))
 		} else {
@@ -1291,11 +1511,21 @@ func testInvocation(root string) codexexec.InvocationProvenance {
 	}
 }
 
+func testInvocationWithSafety(root, safetyPolicySHA256 string) codexexec.InvocationProvenance {
+	invocation := testInvocation(root)
+	invocation.SafetyPolicySHA256 = safetyPolicySHA256
+	return invocation
+}
+
 func testSourceSnapshot(head, content, indexRecord string) gitstate.SourceSnapshot {
+	return testSourceSnapshotAtPath(head, content, indexRecord, "tracked.txt")
+}
+
+func testSourceSnapshotAtPath(head, content, indexRecord, path string) gitstate.SourceSnapshot {
 	contentSum := sha256.Sum256([]byte(content))
-	entries := []gitstate.SourceEntry{{Path: "tracked.txt", IndexRecord: indexRecord, FileType: "regular", Mode: 0o644, ByteSize: int64(len(content)), SHA256: fmt.Sprintf("%x", contentSum)}}
+	entries := []gitstate.SourceEntry{{Path: path, IndexRecord: indexRecord, FileType: "regular", Mode: 0o644, ByteSize: int64(len(content)), SHA256: fmt.Sprintf("%x", contentSum)}}
 	indexHash := sha256.New()
-	_, _ = io.WriteString(indexHash, "tracked.txt")
+	_, _ = io.WriteString(indexHash, path)
 	_, _ = indexHash.Write([]byte{0})
 	_, _ = io.WriteString(indexHash, indexRecord)
 	_, _ = indexHash.Write([]byte{0})

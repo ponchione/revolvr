@@ -152,6 +152,7 @@ type ArtifactWriter func(repositoryRoot, relativePath string, content []byte) er
 
 type Config struct {
 	RepositoryRoot string
+	ArtifactRoot   string
 	TaskID         string
 	RunID          string
 	OccurrenceID   string
@@ -399,6 +400,13 @@ func normalizeExecution(cfg Config) (Config, TierSelection, PlanIdentity, error)
 	if err != nil || strings.TrimSpace(cfg.RepositoryRoot) == "" {
 		return Config{}, TierSelection{}, PlanIdentity{}, errors.New("verification execution: repository root is required")
 	}
+	artifactRoot := root
+	if strings.TrimSpace(cfg.ArtifactRoot) != "" {
+		artifactRoot, err = filepath.Abs(strings.TrimSpace(cfg.ArtifactRoot))
+		if err != nil {
+			return Config{}, TierSelection{}, PlanIdentity{}, fmt.Errorf("verification artifact root: %w", err)
+		}
+	}
 	root, err = filepath.EvalSymlinks(root)
 	if err != nil {
 		return Config{}, TierSelection{}, PlanIdentity{}, fmt.Errorf("verification execution: resolve repository root: %w", err)
@@ -432,14 +440,14 @@ func normalizeExecution(cfg Config) (Config, TierSelection, PlanIdentity, error)
 		cfg.CommandRunner = runner.Run
 	}
 	if cfg.ArtifactPath != "" {
-		if _, err := pathguard.Resolve(root, cfg.ArtifactPath); err != nil {
+		if _, err := pathguard.Resolve(artifactRoot, cfg.ArtifactPath); err != nil {
 			return Config{}, TierSelection{}, PlanIdentity{}, fmt.Errorf("verification execution: artifact path: %w", err)
 		}
 		if cfg.ArtifactWriter == nil {
 			cfg.ArtifactWriter = writeArtifact
 		}
 	}
-	cfg.RepositoryRoot, cfg.Plan = root, ClonePlan(cfg.Plan)
+	cfg.RepositoryRoot, cfg.ArtifactRoot, cfg.Plan = root, artifactRoot, ClonePlan(cfg.Plan)
 	return cfg, selection, identity, nil
 }
 
@@ -559,7 +567,7 @@ func finishOperation(ctx context.Context, cfg Config, result Result, outcome Out
 		if err != nil {
 			return failOperation(cfg, result, OutcomeArtifactError, "artifact_marshal", err)
 		}
-		if err := cfg.ArtifactWriter(cfg.RepositoryRoot, cfg.ArtifactPath, raw); err != nil {
+		if err := cfg.ArtifactWriter(cfg.ArtifactRoot, cfg.ArtifactPath, raw); err != nil {
 			return failOperation(cfg, result, OutcomeArtifactError, "artifact_write", err)
 		}
 		result.Artifact = &Artifact{Path: filepath.ToSlash(cfg.ArtifactPath), SHA256: hashBytes(raw), ByteSize: len(raw)}

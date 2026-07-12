@@ -58,7 +58,7 @@ func BuildPrompt(in PromptInput) ([]byte, error) {
 		out.WriteByte('\n')
 	}
 	out.WriteString("\n## Harness Authority and Output Rules\n\n")
-	out.WriteString("Return exactly one JSON object representing one SupervisorDecision. Follow the harness-supplied JSON schema directly. For a worker action, include explicit structured strategy material whose approach, techniques, and evidence targets materially describe this retry; formatting, run IDs, timestamps, or rationale-only changes are not a changed strategy. Do not include surrounding prose, Markdown fences, or multiple objects. Do not invoke Codex recursively or start a nested Codex session. Do not execute or route a worker. Do not edit repository source, task files, plans, findings, receipts, runtime state, or other evidence, and do not create a commit.\n\n")
+	out.WriteString("Return exactly one JSON object representing one SupervisorDecision. Follow the harness-supplied JSON schema directly. For a worker action, include explicit structured strategy material whose approach, techniques, and evidence targets materially describe this retry; formatting, run IDs, timestamps, or rationale-only changes are not a changed strategy. When an operator product decision is indispensable, use only the needs_input action and include the exact versioned question, mutually exclusive stable option IDs, one offered recommendation and rationale, typed evidence, deterministic content identity, and only genuinely option-independent read-only work. Never select the recommendation automatically. Do not include surrounding prose, Markdown fences, or multiple objects. Do not invoke Codex recursively or start a nested Codex session. Do not execute or route a worker. Do not edit repository source, task files, plans, findings, receipts, runtime state, or other evidence, and do not create a commit.\n\n")
 	out.WriteString("Revolvr retains safety, verification, legal-transition, retry, commit, and terminal-state authority. A structurally valid complete or block recommendation is only a supervisor output; this pass does not transition or finalize the task.\n")
 	return out.Bytes(), nil
 }
@@ -68,11 +68,16 @@ func ValidateDossier(taskID string, dossier autonomous.TaskDossier) error {
 		return err
 	}
 	manifest := dossier.Manifest
-	if manifest.SchemaVersion != autonomous.DossierManifestSchemaVersion {
+	if manifest.SchemaVersion != autonomous.DossierManifestSchemaVersion && manifest.SchemaVersion != autonomous.RoleDossierManifestSchemaVersion {
 		return fmt.Errorf("validate supervisor dossier: unsupported manifest schema %q", manifest.SchemaVersion)
 	}
 	if manifest.TaskID != taskID {
 		return fmt.Errorf("validate supervisor dossier: manifest task_id %q does not match requested task_id %q", manifest.TaskID, taskID)
+	}
+	if manifest.SchemaVersion == autonomous.RoleDossierManifestSchemaVersion {
+		if manifest.Projection == nil || manifest.Projection.Role != autonomous.DossierRoleSupervisor || manifest.TokenEstimate == nil {
+			return errors.New("validate supervisor dossier: role projection must be supervisor with token estimates")
+		}
 	}
 	if len(dossier.Markdown) == 0 {
 		return errors.New("validate supervisor dossier: Markdown is empty")
@@ -112,7 +117,8 @@ func supportedDossierSourceKind(kind autonomous.DossierSourceKind) bool {
 		autonomous.DossierSourceKindRecentRuns,
 		autonomous.DossierSourceKindReceipt,
 		autonomous.DossierSourceKindGitSnapshot,
-		autonomous.DossierSourceKindRepositoryGuidance:
+		autonomous.DossierSourceKindRepositoryGuidance,
+		autonomous.DossierSourceKindRepositoryMap:
 		return true
 	default:
 		return false

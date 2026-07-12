@@ -23,27 +23,34 @@ var (
 )
 
 type Config struct {
-	WorkingDir string
-	RunID      string
-	PID        int
-	Timeout    time.Duration
-	Clock      func() time.Time
+	WorkingDir    string
+	ControlRoot   string
+	ExecutionRoot string
+	WorkspaceID   string
+	RunID         string
+	PID           int
+	Timeout       time.Duration
+	Clock         func() time.Time
 }
 
 type Metadata struct {
-	RunID       string    `json:"run_id"`
-	PID         int       `json:"pid"`
-	AcquiredAt  time.Time `json:"acquired_at"`
-	HeartbeatAt time.Time `json:"heartbeat_at"`
-	ExpiresAt   time.Time `json:"expires_at"`
+	RunID         string    `json:"run_id"`
+	PID           int       `json:"pid"`
+	AcquiredAt    time.Time `json:"acquired_at"`
+	HeartbeatAt   time.Time `json:"heartbeat_at"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	WorkspaceID   string    `json:"workspace_id,omitempty"`
+	ExecutionRoot string    `json:"execution_root,omitempty"`
 }
 
 type SourceWriter struct {
-	path    string
-	runID   string
-	pid     int
-	timeout time.Duration
-	clock   func() time.Time
+	path          string
+	runID         string
+	pid           int
+	timeout       time.Duration
+	clock         func() time.Time
+	workspaceID   string
+	executionRoot string
 }
 
 type HeldError struct {
@@ -94,22 +101,26 @@ func AcquireSourceWriter(ctx context.Context, cfg Config) (*SourceWriter, error)
 	}
 
 	metadata := Metadata{
-		RunID:       cfg.RunID,
-		PID:         cfg.PID,
-		AcquiredAt:  now,
-		HeartbeatAt: now,
-		ExpiresAt:   now.Add(cfg.Timeout),
+		RunID:         cfg.RunID,
+		PID:           cfg.PID,
+		AcquiredAt:    now,
+		HeartbeatAt:   now,
+		ExpiresAt:     now.Add(cfg.Timeout),
+		WorkspaceID:   cfg.WorkspaceID,
+		ExecutionRoot: cfg.ExecutionRoot,
 	}
 	if err := writeMetadata(file, metadata); err != nil {
 		return nil, err
 	}
 
 	return &SourceWriter{
-		path:    path,
-		runID:   cfg.RunID,
-		pid:     cfg.PID,
-		timeout: cfg.Timeout,
-		clock:   cfg.Clock,
+		path:          path,
+		runID:         cfg.RunID,
+		pid:           cfg.PID,
+		timeout:       cfg.Timeout,
+		clock:         cfg.Clock,
+		workspaceID:   cfg.WorkspaceID,
+		executionRoot: cfg.ExecutionRoot,
 	}, nil
 }
 
@@ -135,6 +146,33 @@ func ReadSourceWriter(ctx context.Context, workingDir string) (Metadata, bool, e
 	}
 	defer unlockFile(file)
 
+	return readMetadata(file)
+}
+
+func ReadWorkspaceSourceWriter(ctx context.Context, controlRoot, workspaceID string) (Metadata, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Metadata{}, false, err
+	}
+	path, err := WorkspaceSourceWriterPath(controlRoot, workspaceID)
+	if err != nil {
+		return Metadata{}, false, err
+	}
+	return readLockPath(ctx, path)
+}
+
+func readLockPath(ctx context.Context, path string) (Metadata, bool, error) {
+	file, err := os.OpenFile(path, os.O_RDWR, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return Metadata{}, false, nil
+	}
+	if err != nil {
+		return Metadata{}, false, fmt.Errorf("open source-writer lock: %w", err)
+	}
+	defer file.Close()
+	if err := lockFile(ctx, file); err != nil {
+		return Metadata{}, false, err
+	}
+	defer unlockFile(file)
 	return readMetadata(file)
 }
 
@@ -232,7 +270,52 @@ func SourceWriterPath(workingDir string) (string, error) {
 	return filepath.Join(abs, SourceWriterRelPath), nil
 }
 
+func WorkspaceSourceWriterPath(controlRoot, workspaceID string) (string, error) {
+	controlRoot = strings.TrimSpace(controlRoot)
+	workspaceID = strings.TrimSpace(workspaceID)
+	if controlRoot == "" || workspaceID == "" || strings.ContainsAny(workspaceID, "/\\\r\n") {
+		return "", errors.New("workspace source-writer lock: control root and safe workspace ID are required")
+	}
+	abs, err := filepath.Abs(controlRoot)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(abs, ".revolvr", "locks", "workspaces", workspaceID, "source-writer.lock"), nil
+}
+
 func normalizeConfig(cfg Config) (Config, string, error) {
+	if strings.TrimSpace(cfg.ControlRoot) != "" || strings.TrimSpace(cfg.ExecutionRoot) != "" || strings.TrimSpace(cfg.WorkspaceID) != "" {
+		if strings.TrimSpace(cfg.ControlRoot) == "" || strings.TrimSpace(cfg.ExecutionRoot) == "" || strings.TrimSpace(cfg.WorkspaceID) == "" {
+			return Config{}, "", errors.New("workspace source-writer lock requires control root, execution root, and workspace ID together")
+		}
+		control, err := filepath.Abs(cfg.ControlRoot)
+		if err != nil {
+			return Config{}, "", err
+		}
+		execution, err := filepath.Abs(cfg.ExecutionRoot)
+		if err != nil {
+			return Config{}, "", err
+		}
+		if filepath.Clean(control) == filepath.Clean(execution) {
+			return Config{}, "", errors.New("workspace source-writer lock requires distinct control and execution roots")
+		}
+		cfg.ControlRoot, cfg.ExecutionRoot = filepath.Clean(control), filepath.Clean(execution)
+		path, err := WorkspaceSourceWriterPath(cfg.ControlRoot, cfg.WorkspaceID)
+		if err != nil {
+			return Config{}, "", err
+		}
+		cfg.WorkingDir = cfg.ExecutionRoot
+		if cfg.PID <= 0 {
+			cfg.PID = os.Getpid()
+		}
+		if cfg.Timeout <= 0 {
+			cfg.Timeout = defaultTimeout
+		}
+		if cfg.Clock == nil {
+			cfg.Clock = time.Now
+		}
+		return cfg, path, nil
+	}
 	if strings.TrimSpace(cfg.WorkingDir) == "" {
 		return Config{}, "", errors.New("source-writer lock: working directory is required")
 	}
@@ -352,5 +435,5 @@ func validateMetadata(metadata Metadata) error {
 }
 
 func (l *SourceWriter) owns(metadata Metadata) bool {
-	return strings.TrimSpace(metadata.RunID) == l.runID && metadata.PID == l.pid
+	return strings.TrimSpace(metadata.RunID) == l.runID && metadata.PID == l.pid && metadata.WorkspaceID == l.workspaceID && metadata.ExecutionRoot == l.executionRoot
 }

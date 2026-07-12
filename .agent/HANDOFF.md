@@ -4,56 +4,91 @@ Date: 2026-07-12
 
 ## Where We Left Off
 
-AW-16 — conditional documentation and simplification — is complete and marked complete in `.agent/TASKS.md`. All required focused tests, the full repository suite, focused vet checks, and `git diff --check` passed. No task is in progress. The next unchecked task is AW-17 only.
+AW-29 is complete. AW-30 is the next unchecked task and must begin in a fresh
+`codex exec` invocation. Do not resume this session and do not start AW-31.
 
-The new isolated `internal/autonomousoptional` boundary owns one evidence-backed documentor or simplifier assessment and at most one bounded operation. `not_applicable` is an explicit counter-free decision-only disposition. A run uses one AW-15 admission/completion around one ordinary AW-10 role cycle; a source-changing success adds at most one fresh independent audit and persists it through the existing AW-12 application. It is not a worker pipeline, fixed role itinerary, retry loop, or completion authority.
+External notifications are explicit opt-in `notifications` configuration and
+part of `revolvr-effective-run-config-v4`. The exact event allowlist is task
+completed, blocked, typed needs input, trusted safety stop, queue drained, and
+daemon failure. Disabled policy performs no notification lookup, secret load,
+directory/lock/ledger/temp creation, or subprocess work.
 
-Versioned, map-free optional-role contracts live in `internal/autonomous/optional_role.go`. Relevance is based on exact structured task/spec, acceptance, plan, audit, user-facing-change, complexity, duplication, or maintainability evidence bound to current task/state/source/final-verification/audit identities. Every runnable target has an exact clean repository-relative path, and changes outside selected targets fail closed. Rationale alone cannot create or waive relevance. A documentation obligation prevents `not_applicable`; simplification needs a concrete cleanup target.
+`internal/autonomousnotification` owns strict v1 policy/payload/outbox
+contracts, deterministic event/delivery IDs, exact canonical JSON stdin,
+immutable intent/payload/history, synchronized journals, bounded runner
+execution, replacement environment, redaction, retry/restart, and inspection.
+Task, queue, daemon, input, finalization, archive, safety, ledger, and retention
+owners remain authoritative. Hook failure is durable and operator-visible but
+cannot change their result, bytes, stop reason, or source error precedence.
 
-Canonical execution state retains append-only `not_applicable`, `no_change`, and `source_changed` occurrences. Immutable `autonomous-optional-role-transition-v1` history shares the existing task `state.lock`, exact CAS, history-before-state persistence, strict readback, and content-addressed replay. Coordinator replay does not rerun a worker or duplicate its disposition ledger event. Audit history reconstruction now follows planning, audit, attempt, and optional-role transitions so later evidence-only transitions do not hide a current audit; source and verification freshness remain explicit policy gates.
+Direct task and queue app wrappers release the global autonomous-execution
+lease before hook execution. Queue-internal tasks do not dispatch; their exact
+durable outcomes are adapted once by the enclosing queue. Replays rebuild the
+same delivery identity, successful delivery starts no second process, and
+running/history-ahead crashes consume and recover one bounded attempt. Stable
+receiver keys support deduplication, but external exactly-once is deliberately
+not claimed across the receiver-success/local-crash window.
 
-No-op workers retain exact attempt, worker, profile, dossier, receipt, ledger, source, and prior final verification/audit gate evidence while running no verification/audit and making no commit. Source-changing workers rely on AW-10 final verification and exact commit admission, then require one newer independent audit for the exact source/verification occurrence. Simplifier changes retain behavior-preservation evidence. Findings-bearing audits remain open and return to supervision; AW-16 never resolves them.
+Operator inspection is limited to redacted read-only `notification list/show`.
+Config check and doctor show nonsecret policy facts. AW-27 views and AW-28 TUI
+refresh remain read-only and do not dispatch or retry. Notification evidence is
+kept in its isolated outbox rather than changing AW-25 ledger export/replay or
+retention schemas.
 
 ## Verification Status
 
 All checks passed:
 
 ```text
-gofmt -w <all changed Go files>
-go test -count=1 ./internal/autonomous ./internal/autonomousoptional ./internal/autonomouspolicy ./internal/autonomouscycle ./internal/autonomousattempt ./internal/autonomouscorrection ./internal/autonomousverification ./internal/autonomousaudit ./internal/autonomousauditapply ./internal/autonomousstate ./internal/supervisor ./internal/ledger ./internal/prompt
-go vet ./internal/autonomous ./internal/autonomousoptional ./internal/autonomouspolicy ./internal/autonomouscycle ./internal/autonomousattempt ./internal/autonomousauditapply ./internal/autonomousstate ./internal/supervisor ./internal/ledger ./internal/prompt
+go test -count=1 <required AW-28 baseline packages>
+go test -count=1 ./internal/app ./internal/cli ./internal/tui \
+  ./internal/autonomoustaskrun ./internal/autonomousqueue \
+  ./internal/autonomousdaemon ./internal/autonomousexec \
+  ./internal/autonomousfinalization ./internal/autonomousinput \
+  ./internal/autonomousstate ./internal/autonomousarchive \
+  ./internal/autonomoussafety ./internal/ledger ./internal/ledgerexport \
+  ./internal/artifactretention ./internal/redact ./internal/runner \
+  ./internal/pathguard ./internal/lock ./internal/runonce \
+  ./internal/autonomousnotification
 go test -count=1 ./...
+go vet ./internal/app ./internal/cli ./internal/runonce \
+  ./internal/autonomousnotification
 git diff --check
+go run ./cmd/revolvr --help
+go run ./cmd/revolvr run --help
+go run ./cmd/revolvr notification --help
+go run ./cmd/revolvr notification list
+go run ./cmd/revolvr config check
+go run ./cmd/revolvr doctor # expected nonzero only for accumulated dirty tree
+go run ./cmd/revolvr status
 ```
 
-No live Codex/model, live supervisor/worker, `revolvr run`, nested model execution, destructive Git command, dependency addition, or commit was used.
+Tests use injected runners/lookups/clocks/waits and temporary repositories. They
+cover six-event payload goldens, strict configuration, redaction, exact process
+authority, caps/timeouts/retries/cancellation, duplicate/restart/history-ahead
+recovery, disabled no-op behavior, source-durable replay reconciliation,
+failure isolation, lease ordering, CLI diagnostics, and read-only inspection.
+No live Codex/model, real hook/receiver, network request, daemon service,
+archive/retention mutation, metrics/evaluation, or parallel worker ran.
 
 ## Worktree State
 
-The accumulated AW-01 through AW-16 source, tests, profiles, and durable-state
-files are committed together with this handoff. Start the next fresh session by
-confirming `git status --short --branch` is clean, then read `AGENTS.md`, this
-handoff, `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`, and
-`.agent/AUTONOMOUS_WORKFLOW_REFACTOR.md` completely. Do not discard or rewrite
-the committed baseline.
+The AW-01 through AW-16 baseline remains committed at `28371e4` (`Build
+autonomous workflow through conditional roles`). AW-17 through AW-29 source,
+tests, documentation, and durable-state changes are intentionally uncommitted
+and must be preserved. The consumed AW-29 kickoff prompt is deleted as
+expected.
 
-## Where To Resume
+Start the next fresh session with `git status --short --branch` and
+`git log -1 --oneline`, then read `AGENTS.md`, this handoff, `.agent/TASKS.md`,
+`.agent/STATE.md`, `.agent/DECISIONS.md`, and
+`.agent/AUTONOMOUS_WORKFLOW_REFACTOR.md` completely. Never reset, clean,
+restore, stash, or otherwise discard accumulated work.
 
-The next task is AW-17 — add structured `needs_input` handling. Use the detailed
-fresh-session prompt in `.agent/AW_17_KICKOFF_PROMPT.md`; it is scoped only to
-AW-17 and records the required contracts, persistence, safety, compatibility,
-tests, and stop boundaries.
+## Next Task
 
-Preserve these boundaries:
-
-- `autonomousattempt` admits and accounts for one operation; it is not a scheduler or retry loop.
-- `autonomouscycle.Run` performs one supervisor decision and at most one worker.
-- `autonomouscorrection.Run` performs at most one correction/final-verification/re-audit sequence.
-- `autonomousoptional.Run` performs one role assessment and at most one role worker plus one audit; it does not impose role ordering or disposition findings.
-- `autonomouspolicy.Evaluate` remains pure.
-- Verification does not persist task state; audit/finding persistence remains in its existing packages.
-- `internal/passpolicy` remains exclusively `mixed-pass-v1`; no autonomous CLI/TUI/runonce path exists yet.
-- AW-17 owns structured questions/answers/resume, and AW-18 owns worktree isolation/recovery.
+AW-30 — add autonomous-loop metrics and deterministic evaluation scenarios.
+Do not add bounded parallel workers; AW-31 retains that scope.
 
 ## Blockers
 

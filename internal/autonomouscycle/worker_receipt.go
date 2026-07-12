@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"revolvr/internal/artifactretention"
 	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/ledger"
 	"revolvr/internal/pathguard"
@@ -33,8 +34,8 @@ func finalizeWorkerReceipt(ctx context.Context, n normalizedConfig, task taskfil
 	content, readErr := os.ReadFile(absPath)
 	if readErr == nil {
 		if stdoutPath := result.Worker.Artifacts.CodexStdout.Path; stdoutPath != "" {
-			if stdoutAbs, resolveErr := pathguard.Resolve(n.root, stdoutPath); resolveErr == nil {
-				if jsonl, jsonlErr := os.ReadFile(stdoutAbs); jsonlErr == nil {
+			if _, resolveErr := pathguard.Resolve(n.root, stdoutPath); resolveErr == nil {
+				if jsonl, _, jsonlErr := artifactretention.ReadLogical(ctx, n.root, stdoutPath, int64(n.CodexStdoutCap)); jsonlErr == nil {
 					if updated, reparsed, changed, rewriteErr := receipt.RewriteMetricsFromCodexJSONL(content, jsonl); rewriteErr == nil {
 						content = updated
 						parsed = reparsed

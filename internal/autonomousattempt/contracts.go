@@ -142,9 +142,16 @@ func DecisionSignature(decision autonomous.SupervisorDecision) (autonomous.Canon
 		WorkerProfile       autonomous.WorkerProfile              `json:"worker_profile"`
 		FindingIDs          []string                              `json:"finding_ids"`
 		VerificationFailure *autonomous.VerificationFailureTarget `json:"verification_failure,omitempty"`
+		NeedsInput          *autonomous.QuestionIdentity          `json:"needs_input,omitempty"`
 		SuccessCriteria     []string                              `json:"success_criteria"`
 		Evidence            []autonomous.EvidenceReference        `json:"evidence"`
-	}{decision.TaskID, decision.Action, decision.WorkerProfile, findings, decision.VerificationFailure, criteria, evidence})
+	}{decision.TaskID, decision.Action, decision.WorkerProfile, findings, decision.VerificationFailure, func() *autonomous.QuestionIdentity {
+		if decision.NeedsInput == nil {
+			return nil
+		}
+		value := decision.NeedsInput.Identity()
+		return &value
+	}(), criteria, evidence})
 	return autonomous.CanonicalSignature{Kind: autonomous.SignatureKindDecision, SHA256: sha, Evidence: evidence}, err
 }
 

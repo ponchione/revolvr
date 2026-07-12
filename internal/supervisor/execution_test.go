@@ -38,6 +38,7 @@ func TestRunAcceptsEverySupervisorAction(t *testing.T) {
 		{name: "simplify", action: autonomous.ActionSimplify, profile: autonomous.WorkerProfileSimplifier},
 		{name: "complete", action: autonomous.ActionComplete},
 		{name: "block", action: autonomous.ActionBlock},
+		{name: "needs-input", action: autonomous.ActionNeedsInput},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,6 +81,8 @@ func TestRunAcceptsEverySupervisorAction(t *testing.T) {
 				t.Fatalf("canonical decision = %q, want %q", got, canonical)
 			}
 			assertArtifactHash(t, fixture.root, result.Artifacts.Prompt)
+			assertArtifactHash(t, fixture.root, result.Artifacts.Dossier)
+			assertArtifactHash(t, fixture.root, result.Artifacts.DossierManifest)
 			assertArtifactHash(t, fixture.root, result.Artifacts.Schema)
 			assertArtifactHash(t, fixture.root, result.Artifacts.RawOutput)
 			assertArtifactHash(t, fixture.root, result.Artifacts.Decision)
@@ -109,7 +112,7 @@ func TestRunAcceptsEverySupervisorAction(t *testing.T) {
 			})
 			assertNoWorkerLifecycleEvents(t, history.Events)
 			artifacts, ok := ledger.RunArtifactsFromEvents(history.Events)
-			if !ok || artifacts.SupervisorPromptPath != result.Artifacts.Prompt.Path || artifacts.SupervisorDecisionPath != result.Artifacts.Decision.Path || artifacts.ReceiptPath != "" {
+			if !ok || artifacts.SupervisorPromptPath != result.Artifacts.Prompt.Path || artifacts.SupervisorDossierPath != result.Artifacts.Dossier.Path || artifacts.SupervisorDossierManifestPath != result.Artifacts.DossierManifest.Path || artifacts.SupervisorDecisionPath != result.Artifacts.Decision.Path || artifacts.ReceiptPath != "" {
 				t.Fatalf("ledger artifacts = %+v, found=%t", artifacts, ok)
 			}
 		})
@@ -611,8 +614,14 @@ func testDecision(action autonomous.Action, profile autonomous.WorkerProfile) au
 			Detail:    "The validated dossier identifies the task and current evidence.",
 		}},
 	}
-	if action == autonomous.ActionComplete || action == autonomous.ActionBlock {
+	if action == autonomous.ActionComplete || action == autonomous.ActionBlock || action == autonomous.ActionNeedsInput {
 		decision.SuccessCriteria = nil
+	}
+	if action == autonomous.ActionNeedsInput {
+		question := autonomous.NeedsInputQuestion{TaskID: "task-1", QuestionID: "product-mode", Revision: 1, Question: "Which product behavior?", BlockingReason: "The task permits incompatible behaviors.", Options: []autonomous.NeedsInputOption{{ID: "keep", Meaning: "Keep current behavior."}, {ID: "change", Meaning: "Adopt changed behavior."}}, Recommendation: autonomous.NeedsInputRecommendation{OptionID: "keep", Rationale: "Preserves compatibility."}, Evidence: append([]autonomous.EvidenceReference(nil), decision.Inputs...)}
+		hash, _ := autonomous.QuestionContentSHA256(question)
+		question.ContentSHA256 = hash
+		decision.NeedsInput = &question
 	}
 	return decision
 }

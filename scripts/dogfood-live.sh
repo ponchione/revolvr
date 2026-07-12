@@ -135,6 +135,8 @@ assert_clean_worktree "task-baseline"
 cat >".revolvr/config.yaml" <<CONFIG_YAML
 codex:
   timeout_seconds: $CODEX_TIMEOUT_SECONDS
+autonomy:
+  mode: operator_attended
 verification:
   missing_policy: fail
   commands:

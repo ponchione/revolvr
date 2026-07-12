@@ -13,10 +13,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"revolvr/internal/app"
+	"revolvr/internal/autonomousqueue"
+	"revolvr/internal/autonomoustaskrun"
+	"revolvr/internal/autonomousview"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
+	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
 )
 
@@ -50,13 +54,16 @@ const (
 	viewRuns
 	viewRunDetail
 	viewPreflight
+	viewAutonomous
 	viewHelp
 	viewTaskEntry
 )
 
 const (
-	runModeOnce = "once"
-	runModeLoop = "loop"
+	runModeOnce  = "once"
+	runModeLoop  = "loop"
+	runModeTask  = "task"
+	runModeQueue = "queue"
 )
 
 type StatusModel struct {
@@ -70,6 +77,7 @@ type StatusModel struct {
 	runDetails   *ledger.RunWithEvents
 	runOnce      runOnceState
 	preflight    preflightState
+	autonomous   autonomousState
 	validation   receiptValidationState
 	taskEntry    taskEntryState
 	message      string
@@ -86,6 +94,11 @@ type ValidateReceiptFunc func(runID string) (receipt.ValidationResult, error)
 type PreflightFunc func() (app.PreflightResult, error)
 type RunOnceFunc func(context.Context, app.RunProgress) (runonce.Result, error)
 type RunLoopFunc func(context.Context, int, app.RunProgress, app.RunPassFunc) (app.RunLoopResult, error)
+type RunTaskFunc func(context.Context, string, int64, autonomoustaskrun.Progress) (autonomoustaskrun.Result, error)
+type ListAutonomousFunc func() ([]app.AutonomousTaskSelector, error)
+type LoadAutonomousFunc func(string) (autonomousview.View, error)
+type AnswerAutonomousFunc func(app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error)
+type RunQueueFunc func(context.Context, int64, int64, autonomousqueue.Progress) (autonomousqueue.Result, error)
 
 type StatusActions struct {
 	Context         context.Context
@@ -97,6 +110,11 @@ type StatusActions struct {
 	Preflight       PreflightFunc
 	RunOnce         RunOnceFunc
 	RunLoop         RunLoopFunc
+	RunTask         RunTaskFunc
+	ListAutonomous  ListAutonomousFunc
+	LoadAutonomous  LoadAutonomousFunc
+	AnswerInput     AnswerAutonomousFunc
+	RunQueue        RunQueueFunc
 }
 
 type RunOptions struct {
@@ -110,6 +128,33 @@ type RunOptions struct {
 	Preflight       PreflightFunc
 	RunOnce         RunOnceFunc
 	RunLoop         RunLoopFunc
+	RunTask         RunTaskFunc
+	ListAutonomous  ListAutonomousFunc
+	LoadAutonomous  LoadAutonomousFunc
+	AnswerInput     AnswerAutonomousFunc
+	RunQueue        RunQueueFunc
+}
+
+type autonomousAnswerState struct {
+	Active     bool
+	Selected   int
+	Confirming bool
+	Submitting bool
+	Result     app.AnswerAutonomousInputResult
+	Err        string
+}
+
+type autonomousState struct {
+	Selectors   []app.AutonomousTaskSelector
+	Selected    int
+	Selector    string
+	TaskID      string
+	Request     int
+	LoadingList bool
+	LoadingView bool
+	View        *autonomousview.View
+	Err         string
+	Answer      autonomousAnswerState
 }
 
 type taskEntryField int
@@ -155,6 +200,7 @@ type runOnceState struct {
 	Stats           app.RunLoopStats
 	Err             string
 	Logs            []string
+	QueueResult     autonomousqueue.Result
 }
 
 func NewStatusModel(status app.StatusResult) StatusModel {
@@ -198,6 +244,11 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 		Preflight:       opts.Preflight,
 		RunOnce:         opts.RunOnce,
 		RunLoop:         opts.RunLoop,
+		RunTask:         opts.RunTask,
+		ListAutonomous:  opts.ListAutonomous,
+		LoadAutonomous:  opts.LoadAutonomous,
+		AnswerInput:     opts.AnswerInput,
+		RunQueue:        opts.RunQueue,
 	}), options...).Run()
 	return err
 }
@@ -229,6 +280,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = "Refreshed."
 		}
 		m.updateViewportContent()
+		if m.view == viewAutonomous && msg.err == nil {
+			return m, m.loadAutonomousSelectorsCmd()
+		}
 		return m, nil
 	case openRunMsg:
 		if msg.err != nil {
@@ -313,6 +367,63 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.updateViewportContent()
 		return m, nil
+	case autonomousSelectorsMsg:
+		if msg.token != m.autonomous.Request {
+			return m, nil
+		}
+		m.autonomous.LoadingList = false
+		if msg.err != nil {
+			m.autonomous.Err = msg.err.Error()
+			m.message = "Workflow selector load failed."
+			m.updateViewportContent()
+			return m, nil
+		}
+		m.autonomous.Selectors = msg.selectors
+		m.preserveAutonomousSelection()
+		if len(m.autonomous.Selectors) == 0 {
+			m.autonomous.View = nil
+			m.autonomous.Selector = ""
+			m.autonomous.TaskID = ""
+			m.autonomous.Err = ""
+			m.updateViewportContent()
+			return m, nil
+		}
+		return m, m.loadSelectedAutonomousViewCmd()
+	case autonomousViewMsg:
+		if msg.token != m.autonomous.Request || msg.selector != m.autonomous.Selector {
+			return m, nil
+		}
+		m.autonomous.LoadingView = false
+		if msg.err != nil {
+			m.autonomous.Err = msg.err.Error()
+			m.message = "Workflow evidence load failed."
+		} else {
+			view := msg.view
+			m.autonomous.View = &view
+			m.autonomous.TaskID = view.Identity.TaskID
+			m.autonomous.Err = ""
+			m.message = "Workflow evidence loaded."
+		}
+		m.updateViewportContent()
+		return m, nil
+	case autonomousAnswerMsg:
+		m.autonomous.Answer.Submitting = false
+		m.autonomous.Answer.Active = false
+		m.autonomous.Answer.Confirming = false
+		m.autonomous.Answer.Result = msg.result
+		m.autonomous.Answer.Err = ""
+		if msg.err != nil {
+			m.autonomous.Answer.Err = msg.err.Error()
+			if msg.result.AnswerPersisted {
+				m.message = "Answer persisted; resume failed."
+			} else {
+				m.message = "Answer failed."
+			}
+		} else {
+			m.message = "Answer persisted and task resumed."
+		}
+		m.updateViewportContent()
+		return m, m.reloadCurrentAutonomousViewCmd()
 	case runOnceProgressMsg:
 		if msg.token != m.runOnce.Token || !m.runOnce.Started {
 			return m, nil
@@ -329,12 +440,36 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.message = "Loop in progress."
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
+	case taskRunProgressMsg:
+		if msg.token != m.runOnce.Token || !m.runOnce.Started || m.runOnce.Mode != runModeTask {
+			return m, nil
+		}
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, fmt.Sprintf("task: cycle %d stage %s action %s", msg.operation.Statistics.CyclesStarted, msg.operation.Stage, msg.operation.LastAction))
+		m.message = "Autonomous task run in progress."
+		m.updateViewportContent()
+		return m, m.waitRunOnceMsgCmd()
+	case queueProgressMsg:
+		if msg.token != m.runOnce.Token || !m.runOnce.Started || m.runOnce.Mode != runModeQueue {
+			return m, nil
+		}
+		m.runOnce.RunID = msg.operation.OperationID
+		line := fmt.Sprintf("queue: stage %s selections %d tasks %d", msg.operation.Stage, msg.operation.Statistics.Selections, msg.operation.Statistics.TasksRun)
+		if msg.operation.InFlight != nil {
+			line += " task " + msg.operation.InFlight.TaskID
+		}
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, line)
+		m.message = "Autonomous queue in progress."
+		m.updateViewportContent()
+		return m, m.waitRunOnceMsgCmd()
 	case runOnceDoneMsg:
 		if msg.token != m.runOnce.Token || !m.runOnce.Started {
 			return m, nil
 		}
 		m.applyRunOnceDone(msg)
 		m.updateViewportContent()
+		if m.view == viewAutonomous && (msg.taskRun || msg.queue) {
+			return m, m.loadAutonomousSelectorsCmd()
+		}
 		return m, nil
 	case tea.KeyMsg:
 		if m.view == viewTaskEntry {
@@ -342,6 +477,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if handled, cmd := m.updateActiveRunKeys(msg); handled {
 			return m, cmd
+		}
+		if m.autonomous.Answer.Active {
+			return m.updateAutonomousAnswer(msg)
 		}
 
 		switch msg.String() {
@@ -370,10 +508,17 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, m.preflightCmd()
+		case "6":
+			m.switchView(viewAutonomous)
+			return m, m.loadAutonomousSelectorsCmd()
 		case "?":
 			m.switchView(viewHelp)
 			return m, nil
 		case "a":
+			if m.view == viewAutonomous {
+				m.beginAutonomousAnswer()
+				return m, nil
+			}
 			m.startTaskEntry()
 			return m, nil
 		case "R":
@@ -385,6 +530,10 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "L":
 			cmd := m.startRunLoop()
 			return m, cmd
+		case "U":
+			return m, m.startTaskRun()
+		case "Q":
+			return m, m.startQueueRun()
 		case "r":
 			if m.actions.RefreshStatus == nil {
 				m.message = "Refresh is unavailable."
@@ -416,6 +565,11 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "u":
 				return m, m.startRetrySelectedTask()
+			case "enter", "o":
+				m.switchView(viewAutonomous)
+				m.autonomous.TaskID = m.selectedTaskID()
+				m.autonomous.Selector = m.selectedTaskID()
+				return m, m.loadAutonomousSelectorsCmd()
 			}
 		case viewRuns:
 			switch msg.String() {
@@ -485,6 +639,30 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				return m, m.preflightCmd()
+			}
+		case viewAutonomous:
+			switch msg.String() {
+			case "up", "k":
+				return m, m.moveAutonomousSelection(-1)
+			case "down", "j":
+				return m, m.moveAutonomousSelection(1)
+			case "enter", "o":
+				return m, m.reloadCurrentAutonomousViewCmd()
+			case "a":
+				m.beginAutonomousAnswer()
+				return m, nil
+			case "home":
+				m.viewport.GotoTop()
+				return m, nil
+			case "end":
+				m.viewport.GotoBottom()
+				return m, nil
+			case "pgup":
+				m.viewport.ViewUp()
+				return m, nil
+			case "pgdown":
+				m.viewport.ViewDown()
+				return m, nil
 			}
 		}
 	}
@@ -560,6 +738,38 @@ type runOnceDoneMsg struct {
 	history       ledger.RunWithEvents
 	historyLoaded bool
 	historyErr    error
+	taskRun       bool
+	taskResult    autonomoustaskrun.Result
+	queue         bool
+	queueResult   autonomousqueue.Result
+}
+
+type taskRunProgressMsg struct {
+	token     int
+	operation autonomoustaskrun.Operation
+}
+
+type queueProgressMsg struct {
+	token     int
+	operation autonomousqueue.Operation
+}
+
+type autonomousSelectorsMsg struct {
+	token     int
+	selectors []app.AutonomousTaskSelector
+	err       error
+}
+
+type autonomousViewMsg struct {
+	token    int
+	selector string
+	view     autonomousview.View
+	err      error
+}
+
+type autonomousAnswerMsg struct {
+	result app.AnswerAutonomousInputResult
+	err    error
 }
 
 func (m StatusModel) refreshStatusCmd() tea.Cmd {
@@ -660,6 +870,191 @@ func (m StatusModel) preflightCmd() tea.Cmd {
 	}
 }
 
+func (m *StatusModel) loadAutonomousSelectorsCmd() tea.Cmd {
+	if m.actions.ListAutonomous == nil {
+		m.autonomous.Err = "Workflow selector loading is unavailable."
+		m.autonomous.LoadingList = false
+		m.updateViewportContent()
+		return nil
+	}
+	m.autonomous.Request++
+	token := m.autonomous.Request
+	m.autonomous.LoadingList = true
+	m.autonomous.Err = ""
+	m.updateViewportContent()
+	return func() tea.Msg {
+		selectors, err := m.actions.ListAutonomous()
+		return autonomousSelectorsMsg{token: token, selectors: selectors, err: err}
+	}
+}
+
+func (m *StatusModel) preserveAutonomousSelection() {
+	if len(m.autonomous.Selectors) == 0 {
+		m.autonomous.Selected = 0
+		return
+	}
+	selected := -1
+	for i, item := range m.autonomous.Selectors {
+		if m.autonomous.Selector != "" && item.Selector == m.autonomous.Selector {
+			selected = i
+			break
+		}
+	}
+	if selected < 0 && m.autonomous.TaskID != "" {
+		for i, item := range m.autonomous.Selectors {
+			if item.TaskID == m.autonomous.TaskID {
+				selected = i
+				break
+			}
+		}
+	}
+	if selected < 0 {
+		selected = clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected)
+	}
+	m.autonomous.Selected = selected
+	item := m.autonomous.Selectors[selected]
+	m.autonomous.Selector = item.Selector
+	m.autonomous.TaskID = item.TaskID
+}
+
+func (m *StatusModel) loadSelectedAutonomousViewCmd() tea.Cmd {
+	if len(m.autonomous.Selectors) == 0 {
+		return nil
+	}
+	m.autonomous.Selected = clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected)
+	item := m.autonomous.Selectors[m.autonomous.Selected]
+	m.autonomous.Selector = item.Selector
+	m.autonomous.TaskID = item.TaskID
+	return m.reloadCurrentAutonomousViewCmd()
+}
+
+func (m *StatusModel) reloadCurrentAutonomousViewCmd() tea.Cmd {
+	selector := strings.TrimSpace(m.autonomous.Selector)
+	if selector == "" {
+		return nil
+	}
+	if m.actions.LoadAutonomous == nil {
+		m.autonomous.Err = "Workflow evidence loading is unavailable."
+		m.autonomous.LoadingView = false
+		m.updateViewportContent()
+		return nil
+	}
+	m.autonomous.Request++
+	token := m.autonomous.Request
+	m.autonomous.LoadingView = true
+	m.autonomous.Err = ""
+	m.updateViewportContent()
+	return func() tea.Msg {
+		view, err := m.actions.LoadAutonomous(selector)
+		return autonomousViewMsg{token: token, selector: selector, view: view, err: err}
+	}
+}
+
+func (m *StatusModel) moveAutonomousSelection(delta int) tea.Cmd {
+	if len(m.autonomous.Selectors) == 0 {
+		return nil
+	}
+	m.autonomous.Selected = clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected+delta)
+	m.autonomous.Answer = autonomousAnswerState{}
+	m.autonomous.View = nil
+	m.viewport.GotoTop()
+	return m.loadSelectedAutonomousViewCmd()
+}
+
+func (m *StatusModel) beginAutonomousAnswer() {
+	if m.runOnce.Active {
+		m.message = "Run is active; cancel or wait before answering input."
+		m.updateViewportContent()
+		return
+	}
+	if m.actions.AnswerInput == nil {
+		m.message = "Answer input is unavailable."
+		m.updateViewportContent()
+		return
+	}
+	if m.autonomous.View == nil || m.autonomous.View.Identity.SourceKind != autonomousview.SourceActive || m.autonomous.View.Input.State != "waiting" || m.autonomous.View.Input.QuestionID == "" || len(m.autonomous.View.Input.Options) == 0 {
+		m.message = "Answer unavailable: the selected evidence has no current typed question."
+		m.updateViewportContent()
+		return
+	}
+	m.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
+	m.message = "Choose an option explicitly; the recommendation is not preselected."
+	m.updateViewportContent()
+}
+
+func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.autonomous.Answer.Submitting {
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		m.message = "Answer submission is in progress."
+		m.updateViewportContent()
+		return m, nil
+	}
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.autonomous.Answer = autonomousAnswerState{}
+		m.message = "Answer cancelled."
+		m.updateViewportContent()
+		return m, nil
+	case "up", "k":
+		m.moveAutonomousAnswerOption(-1)
+		return m, nil
+	case "down", "j":
+		m.moveAutonomousAnswerOption(1)
+		return m, nil
+	case "enter":
+		if m.autonomous.Answer.Selected < 0 {
+			m.message = "Select an offered option before confirming."
+			m.updateViewportContent()
+			return m, nil
+		}
+		if !m.autonomous.Answer.Confirming {
+			m.autonomous.Answer.Confirming = true
+			m.message = "Press enter again to persist this answer and resume the task."
+			m.updateViewportContent()
+			return m, nil
+		}
+		view := m.autonomous.View
+		option := view.Input.Options[m.autonomous.Answer.Selected]
+		m.autonomous.Answer.Submitting = true
+		m.message = "Persisting answer."
+		m.updateViewportContent()
+		request := app.AnswerAutonomousInputRequest{TaskID: m.autonomous.TaskID, QuestionID: view.Input.QuestionID, Revision: view.Input.Revision, ContentSHA: view.Input.ContentSHA256, OptionID: option.ID, Operator: "tui-operator"}
+		return m, func() tea.Msg {
+			result, err := m.actions.AnswerInput(request)
+			return autonomousAnswerMsg{result: result, err: err}
+		}
+	}
+	return m, nil
+}
+
+func (m *StatusModel) moveAutonomousAnswerOption(delta int) {
+	if m.autonomous.View == nil || len(m.autonomous.View.Input.Options) == 0 {
+		return
+	}
+	if m.autonomous.Answer.Selected < 0 {
+		if delta < 0 {
+			m.autonomous.Answer.Selected = len(m.autonomous.View.Input.Options) - 1
+		} else {
+			m.autonomous.Answer.Selected = 0
+		}
+	} else {
+		m.autonomous.Answer.Selected += delta
+		if m.autonomous.Answer.Selected < 0 {
+			m.autonomous.Answer.Selected = 0
+		}
+		if m.autonomous.Answer.Selected >= len(m.autonomous.View.Input.Options) {
+			m.autonomous.Answer.Selected = len(m.autonomous.View.Input.Options) - 1
+		}
+	}
+	m.autonomous.Answer.Confirming = false
+	m.message = "Option selected; press enter to review confirmation."
+	m.updateViewportContent()
+}
+
 func (m *StatusModel) startRunOnce() tea.Cmd {
 	if message := m.runStartBlocker(runModeOnce); message != "" {
 		m.message = message
@@ -720,6 +1115,117 @@ func (m *StatusModel) startRunLoop() tea.Cmd {
 	m.message = "Loop started."
 	m.updateViewportContent()
 	return m.startRunLoopCmd(token, runCtx, messages, maxPasses)
+}
+
+func (m *StatusModel) startTaskRun() tea.Cmd {
+	if message := m.runStartBlocker(runModeTask); message != "" {
+		m.message = message
+		m.updateViewportContent()
+		return nil
+	}
+	task, ok := m.selectedTaskValue()
+	if m.view == viewAutonomous && m.autonomous.View != nil {
+		view := m.autonomous.View
+		ok = false
+		if view.Identity.SourceKind == autonomousview.SourceActive {
+			for _, candidate := range m.status.Tasks {
+				if candidate.ID == m.autonomous.TaskID {
+					task = candidate
+					ok = true
+					break
+				}
+			}
+		}
+	}
+	notReady := ok && task.ReadinessReason != "" && !task.AutonomousReady
+	if ok && m.view == viewAutonomous && m.autonomous.View != nil && m.autonomous.View.Why.SchedulerReadiness != "ready" {
+		notReady = true
+		if task.ReadinessReason == "" {
+			task.ReadinessReason = m.autonomous.View.Why.SchedulerReadiness
+		}
+	}
+	if !ok || task.Workflow != taskfile.WorkflowAutonomousV1 || task.Status != taskmodel.StatusPending || notReady {
+		m.message = "Autonomous run requires a selected pending autonomous-v1 task."
+		if notReady {
+			m.message = fmt.Sprintf("Autonomous task %s is not ready (%s).", task.ID, optionalValue(task.ReadinessReason))
+		}
+		m.updateViewportContent()
+		return nil
+	}
+	base := m.actions.Context
+	if base == nil {
+		base = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(base)
+	token := m.runOnce.Token + 1
+	messages := make(chan tea.Msg, 128)
+	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeTask, Token: token, Cancel: cancel, Messages: messages, Status: "running", MaxPasses: 50, Logs: []string{"system: autonomous task run started for " + task.ID}}
+	m.message = "Autonomous task run started: " + task.ID + "."
+	m.updateViewportContent()
+	actions := m.actions
+	return func() tea.Msg {
+		go func() {
+			result, err := actions.RunTask(runCtx, task.ID, 50, func(op autonomoustaskrun.Operation) {
+				select {
+				case messages <- taskRunProgressMsg{token: token, operation: op}:
+				case <-runCtx.Done():
+				}
+			})
+			done := runOnceDoneMsg{token: token, taskRun: true, taskResult: result, err: err, cancelled: runCtx.Err() != nil}
+			if actions.RefreshStatus != nil {
+				done.status, done.statusErr = actions.RefreshStatus()
+			}
+			messages <- done
+			close(messages)
+		}()
+		msg, ok := <-messages
+		if !ok {
+			return runOnceDoneMsg{token: token, taskRun: true, err: fmt.Errorf("run event stream closed")}
+		}
+		return msg
+	}
+}
+
+func (m *StatusModel) startQueueRun() tea.Cmd {
+	if message := m.runStartBlocker(runModeQueue); message != "" {
+		m.message = message
+		m.updateViewportContent()
+		return nil
+	}
+	base := m.actions.Context
+	if base == nil {
+		base = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(base)
+	token := m.runOnce.Token + 1
+	messages := make(chan tea.Msg, 128)
+	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeQueue, Token: token, Cancel: cancel, Messages: messages, Status: "running", Logs: []string{"system: autonomous queue started (max tasks 100, max cycles 50)"}}
+	m.message = "Autonomous queue started."
+	m.updateViewportContent()
+	actions := m.actions
+	return func() tea.Msg {
+		go func() {
+			result, err := actions.RunQueue(runCtx, 100, 50, func(op autonomousqueue.Operation) {
+				select {
+				case messages <- queueProgressMsg{token: token, operation: op}:
+				case <-runCtx.Done():
+				}
+			})
+			done := runOnceDoneMsg{token: token, queue: true, queueResult: result, err: err, cancelled: runCtx.Err() != nil}
+			if actions.RefreshStatus != nil {
+				done.status, done.statusErr = actions.RefreshStatus()
+			} else {
+				done.statusErr = fmt.Errorf("refresh is unavailable")
+			}
+			messages <- done
+			close(messages)
+		}()
+		msg, ok := <-messages
+		if !ok {
+			return runOnceDoneMsg{token: token, queue: true, err: fmt.Errorf("queue event stream closed")}
+		}
+		return msg
+	}
 }
 
 func (m StatusModel) startRunOnceCmd(token int, ctx context.Context, messages chan tea.Msg) tea.Cmd {
@@ -858,7 +1364,11 @@ func (m StatusModel) runStartBlocker(mode string) string {
 		return "Run already active."
 	case mode == runModeLoop && m.actions.RunLoop == nil:
 		return "Run loop is unavailable."
-	case mode != runModeLoop && m.actions.RunOnce == nil:
+	case mode == runModeTask && m.actions.RunTask == nil:
+		return "Autonomous task run is unavailable."
+	case mode == runModeQueue && m.actions.RunQueue == nil:
+		return "Autonomous queue is unavailable."
+	case mode == runModeOnce && m.actions.RunOnce == nil:
 		return "Run is unavailable."
 	case !m.preflight.Checked:
 		return "Run blocked: preflight is not ready."
@@ -882,7 +1392,7 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	case "c":
 		m.requestRunCancel()
 		return true, nil
-	case "R", "L", "n", "r", "a", "u":
+	case "R", "L", "U", "Q", "n", "r", "a", "u":
 		m.message = "Run is active; cancel or wait before starting another action."
 		m.updateViewportContent()
 		return true, nil
@@ -949,6 +1459,52 @@ func (m *StatusModel) applyRunLoopPass(result runonce.Result) {
 }
 
 func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
+	if msg.queue || m.runOnce.Mode == runModeQueue {
+		m.runOnce.Active = false
+		m.runOnce.Cancel = nil
+		m.runOnce.Messages = nil
+		m.runOnce.RunID = msg.queueResult.OperationID
+		m.runOnce.Outcome = string(msg.queueResult.StopReason)
+		m.runOnce.Status = string(msg.queueResult.StopReason)
+		m.runOnce.QueueResult = msg.queueResult
+		m.runOnce.Err = ""
+		if msg.err != nil {
+			m.runOnce.Err = msg.err.Error()
+		}
+		if msg.cancelled && m.runOnce.Status == "" {
+			m.runOnce.Status = "cancelled"
+			m.runOnce.Outcome = "cancelled"
+		}
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: terminal state: "+optionalValue(m.runOnce.Status))
+		m.message = "Autonomous queue stopped: " + optionalValue(m.runOnce.Status) + "."
+		if msg.statusErr == nil {
+			selectedTaskID := m.selectedTaskID()
+			m.status = msg.status
+			m.selectedTask = selectedTaskIndex(m.status.Tasks, selectedTaskID)
+		} else {
+			m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: refresh failed: "+oneLine(msg.statusErr.Error()))
+		}
+		return
+	}
+	if msg.taskRun || m.runOnce.Mode == runModeTask {
+		m.runOnce.Active = false
+		m.runOnce.Cancel = nil
+		m.runOnce.Messages = nil
+		m.runOnce.RunID = msg.taskResult.LastRunID
+		m.runOnce.Outcome = string(msg.taskResult.StopReason)
+		m.runOnce.Err = ""
+		if msg.err != nil {
+			m.runOnce.Err = msg.err.Error()
+		}
+		m.runOnce.Status = string(msg.taskResult.StopReason)
+		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: terminal state: "+string(msg.taskResult.StopReason))
+		m.message = fmt.Sprintf("Autonomous task %s stopped: %s.", msg.taskResult.TaskID, msg.taskResult.StopReason)
+		if msg.statusErr == nil {
+			m.status = msg.status
+			m.selectedTask = selectedTaskIndex(m.status.Tasks, msg.taskResult.TaskID)
+		}
+		return
+	}
 	if msg.loop || m.runOnce.Mode == runModeLoop {
 		m.applyRunLoopDone(msg)
 		return
@@ -1271,6 +1827,8 @@ func (m StatusModel) renderContent() string {
 		content = m.renderEmptyRunDetail()
 	case viewPreflight:
 		content = m.renderPreflight()
+	case viewAutonomous:
+		content = m.renderAutonomousWorkflow()
 	case viewHelp:
 		content = m.renderHelp()
 	case viewTaskEntry:
@@ -1317,8 +1875,17 @@ func (m StatusModel) viewTabs() string {
 		{view: viewRuns, label: "Runs"},
 		{view: viewRunDetail, label: "Run Detail"},
 		{view: viewPreflight, label: "Preflight"},
-		{view: viewHelp, label: "Help"},
 	}
+	if m.view == viewAutonomous {
+		labels = append(labels, struct {
+			view  TUIView
+			label string
+		}{view: viewAutonomous, label: "Workflow"})
+	}
+	labels = append(labels, struct {
+		view  TUIView
+		label string
+	}{view: viewHelp, label: "Help"})
 	parts := make([]string, 0, len(labels))
 	for _, item := range labels {
 		if m.view == item.view {
@@ -1340,6 +1907,8 @@ func (m StatusModel) viewLabel() string {
 		return "Run Detail"
 	case viewPreflight:
 		return "Preflight"
+	case viewAutonomous:
+		return "Workflow"
 	case viewHelp:
 		return "Help"
 	case viewTaskEntry:
@@ -1377,6 +1946,11 @@ func (m StatusModel) footerLines() []string {
 		keys = append(keys, "up/down Scroll", "home/end Jump", "enter Reload", "v Validate", "esc Runs")
 	case viewPreflight:
 		keys = append(keys, "p Check")
+	case viewAutonomous:
+		if m.autonomous.Answer.Active {
+			return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
+		}
+		return wrapKeyLines([]string{"j/k Select", "enter Reload", "a Answer", "pgup/pgdown Scroll", "home/end Jump", "U Run Task", "Q Run Queue", "r Refresh", "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "q Quit"}, m.width)
 	case viewHelp:
 		keys = append(keys, "esc Back")
 	case viewTaskEntry:
@@ -1549,6 +2123,218 @@ func (m StatusModel) renderPreflight() string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
+func (m StatusModel) renderAutonomousWorkflow() string {
+	lines := []string{"Autonomous Workflow"}
+	lines = appendNotice(lines, m.message)
+	if m.autonomous.LoadingList {
+		lines = append(lines, "Status: loading selectors")
+	}
+	lines = append(lines, "Evidence Selectors")
+	if len(m.autonomous.Selectors) == 0 {
+		lines = append(lines, "none")
+	} else {
+		selected := clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected)
+		for i, item := range m.autonomous.Selectors {
+			prefix := " "
+			if i == selected {
+				prefix = ">"
+			}
+			label := fmt.Sprintf("%s [%s] %s status=%s", prefix, item.SourceKind, optionalValue(item.Label), optionalValue(item.Status))
+			lines = append(lines, label)
+		}
+	}
+	if m.autonomous.LoadingView {
+		lines = append(lines, "", "Evidence status: loading "+optionalValue(m.autonomous.Selector))
+	}
+	if m.autonomous.Err != "" {
+		lines = append(lines, "", "Evidence error: "+oneLine(m.autonomous.Err))
+	}
+	if m.autonomous.View == nil {
+		lines = append(lines, "", "Workflow Detail", "not available")
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+
+	v := *m.autonomous.View
+	archivedAt := "none"
+	if !v.Terminal.ArchivedAt.IsZero() {
+		archivedAt = v.Terminal.ArchivedAt.UTC().Format(time.RFC3339Nano)
+	}
+	lines = append(lines, "", "Identity and lifecycle",
+		fmt.Sprintf("Source: %s", v.Identity.SourceKind),
+		fmt.Sprintf("Task: %s | title: %s", optionalValue(v.Identity.TaskID), optionalValue(v.Identity.Title)),
+		fmt.Sprintf("Status: %s | lifecycle: %s | phase: %s", optionalValue(v.Identity.TaskStatus), optionalValue(v.Identity.Lifecycle), optionalValue(v.Summary.Phase)),
+		fmt.Sprintf("Task path: %s | sha256: %s | bytes: %d", optionalValue(v.Identity.TaskPath), optionalValue(v.Identity.TaskSHA256), v.Identity.TaskByteSize),
+		fmt.Sprintf("State: %s | sha256: %s | bytes: %d | schema: %s", optionalValue(v.Identity.StatePath), optionalValue(v.Identity.StateSHA256), v.Identity.StateByteSize, optionalValue(v.Identity.StateSchema)),
+		fmt.Sprintf("Archive: %s | disposition: %s | verification: %s", optionalValue(v.Identity.ArchiveID), optionalValue(v.Identity.ArchiveDisposition), archiveVerificationText(v)),
+	)
+
+	currentWorker := "none"
+	if v.Why.LatestDecisionReference != nil && v.Why.CurrentlyAdmittedAction != "none" {
+		currentWorker = fmt.Sprintf("profile=%s run=%s decision=%s", optionalValue(string(v.Why.LatestDecisionReference.WorkerProfile)), optionalValue(v.Why.LatestDecisionReference.RunID), optionalValue(v.Why.LatestDecisionReference.DecisionID))
+	}
+	lines = append(lines, "", "Decision and readiness",
+		"Latest decision: "+optionalValue(v.Why.LatestDecision),
+		"Currently admitted action: "+optionalValue(v.Why.CurrentlyAdmittedAction),
+		"Current worker: "+currentWorker,
+		"Scheduler readiness: "+optionalValue(v.Why.SchedulerReadiness),
+		"Next supervisor action: "+optionalValue(v.Why.NextSupervisorAction),
+		"Why reasons:",
+	)
+	if len(v.Why.Reasons) == 0 {
+		lines = append(lines, "none")
+	} else {
+		for _, reason := range v.Why.Reasons {
+			lines = append(lines, fmt.Sprintf("- [%s] %s", reason.Code, oneLine(reason.Text)))
+		}
+	}
+
+	lines = append(lines, "", "Plan", fmt.Sprintf("Progress: %d/%d", v.Summary.Plan.Completed, v.Summary.Plan.Total))
+	if v.Plan == nil {
+		lines = append(lines, "none")
+	} else {
+		lines = append(lines, fmt.Sprintf("ID: %s | revision: %d | supersedes: %s | completed: %t", v.Plan.ID, v.Plan.Revision, optionalValue(v.Plan.SupersedesPlanID), v.Plan.Completed))
+		for i, step := range v.Plan.Steps {
+			lines = append(lines, fmt.Sprintf("%d. [%s] %s: %s", i+1, step.Status, step.ID, oneLine(step.Description)))
+			if step.Rationale != "" {
+				lines = append(lines, "   rationale: "+oneLine(step.Rationale))
+			}
+		}
+	}
+
+	lines = append(lines, "", "Acceptance matrix", fmt.Sprintf("Progress: %d/%d", v.Summary.Acceptance.Completed, v.Summary.Acceptance.Total))
+	if len(v.Acceptance) == 0 {
+		lines = append(lines, "none")
+	}
+	for _, item := range v.Acceptance {
+		line := fmt.Sprintf("[%s] %s: %s", item.Status, item.ID, oneLine(item.Description))
+		if item.Rationale != "" {
+			line += " | rationale: " + oneLine(item.Rationale)
+		}
+		lines = append(lines, line)
+	}
+
+	lines = append(lines, "", "Findings", fmt.Sprintf("Open: blocking=%d non_blocking=%d", v.Summary.OpenBlockingFindings, v.Summary.OpenNonBlockingFindings))
+	if len(v.Findings) == 0 {
+		lines = append(lines, "none")
+	}
+	for _, finding := range v.Findings {
+		lines = append(lines,
+			fmt.Sprintf("[%s/%s] %s: %s", finding.Status, finding.Significance, finding.ID, oneLine(finding.Summary)),
+			"  correction: "+optionalValue(finding.RequiredCorrection),
+			fmt.Sprintf("  introduced: revision=%d run=%s | current: revision=%d run=%s", finding.IntroducedBy.Revision, optionalValue(finding.IntroducedBy.RunID), finding.CurrentAudit.Revision, optionalValue(finding.CurrentAudit.RunID)),
+		)
+		if finding.ResolutionRationale != "" {
+			lines = append(lines, "  resolution: "+oneLine(finding.ResolutionRationale))
+		}
+	}
+
+	lines = append(lines, "", "Attempts, budgets, and worker runs",
+		fmt.Sprintf("Total attempts: %d | consecutive failures: %d", v.Attempts.Total, v.Attempts.ConsecutiveFailures),
+	)
+	if len(v.Attempts.PerAction) == 0 {
+		lines = append(lines, "Per action: none")
+	}
+	for _, item := range v.Attempts.PerAction {
+		lines = append(lines, fmt.Sprintf("Per action: %s=%d", item.Action, item.Attempts))
+	}
+	for _, budget := range v.Attempts.Budgets {
+		if budget.Mode == "limited" {
+			lines = append(lines, fmt.Sprintf("Budget %s: limited limit=%d consumed=%d remaining=%d exhausted=%t unit=%s", budget.Name, budget.Limit, budget.Consumed, budget.Remaining, budget.Exhausted, budget.Unit))
+		} else {
+			lines = append(lines, fmt.Sprintf("Budget %s: %s consumed=%d unit=%s", budget.Name, optionalValue(budget.Mode), budget.Consumed, budget.Unit))
+		}
+	}
+	if len(v.Attempts.Stops) == 0 {
+		lines = append(lines, "Stops: none")
+	} else {
+		lines = append(lines, "Stops: "+strings.Join(v.Attempts.Stops, ","))
+	}
+	for _, event := range v.Attempts.Events {
+		lines = append(lines, fmt.Sprintf("Attempt %d: %s kind=%s action=%s outcome=%s run=%s at=%s", event.Sequence, event.AttemptID, event.Kind, event.Action, optionalValue(event.Outcome), optionalValue(event.RunID), event.CreatedAt.UTC().Format(time.RFC3339Nano)))
+	}
+
+	lines = append(lines, "", "Operator input", "State: "+optionalValue(v.Input.State))
+	if v.Input.QuestionID == "" {
+		lines = append(lines, "Question: none")
+	} else {
+		lines = append(lines,
+			fmt.Sprintf("Question: %s | revision: %d | sha256: %s", v.Input.QuestionID, v.Input.Revision, v.Input.ContentSHA256),
+			"Prompt: "+oneLine(v.Input.Question),
+			"Blocking reason: "+oneLine(v.Input.BlockingReason),
+		)
+		for i, option := range v.Input.Options {
+			prefix := " "
+			if m.autonomous.Answer.Active && m.autonomous.Answer.Selected == i {
+				prefix = ">"
+			}
+			lines = append(lines, fmt.Sprintf("%s Option %s: %s", prefix, option.ID, oneLine(option.Meaning)))
+		}
+		lines = append(lines, fmt.Sprintf("Recommendation (not selected): %s | %s", optionalValue(v.Input.RecommendationOption), optionalValue(v.Input.RecommendationRationale)))
+	}
+	if m.autonomous.Answer.Active {
+		state := "choose an option"
+		if m.autonomous.Answer.Confirming {
+			state = "confirmation required: press enter again"
+		}
+		lines = append(lines, "Answer control: "+state)
+	}
+	if m.autonomous.Answer.Result.AnswerPersisted {
+		lines = append(lines, fmt.Sprintf("Last answer: id=%s option=%s persisted=true resumed=%t", optionalValue(m.autonomous.Answer.Result.AnswerID), optionalValue(m.autonomous.Answer.Result.OptionID), m.autonomous.Answer.Result.Resumed))
+	}
+	if m.autonomous.Answer.Err != "" {
+		lines = append(lines, "Answer error: "+oneLine(m.autonomous.Answer.Err))
+	}
+
+	lines = append(lines, "", "Verification and audit",
+		fmt.Sprintf("Verification: state=%s status=%s purpose=%s final_gate=%s run=%s occurrence=%s source=%s", optionalValue(v.Verification.State), optionalValue(v.Verification.Status), optionalValue(v.Verification.Purpose), optionalValue(v.Verification.FinalGate), optionalValue(v.Verification.RunID), optionalValue(v.Verification.OccurrenceID), optionalValue(v.Verification.SourceRevision)),
+		fmt.Sprintf("Audit: state=%s revision=%d disposition=%s findings=%d run=%s source=%s artifact=%s", optionalValue(v.Audit.State), v.Audit.Revision, optionalValue(v.Audit.Disposition), v.Audit.FindingCount, optionalValue(v.Audit.RunID), optionalValue(v.Audit.SourceRevision), optionalValue(v.Audit.ArtifactPath)),
+	)
+
+	lines = append(lines, "", "Workspace, terminal, and archive",
+		fmt.Sprintf("Workspace: state=%s id=%s status=%s root=%s branch=%s source=%s", optionalValue(v.Workspace.State), optionalValue(v.Workspace.WorkspaceID), optionalValue(v.Workspace.Status), optionalValue(v.Workspace.ExecutionRoot), optionalValue(v.Workspace.BranchRef), optionalValue(v.Workspace.SourceRevision)),
+		fmt.Sprintf("Checkpoint: sequence=%d commit=%s", v.Workspace.CheckpointSequence, optionalValue(v.Workspace.CheckpointCommit)),
+		fmt.Sprintf("Terminal: state=%s reason=%s finalization=%s", optionalValue(v.Terminal.State), optionalValue(v.Terminal.Reason), optionalValue(v.Terminal.FinalizationStage)),
+		fmt.Sprintf("Archive: id=%s disposition=%s archived_at=%s verified_now=%t", optionalValue(v.Terminal.ArchiveID), optionalValue(v.Terminal.Disposition), archivedAt, v.Terminal.VerifiedNow),
+	)
+
+	lines = append(lines, "", "Provenance and raw references",
+		"Worker runs: "+optionalJoined(v.Provenance.WorkerRunIDs),
+		"Verification runs: "+optionalJoined(v.Provenance.VerificationRunIDs),
+		"Audit runs: "+optionalJoined(v.Provenance.AuditRunIDs),
+	)
+	if len(v.Provenance.References) == 0 {
+		lines = append(lines, "References: none")
+	}
+	for _, reference := range v.Provenance.References {
+		lines = append(lines, fmt.Sprintf("Reference [%s] path=%s run=%s sha256=%s bytes=%d detail=%s", reference.Kind, optionalValue(reference.Path), optionalValue(reference.RunID), optionalValue(reference.SHA256), reference.ByteSize, oneLine(reference.Detail)))
+	}
+	lines = append(lines, "", "Diagnostics and omissions")
+	if len(v.Diagnostics) == 0 {
+		lines = append(lines, "none")
+	}
+	for _, diagnostic := range v.Diagnostics {
+		lines = append(lines, fmt.Sprintf("[%s/%s] %s | reference=%s", diagnostic.Code, diagnostic.Section, oneLine(diagnostic.Detail), optionalValue(diagnostic.Reference)))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func archiveVerificationText(view autonomousview.View) string {
+	if view.Identity.SourceKind != autonomousview.SourceArchive {
+		return "not applicable"
+	}
+	if view.Terminal.VerifiedNow {
+		return "verified"
+	}
+	return "unverified"
+}
+
+func optionalJoined(values []string) string {
+	if len(values) == 0 {
+		return "none"
+	}
+	return strings.Join(values, ",")
+}
+
 func (m StatusModel) renderRunProgress() string {
 	lines := []string{"Run Progress"}
 	lines = appendNotice(lines, m.message)
@@ -1573,6 +2359,21 @@ func (m StatusModel) renderRunProgress() string {
 		if m.runOnce.RunID != "" {
 			lines = append(lines, "Latest run ID: "+m.runOnce.RunID)
 		}
+	} else if m.runOnce.Mode == runModeQueue {
+		result := m.runOnce.QueueResult
+		lines = append(lines,
+			"Mode: autonomous queue",
+			"Operation ID: "+optionalValue(m.runOnce.RunID),
+			fmt.Sprintf("Selections: %d", result.Statistics.Selections),
+			fmt.Sprintf("Tasks run: %d", result.Statistics.TasksRun),
+		)
+		if result.StopReason != "" {
+			lines = append(lines, "Stop reason: "+string(result.StopReason), "Stop detail: "+optionalValue(result.StopDetail))
+		}
+		for _, outcome := range result.Outcomes {
+			lines = append(lines, fmt.Sprintf("Task outcome: %s stop=%s operation=%s replayed=%t", outcome.TaskID, outcome.StopReason, outcome.TaskOperationID, outcome.Replayed))
+		}
+		lines = append(lines, "Remaining ready: "+optionalJoined(result.RemainingReady), "Remaining waiting: "+optionalJoined(result.RemainingWaiting))
 	} else if m.runOnce.RunID != "" {
 		lines = append(lines, "Run ID: "+m.runOnce.RunID)
 	}
@@ -1602,10 +2403,13 @@ func (m StatusModel) renderHelp() string {
 		"3  Runs",
 		"4  Run Detail",
 		"5  Preflight",
+		"6  Workflow",
 		"?  Help",
 		"a  Add task",
 		"R  Run once",
 		fmt.Sprintf("n  Cycle loop max passes (current %d)", m.selectedRunLoopPasses()),
+		"U  Run selected autonomous task until terminal",
+		"Q  Run autonomous queue until exhausted",
 		"L  Run loop",
 		"r  Refresh status",
 		"c  Cancel active run",
@@ -1614,6 +2418,7 @@ func (m StatusModel) renderHelp() string {
 		"Tasks: j/k Move selection, u Retry blocked selected task",
 		"Runs: j/k Move selection",
 		"Run Detail: up/down Scroll, home/end Jump, v Validate receipt",
+		"Workflow: j/k Select, enter Reload, a Answer, pgup/pgdown Scroll",
 		"Preflight: p Run readiness checks",
 		"enter or o  Open selected run",
 		"esc  Back from help or run detail",
@@ -1656,6 +2461,11 @@ func countTasks(tasks []taskmodel.Task) taskCounts {
 }
 
 func firstPendingTaskIndex(tasks []taskmodel.Task) int {
+	for i, task := range tasks {
+		if task.Status == taskmodel.StatusPending && task.NextAutonomous {
+			return i
+		}
+	}
 	for i, task := range tasks {
 		if task.Status == taskmodel.StatusPending && task.NextRunnable {
 			return i
@@ -1710,6 +2520,15 @@ func renderTaskDetailLines(task taskmodel.Task) []string {
 			fmt.Sprintf("Phase: %s", optionalValue(task.Phase)),
 			fmt.Sprintf("Profile: %s", optionalValue(task.RunProfile)),
 			fmt.Sprintf("Next: %s", optionalValue(task.NextState)),
+		)
+	}
+	if task.Workflow == taskfile.WorkflowAutonomousV1 {
+		lines = append(lines,
+			fmt.Sprintf("Readiness: %s", optionalValue(task.ReadinessReason)),
+			fmt.Sprintf("Depends on: %s", optionalValue(strings.Join(task.DependsOn, ","))),
+			fmt.Sprintf("Tags: %s", optionalValue(strings.Join(task.Tags, ","))),
+			fmt.Sprintf("Conflicts: %s", optionalValue(strings.Join(task.Conflicts, ","))),
+			fmt.Sprintf("Parent: %s", optionalValue(task.ParentTaskID)),
 		)
 	}
 	lines = append(lines,
@@ -2736,6 +3555,19 @@ func clampTaskIndex(tasks []taskmodel.Task, index int) int {
 	}
 	if index >= len(tasks) {
 		return len(tasks) - 1
+	}
+	return index
+}
+
+func clampAutonomousIndex(values []app.AutonomousTaskSelector, index int) int {
+	if len(values) == 0 {
+		return 0
+	}
+	if index < 0 {
+		return 0
+	}
+	if index >= len(values) {
+		return len(values) - 1
 	}
 	return index
 }

@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousassembly"
 	"revolvr/internal/autonomouspolicy"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
@@ -22,6 +24,8 @@ import (
 	"revolvr/internal/lock"
 	"revolvr/internal/pathguard"
 	"revolvr/internal/prompt"
+	"revolvr/internal/redact"
+	"revolvr/internal/runner"
 	"revolvr/internal/supervisor"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/verification"
@@ -34,15 +38,26 @@ const (
 
 type normalizedConfig struct {
 	Config
-	root            string
-	state           autonomous.ExecutionState
-	supervisorRunID string
-	decisionID      string
+	root               string
+	executionRoot      string
+	state              autonomous.ExecutionState
+	supervisorRunID    string
+	decisionID         string
+	safetyPolicySHA256 string
+	redactor           *redact.Redactor
 }
 
 // Run performs one deterministic supervisor decision and at most one worker
-// invocation. It never updates task metadata or autonomous execution state.
+// invocation in an exact durable task workspace. It fails closed rather than
+// falling back to the operator's primary worktree.
 func Run(ctx context.Context, cfg Config) (Result, error) {
+	if cfg.Workspace == nil {
+		return failed(Result{TaskID: cfg.TaskID}, OutcomeInvalidConfiguration, "workspace", errors.New("validated task workspace is required"))
+	}
+	return run(ctx, cfg)
+}
+
+func run(ctx context.Context, cfg Config) (Result, error) {
 	n, err := normalizeConfig(cfg)
 	if err != nil {
 		return failed(Result{TaskID: cfg.TaskID}, OutcomeInvalidConfiguration, "configuration", err)
@@ -82,6 +97,18 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err := autonomouspolicy.ValidateEvidence(n.TaskID, preflightSource, n.Verification, n.Audit); err != nil {
 		return failed(result, OutcomeInvalidConfiguration, "policy_evidence", err)
 	}
+	safetyOutput, safetyErr := n.SafetyPreflightRunner(ctx, safetyInput(n, dossierRevision, dossierBefore.Head))
+	result.SafetyPolicy = &safetyOutput.Policy
+	result.SafetyPreflight = &safetyOutput.Preflight
+	if safetyErr != nil {
+		return failed(result, OutcomeSafetyPreflightFailed, "safety_preflight", safetyErr)
+	}
+	if err := validateSafetyOutput(n, dossierRevision, safetyOutput); err != nil {
+		return failed(result, OutcomeSafetyPreflightFailed, "safety_preflight", err)
+	}
+	n.safetyPolicySHA256 = safetyOutput.Policy.PolicySHA256
+	n.redactor = safetyOutput.Redactor
+	n.CommandRunner = policyCommandRunner(n.CommandRunner, n.redactor, safetyOutput.Policy.Environment, n.SafetyLookupEnv)
 
 	var audit *autonomous.AuditReport
 	if n.Audit != nil {
@@ -89,15 +116,18 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		audit = &report
 	}
 	dossier, err := n.DossierAssembler(ctx, autonomousassembly.Input{
-		RepositoryRoot: n.root,
-		TaskID:         n.TaskID,
-		State:          n.state,
-		Audit:          audit,
-		Verification:   verificationSummaryForDossier(n.Verification),
-		HistoryPolicy:  n.HistoryPolicy,
-		LedgerPath:     n.LedgerPath,
-		HistoryReader:  n.HistoryReader,
-		GuidancePolicy: n.GuidancePolicy,
+		RepositoryRoot:      n.root,
+		ExecutionRoot:       n.executionRoot,
+		TaskID:              n.TaskID,
+		State:               n.state,
+		Audit:               audit,
+		Verification:        verificationSummaryForDossier(n.Verification),
+		HistoryPolicy:       n.HistoryPolicy,
+		LedgerPath:          n.LedgerPath,
+		HistoryReader:       n.HistoryReader,
+		GuidancePolicy:      n.GuidancePolicy,
+		RepositoryMapPolicy: n.RepositoryMapPolicy,
+		Role:                autonomous.DossierRoleSupervisor,
 		Git: autonomousassembly.GitOptions{
 			Executable:    n.GitExecutable,
 			Timeout:       n.GitTimeout,
@@ -108,6 +138,12 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	})
 	if err != nil {
 		return failed(result, OutcomeDossierFailed, "dossier_assembly", err)
+	}
+	if dossier.Manifest.Projection == nil || dossier.Manifest.Projection.Role != autonomous.DossierRoleSupervisor {
+		dossier, err = autonomous.ReprojectTaskDossier(dossier, autonomous.DossierRoleSupervisor)
+		if err != nil {
+			return failed(result, OutcomeDossierFailed, "dossier_projection", err)
+		}
 	}
 	if err := supervisor.ValidateDossier(n.TaskID, dossier); err != nil {
 		return failed(result, OutcomeDossierFailed, "dossier_validation", err)
@@ -129,6 +165,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 
 	supervisorResult, supervisorErr := n.SupervisorRunner(ctx, supervisor.Config{
 		RepositoryRoot:                 n.root,
+		ExecutionRoot:                  n.executionRoot,
+		WorkspaceID:                    workspaceID(n.Workspace),
 		TaskID:                         n.TaskID,
 		Dossier:                        dossier,
 		Audit:                          audit,
@@ -147,6 +185,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		CodexVersion:                   n.CodexVersion,
 		EffectiveConfigSchema:          n.EffectiveConfigSchema,
 		EffectiveConfigSHA256:          n.EffectiveConfigSHA256,
+		SafetyPolicySHA256:             safetyOutput.Policy.PolicySHA256,
 		CodexTimeout:                   n.CodexTimeout,
 		CodexStdoutCap:                 n.CodexStdoutCap,
 		CodexStderrCap:                 n.CodexStderrCap,
@@ -159,6 +198,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		SourceSnapshotter:              supervisor.SourceSnapshotter(n.SourceSnapshotter),
 		SourceLockTimeout:              n.SourceWriterLockTimeout,
 		SourceLockPID:                  n.SourceWriterLockPID,
+		Redactor:                       safetyOutput.Redactor,
+		SafetyPolicy:                   &safetyOutput.Policy,
+		SafetyPreflight:                &safetyOutput.Preflight,
 	})
 	result.Supervisor = supervisorResult
 	if supervisorErr != nil {
@@ -172,13 +214,21 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 
 	lockOwner := "cycle-" + n.supervisorRunID
-	sourceLock, err := n.LockAcquirer(ctx, lock.Config{
+	lockConfig := lock.Config{
 		WorkingDir: n.root,
 		RunID:      lockOwner,
 		PID:        n.SourceWriterLockPID,
 		Timeout:    n.SourceWriterLockTimeout,
 		Clock:      n.Clock,
-	})
+	}
+	if n.Workspace != nil {
+		// The lock file remains control-root state while naming the exact source
+		// worktree it protects.
+		lockConfig.ControlRoot = n.root
+		lockConfig.ExecutionRoot = n.executionRoot
+		lockConfig.WorkspaceID = n.Workspace.WorkspaceID
+	}
+	sourceLock, err := n.LockAcquirer(ctx, lockConfig)
 	if err != nil {
 		return failed(result, OutcomeSourceChanged, "worker_lock", fmt.Errorf("acquire worker source-writer lock: %w", err))
 	}
@@ -241,7 +291,21 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		result.Source.FinalRevision = result.Source.AdmissionRevision
 		result.Outcome = OutcomeBlockAuthorized
 		return result, nil
+	case autonomouspolicy.RouteKindNeedsInput:
+		result.Source.Final = &admission
+		result.Source.FinalRevision = result.Source.AdmissionRevision
+		result.Outcome = OutcomeNeedsInputAuthorized
+		return result, nil
 	case autonomouspolicy.RouteKindWorker:
+		if n.BeforeWorker != nil {
+			if err := n.BeforeWorker(ctx, WorkerAdmissionInput{
+				TaskID: n.TaskID, State: n.state,
+				Decision: *supervisorResult.Decision, Reference: *supervisorResult.DecisionReference,
+				Route: route, SourceRevision: result.Source.AdmissionRevision,
+			}); err != nil {
+				return failed(result, OutcomePolicyRejected, "attempt_admission", err)
+			}
+		}
 		return runWorker(ctx, n, task, dossier, supervisorResult, route, admission, result)
 	default:
 		return failed(result, OutcomePolicyRejected, "policy_route", fmt.Errorf("unknown route kind %q", route.Kind))
@@ -268,11 +332,34 @@ func normalizeConfig(cfg Config) (normalizedConfig, error) {
 	if cfg.TaskID == "" || cfg.TaskID != strings.TrimSpace(cfg.TaskID) || strings.ContainsAny(cfg.TaskID, "\r\n") {
 		return normalizedConfig{}, fmt.Errorf("autonomous cycle: task_id %q is empty or malformed", cfg.TaskID)
 	}
+	if !cfg.RepositoryMapPolicy.Enabled {
+		cfg.RepositoryMapPolicy = autonomousassembly.RepositoryMapPolicy{Enabled: true, MaxPaths: 4000, MaxBytes: 512 * 1024}
+	}
+	executionRoot := resolved
+	if cfg.Workspace != nil {
+		if err := cfg.Workspace.Validate(); err != nil {
+			return normalizedConfig{}, fmt.Errorf("autonomous cycle: workspace: %w", err)
+		}
+		if cfg.Workspace.TaskID != cfg.TaskID || cfg.Workspace.ControlRoot != resolved {
+			return normalizedConfig{}, errors.New("autonomous cycle: workspace task/control identity mismatch")
+		}
+		if cfg.Workspace.Status != autonomous.WorkspaceStatusReady && cfg.Workspace.Status != autonomous.WorkspaceStatusRestored {
+			return normalizedConfig{}, fmt.Errorf("autonomous cycle: workspace status %q is not admitted for execution", cfg.Workspace.Status)
+		}
+		actual, resolveErr := filepath.EvalSymlinks(cfg.Workspace.ExecutionRoot)
+		if resolveErr != nil || actual != cfg.Workspace.ExecutionRoot {
+			return normalizedConfig{}, errors.Join(resolveErr, errors.New("autonomous cycle: execution root is missing or noncanonical"))
+		}
+		executionRoot = actual
+	}
 	if err := cfg.State.Validate(); err != nil {
 		return normalizedConfig{}, fmt.Errorf("autonomous cycle: execution state: %w", err)
 	}
 	if cfg.State.TaskID != cfg.TaskID {
 		return normalizedConfig{}, fmt.Errorf("autonomous cycle: task_id %q does not match execution state task_id %q", cfg.TaskID, cfg.State.TaskID)
+	}
+	if cfg.Workspace != nil && (cfg.State.Workspace == nil || !reflect.DeepEqual(*cfg.State.Workspace, *cfg.Workspace)) {
+		return normalizedConfig{}, errors.New("autonomous cycle: admitted workspace does not match durable state")
 	}
 	state, err := cloneExecutionState(cfg.State)
 	if err != nil {
@@ -299,6 +386,9 @@ func normalizeConfig(cfg Config) (normalizedConfig, error) {
 	if !cfg.CodexEphemeral {
 		return normalizedConfig{}, errors.New("autonomous cycle: only fresh ephemeral Codex sessions are supported")
 	}
+	if err := cfg.SafetyDeclaration.Validate(); err != nil {
+		return normalizedConfig{}, fmt.Errorf("autonomous cycle: %w", err)
+	}
 	if strings.TrimSpace(cfg.CodexSandbox) == "" || strings.TrimSpace(cfg.CodexApprovalPolicy) == "" {
 		return normalizedConfig{}, errors.New("autonomous cycle: explicit Codex sandbox and approval policy are required")
 	}
@@ -324,7 +414,7 @@ func normalizeConfig(cfg Config) (normalizedConfig, error) {
 	if cfg.CommitTimeout <= 0 || cfg.CommitStdoutCap <= 0 || cfg.CommitStderrCap <= 0 {
 		return normalizedConfig{}, errors.New("autonomous cycle: positive commit timeout and output caps are required")
 	}
-	if err := validateVerificationConfig(resolved, cfg); err != nil {
+	if err := validateVerificationConfig(executionRoot, cfg); err != nil {
 		return normalizedConfig{}, err
 	}
 	if cfg.CorrectionFailure != nil {
@@ -377,6 +467,9 @@ func normalizeConfig(cfg Config) (normalizedConfig, error) {
 			return lock.AcquireSourceWriter(ctx, lockCfg)
 		}
 	}
+	if cfg.SafetyPreflightRunner == nil {
+		cfg.SafetyPreflightRunner = autonomoussafety.Run
+	}
 
 	supervisorRunID := strings.TrimSpace(cfg.IDGenerator())
 	if !safePathID(supervisorRunID) {
@@ -393,7 +486,115 @@ func normalizeConfig(cfg Config) (normalizedConfig, error) {
 		plan := autonomousverification.ClonePlan(*cfg.VerificationPlan)
 		cfg.VerificationPlan = &plan
 	}
-	return normalizedConfig{Config: cfg, root: resolved, state: state, supervisorRunID: supervisorRunID, decisionID: decisionID}, nil
+	return normalizedConfig{Config: cfg, root: resolved, executionRoot: executionRoot, state: state, supervisorRunID: supervisorRunID, decisionID: decisionID}, nil
+}
+
+func safetyInput(n normalizedConfig, sourceRevision, observedHead string) autonomoussafety.Input {
+	commands := []autonomoussafety.CommandSpec{
+		{Kind: "codex", Executable: n.CodexExecutable, Args: []string{"exec", "--model", n.CodexModel, "--sandbox", n.CodexSandbox, "--ask-for-approval", n.CodexApprovalPolicy}, WorkingDir: n.executionRoot, Timeout: n.CodexTimeout, StdoutCap: n.CodexStdoutCap, StderrCap: n.CodexStderrCap},
+		{Kind: "git", Executable: n.GitExecutable, WorkingDir: n.executionRoot, Timeout: n.GitTimeout, StdoutCap: n.GitStdoutCap, StderrCap: n.GitStderrCap},
+	}
+	appendVerification := func(kind string, command verification.Command) {
+		dir := n.executionRoot
+		if strings.TrimSpace(command.Dir) != "" {
+			dir = filepath.Join(n.executionRoot, command.Dir)
+		}
+		timeout := command.Timeout
+		if timeout <= 0 {
+			timeout = n.VerificationTimeout
+		}
+		stdoutCap := command.StdoutCap
+		if stdoutCap <= 0 {
+			stdoutCap = n.VerificationStdoutCap
+		}
+		stderrCap := command.StderrCap
+		if stderrCap <= 0 {
+			stderrCap = n.VerificationStderrCap
+		}
+		commands = append(commands, autonomoussafety.CommandSpec{Kind: kind, Executable: command.Name, Args: append([]string(nil), command.Args...), WorkingDir: dir, Environment: append([]string(nil), command.Env...), Timeout: timeout, StdoutCap: stdoutCap, StderrCap: stderrCap})
+	}
+	for _, command := range n.VerificationCommands {
+		appendVerification("verification", command)
+	}
+	if n.VerificationPlan != nil {
+		for _, tier := range n.VerificationPlan.Tiers {
+			for _, command := range tier.Commands {
+				appendVerification("verification:"+tier.ID, command)
+			}
+		}
+	}
+	return autonomoussafety.Input{
+		TaskID:         n.TaskID,
+		Workspace:      *n.Workspace,
+		SourceRevision: sourceRevision,
+		ObservedHead:   observedHead,
+		Declaration:    n.SafetyDeclaration,
+		Codex: autonomoussafety.CodexPolicy{
+			Sandbox: n.CodexSandbox, ApprovalPolicy: n.CodexApprovalPolicy, DangerousBypass: n.CodexBypassApprovalsAndSandbox,
+			Model: n.CodexModel, ReasoningEffort: n.CodexReasoningEffort, Ephemeral: n.CodexEphemeral,
+		},
+		Commands:      commands,
+		ConfigPath:    filepath.Join(n.root, ".revolvr", "config.yaml"),
+		ConfigSHA256:  n.EffectiveConfigSHA256,
+		ObservedAt:    n.Clock().UTC(),
+		LookupEnv:     n.SafetyLookupEnv,
+		LookPath:      n.SafetyLookPath,
+		CommandRunner: n.CommandRunner,
+		GitExecutable: n.GitExecutable,
+		GitTimeout:    n.GitTimeout,
+		GitStdoutCap:  n.GitStdoutCap,
+		GitStderrCap:  n.GitStderrCap,
+	}
+}
+
+func validateSafetyOutput(n normalizedConfig, sourceRevision string, output autonomoussafety.Output) error {
+	if !output.Preflight.Ready {
+		return errors.New("autonomous safety preflight is not ready")
+	}
+	if output.Preflight.TaskID != n.TaskID || output.Preflight.WorkspaceID != n.Workspace.WorkspaceID || output.Preflight.SourceRevision != sourceRevision || output.Preflight.ConfigSHA256 != n.EffectiveConfigSHA256 || output.Preflight.PolicySHA256 == "" {
+		return errors.New("autonomous safety preflight identity mismatch")
+	}
+	if output.Policy.TaskID != n.TaskID || output.Policy.Workspace.WorkspaceID != n.Workspace.WorkspaceID || output.Policy.PolicySHA256 != output.Preflight.PolicySHA256 || output.Policy.ConfigSHA256 != n.EffectiveConfigSHA256 {
+		return errors.New("autonomous safety policy identity mismatch")
+	}
+	if err := output.Policy.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func policyCommandRunner(commandRunner CommandRunner, redactor *redact.Redactor, environment autonomoussafety.EnvironmentPolicy, lookup func(string) (string, bool)) CommandRunner {
+	if redactor == nil && environment.InheritHost {
+		return commandRunner
+	}
+	if lookup == nil {
+		lookup = os.LookupEnv
+	}
+	return func(ctx context.Context, command runner.Command) runner.Result {
+		if !environment.InheritHost {
+			env := make([]string, 0, len(environment.Allow)+len(command.Env))
+			for _, name := range environment.Allow {
+				if value, ok := lookup(name); ok {
+					env = append(env, name+"="+value)
+				}
+			}
+			env = append(env, command.Env...)
+			command.Env = env
+			command.ReplaceEnv = true
+		}
+		result := commandRunner(ctx, command)
+		if redactor != nil {
+			result.Stdout = redactor.String(result.Stdout)
+			result.Stderr = redactor.String(result.Stderr)
+			result.Err = redactor.Error(result.Err)
+		}
+		return result
+	}
+}
+
+// RunInWorkspace is the fail-closed autonomous mutation entry point.
+func RunInWorkspace(ctx context.Context, cfg Config) (Result, error) {
+	return Run(ctx, cfg)
 }
 
 func validateTask(task taskfile.Task, taskID string) error {
@@ -473,7 +674,7 @@ func validateRoute(route autonomouspolicy.Route, input autonomouspolicy.Input) e
 
 func captureSource(ctx context.Context, n normalizedConfig) (gitstate.SourceSnapshot, error) {
 	snapshot, err := n.SourceSnapshotter(ctx, gitstate.SourceSnapshotConfig{
-		WorkingDir:    n.root,
+		WorkingDir:    n.executionRoot,
 		GitExecutable: n.GitExecutable,
 		Timeout:       n.GitTimeout,
 		StdoutCap:     n.GitStdoutCap,
@@ -501,6 +702,13 @@ func sourceChangedError(message string, difference gitstate.SourceDifference) er
 		paths = append(paths, change.Path)
 	}
 	return fmt.Errorf("%s: before=%q current=%q head_changed=%t index_changed=%t worktree_changed=%t paths=%q", message, difference.BeforeSHA256, difference.AfterSHA256, difference.HeadChanged, difference.IndexChanged, difference.WorktreeChanged, paths)
+}
+
+func workspaceID(workspace *autonomous.TaskWorkspace) string {
+	if workspace == nil {
+		return ""
+	}
+	return workspace.WorkspaceID
 }
 
 func validateVerificationConfig(root string, cfg Config) error {
@@ -632,7 +840,8 @@ func sameCodexIntent(n normalizedConfig, invocation codexexec.InvocationProvenan
 		invocation.Version == strings.TrimSpace(n.CodexVersion) &&
 		invocation.EffectiveConfigSchema == strings.TrimSpace(n.EffectiveConfigSchema) &&
 		invocation.EffectiveConfigSHA256 == strings.TrimSpace(n.EffectiveConfigSHA256) &&
-		invocation.WorkingDir == n.root
+		invocation.SafetyPolicySHA256 == n.safetyPolicySHA256 &&
+		invocation.WorkingDir == n.executionRoot
 }
 
 func safePathID(value string) bool {

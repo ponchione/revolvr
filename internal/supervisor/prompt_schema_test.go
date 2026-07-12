@@ -79,13 +79,13 @@ func TestDecisionOutputSchemaIsDeterministicAndStrict(t *testing.T) {
 		t.Fatalf("strategy schema = %#v", strategy)
 	}
 	actionEnum := properties["action"].(map[string]any)["enum"].([]any)
-	wantActions := []any{"plan", "implement", "audit", "correct", "document", "simplify", "complete", "block"}
+	wantActions := []any{"plan", "implement", "audit", "correct", "document", "simplify", "complete", "block", "needs_input"}
 	if !reflect.DeepEqual(actionEnum, wantActions) {
 		t.Fatalf("actions = %#v, want %#v", actionEnum, wantActions)
 	}
 	branches := schema["oneOf"].([]any)
-	if len(branches) != 8 {
-		t.Fatalf("oneOf branches = %d, want 8", len(branches))
+	if len(branches) != 9 {
+		t.Fatalf("oneOf branches = %d, want 9", len(branches))
 	}
 	raw := string(first)
 	for action, profileName := range map[string]string{
@@ -113,6 +113,33 @@ func TestDecisionOutputSchemaIsDeterministicAndStrict(t *testing.T) {
 		if fieldSchema["minLength"] != float64(1) || fieldSchema["pattern"] == "" {
 			t.Fatalf("evidence %s schema = %#v", field, fieldSchema)
 		}
+	}
+}
+
+func TestParseDecisionAssignsAndValidatesNeedsInputContentIdentity(t *testing.T) {
+	question := autonomous.NeedsInputQuestion{TaskID: "task-1", QuestionID: "product-mode", Revision: 1, Question: "Which behavior?", BlockingReason: "The task permits incompatible behaviors.", Options: []autonomous.NeedsInputOption{{ID: "keep", Meaning: "Keep behavior."}, {ID: "change", Meaning: "Change behavior."}}, Recommendation: autonomous.NeedsInputRecommendation{OptionID: "keep", Rationale: "Safer."}, Evidence: []autonomous.EvidenceReference{{Kind: autonomous.EvidenceKindTask, Reference: "task", Detail: "Ambiguous task."}}}
+	decision := autonomous.SupervisorDecision{TaskID: "task-1", Action: autonomous.ActionNeedsInput, Rationale: "Input required.", Inputs: question.Evidence, NeedsInput: &question}
+	raw, err := json.Marshal(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseDecision(raw, "task-1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.NeedsInput == nil || parsed.NeedsInput.ContentSHA256 == "" {
+		t.Fatalf("parsed=%+v", parsed)
+	}
+	decision.NeedsInput.ContentSHA256 = strings.Repeat("f", 64)
+	raw, _ = json.Marshal(decision)
+	if _, err := ParseDecision(raw, "task-1", nil); err == nil || !strings.Contains(err.Error(), "deterministic question identity") {
+		t.Fatalf("changed identity error=%v", err)
+	}
+	decision.NeedsInput.ContentSHA256 = ""
+	decision.NeedsInput.Options = decision.NeedsInput.Options[:1]
+	raw, _ = json.Marshal(decision)
+	if _, err := ParseDecision(raw, "task-1", nil); err == nil || !strings.Contains(err.Error(), "at least two") {
+		t.Fatalf("malformed options error=%v", err)
 	}
 }
 

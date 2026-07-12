@@ -22,6 +22,7 @@ const (
 type InvocationConfig struct {
 	Executable             string
 	WorkingDir             string
+	ArtifactRoot           string
 	Model                  string
 	ReasoningEffort        string
 	Ephemeral              bool
@@ -33,6 +34,7 @@ type InvocationConfig struct {
 	CodexVersion           string
 	EffectiveConfigSchema  string
 	EffectiveConfigSHA256  string
+	SafetyPolicySHA256     string
 }
 
 type InvocationProvenance struct {
@@ -44,6 +46,7 @@ type InvocationProvenance struct {
 	SessionMode           string   `json:"session_mode"`
 	EffectiveConfigSchema string   `json:"effective_config_schema"`
 	EffectiveConfigSHA256 string   `json:"effective_config_sha256"`
+	SafetyPolicySHA256    string   `json:"safety_policy_sha256,omitempty"`
 	Argv                  []string `json:"argv"`
 	WorkingDir            string   `json:"working_dir"`
 }
@@ -57,6 +60,13 @@ func PrepareInvocation(cfg InvocationConfig) (InvocationProvenance, ArtifactPath
 	if err != nil {
 		return InvocationProvenance{}, ArtifactPaths{}, err
 	}
+	artifactRoot := workDir
+	if strings.TrimSpace(cfg.ArtifactRoot) != "" {
+		artifactRoot, err = absoluteWorkingDir(cfg.ArtifactRoot)
+		if err != nil {
+			return InvocationProvenance{}, ArtifactPaths{}, fmt.Errorf("resolve Codex artifact root: %w", err)
+		}
+	}
 	model, err := NormalizeModel(cfg.Model)
 	if err != nil {
 		return InvocationProvenance{}, ArtifactPaths{}, err
@@ -68,11 +78,11 @@ func PrepareInvocation(cfg InvocationConfig) (InvocationProvenance, ArtifactPath
 	if !cfg.Ephemeral {
 		return InvocationProvenance{}, ArtifactPaths{}, errors.New("prepare Codex invocation: only ephemeral sessions are supported")
 	}
-	artifacts, err := resolveArtifacts(workDir, cfg.Artifacts)
+	artifacts, err := resolveArtifacts(artifactRoot, cfg.Artifacts)
 	if err != nil {
 		return InvocationProvenance{}, ArtifactPaths{}, err
 	}
-	outputSchema, err := resolveOutputSchema(workDir, cfg.OutputSchema)
+	outputSchema, err := resolveOutputSchema(artifactRoot, cfg.OutputSchema)
 	if err != nil {
 		return InvocationProvenance{}, ArtifactPaths{}, err
 	}
@@ -96,6 +106,7 @@ func PrepareInvocation(cfg InvocationConfig) (InvocationProvenance, ArtifactPath
 		SessionMode:           SessionModeEphemeral,
 		EffectiveConfigSchema: strings.TrimSpace(cfg.EffectiveConfigSchema),
 		EffectiveConfigSHA256: strings.TrimSpace(cfg.EffectiveConfigSHA256),
+		SafetyPolicySHA256:    strings.TrimSpace(cfg.SafetyPolicySHA256),
 		Argv:                  argv,
 		WorkingDir:            workDir,
 	}, artifacts, nil
@@ -173,6 +184,11 @@ func (p InvocationProvenance) Validate() error {
 	if decoded, err := hex.DecodeString(p.EffectiveConfigSHA256); err != nil || len(decoded) != sha256.Size {
 		return errors.New("Codex invocation provenance: effective config SHA-256 must be 64 hexadecimal characters")
 	}
+	if p.SafetyPolicySHA256 != "" {
+		if decoded, err := hex.DecodeString(p.SafetyPolicySHA256); err != nil || len(decoded) != sha256.Size {
+			return errors.New("Codex invocation provenance: safety policy SHA-256 must be 64 hexadecimal characters")
+		}
+	}
 	if len(p.Argv) == 0 || !slices.Contains(p.Argv, "exec") || slices.Contains(p.Argv, "resume") {
 		return errors.New("Codex invocation provenance: argv must contain exec and must not contain resume")
 	}
@@ -191,6 +207,7 @@ func sameInvocation(got, want InvocationProvenance) bool {
 		got.SessionMode == want.SessionMode &&
 		got.EffectiveConfigSchema == want.EffectiveConfigSchema &&
 		got.EffectiveConfigSHA256 == want.EffectiveConfigSHA256 &&
+		got.SafetyPolicySHA256 == want.SafetyPolicySHA256 &&
 		slices.Equal(got.Argv, want.Argv) &&
 		got.WorkingDir == want.WorkingDir
 }

@@ -14,11 +14,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"revolvr/internal/app"
+	"revolvr/internal/autonomoustaskrun"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
+	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
 )
 
@@ -1587,6 +1589,48 @@ func TestStatusModelRunLoopCancellationReportsTerminalState(t *testing.T) {
 		"Error: context canceled",
 		"system: terminal state: cancelled",
 	)
+}
+
+func TestStatusModelRunSelectedAutonomousTaskPinsSelection(t *testing.T) {
+	status := app.StatusResult{Initialized: true, Tasks: []taskmodel.Task{{ID: "task-one", Status: taskmodel.StatusPending, Workflow: taskfile.WorkflowAutonomousV1}, {ID: "task-two", Status: taskmodel.StatusPending, Workflow: taskfile.WorkflowAutonomousV1}}}
+	called := ""
+	m := NewStatusModelWithActions(status, StatusActions{RunTask: func(_ context.Context, taskID string, max int64, progress autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
+		called = taskID
+		if max != 50 {
+			t.Fatalf("max=%d", max)
+		}
+		progress(autonomoustaskrun.Operation{Stage: "cycle_started", Statistics: autonomoustaskrun.Statistics{CyclesStarted: 1}, LastAction: "implement"})
+		return autonomoustaskrun.Result{TaskID: taskID, OperationID: "operation-one", StopReason: autonomoustaskrun.StopBlocked, Statistics: autonomoustaskrun.Statistics{CyclesStarted: 1}}, nil
+	}, RefreshStatus: func() (app.StatusResult, error) { return status, nil }})
+	m.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'U'}})
+	m = updated.(StatusModel)
+	if cmd == nil {
+		t.Fatal("start command nil")
+	}
+	for i := 0; i < 4 && m.runOnce.Active; i++ {
+		msg := cmd()
+		updated, cmd = m.Update(msg)
+		m = updated.(StatusModel)
+	}
+	if called != "task-one" || m.runOnce.Active || m.runOnce.Outcome != "blocked" {
+		t.Fatalf("called=%q state=%+v", called, m.runOnce)
+	}
+}
+
+func TestStatusModelRejectsSelectedAutonomousTaskThatIsNotDependencyReady(t *testing.T) {
+	called := false
+	status := app.StatusResult{Initialized: true, Tasks: []taskmodel.Task{{ID: "waiting", Status: taskmodel.StatusPending, Workflow: taskfile.WorkflowAutonomousV1, ReadinessReason: "waiting_dependency"}}}
+	m := NewStatusModelWithActions(status, StatusActions{RunTask: func(context.Context, string, int64, autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
+		called = true
+		return autonomoustaskrun.Result{}, nil
+	}})
+	m.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'U'}})
+	m = updated.(StatusModel)
+	if cmd != nil || called || !strings.Contains(m.message, "waiting_dependency") {
+		t.Fatalf("cmd=%v called=%v message=%q", cmd, called, m.message)
+	}
 }
 
 func TestStatusModelRunsViewNavigatesRecentRunsWithMetadata(t *testing.T) {

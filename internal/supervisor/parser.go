@@ -28,6 +28,13 @@ func ParseDecision(raw []byte, taskID string, audit *autonomous.AuditReport, fai
 		}
 		return autonomous.SupervisorDecision{}, fmt.Errorf("parse supervisor decision: non-whitespace content follows the JSON object: %w", err)
 	}
+	if decision.Action == autonomous.ActionNeedsInput && decision.NeedsInput != nil && decision.NeedsInput.ContentSHA256 == "" {
+		identity, err := autonomous.QuestionContentSHA256(*decision.NeedsInput)
+		if err != nil {
+			return autonomous.SupervisorDecision{}, fmt.Errorf("parse supervisor decision: assign question content identity: %w", err)
+		}
+		decision.NeedsInput.ContentSHA256 = identity
+	}
 	if err := decision.Validate(); err != nil {
 		return autonomous.SupervisorDecision{}, fmt.Errorf("parse supervisor decision: %w", err)
 	}

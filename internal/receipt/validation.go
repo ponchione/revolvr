@@ -1,6 +1,7 @@
 package receipt
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"revolvr/internal/artifactretention"
 	"revolvr/internal/ledger"
 )
 
@@ -274,6 +276,11 @@ func checkReceiptArtifacts(workDir string, receiptPath string, receiptAbsPath st
 		absPath := resolveValidationPath(workDir, path)
 		info, err := os.Stat(absPath)
 		if os.IsNotExist(err) {
+			if artifact.label == "codex stdout jsonl" || artifact.label == "codex stderr" {
+				if _, _, compressedErr := artifactretention.ReadLogical(context.Background(), workDir, path, 256<<20); compressedErr == nil {
+					continue
+				}
+			}
 			details = append(details, fmt.Sprintf("%s artifact does not exist: %s", artifact.label, path))
 			continue
 		}

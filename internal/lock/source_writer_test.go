@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -198,6 +199,36 @@ func TestReleaseDoesNotClearAnotherOwner(t *testing.T) {
 	}
 	if !found || metadata.RunID != "fresh-run" {
 		t.Fatalf("metadata after stale release = %+v found=%v", metadata, found)
+	}
+}
+
+func TestWorkspaceSourceWriterUsesControlRootAndBindsExecutionIdentity(t *testing.T) {
+	control := t.TempDir()
+	execution := filepath.Join(control, ".revolvr", "autonomous", "worktrees", "workspace-one")
+	if err := os.MkdirAll(execution, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	writer, err := AcquireSourceWriter(context.Background(), Config{ControlRoot: control, ExecutionRoot: execution, WorkspaceID: "workspace-one", RunID: "run-one", PID: 101, Timeout: time.Minute, Clock: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := WorkspaceSourceWriterPath(control, "workspace-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writer.Path() != want || strings.HasPrefix(writer.Path(), execution+string(filepath.Separator)) {
+		t.Fatalf("workspace lock path = %q, want control-root %q", writer.Path(), want)
+	}
+	raw, err := os.ReadFile(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"workspace_id": "workspace-one"`) || !strings.Contains(string(raw), execution) {
+		t.Fatalf("workspace lock metadata = %s", raw)
+	}
+	if err := writer.Release(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 

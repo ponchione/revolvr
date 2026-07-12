@@ -14,6 +14,7 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/pathguard"
 	"revolvr/internal/receipt"
+	"revolvr/internal/redact"
 	"revolvr/internal/runner"
 )
 
@@ -41,6 +42,7 @@ type ProgressEvent struct {
 type Config struct {
 	Executable                string
 	WorkingDir                string
+	ArtifactRoot              string
 	Prompt                    string
 	Model                     string
 	ReasoningEffort           string
@@ -58,29 +60,34 @@ type Config struct {
 	CommandRunner             CommandRunner
 	OnProgress                func(ProgressEvent)
 	Provenance                InvocationProvenance
+	Redactor                  *redact.Redactor
 }
 
 type CappedOutput struct {
-	Content        string
-	TruncatedBytes int64
-	Path           string
+	Content          string
+	TruncatedBytes   int64
+	Path             string
+	RawByteSize      int
+	RedactedByteSize int
+	Redaction        redact.Facts
 }
 
 type Result struct {
-	ExitCode        int
-	TimedOut        bool
-	Err             error
-	FinalMessage    string
-	Usage           receipt.Metrics
-	UsageFound      bool
-	Artifacts       ArtifactPaths
-	Stdout          CappedOutput
-	Stderr          CappedOutput
-	JSONEvents      int
-	JSONParseErrors []string
-	ParseError      error
-	ArtifactError   error
-	LedgerError     error
+	ExitCode             int
+	TimedOut             bool
+	Err                  error
+	FinalMessage         string
+	Usage                receipt.Metrics
+	UsageFound           bool
+	Artifacts            ArtifactPaths
+	Stdout               CappedOutput
+	Stderr               CappedOutput
+	JSONEvents           int
+	JSONParseErrors      []string
+	ParseError           error
+	ArtifactError        error
+	LedgerError          error
+	LastMessageRedaction redact.Facts
 }
 
 func Run(ctx context.Context, cfg Config) (Result, error) {
@@ -91,6 +98,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	provenance, artifacts, err := PrepareInvocation(InvocationConfig{
 		Executable:             cfg.Executable,
 		WorkingDir:             workDir,
+		ArtifactRoot:           cfg.ArtifactRoot,
 		Model:                  cfg.Model,
 		ReasoningEffort:        cfg.ReasoningEffort,
 		Ephemeral:              *cfg.Ephemeral,
@@ -102,6 +110,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		CodexVersion:           cfg.Provenance.Version,
 		EffectiveConfigSchema:  cfg.Provenance.EffectiveConfigSchema,
 		EffectiveConfigSHA256:  cfg.Provenance.EffectiveConfigSHA256,
+		SafetyPolicySHA256:     cfg.Provenance.SafetyPolicySHA256,
 	})
 	if err != nil {
 		return Result{}, err
@@ -173,6 +182,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		StdoutLimit: cfg.StdoutCap,
 		StderrLimit: cfg.StderrCap,
 		OnStdoutLine: func(line string) {
+			line = redactString(cfg.Redactor, line)
 			lineNumber := state.nextStdoutLine()
 			if _, err := fmt.Fprintln(stdoutFile, line); err != nil {
 				state.setArtifactError(fmt.Errorf("write stdout JSONL artifact: %w", err))
@@ -192,6 +202,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			appendLedger(ledger.EventCodexJSONEvent, summarizeEvent(lineNumber, event))
 		},
 		OnStderrLine: func(line string) {
+			line = redactString(cfg.Redactor, line)
 			if stderrFile == nil {
 				if cfg.OnProgress != nil {
 					cfg.OnProgress(ProgressEvent{Source: "codex stderr", Message: strings.TrimSpace(line)})
@@ -232,10 +243,28 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			Path:           artifacts.Stderr,
 		},
 	}
+	result.Stdout.RawByteSize = len(result.Stdout.Content)
+	result.Stderr.RawByteSize = len(result.Stderr.Content)
+	if cfg.Redactor != nil {
+		result.Stdout.Content, result.Stdout.Redaction = cfg.Redactor.Redact(result.Stdout.Content)
+		result.Stderr.Content, result.Stderr.Redaction = cfg.Redactor.Redact(result.Stderr.Content)
+	}
+	result.Stdout.RedactedByteSize = len(result.Stdout.Content)
+	result.Stderr.RedactedByteSize = len(result.Stderr.Content)
+	result.Err = redactError(cfg.Redactor, result.Err)
 
 	if artifacts.LastMessage != "" {
 		if message, err := readLastMessage(artifacts.LastMessage); err == nil && message != "" {
+			if cfg.Redactor != nil {
+				message, result.LastMessageRedaction = cfg.Redactor.Redact(message)
+			}
 			state.setFinalMessage(message)
+			if cfg.Redactor != nil {
+				writeErr := os.WriteFile(artifacts.LastMessage, []byte(message+"\n"), 0o644)
+				if writeErr != nil {
+					state.setArtifactError(fmt.Errorf("rewrite redacted last-message artifact: %w", writeErr))
+				}
+			}
 		} else if err != nil {
 			state.setArtifactError(err)
 		}
@@ -268,10 +297,27 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		"json_parse_errors":      result.JSONParseErrors,
 		"parse_error":            errorString(result.ParseError),
 		"artifact_error":         errorString(result.ArtifactError),
+		"stdout_redaction":       result.Stdout.Redaction,
+		"stderr_redaction":       result.Stderr.Redaction,
+		"last_message_redaction": result.LastMessageRedaction,
 	})
 	result.applyState(state)
 
 	return result, nil
+}
+
+func redactString(redactor *redact.Redactor, value string) string {
+	if redactor == nil {
+		return value
+	}
+	return redactor.String(value)
+}
+
+func redactError(redactor *redact.Redactor, err error) error {
+	if redactor == nil {
+		return err
+	}
+	return redactor.Error(err)
 }
 
 func normalizeConfig(cfg Config) (Config, string, error) {

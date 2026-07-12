@@ -2,6 +2,7 @@ package autonomousassembly
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousverification"
+	"revolvr/internal/dossiercache"
 	"revolvr/internal/ledger"
 	"revolvr/internal/pathguard"
 	"revolvr/internal/receipt"
@@ -57,6 +59,12 @@ type GuidancePolicy struct {
 	Additional []GuidancePath
 }
 
+type RepositoryMapPolicy struct {
+	Enabled  bool
+	MaxPaths int
+	MaxBytes int
+}
+
 type GitOptions struct {
 	Executable    string
 	Timeout       time.Duration
@@ -67,10 +75,14 @@ type GitOptions struct {
 
 type Input struct {
 	RepositoryRoot string
-	TaskID         string
-	State          autonomous.ExecutionState
-	Audit          *autonomous.AuditReport
-	Verification   *autonomous.VerificationSummary
+	// ExecutionRoot is the admitted task worktree used only for source/Git
+	// evidence. Canonical task, guidance, ledger, receipts, and artifacts remain
+	// rooted at RepositoryRoot. Empty retains the pre-AW-18 read-only behavior.
+	ExecutionRoot string
+	TaskID        string
+	State         autonomous.ExecutionState
+	Audit         *autonomous.AuditReport
+	Verification  *autonomous.VerificationSummary
 
 	HistoryPolicy HistoryPolicy
 	// LedgerPath is repository-relative and defaults to .revolvr/ledger.sqlite.
@@ -79,8 +91,10 @@ type Input struct {
 	LedgerPath    string
 	HistoryReader HistoryReader
 
-	GuidancePolicy GuidancePolicy
-	Git            GitOptions
+	GuidancePolicy      GuidancePolicy
+	RepositoryMapPolicy RepositoryMapPolicy
+	Role                autonomous.DossierRole
+	Git                 GitOptions
 }
 
 type assembledRun struct {
@@ -113,6 +127,13 @@ func assemble(ctx context.Context, in Input) (autonomous.TaskDossier, error) {
 	root, err := repositoryRoot(in.RepositoryRoot)
 	if err != nil {
 		return autonomous.TaskDossier{}, err
+	}
+	gitRoot := root
+	if strings.TrimSpace(in.ExecutionRoot) != "" {
+		gitRoot, err = repositoryRoot(in.ExecutionRoot)
+		if err != nil {
+			return autonomous.TaskDossier{}, fmt.Errorf("execution root: %w", err)
+		}
 	}
 	if strings.TrimSpace(in.TaskID) == "" {
 		return autonomous.TaskDossier{}, errors.New("task: requested task_id is required")
@@ -148,7 +169,7 @@ func assemble(ctx context.Context, in Input) (autonomous.TaskDossier, error) {
 		return autonomous.TaskDossier{}, err
 	}
 
-	headBefore, err := captureHEAD(ctx, root, gitOptions, "before evidence collection")
+	headBefore, err := captureHEAD(ctx, gitRoot, gitOptions, "before evidence collection")
 	if err != nil {
 		return autonomous.TaskDossier{}, err
 	}
@@ -194,7 +215,11 @@ func assemble(ctx context.Context, in Input) (autonomous.TaskDossier, error) {
 	if err != nil {
 		return autonomous.TaskDossier{}, err
 	}
-	status, err := captureGitText(ctx, root, gitOptions, "worktree status", []string{
+	repositoryMap, err := collectRepositoryMap(ctx, root, gitRoot, headBefore, guidance, in.RepositoryMapPolicy, gitOptions)
+	if err != nil {
+		return autonomous.TaskDossier{}, err
+	}
+	status, err := captureGitText(ctx, gitRoot, gitOptions, "worktree status", []string{
 		"-c", "color.ui=false", "-c", "core.quotePath=true",
 		"status", "--short", "--untracked-files=all",
 	})
@@ -204,7 +229,7 @@ func assemble(ctx context.Context, in Input) (autonomous.TaskDossier, error) {
 	if status == "" {
 		status = "clean"
 	}
-	diffSummary, err := captureGitText(ctx, root, gitOptions, "diff summary", []string{
+	diffSummary, err := captureGitText(ctx, gitRoot, gitOptions, "diff summary", []string{
 		"-c", "color.ui=false", "-c", "core.quotePath=true",
 		"diff", "--stat", "--no-ext-diff", "--no-renames", "HEAD", "--",
 	})
@@ -214,12 +239,26 @@ func assemble(ctx context.Context, in Input) (autonomous.TaskDossier, error) {
 	if diffSummary == "" {
 		diffSummary = "none"
 	}
-	headAfter, err := captureHEAD(ctx, root, gitOptions, "after evidence collection")
+	headAfter, err := captureHEAD(ctx, gitRoot, gitOptions, "after evidence collection")
 	if err != nil {
 		return autonomous.TaskDossier{}, err
 	}
 	if headBefore != headAfter {
 		return autonomous.TaskDossier{}, fmt.Errorf("git: snapshot changed during assembly: HEAD before %q, HEAD after %q", headBefore, headAfter)
+	}
+	taskAfter, found, err := taskfile.FindByID(root, in.TaskID)
+	if err != nil || !found {
+		return autonomous.TaskDossier{}, errors.Join(err, errors.New("task: canonical task changed or disappeared during assembly"))
+	}
+	if taskAfter.SourcePath != task.SourcePath || !reflect.DeepEqual(taskAfter.SourceBytes, task.SourceBytes) {
+		return autonomous.TaskDossier{}, errors.New("task: canonical task bytes changed during assembly")
+	}
+	guidanceAfter, err := collectGuidance(root, task.SourcePath, in.GuidancePolicy)
+	if err != nil {
+		return autonomous.TaskDossier{}, err
+	}
+	if !reflect.DeepEqual(guidanceAfter, guidance) {
+		return autonomous.TaskDossier{}, errors.New("guidance: applicable source bytes changed during assembly")
 	}
 
 	gitEvidence := autonomous.EvidenceReference{
@@ -231,7 +270,7 @@ func assemble(ctx context.Context, in Input) (autonomous.TaskDossier, error) {
 		Limit:         in.HistoryPolicy.CollectionLimit,
 		HasOlderItems: hasOlder,
 	}
-	dossier, err := autonomous.BuildTaskDossier(autonomous.TaskDossierInput{
+	dossierInput := autonomous.TaskDossierInput{
 		TaskID: in.TaskID,
 		TaskSpec: autonomous.TaskSpecSource{
 			ID:      "task-spec:" + task.ID,
@@ -252,12 +291,104 @@ func assemble(ctx context.Context, in Input) (autonomous.TaskDossier, error) {
 			DiffSummary:    diffSummary,
 			Evidence:       &gitEvidence,
 		},
-		Guidance: guidance,
-	})
+		Guidance:      guidance,
+		RepositoryMap: repositoryMap,
+	}
+	var dossier autonomous.TaskDossier
+	if in.Role == "" {
+		dossier, err = autonomous.BuildTaskDossier(dossierInput)
+	} else {
+		dossier, err = autonomous.ProjectTaskDossier(dossierInput, in.Role)
+	}
 	if err != nil {
 		return autonomous.TaskDossier{}, fmt.Errorf("dossier projection: %w", err)
 	}
 	return dossier, nil
+}
+
+func collectRepositoryMap(ctx context.Context, controlRoot, executionRoot, head string, guidance []autonomous.GuidanceSource, policy RepositoryMapPolicy, gitOptions GitOptions) (*autonomous.RepositoryMapSource, error) {
+	if !policy.Enabled {
+		return nil, nil
+	}
+	if policy.MaxPaths <= 0 {
+		policy.MaxPaths = 4000
+	}
+	if policy.MaxBytes <= 0 {
+		policy.MaxBytes = 512 * 1024
+	}
+	controlID, err := dossiercache.RootIdentity(controlRoot)
+	if err != nil {
+		return nil, fmt.Errorf("repository map: control root identity: %w", err)
+	}
+	executionID, err := dossiercache.RootIdentity(executionRoot)
+	if err != nil {
+		return nil, fmt.Errorf("repository map: execution root identity: %w", err)
+	}
+	tree, err := captureGitText(ctx, executionRoot, gitOptions, "HEAD tree identity", []string{"rev-parse", "--verify", head + "^{tree}"})
+	if err != nil {
+		return nil, err
+	}
+	identities := make([]dossiercache.GuidanceIdentity, len(guidance))
+	for i, item := range guidance {
+		sum := sha256.Sum256(item.Content)
+		identities[i] = dossiercache.GuidanceIdentity{Path: item.Path, SHA256: fmt.Sprintf("%x", sum), ByteSize: len(item.Content)}
+	}
+	source := dossiercache.Source{
+		SchemaVersion: dossiercache.SchemaVersion, Algorithm: dossiercache.ProducerAlgorithm,
+		ControlRootID: controlID, ExecutionRootID: executionID, CommitSHA: head, TreeSHA: tree,
+		MaxPaths: policy.MaxPaths, MaxBytes: policy.MaxBytes, Guidance: identities,
+	}
+	store := dossiercache.Store{RepositoryRoot: controlRoot}
+	lookup, err := store.Lookup(ctx, source)
+	if err != nil {
+		return nil, fmt.Errorf("repository map cache lookup: %w", err)
+	}
+	if lookup.Class == dossiercache.ResultHit {
+		manifestSHA, err := dossierCacheManifestSHA(lookup.Entry.Manifest)
+		if err != nil {
+			return nil, err
+		}
+		return &autonomous.RepositoryMapSource{ID: "repository-map:" + tree, CommitSHA: head, TreeSHA: tree, Content: lookup.Entry.Content, CacheKey: lookup.Key, CacheResult: string(lookup.Class), CacheManifestSHA256: manifestSHA}, nil
+	}
+	treeRaw, err := captureGitText(ctx, executionRoot, gitOptions, "committed tree path map", []string{"ls-tree", "-r", "-z", head})
+	if err != nil {
+		return nil, err
+	}
+	items, err := dossiercache.ParseTreeItems(treeRaw)
+	if err != nil {
+		return nil, fmt.Errorf("repository map tree parse: %w", err)
+	}
+	mapped, err := dossiercache.BuildRepositoryMapItems(source, items)
+	if err != nil {
+		return nil, fmt.Errorf("repository map collection: %w", err)
+	}
+	entry, err := dossiercache.NewEntry(source, mapped.Content, mapped.Total, mapped.Included)
+	if err != nil {
+		return nil, fmt.Errorf("repository map cache entry: %w", err)
+	}
+	diagnostic := "cache_" + string(lookup.Class)
+	if lookup.Diagnostic != "" {
+		diagnostic += ":" + lookup.Diagnostic
+	}
+	if lookup.Class == dossiercache.ResultMiss {
+		if err := store.Publish(ctx, entry); err != nil {
+			return nil, fmt.Errorf("repository map cache publication: %w", err)
+		}
+	}
+	manifestSHA, err := dossierCacheManifestSHA(entry.Manifest)
+	if err != nil {
+		return nil, err
+	}
+	return &autonomous.RepositoryMapSource{ID: "repository-map:" + tree, CommitSHA: head, TreeSHA: tree, Content: mapped.Content, CacheKey: entry.Manifest.Key, CacheResult: string(dossiercache.ResultRecomputed), CacheDiagnostic: diagnostic, CacheManifestSHA256: manifestSHA}, nil
+}
+
+func dossierCacheManifestSHA(manifest dossiercache.Manifest) (string, error) {
+	raw, err := dossiercache.MarshalManifest(manifest)
+	if err != nil {
+		return "", fmt.Errorf("repository map cache manifest: %w", err)
+	}
+	sum := sha256.Sum256(raw)
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func repositoryRoot(path string) (string, error) {

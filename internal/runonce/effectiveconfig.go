@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"revolvr/internal/artifactretention"
+	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/verification"
 )
 
-const EffectiveConfigSchema = "revolvr-effective-run-config-v1"
+const EffectiveConfigSchema = "revolvr-effective-run-config-v4"
 
 type EffectiveConfigFingerprint struct {
 	Schema     string
@@ -20,13 +23,16 @@ type EffectiveConfigFingerprint struct {
 }
 
 type EffectiveConfigProjection struct {
-	Schema           string                      `json:"schema"`
-	WorkingDir       string                      `json:"working_dir"`
-	Codex            EffectiveCodexConfig        `json:"codex"`
-	Git              EffectiveGitConfig          `json:"git"`
-	Verification     EffectiveVerificationConfig `json:"verification"`
-	Commit           EffectiveCommitConfig       `json:"commit"`
-	SourceWriterLock EffectiveSourceWriterLock   `json:"source_writer_lock"`
+	Schema           string                        `json:"schema"`
+	WorkingDir       string                        `json:"working_dir"`
+	Codex            EffectiveCodexConfig          `json:"codex"`
+	Git              EffectiveGitConfig            `json:"git"`
+	Verification     EffectiveVerificationConfig   `json:"verification"`
+	Commit           EffectiveCommitConfig         `json:"commit"`
+	SourceWriterLock EffectiveSourceWriterLock     `json:"source_writer_lock"`
+	Autonomy         autonomoussafety.Declaration  `json:"autonomy"`
+	Retention        artifactretention.Policy      `json:"retention"`
+	Notifications    autonomousnotification.Policy `json:"notifications"`
 }
 
 type EffectiveCodexConfig struct {
@@ -138,6 +144,9 @@ func FingerprintEffectiveConfig(cfg Config) (EffectiveConfigFingerprint, error) 
 			Timeout:           normalized.SourceWriterLockTimeout,
 			HeartbeatInterval: normalized.SourceWriterLockHeartbeatInterval,
 		},
+		Autonomy:      normalized.SafetyDeclaration,
+		Retention:     normalized.RetentionPolicy,
+		Notifications: normalized.NotificationPolicy,
 	}
 	raw, hash, err := fingerprintProjection(projection)
 	if err != nil {

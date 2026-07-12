@@ -92,67 +92,67 @@
   Acceptance: clean tasks can skip either/both actions; required user-facing docs cannot be waived without rationale/evidence; cleanup cannot change behavior or bypass audit; no-op passes are auditable and do not clutter Git history.
   Verification: add run, skip, no-op, source-changing, failed-verification, stale-audit, and commit-history tests; run focused tests and `go test ./...`.
 
-- [ ] AW-17 — Add structured `needs_input` handling.
+- [x] AW-17 — Add structured `needs_input` handling.
   Scope: extend autonomous contracts/state with a terminal-for-now supervisor outcome containing the exact question, blocking reason, mutually exclusive options, a recommendation, and independent work that may continue. Add answer/resume semantics without guessing a product decision.
   Acceptance: unanswered input prevents unsafe task actions; answers are durable and tied to the question/version; stale answers are rejected; clean needs-input tasks can yield the scheduler; CLI/TUI projections can consume the state later.
   Verification: add contract, persistence, stale-answer, resume, clean-yield, unsafe-state, and restart tests; run focused tests and `go test ./...`.
 
-- [ ] AW-18 — Isolate tasks in dedicated Git worktrees with checkpoint recovery.
+- [x] AW-18 — Isolate tasks in dedicated Git worktrees with checkpoint recovery.
   Scope: create and manage per-task branches/worktrees under local runtime state, record baseline/checkpoint SHAs, execute task mutations only there, and recover idempotently after crashes. Preserve the operator's primary worktree and make failed attempts inspectable without contaminating other tasks.
   Acceptance: creation/reopen/cleanup are safe; user-owned branches/worktrees are never deleted; failed verification can restore a harness-owned checkpoint; ambiguous commits remain inspectable; worktree identity is recorded; concurrent primary-worktree edits do not enter a task accidentally.
   Verification: add real-Git integration tests for create, checkpoint, crash reopen, failed rollback, branch conflict, dirty primary worktree, and cleanup refusal; run focused tests and `go test ./...`.
 
-- [ ] AW-19 — Define the unattended-execution safety boundary and preflight.
+- [x] AW-19 — Define the unattended-execution safety boundary and preflight.
   Scope: add explicit autonomy modes and preflight checks for writable roots, external sandbox/container expectations, hook trust, command provenance, protected paths, secret redaction, network policy, and dangerous-bypass use. Worktree isolation must be described as Git isolation rather than a security sandbox.
   Acceptance: unsafe configuration blocks before Codex; effective permissions are visible and recorded; logs/artifacts redact configured secrets; tasks cannot expand writable scope through model output; full autonomy requires explicit acknowledgement; existing local dogfood remains configurable.
   Verification: add config/preflight/protected-path/redaction/policy tests and deterministic doctor output; run focused tests, `go test ./...`, config/doctor smoke commands, and `git diff --check`.
 
-- [ ] AW-20 — Add transactional terminal finalization and completion capsules.
+- [x] AW-20 — Add transactional terminal finalization and completion capsules.
   Scope: introduce an idempotent `finalizing` boundary that freezes task evidence and generates a human-readable completion capsule from validated plan, acceptance, verification, audit, findings, commits, run IDs, provenance, and timestamps before terminal ledger completion.
   Acceptance: capsules are deterministic and source-linked; incomplete gates cannot finalize; crash/retry does not duplicate or contradict evidence; commit sequences and waived/not-applicable items are explicit; failed capsule generation leaves a resumable state.
   Verification: add golden capsule, missing-gate, crash-between-steps, retry, stale-evidence, and deterministic regeneration tests; run focused tests and `go test ./...`.
 
-- [ ] AW-21 — Move terminal tasks into tracked archives with verify and reopen support.
+- [x] AW-21 — Move terminal tasks into tracked archives with verify and reopen support.
   Scope: atomically move completed/cancelled/superseded/abandoned task specs to `.agent/archive/YYYY/MM/<task-id>/task.md`, store AW-20 `completion.md`, and add archive list/show/verify/reopen operations. Blocked and needs-input tasks remain active.
   Acceptance: archive paths and IDs are collision-safe; the administrative archive commit is identifiable; archive verification cross-checks task/capsule/ledger/commit evidence; reopen preserves history and creates a new active lifecycle; partial moves recover safely.
   Verification: add filesystem/Git/app/CLI tests for every terminal disposition, collision, partial failure, verification mismatch, reopen, and task selection exclusion; run focused tests and `go test ./...`.
 
-- [ ] AW-22 — Add run-one-task-until-terminal mode.
+- [x] AW-22 — Add run-one-task-until-terminal mode.
   Scope: add an app/CLI/TUI operation that selects or names one task and repeatedly runs fresh supervisor/worker cycles until completed, blocked, needs-input, cancelled, budget-exhausted, or unsafe. Do not spill surplus iterations into another task.
   Acceptance: terminal reason and statistics are deterministic; cancellation is safe; restart resumes durable state; max-cycle fallback remains available; current `--once` and `--max-passes` behavior stays compatible during migration.
   Verification: add fake and integration loops for completion, correction, input, blocker, budget, cancellation, restart, and “never starts next task”; run focused tests and `go test ./...`.
 
-- [ ] AW-23 — Add dependency-aware scheduling and supervised child tasks.
+- [x] AW-23 — Add dependency-aware scheduling and supervised child tasks.
   Scope: support stable `depends_on`, priority, tags, optional conflicts, and supervisor-proposed child tasks with parent/evidence links. Select only ready tasks, reject dependency cycles/missing IDs, and require validated scope before persisting child tasks.
   Acceptance: ordering is deterministic; completed dependencies unlock dependents; blocked/needs-input parents have explicit child behavior; child tasks cannot mutate parent identity or invent broad roadmap work; imports and status surfaces preserve dependency metadata.
   Verification: add parser/store/scheduler tests for DAGs, cycles, missing dependencies, priority ties, conflicts, child creation, restart, and compatibility; run focused tests and `go test ./...`.
 
-- [ ] AW-24 — Add queue-until-exhausted and daemon-safe continuation.
+- [x] AW-24 — Add queue-until-exhausted and daemon-safe continuation.
   Scope: run ready tasks until none remain, continuing past cleanly isolated blocked/needs-input tasks while stopping on unsafe/ambiguous repository state. Add durable queue checkpoints and an optional daemon/watch mode that wakes for new ready task files without overlapping source writers.
   Acceptance: queue stop reasons distinguish drained, waiting dependencies/input, cancelled, budget, and safety stop; crash/restart is idempotent; one task cannot starve the queue; daemon mode debounces changes and respects locks; summaries identify every terminal task.
   Verification: add multi-task, blocked-skip, dependency-wait, unsafe-stop, starvation, cancellation, crash-restart, file-watch, and lock tests; run focused tests and `go test ./...`.
 
-- [ ] AW-25 — Add artifact retention, compression, garbage collection, and ledger export.
+- [x] AW-25 — Add artifact retention, compression, garbage collection, and ledger export.
   Scope: classify pinned versus prunable artifacts, retain evidence referenced by active/blocked/recent/archive capsules, compress eligible old JSONL/stderr, export ledger history before pruning, version event schemas, and add dry-run-first GC plus archive/replay validation.
   Acceptance: dry-run exactly predicts mutations; pinned evidence is never removed; compressed artifacts remain readable/verifiable; export/replay reconstructs terminal evidence; interrupted GC resumes safely; retention is configurable and observable.
   Verification: add age/pin/compression/export/replay/interruption/path-safety tests and CLI dry-run snapshots; run focused tests and `go test ./...`.
 
-- [ ] AW-26 — Cache dossier sources by Git SHA and render role-specific projections.
+- [x] AW-26 — Cache dossier sources by Git SHA and render role-specific projections.
   Scope: cache repository maps/guidance summaries and other immutable context by content/HEAD hash, invalidate precisely on source changes, and render minimal supervisor/planner/implementer/auditor/corrector/documentor/simplifier dossier views while retaining each exact sent payload as an artifact.
   Acceptance: cache hits are byte-equivalent to recomputation; stale inputs cannot leak across HEAD/task/profile; each role gets only required evidence; truncation/token estimates are visible; cache corruption falls back safely without hiding errors.
   Verification: add cache hit/miss/invalidation/corruption, cross-task isolation, role snapshot, and exact-payload retention tests; run focused tests and `go test ./...`.
 
-- [ ] AW-27 — Expose autonomous plans, findings, acceptance, and routing explanations through app/CLI.
+- [x] AW-27 — Expose autonomous plans, findings, acceptance, and routing explanations through app/CLI.
   Scope: add read-only app projections and CLI commands for task plan, open/resolved findings, acceptance matrix, attempts/budgets, provenance, and “why this next action.” Keep rendering deterministic and raw evidence accessible by reference.
   Acceptance: operators can explain ready/completed/blocked/needs-input tasks without reading JSON; sparse/malformed legacy history degrades safely; commands do not mutate state; archived and active tasks are queryable.
   Verification: add app projection and byte-stable CLI tests for all lifecycle states, missing evidence, archives, and malformed history; run focused tests and `go test ./...`.
 
-- [ ] AW-28 — Add autonomous workflow visibility and controls to the TUI.
+- [x] AW-28 — Add autonomous workflow visibility and controls to the TUI.
   Scope: render supervisor decision, current worker, plan progress, acceptance matrix, findings, retry/time budgets, verification tiers, worktree, archive status, and terminal reason. Add safe actions for answering input, cancelling, running a selected task to terminal, and starting/stopping the queue.
   Acceptance: important state is readable without color; long detail scrolls; controls honor app/preflight guards and one-active-run locking; refresh preserves selection; narrow/empty/legacy states remain coherent.
   Verification: add model/render/action/cancellation/resize tests across all lifecycle states plus CLI wiring coverage; run focused tests and `go test ./...`.
 
-- [ ] AW-29 — Add external notification hooks for unattended outcomes.
+- [x] AW-29 — Add external notification hooks for unattended outcomes.
   Scope: provide configurable, bounded hooks for task completed, blocked, needs input, safety stop, queue drained, and daemon failure. Send a stable versioned JSON payload with task/run/archive references while redacting secrets; hook failure must be recorded without corrupting task state.
   Acceptance: event delivery is deduplicated/idempotent across restart; timeouts/output caps apply; unknown events/config fail clearly; retries are bounded; notifications never gain broader execution permissions than configured.
   Verification: add payload golden, redaction, timeout, retry, duplicate, restart, disabled-hook, and failure-isolation tests; run focused tests and `go test ./...`.

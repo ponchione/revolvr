@@ -650,6 +650,29 @@ func TestTaskDossierBoundedSourceHashDoesNotDependOnRenderLimit(t *testing.T) {
 	}
 }
 
+func TestTaskDossierRendersExactWorkspaceAuthority(t *testing.T) {
+	in := sparseDossierInput()
+	now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	commit, tree, source := strings.Repeat("1", 40), strings.Repeat("2", 40), strings.Repeat("3", 64)
+	in.State.Workspace = &TaskWorkspace{SchemaVersion: WorkspaceSchemaVersion, TaskID: "task-1", WorkspaceID: "workspace-one", ControlRoot: "/control", ExecutionRoot: "/control/.revolvr/autonomous/worktrees/workspace-one", GitCommonDir: "/control/.git", BranchRef: "refs/heads/revolvr/tasks/task-1-workspace", OwnerMarker: "/control/.revolvr/autonomous/tasks/task-1/workspace-owner.json", BaselineSHA: commit, HeadSHA: commit, TreeSHA: tree, SourceRevision: source, Checkpoint: WorkspaceCheckpoint{Sequence: 1, CommitSHA: commit, TreeSHA: tree, SourceRevision: source, OperationID: "create-workspace", Provenance: "exact baseline", CreatedAt: now}, Status: WorkspaceStatusReady, CreatedAt: now, UpdatedAt: now}
+	first, err := BuildTaskDossier(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := BuildTaskDossier(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first.Markdown, second.Markdown) {
+		t.Fatal("workspace dossier is nondeterministic")
+	}
+	for _, want := range []string{"### Task Workspace", "Workspace ID: workspace-one", "Control root: /control", "Execution root: /control/.revolvr/autonomous/worktrees/workspace-one", "Known-good checkpoint: sequence=1"} {
+		if !strings.Contains(string(first.Markdown), want) {
+			t.Fatalf("workspace dossier missing %q:\n%s", want, first.Markdown)
+		}
+	}
+}
+
 func fullDossierInput() TaskDossierInput {
 	state := validExecutionState(LifecycleStateCorrecting)
 	state.Plan.ID = "plan-002"

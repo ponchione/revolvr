@@ -158,6 +158,34 @@ func TestRunStoppedStagesNeverStartLaterWorkOrPersistSuccess(t *testing.T) {
 	}
 }
 
+func TestContinueUsesPreAdmittedRoleWithoutStartingItAgain(t *testing.T) {
+	f := newOptionalFixture(t, autonomous.WorkerProfileDocumentor, autonomous.OptionalRoleDispositionRun)
+	admitCfg := f.cfg.Admission
+	admitCfg.TaskID, admitCfg.Expected, admitCfg.Action = f.taskID, f.snapshot.Expected(), f.assessment.Decision.Action
+	admitCfg.Decision, admitCfg.Reference = f.assessment.Decision, f.assessment.DecisionReference
+	admitCfg.SourceRevision, admitCfg.SourceSafety, admitCfg.Store = f.source, autonomouspolicy.SourceSafetySafe, f.store
+	admission, err := autonomousattempt.Admit(context.Background(), admitCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.cfg.Admission = admitCfg
+	f.cfg.Expected = admission.Current.Expected()
+	f.cfg.Assessment.StateSHA256 = admission.Current.SHA256
+	role := f.roleResult(autonomouscycle.OutcomeWorkerNoChanges, f.source)
+	called := false
+	f.cfg.CycleRunner = func(context.Context, autonomouscycle.Config) (autonomouscycle.Result, error) {
+		called = true
+		return autonomouscycle.Result{}, errors.New("unexpected role or audit cycle")
+	}
+	result, err := Continue(context.Background(), f.cfg, admission, role, testTime.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if called || result.Outcome != OutcomeNoChange || result.Completion.Disposition != autonomousattempt.DispositionCompleted || len(result.Application.Current.State.OptionalRoles) != 1 {
+		t.Fatalf("called=%v result=%+v", called, result)
+	}
+}
+
 func TestRunFailedOrNonIndependentAuditCannotValidateSourceChange(t *testing.T) {
 	for _, test := range []struct {
 		name   string

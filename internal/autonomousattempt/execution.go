@@ -120,7 +120,7 @@ func ObserveCycle(result autonomouscycle.Result, runErr error) Observation {
 		observation.SourceAfter = result.Source.AdmissionRevision
 	}
 	switch result.Outcome {
-	case autonomouscycle.OutcomeVerifiedChangesCommitted, autonomouscycle.OutcomeReadOnlyCompleted, autonomouscycle.OutcomeCompleteAuthorized, autonomouscycle.OutcomeBlockAuthorized:
+	case autonomouscycle.OutcomeVerifiedChangesCommitted, autonomouscycle.OutcomeReadOnlyCompleted, autonomouscycle.OutcomeCompleteAuthorized, autonomouscycle.OutcomeBlockAuthorized, autonomouscycle.OutcomeNeedsInputAuthorized:
 		observation.Outcome = autonomous.AttemptOutcomeSucceeded
 	case autonomouscycle.OutcomeWorkerNoChanges:
 		observation.Outcome = autonomous.AttemptOutcomeNoProgress
@@ -131,7 +131,7 @@ func ObserveCycle(result autonomouscycle.Result, runErr error) Observation {
 	case autonomouscycle.OutcomeSourceChangedDuringDossier, autonomouscycle.OutcomeSourceChanged, autonomouscycle.OutcomeReadOnlyMutation:
 		observation.Outcome = autonomous.AttemptOutcomeSafetyStopped
 		observation.StopReason = autonomous.BreakerUnsafeSource
-	case autonomouscycle.OutcomeInvalidConfiguration, autonomouscycle.OutcomeNoTaskState, autonomouscycle.OutcomeDossierFailed, autonomouscycle.OutcomeSupervisorFailed, autonomouscycle.OutcomePolicyRejected:
+	case autonomouscycle.OutcomeInvalidConfiguration, autonomouscycle.OutcomeSafetyPreflightFailed, autonomouscycle.OutcomeNoTaskState, autonomouscycle.OutcomeDossierFailed, autonomouscycle.OutcomeSupervisorFailed, autonomouscycle.OutcomePolicyRejected:
 		observation.Outcome = autonomous.AttemptOutcomeSafetyStopped
 		observation.StopReason = autonomous.BreakerStaleEvidence
 	}

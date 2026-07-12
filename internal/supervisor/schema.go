@@ -35,6 +35,7 @@ func DecisionOutputSchema() ([]byte, error) {
 		string(autonomous.ActionSimplify),
 		string(autonomous.ActionComplete),
 		string(autonomous.ActionBlock),
+		string(autonomous.ActionNeedsInput),
 	}
 	profiles := make([]string, 0, len(workerActionProfiles))
 	branches := make([]any, 0, len(actions))
@@ -52,22 +53,39 @@ func DecisionOutputSchema() ([]byte, error) {
 		}
 		if pair.action == autonomous.ActionCorrect {
 			branch["oneOf"] = []any{map[string]any{"required": []string{"finding_ids"}, "not": map[string]any{"required": []string{"verification_failure"}}}, map[string]any{"required": []string{"verification_failure"}, "not": map[string]any{"required": []string{"finding_ids"}}}}
+			branch["allOf"] = []any{map[string]any{"not": map[string]any{"required": []string{"needs_input"}}}, map[string]any{"not": map[string]any{"required": []string{"child_tasks"}}}}
 		} else {
-			branch["allOf"] = []any{map[string]any{"not": map[string]any{"required": []string{"finding_ids"}}}, map[string]any{"not": map[string]any{"required": []string{"verification_failure"}}}}
+			branch["allOf"] = []any{map[string]any{"not": map[string]any{"required": []string{"finding_ids"}}}, map[string]any{"not": map[string]any{"required": []string{"verification_failure"}}}, map[string]any{"not": map[string]any{"required": []string{"needs_input"}}}, map[string]any{"not": map[string]any{"required": []string{"child_tasks"}}}}
 		}
 		branches = append(branches, branch)
 	}
 	for _, action := range []autonomous.Action{autonomous.ActionComplete, autonomous.ActionBlock} {
+		allOf := []any{
+			map[string]any{"not": map[string]any{"required": []string{"worker_profile"}}},
+			map[string]any{"not": map[string]any{"required": []string{"finding_ids"}}},
+			map[string]any{"not": map[string]any{"required": []string{"verification_failure"}}},
+			map[string]any{"not": map[string]any{"required": []string{"strategy"}}},
+			map[string]any{"not": map[string]any{"required": []string{"needs_input"}}},
+		}
+		if action == autonomous.ActionComplete {
+			allOf = append(allOf, map[string]any{"not": map[string]any{"required": []string{"child_tasks"}}})
+		}
 		branches = append(branches, map[string]any{
 			"properties": map[string]any{"action": map[string]any{"const": string(action)}},
-			"allOf": []any{
-				map[string]any{"not": map[string]any{"required": []string{"worker_profile"}}},
-				map[string]any{"not": map[string]any{"required": []string{"finding_ids"}}},
-				map[string]any{"not": map[string]any{"required": []string{"verification_failure"}}},
-				map[string]any{"not": map[string]any{"required": []string{"strategy"}}},
-			},
+			"allOf":      allOf,
 		})
 	}
+	branches = append(branches, map[string]any{
+		"properties": map[string]any{"action": map[string]any{"const": string(autonomous.ActionNeedsInput)}},
+		"required":   []string{"needs_input"},
+		"allOf": []any{
+			map[string]any{"not": map[string]any{"required": []string{"worker_profile"}}},
+			map[string]any{"not": map[string]any{"required": []string{"success_criteria"}}},
+			map[string]any{"not": map[string]any{"required": []string{"finding_ids"}}},
+			map[string]any{"not": map[string]any{"required": []string{"verification_failure"}}},
+			map[string]any{"not": map[string]any{"required": []string{"strategy"}}},
+		},
+	})
 
 	nonblank := `.*\S.*`
 	schema := map[string]any{
@@ -113,6 +131,8 @@ func DecisionOutputSchema() ([]byte, error) {
 					"targets":    map[string]any{"type": "array", "items": map[string]any{"$ref": "#/$defs/evidence_reference"}},
 				},
 			},
+			"needs_input": map[string]any{"$ref": "#/$defs/needs_input_question"},
+			"child_tasks": map[string]any{"$ref": "#/$defs/child_task_set"},
 		},
 		"oneOf": branches,
 		"$defs": map[string]any{
@@ -134,6 +154,62 @@ func DecisionOutputSchema() ([]byte, error) {
 					}},
 					"reference": map[string]any{"type": "string", "minLength": 1, "pattern": nonblank},
 					"detail":    map[string]any{"type": "string", "minLength": 1, "pattern": nonblank},
+				},
+			},
+			"needs_input_option": map[string]any{
+				"type": "object", "additionalProperties": false, "required": []string{"id", "meaning"},
+				"properties": map[string]any{"id": map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`}, "meaning": map[string]any{"type": "string", "minLength": 1, "pattern": nonblank}},
+			},
+			"independent_work": map[string]any{
+				"type": "object", "additionalProperties": false,
+				"required": []string{"id", "action", "worker_profile", "description", "source_effect", "independent_of_option_ids", "inputs"},
+				"properties": map[string]any{
+					"id":                        map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`},
+					"action":                    map[string]any{"type": "string", "enum": []string{string(autonomous.ActionPlan), string(autonomous.ActionAudit)}},
+					"worker_profile":            map[string]any{"type": "string", "enum": []string{string(autonomous.WorkerProfilePlanner), string(autonomous.WorkerProfileAuditor)}},
+					"description":               map[string]any{"type": "string", "minLength": 1, "pattern": nonblank},
+					"source_effect":             map[string]any{"const": string(autonomous.InputSourceEffectReadOnly)},
+					"independent_of_option_ids": map[string]any{"type": "array", "minItems": 2, "uniqueItems": true, "items": map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`}},
+					"inputs":                    map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"$ref": "#/$defs/evidence_reference"}},
+				},
+			},
+			"needs_input_question": map[string]any{
+				"type": "object", "additionalProperties": false,
+				"required": []string{"task_id", "question_id", "revision", "question", "blocking_reason", "options", "recommendation", "evidence"},
+				"properties": map[string]any{
+					"task_id":          map[string]any{"type": "string", "minLength": 1, "pattern": nonblank},
+					"question_id":      map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`},
+					"revision":         map[string]any{"type": "integer", "minimum": 1},
+					"content_sha256":   map[string]any{"type": "string", "pattern": `^[a-f0-9]{64}$`},
+					"question":         map[string]any{"type": "string", "minLength": 1, "pattern": nonblank},
+					"blocking_reason":  map[string]any{"type": "string", "minLength": 1, "pattern": nonblank},
+					"options":          map[string]any{"type": "array", "minItems": 2, "uniqueItems": true, "items": map[string]any{"$ref": "#/$defs/needs_input_option"}},
+					"recommendation":   map[string]any{"type": "object", "additionalProperties": false, "required": []string{"option_id", "rationale"}, "properties": map[string]any{"option_id": map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`}, "rationale": map[string]any{"type": "string", "minLength": 1, "pattern": nonblank}}},
+					"evidence":         map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"$ref": "#/$defs/evidence_reference"}},
+					"independent_work": map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"$ref": "#/$defs/independent_work"}},
+				},
+			},
+			"child_task": map[string]any{
+				"type": "object", "additionalProperties": false,
+				"required": []string{"key", "title", "scope", "success_criteria", "parent_behavior", "evidence"},
+				"properties": map[string]any{
+					"key":              map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`},
+					"title":            map[string]any{"type": "string", "minLength": 1, "maxLength": 160, "pattern": nonblank},
+					"scope":            map[string]any{"type": "string", "minLength": 1, "maxLength": 8192, "pattern": nonblank},
+					"success_criteria": map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 1, "pattern": nonblank}},
+					"depends_on":       map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"type": "string", "pattern": `^[A-Za-z0-9_-]+$`}},
+					"tags":             map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"type": "string", "pattern": `^[A-Za-z0-9_-]+$`}},
+					"conflicts":        map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"type": "string", "pattern": `^[A-Za-z0-9_-]+$`}},
+					"parent_behavior":  map[string]any{"type": "string", "enum": []string{string(autonomous.ChildDependsOnParent), string(autonomous.ChildIndependent)}},
+					"evidence":         map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"$ref": "#/$defs/evidence_reference"}},
+				},
+			},
+			"child_task_set": map[string]any{
+				"type": "object", "additionalProperties": false, "required": []string{"parent_task_id", "proposal_id", "children"},
+				"properties": map[string]any{
+					"parent_task_id": map[string]any{"type": "string", "minLength": 1, "pattern": nonblank},
+					"proposal_id":    map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`},
+					"children":       map[string]any{"type": "array", "minItems": 1, "maxItems": autonomous.MaxChildTaskProposals, "items": map[string]any{"$ref": "#/$defs/child_task"}},
 				},
 			},
 		},

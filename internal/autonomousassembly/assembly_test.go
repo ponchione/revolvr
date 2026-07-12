@@ -198,6 +198,51 @@ func TestAssembleSparseDoesNotCreateRuntimeStateOrMutateRepository(t *testing.T)
 	}
 }
 
+func TestAssembleRepositoryMapCacheHitGuidanceInvalidationAndCorruptionFallback(t *testing.T) {
+	repo := newTestRepository(t, "task-cache", false)
+	in := Input{
+		RepositoryRoot: repo, TaskID: "task-cache", State: validState("task-cache"),
+		RepositoryMapPolicy: RepositoryMapPolicy{Enabled: true, MaxPaths: 100, MaxBytes: 64 * 1024},
+		Role:                autonomous.DossierRoleSupervisor,
+	}
+	first, err := Assemble(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Manifest.Cache == nil || first.Manifest.Cache.Result != "recomputed" || first.Manifest.Cache.Diagnostic != "cache_miss" {
+		t.Fatalf("first cache=%+v", first.Manifest.Cache)
+	}
+	second, err := Assemble(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Manifest.Cache == nil || second.Manifest.Cache.Result != "hit" || second.Manifest.Cache.Key != first.Manifest.Cache.Key {
+		t.Fatalf("second cache=%+v", second.Manifest.Cache)
+	}
+	if !bytes.Equal(first.Markdown, second.Markdown) {
+		t.Fatal("cache hit projection differs from recomputation")
+	}
+
+	contentPath := filepath.Join(repo, ".revolvr", "cache", "dossier", "v1", first.Manifest.Cache.Key, "repository-map.md")
+	writeTestFile(t, contentPath, []byte("corrupt\n"))
+	third, err := Assemble(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.Manifest.Cache == nil || third.Manifest.Cache.Result != "recomputed" || !strings.Contains(third.Manifest.Cache.Diagnostic, "output_identity_mismatch") || !bytes.Equal(third.Markdown, first.Markdown) {
+		t.Fatalf("corrupt fallback cache=%+v", third.Manifest.Cache)
+	}
+
+	writeTestFile(t, filepath.Join(repo, "AGENTS.md"), []byte("# Changed guidance at the same HEAD\n"))
+	changed, err := Assemble(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.Manifest.Cache == nil || changed.Manifest.Cache.Key == first.Manifest.Cache.Key || changed.Manifest.Cache.Result != "recomputed" {
+		t.Fatalf("changed guidance cache=%+v", changed.Manifest.Cache)
+	}
+}
+
 func TestAssembleTaskStateAndAuditIdentityFailures(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -1,6 +1,399 @@
 # Agent Decisions
 
+## AW-29 External Notification Hooks (2026-07-12)
+
+- Notification delivery is isolated in `internal/autonomousnotification`.
+  Canonical source owners remain authoritative; notification code cannot mutate
+  tasks, state, questions, queues, daemons, finalization, archives, Git, ledger,
+  retention, or scheduling and cannot invoke a model or recurse into itself.
+- The closed event enum is exactly `task_completed`, `task_blocked`,
+  `task_needs_input`, `safety_stop`, `queue_drained`, and `daemon_failed`.
+  Unknown events fail. Task and queue events require exact terminal durable
+  operations; typed input additionally requires its AW-17 question history;
+  daemon failure requires a durable queue occurrence. Ordinary errors and prose
+  never become safety, input, completion, or failure authority.
+- Payload schema is `revolvr-notification-payload-v1`: compact canonical JSON
+  plus one newline, map-free fields, deterministic event/delivery IDs and UTC
+  occurrence, repository/config/policy identities, typed outcome facts, fixed
+  reference applicability, sorted omissions, and bounded redacted detail. A
+  task completion does not fabricate or verify an archive reference.
+- Policy schema is `revolvr-notification-policy-v1`, disabled by default, and
+  advances the effective identity to `revolvr-effective-run-config-v4`.
+  Enabled authority is a strict event allowlist, one exact executable and
+  ordered argv, fixed repository-root working directory, ordered replacement
+  environment names, timeout/caps, positive bounded attempts, and bounded
+  retry delay. Policy normalization clones caller slices and canonically orders
+  events without changing argv/environment order.
+- Hook environment values are loaded only at delivery and every environment
+  name must be covered by AW-19 redaction. Hooks inherit no ambient environment.
+  Configured values and policy material containing them are refused/redacted;
+  only names and nonsecret bounds enter config identity and operator output.
+- Delivery identity hashes the exact durable source occurrence, event, complete
+  redacted payload material, effective config, and hook policy. Storage is
+  `.revolvr/autonomous/notifications/<delivery-id>/` with immutable intent and
+  payload, immutable history-before-journal transitions, strict readback,
+  content conflict refusal, safe path/link/mode checks, and an operation lock.
+- Intent and exact payload are durable before invocation. Attempts record exact
+  bounded authority, timing, exit/timeout/cancellation/runner classification,
+  redacted capped output/error, truncation, retryability, and terminal stage.
+  Nonzero/timeout failures alone retry; attempts/delay are bounded and
+  cancellation-aware. Valid history can reconstruct a missing/lagging journal;
+  interrupted running work consumes an attempt before any restart retry.
+- Success is terminal locally. Exact replay after success starts no process;
+  terminal failure remains inspectable and warns on replay. Revolvr does not
+  promise external exactly-once behavior across a crash after receiver action
+  but before synchronized local success; identical retries carry one stable
+  receiver idempotency key.
+- App adapters run only after the global autonomous-execution lease is released.
+  Queue-internal task execution does not notify; the enclosing queue adapts its
+  durable ordered task outcomes once. No source/state/Git/admin/child/archive/
+  retention lock is held during external execution. Hook failure is persisted
+  and observed but source result/error precedence and every lifecycle byte stay
+  unchanged.
+- `notification list/show` is the only new operator management surface. It is
+  redacted, bounded, and read-only; it cannot resend, edit, delete, dispatch, or
+  retry. Notification outbox evidence is not inserted into ledger/export or
+  AW-25 retention candidates, so those versioned owners require no schema or
+  pin-closure change.
+- Disabled hooks do no executable lookup, environment load, outbox/lock/temp/
+  ledger creation, or process execution during task/queue/daemon work. AW-27
+  views and AW-28 TUI refreshes remain read-only and never dispatch.
+- AW-29 adds no metric/evaluation projection and no concurrency. AW-30 and AW-31
+  retain those respective boundaries.
+
+## AW-28 TUI Autonomous Workflow Visibility And Controls (2026-07-12)
+
+- The TUI's rich workflow detail consumes only `autonomousview.View`; it does
+  not own a parallel evidence schema, parse autonomous JSON, infer supervisor
+  decisions, or open task/state/archive/ledger stores. App callbacks remain
+  the only repository/runtime boundary and CLI only wires those callbacks.
+- Workflow is an additive `6` view. Existing Dashboard/Tasks/Runs/Run Detail/
+  Preflight/Help rendering and number keys remain compatible. A bounded app
+  selector summary joins strict canonical active-task discovery with strict
+  archive-manifest discovery so active, archive-only, empty, and mixed-pass
+  repositories remain navigable without directory crawling in the TUI.
+- Selector controls stay separate from display strings. Exact task/archive IDs
+  remain callback authority in model state, while app-redacted labels and the
+  redacted AW-27 view are the only rendered identities. Selector discovery is
+  observational and never loads state, verifies an archive, creates a cache,
+  or opens writable runtime evidence.
+- Selector and detail loads are asynchronous Bubble Tea commands identified by
+  exact selector plus a monotonic model token. Stale responses cannot replace
+  current evidence. Refresh and operation completion reload deliberately, task
+  selection is preserved by task ID, and active-to-archive movement follows
+  that identity rather than retaining an obsolete list index.
+- Workflow rendering uses stable plain-text sections before Lip Gloss styling.
+  The existing width-aware wrapper and shared viewport own narrow rendering;
+  page/top/bottom keys own long-detail scrolling. Statuses, dispositions,
+  budgets, gate facts, archive verification state, and terminal reasons are
+  textual rather than color-only.
+- Structured input mutation belongs in app `AnswerAutonomousInput`, which
+  reloads exact current active task/state/question/option authority, uses AW-17
+  CAS operations to persist an explicit operator answer and then resume, and
+  redacts every returned error. A persisted answer plus failed resume is a
+  typed partial success; retry recognizes and resumes the same exact answer
+  without recording a duplicate. The TUI never edits state/task files.
+- Input recommendations are evidence only. The Workflow answer control starts
+  with selection `-1`, displays every option and recommendation, requires an
+  explicit option movement, then requires a separate confirmation enter. Only
+  a current typed waiting question on an active task is answerable; legacy,
+  archive, stale, missing, answered-with-another-option, or absent authority
+  fails closed.
+- Task `U` and queue `Q` share the established preflight and one-active-TUI-
+  operation state. App/domain revalidation and the global autonomous execution
+  lease remain authoritative. Queue defaults match CLI policy (100 tasks, 50
+  cycles), uses `app.RunQueue`/AW-24 rather than a model loop, streams typed
+  progress/outcomes, and retains replay/stop evidence.
+- `c` cancellation only cancels the context created for the current
+  TUI-started mixed pass, loop, task run, or queue. Repeated cancellation is
+  idempotent, new starts remain refused until the domain returns its typed
+  terminal result, and no lifecycle/task/workspace is synthesized or deleted
+  by the model.
+- Workflow archive reads use strict AW-27 Show and remain explicitly
+  `unverified`; AW-28 never invokes archive Verify/create/reopen merely to
+  render. It also adds no daemon-service control, notification, metric/
+  evaluation, retention action, workspace cleanup, model invocation, network
+  request, or parallel worker. AW-29 through AW-31 retain those boundaries.
+
+## AW-27 Read-Only Autonomous Evidence Views (2026-07-12)
+
+- Pure operator projection belongs in isolated `internal/autonomousview`, not
+  app orchestration, Cobra callbacks, status/timeline strings, the TUI, or the
+  dossier cache. Schema `autonomous-task-view-v1` is strict, map-free,
+  deterministic, deep-clones caller evidence, and performs no I/O.
+- The app owns exact selector resolution and read-only evidence assembly.
+  `ShowAutonomousTask` considers exact active task IDs plus archive/task IDs,
+  rejects active/archive and multi-archive ambiguity, and never silently
+  chooses one authority.
+- Active authority is the duplicate-checked canonical task plus its exact
+  `autonomous_state_path` loaded through `autonomousstate`. Optional committed
+  audits and the bounded latest decision artifact may enrich the view, but
+  task/state identities are reloaded after collection and any changing
+  canonical snapshot fails closed.
+- `autonomousarchive.LoadEvidence` is the archive-side strict Show extension:
+  it reads exact archived task, terminal state, and applicable frozen
+  completion evidence by manifest identity. It deliberately does not perform
+  full archive Verify and returns no `verified now` claim. Non-completed
+  dispositions render AW-20 completion evidence as not applicable.
+- Required malformed task/state/archive authority is a hard read failure.
+  Optional malformed audit history becomes a typed omission while other valid
+  state renders. Malformed latest accepted decision payload makes admission
+  unknown; reference presence alone never authorizes a route. Unknown future
+  schemas/enums remain strict failures at their canonical owners.
+- Plans retain plan ID/revision/predecessor/completed status, source order,
+  step status/description/rationale, and typed evidence. Acceptance keeps
+  pending/satisfied/waived/not-applicable distinct with rationale/evidence.
+  Findings join committed audit identities with durable resolution state and
+  never disappear merely because the newest optional history is unavailable.
+- Attempts expose total/per-action counts, consecutive failures, exact event
+  references, stops/circuit breakers, and distinct unset/limited/unlimited
+  retry/elapsed/token/action budgets. Limited remaining values clamp display at
+  zero while exhausted/over-limit authority remains explicit; token usage is
+  never estimated from dossier size.
+- Typed input displays the exact question revision/content identity, ordered
+  options, and recommendation as evidence only; it never selects an answer.
+  Durable answers retain answer/option/actor provenance, and legacy reason-only
+  needs-input remains explicitly non-answerable.
+- Why output has four separate fields: latest accepted decision, currently
+  admitted action, scheduler readiness, and next supervisor action. Durable
+  lifecycle/decision agreement is required for current admission. Otherwise
+  `next_supervisor_action` is `undetermined_requires_supervisor`; no plan step,
+  lifecycle name, profile, task prose, receipt, or cache entry predicts it.
+  Reason ordering is explicit: terminal, finalizing, input, blocked,
+  budget/breaker, scheduler, plan/acceptance/finding/verification/audit gates,
+  then undetermined-next.
+- Ordinary task viewing does not run archive Verify merely to satisfy a
+  dependency. Active dependencies may be explained directly; an archived
+  dependency remains `archive_dependency_unverified` until the separate
+  verification boundary supplies scheduler authority. Views never invent
+  conflict occupancy.
+- CLI owns rendering through exactly `task show` and `task why`; no per-field
+  command family was added. Human output is stable plain text with explicit
+  absence/mode words and UTC RFC3339Nano times. `task show --json` is the
+  canonical validated projection, not an alternate untyped payload.
+- AW-19 redaction remains harness-owned. App loads configured secret values,
+  projects typed evidence, then redacts every string in the cloned result and
+  all errors before CLI rendering. Secret values never enter human/JSON output,
+  diagnostic references, or help fixtures.
+- AW-27 viewing creates no ledger, WAL, lock, cache, journal, receipt, export,
+  or repair sidecar and acquires no mutation lease. It does not run Git, Codex,
+  verification, audit, archive verification, workspace recovery, retention,
+  notification, metrics, or parallel workers. AW-26 dossier cache remains
+  completely noninteracting.
+- Existing task list/status/run show/archive/config/doctor/receipt/TUI output is
+  preserved. AW-28 remains the sole owner of TUI evidence screens and controls;
+  AW-29 through AW-31 remain notifications, metrics/evaluations, and bounded
+  parallelism respectively.
+
+## AW-26 Dossier Cache And Role Projection (2026-07-12)
+
+- Immutable dossier-context caching lives in isolated `internal/dossiercache`,
+  never in prompt construction, cycle routing, CLI/TUI, ledger, or retention.
+  Namespace/schema are `.revolvr/cache/dossier/v1/<key>/` and
+  `revolvr-dossier-cache-v1`; producer algorithm is
+  `git-tree-path-map-v1`. Entries are immutable `manifest.json` plus
+  `repository-map.md` with synchronized temporary-directory publication.
+- A cache key is canonical JSON SHA-256 over schema/algorithm, hashed canonical
+  control and execution roots, exact commit/tree IDs, map path/byte bounds, and
+  ordered applicable guidance path/SHA-256/byte-size identities. No task ID,
+  clock, PID, random value, mtime, cache counter, model output, receipt,
+  environment value, or configured secret value is key authority.
+- Only exact committed-tree repository-map derivation is cached. Task/spec,
+  state, plan, acceptance, findings, input, attempts/budgets, workspace,
+  verification, audit, receipts, history, worktree status/diff, profiles,
+  safety/config, schemas, routes, and prompts are live. Same reusable map bytes
+  therefore cannot carry task/profile/role control evidence across calls.
+- Repository mapping consumes only bounded `rev-parse`/`ls-tree -r -z` object
+  metadata for the exact commit. It sorts canonical tracked paths, excludes
+  `.git`/`.revolvr`, labels conservative file kinds and symlink/submodule
+  metadata, and truncates only on whole paths with explicit counts. It runs no
+  build, hook, test, container, network request, model, language server, or
+  repository binary.
+- Cache lookup is strict and read-only. Unsupported/noncanonical JSON,
+  unknown fields, source/key/hash/size/count/token disagreement, symlinks,
+  hard links, unsafe modes, oversize, partial publication, or unsafe parents
+  never yield content. A valid hit is byte-equivalent to recomputation.
+  Corruption/unsupported evidence causes safe exact Git recomputation and a
+  deterministic diagnostic in run provenance; corrupt evidence is neither
+  deleted nor overwritten and never becomes workflow authority.
+- Pure role projection remains in `internal/autonomous` and supports exactly
+  `supervisor`, `planner`, `implementer`, `auditor`, `corrector`,
+  `documentor`, and `simplifier`. Existing validated action/profile pairs map
+  to one role; contradictions/future roles fail closed. Schema
+  `autonomous-role-dossier-manifest-v1` and policy
+  `role-section-matrix-v1` explicitly record every included/omitted section.
+- Every role receives exact task, current state, plan, acceptance, Git source,
+  guidance, and repository map. Supervisor additionally receives all routing
+  gates/history; planner omits current verification/audit; implementer omits
+  audit/history; auditor/corrector/documentor/simplifier receive current
+  verification and audit/finding authority but omit unrelated run history.
+  Exact correction/verification authority continues in the route-specific
+  worker prompt. Omission never grants authority.
+- Section manifests record exact total/included bytes, whole item counts,
+  omission reasons, and deterministic `utf8-bytes-ceil-div-4-v1` estimates;
+  final dossier and prompt identities/sizes/estimates are separate. Estimates
+  are explicitly not actual Codex usage; receipts/AW-15 remain actual token
+  accounting authority.
+- Cache use never weakens source freshness. Full content-sensitive source
+  snapshots still bracket assembly/supervision and worker admission; assembly
+  also reloads task/guidance bytes after cache collection. Changed HEAD/tree,
+  guidance, root/worktree, task/state/profile/config/safety, or source evidence
+  cannot be admitted from cache presence.
+- Every invocation retains an exact per-run dossier and manifest in addition
+  to the existing exact prompt/profile/schema/output/provenance artifacts:
+  `supervisor-dossier.md`, `supervisor-dossier-manifest.json`,
+  `worker-dossier.md`, and `worker-dossier-manifest.json`. Ledger extraction
+  and export know these paths. Run provenance binds cache result/key/entry
+  manifest, role/policy, dossier, prompt, task/source/profile/config/safety,
+  and run identities; it never points only to shared cache bytes.
+- AW-25 retention owns only its existing ledger-derived stream candidates and
+  ignores `.revolvr/cache`; AW-26 adds no eviction. Ordinary status, show,
+  config, doctor, TUI, archive verification, and GC do not populate or repair
+  cache entries. No new CLI/TUI evidence screen or configurable budget was
+  added; fixed bounded harness policy is sufficient for this slice.
+- AW-27 remains the owner of broad app/CLI evidence and why-next projections;
+  AW-28 owns TUI workflow controls; AW-29 notifications, AW-30 metrics and
+  evaluations, and AW-31 parallel workers remain out of scope.
+
 - The repo itself is the durable state for autonomous loop runs.
+- AW-25 policy schema is `revolvr-artifact-retention-policy-v1`; it is strict,
+  map-free, harness-authored, and part of `revolvr-effective-run-config-v3`.
+  Defaults are mutation disabled, 20 recent runs pinned, seven-day compression,
+  90-day prune age, 64 KiB compression threshold, Codex JSONL/stderr classes,
+  pruning disabled, verified export required for pruning, 100 files/1 GiB per
+  operation, and 256 MiB decompression cap. Secret values and clocks/callbacks
+  never enter this identity.
+- `internal/artifactretention` exclusively owns candidate inventory, pin
+  closure, deterministic plans, compression, GC quarantine, journals, and the
+  global retention lease. Candidates come only from exact ledger-owned Codex
+  JSONL/stderr paths; tracked tasks/archives, canonical state/history,
+  completion, queue/task-run/child/workspace/control files, locks, source, Git,
+  and unknown files are never generic age targets.
+- Pinning is conservative and transitive over both exact artifact paths and run
+  identities found in strict autonomous/archive/recovery JSON. Every active
+  task pins its run history; nonterminal/recent runs pin directly; incomplete
+  operations pin recovery evidence; cleaned GC history does not permanently
+  pin. Missing, unsafe, ambiguous, foreign, symlinked, hard-linked, or changed
+  evidence blocks rather than widening deletion authority.
+- Compression format is standard-library deterministic gzip with zero/fixed
+  headers and adjacent canonical `revolvr-compressed-artifact-v1` manifest.
+  Logical identity remains the original path/SHA-256/size. Readers accept
+  exactly one original or admitted compressed representation and reject dual,
+  corrupt, divergent, oversized, or partial forms. An original must first be
+  durably compressed; only a later operation may prune it.
+- `internal/ledgerexport` owns schema `revolvr-ledger-export-v1` plus canonical
+  JSONL record schema `revolvr-ledger-export-record-v1`. Exports bind immutable
+  read-only SQLite identity and high-water range, every run field, global event
+  IDs/order/times/types, exact payload bytes, explicit legacy/versioned schema,
+  predecessor coverage, and compressed artifact facts. Live ledger rows remain
+  authoritative and are not deleted by AW-25.
+- Export verification is read-only and checks canonical manifests/records,
+  hashes/sizes/counts/range gaps/order, source-ledger coverage, predecessor,
+  payload schema agreement, compressed facts, and configured-secret absence.
+  Replay reconstructs logical run/event terminal evidence in memory and never
+  replaces the ledger, executes work, invokes Git/Codex, or claims pruned source
+  artifact bytes were recreated.
+- GC planning is the canonical dry-run and must create nothing. A plan binds
+  one frozen UTC time, operation/policy/config/repository/ledger/high-water,
+  exact inventory/pins, ordered retain/compress/prune actions and expected
+  identities/bytes, limits/remaining work, export requirement, and a
+  content-derived plan identity. Apply never silently replans a different
+  action set and requires the exact printed plan identity.
+- GC durability schema is `revolvr-artifact-gc-journal-v1` under
+  `.revolvr/retention/gc/<sha256(operation-id)>/`. Synchronized immutable
+  history precedes mutable journal replacement. Stage order is admission,
+  verified/replay-validated export, deterministic compression, operation-owned
+  quarantine, completion, cleanup, then cleaned. Cancellation starts no new
+  action and records resumable authority; retries reconcile exact orphan/dual/
+  quarantine effects and conflict on changed bytes.
+- Retention lease order is outermost, then the existing autonomous-execution
+  lease; Git-admin and child-publication locks are only probed and never held
+  during scans/export/compression, and live source writers refuse admission.
+  Ledger identity/high-water and active/recent/control pins are revalidated
+  before every mutation. Ordinary run/status/show/config/doctor/TUI/archive/
+  queue operations never trigger retention work.
+- App and CLI expose only narrow plan/apply/resume/inspect and ledger
+  export/verify/replay operations. `artifact gc` defaults to dry-run and apply
+  needs `--apply --plan-id`; there is no `--force`, arbitrary deletion root,
+  implicit apply time, broad evidence screen, or TUI control in AW-25.
+- AW-24 queue ownership lives in isolated `internal/autonomousqueue`, above the
+  pure AW-23 scheduler and exact AW-22 task runner. It owns repeated fresh
+  selection, queue-local fairness, durable in-flight recovery, ordered task
+  outcomes/statistics, bounds, summaries, and queue stop classification; it
+  never performs task effects, archive creation, input answers, cleanup, or
+  parallel execution.
+- Queue schema `autonomous-queue-operation-v1` lives under
+  `.revolvr/autonomous/queues/<operation-id>/`. It binds mode, effective config,
+  safety declaration, task bound, sweep/time/sequence/stage, exact scheduling
+  fingerprints, deterministic derived AW-22 operation IDs, authority-bound
+  exclusions, outcomes, remaining work, and terminal reason. Immutable
+  synchronized history precedes atomic checkpoint replacement; exact terminal
+  replay starts no task and changed material conflicts.
+- Queue fairness never changes canonical scheduling metadata. A safe yielded
+  task is excluded only while the SHA-256 authority over its exact task bytes,
+  state identity, status, and lifecycle remains unchanged. Fresh deterministic
+  scheduler order still governs every nonexcluded ready candidate.
+- Queue stop precedence is input waiting, blocked-only waiting, dependency or
+  yielded waiting, then drained when no active pending autonomous work remains.
+  Queue-owned task bounds produce `budget_exhausted` with remaining-ready
+  evidence. Caller cancellation, trusted safety stops, and unsafe/ambiguous
+  evidence remain distinct and stop all new starts.
+- AW-24 derives each AW-22 ID from queue ID, monotonic selection number, task
+  ID, and exact preselection scheduling fingerprint, persists it before start,
+  and always reopens that identity after interruption. AW-22 remains a pinned
+  single-task primitive and never sees surplus queue budget.
+- The global `.revolvr/locks/autonomous-execution.lock` is owned by
+  `internal/autonomousexec` at the app/coordinator boundary. Direct AW-22 runs
+  and bounded queue sweeps acquire it outermost; the queue calls an explicit
+  already-leased app path. Git-admin, task-state, child-publication, workspace
+  source-writer, and AW-22 operation owners never acquire it, preventing lock
+  inversion and self-deadlock.
+- `internal/autonomousdaemon` owns only foreground polling, exact pre/post-sweep
+  authority comparison, stable debounce, wake observation, and cancellation.
+  It holds no execution/source/state/Git/child lock while waiting and requires
+  explicit AW-19 `fully_unattended` authority. The fingerprint covers active
+  task bytes, exact autonomous state identities, verified archive authority,
+  and completed child publication while excluding queue/ledger self-effects,
+  mtimes, and timestamps.
+- Queue ledger evidence uses one deterministic run and versioned admitted,
+  selection, task-stopped, daemon-wake, and stopped events with exact content
+  comparison. The run completes only after the terminal queue checkpoint is
+  readable. Wake count/fingerprint are bounded to the next daemon sweep rather
+  than retaining unbounded raw filesystem events.
+- The AW-24 CLI surface is `run --queue` and foreground `run --daemon`, mutually
+  exclusive with mixed-pass and exact-task modes. App owns assembly and typed
+  operations; CLI owns validation/rendering. Current TUI behavior is preserved,
+  broad controls remain AW-28, and queue concurrency remains exactly one until
+  AW-31.
+- AW-22 exact-task orchestration lives in `internal/autonomoustaskrun`; its
+  operation lease is separate from Git-admin, state, and source-writer locks,
+  and no other owner may acquire it, so bounded effect owners can retain their
+  established lock orders without inversion.
+- `autonomouscycle` exposes one nil-compatible pre-worker admission callback
+  only after the route and admission source are validated. AW-15 admission is
+  performed there; worker execution is never charged after it starts.
+- AW-22 pins one active `autonomous-v1` task per versioned durable operation
+  under `.revolvr/autonomous/task-runs/<operation-id>/`; immutable history is
+  authoritative when it is newer than the synchronized mutable checkpoint,
+  and a separate operation lease never nests inside Git-admin, state, or
+  workspace source-writer locks.
+- Attempt-consuming correction/document/simplify decisions use the same AW-10
+  pre-worker admission seam as ordinary work. The already-admitted one-shot
+  result is then continued only by `autonomouscorrection` or
+  `autonomousoptional`, which retain final verification, finding resolution,
+  fresh re-audit, attempt completion, and optional occurrence ownership.
+- An explicit supervisor block is a canonical one-way transition owned by
+  `internal/autonomousblock`: it re-evaluates the pure route, writes immutable
+  `autonomous-block-transition-v1` history before exact state CAS, and
+  publishes blocked task status without running a worker or charging an
+  attempt.
+- Autonomous task-run ledger summaries use one deterministic operation run
+  plus versioned admitted/cycle-started/cycle-completed/restarted/stopped
+  events. Exact retry deduplicates those summaries; completed loop evidence is
+  written only after the bounded terminal owner has succeeded.
+- AW-22 completion is terminal-but-unarchived. The loop invokes AW-20 for a
+  validated `complete` route but never infers AW-21 archive time, provenance,
+  or administrative-commit authority; archive remains a separate command.
 - Each loop pass starts as a fresh `codex exec` session.
 - Do not use resumed Codex sessions for this workflow.
 - Work is limited to one small, verifiable task per pass.
@@ -168,3 +561,46 @@
 - Source-changing optional roles rely on AW-10 final-purpose verification and exact commit admission. The coordinator requires a newer independent audit for the same source and verification occurrence before success; simplification additionally retains behavior-preservation evidence. It never resolves or otherwise dispositions audit findings, and both clean and findings-bearing audits return to supervision.
 - Optional-role occurrences are append-only in canonical state and immutable schema `autonomous-optional-role-transition-v1` history under each task namespace. Persistence shares `state.lock`, exact CAS, history-before-state ordering, strict readback, and content-addressed replay. Audit reconstruction traverses planning, audit, attempt, and optional-role edges so evidence-only transitions do not hide the latest audit; policy still rejects stale source or verification identities.
 - Optional-role relevance identity canonicalizes exact evidence and selected IDs while excluding supervisor IDs, timestamps, formatting, and rationale-only changes. The full occurrence separately retains the exact validated decision/reference and rationale, so materially conflicting operation reuse still fails closed.
+- AW-17 models operator input as a distinct terminal-for-now supervisor action, `needs_input`, rather than block rationale. The action selects no worker and forbids strategy, correction authority, and success criteria. Its typed question contains exact task/question/revision/content identity, question and blocking reason, stable mutually exclusive options, one offered recommendation and rationale, typed evidence, and optional independent-work declarations.
+- Needs-input content authority is SHA-256 over compact deterministic JSON containing every control-relevant question field except the hash itself. A supervisor may omit the hash so the harness assigns it deterministically during strict parsing; a supplied hash must match. Answers and resumes use only exact typed task/question/revision/content/option/answer identities, never labels, array indexes, recommendation prose, or rationale as control authority.
+- Independent work under needs-input is a projection, not a route. It is valid only for compatible read-only plan/planner or audit/auditor declarations whose ordered `independent_of_option_ids` exactly names every offered option and whose inputs are typed evidence. AW-17 never executes such work; later scheduling may consider it only after the pure clean-yield gate succeeds.
+- Canonical execution state keeps append-only input lifecycle evidence as ordered question, answer, and resume records while `NeedsInputDetail` holds only the exact current question identity. A question records source revision, decision provenance, suspension time, resume lifecycle, and explicit predecessor identity. An answer records stable answer ID, one offered option, operator provenance/evidence, and harness time. Resume records bind that exact answer and restores only the question's recorded pending/ready lifecycle. Questions/answers/resumes never consume or reset AW-15 accounting.
+- Input persistence lives in isolated `internal/autonomousinput` over `internal/autonomousstate` schema `autonomous-input-transition-v1`. It uses the canonical task namespace and shared `state.lock`, exact state hash/size CAS, immutable history before atomic canonical-state replacement, synchronized files/directories, strict readback, content-addressed replay/conflict behavior, and before/after-rename recovery. Committed audit reconstruction traverses input edges alongside planning, audit, attempt, and optional-role edges.
+- `autonomouspolicy.Evaluate` remains pure and returns a distinct no-worker needs-input route only from pending/ready safe state. Suspended state admits no ordinary route before exact answer plus explicit resume. The separate pure future-scheduler projection returns typed clean/unsafe results for task/state/question/provenance/source/in-flight gates; dirty, unknown, stale, malformed, legacy, or ambiguous state never yields. No scheduler, CLI, or TUI control surface was added.
+- Legacy minimal `needs_input: {reason: ...}` execution state remains readable and is labeled non-answerable in dossiers. It cannot fabricate question IDs, revisions, options, recommendations, content identities, answers, or resume authority, so input application fails closed until a typed question is durably recorded.
+- AW-18 uses `autonomous.TaskWorkspace` as the typed control/execution-root authority. It records canonical absolute control root, execution worktree, Git common directory, control-root ownership marker, deterministic harness branch, exact baseline/current/checkpoint identities, retained refs, and recovery status; immutable ownership cannot change and checkpoint/retained evidence cannot regress.
+- Workspace IDs hash canonical control root, Git common directory, and task ID. Harness worktrees live only under `.revolvr/autonomous/worktrees/<workspace-id>` and refs under `refs/heads/revolvr/tasks/`; a canonical synchronized control-root marker is required before any existing ref/path/registration may be recovered. Naming conventions or path presence never prove ownership.
+- Workspace preparation uses an exact commit object, never primary index/filesystem bytes. Marker-before-ref and ref-before-registration states are recoverable; foreign branches, worktrees, paths, symlinks, markers, common directories, or `.git` links are conflicts. Unknown advanced HEADs are retained under immutable `refs/revolvr/retained/` inspection refs rather than reset or guessed current.
+- The known-good checkpoint begins at the baseline and advances only from an exact reconciled clean commit/tree/source identity with operation provenance. Restoration first retains failed staged/tracked/untracked bytes in an immutable commit/ref, then may reset/clean only the twice-revalidated owned execution worktree to the exact durable checkpoint. Ignored files that cannot be safely retained block restoration.
+- Workspace transitions use `autonomous-workspace-transition-v1` immutable history and the existing per-task `state.lock`, exact state CAS, history-before-state atomic replacement, strict readback, replay/conflict/stale classification, and committed-audit graph traversal. A control-root global Git-admin flock serializes ref/worktree mutation; workspace source locks remain control-root state while naming the exact protected execution root.
+- Autonomous source execution is fail-closed and root-separated. `autonomouscycle.Run` requires a validated workspace matching durable state. Canonical tasks, profiles/guidance, state/history, ledger, receipts, and artifacts remain at the control root; source snapshots, Codex work, changed-file capture, verification, commits, correction, and optional-role mutations use the execution root. Codex and tiered verification carry a separate control-root artifact root. Mixed-pass behavior remains unchanged.
+- AW-19 autonomy declarations use schema `revolvr-autonomous-safety-declaration-v1` with explicit `operator_attended` and `fully_unattended` modes. Operator-attended is the compatibility default for mixed-pass and current dogfood; it renders dangerous bypass, ambient environment, operator-attended hooks, and unknown network posture as operator responsibilities. Fully unattended is never inferred or defaulted and requires an exact task/workspace-bound preflight plus policy acknowledgement.
+- Effective run configuration is now `revolvr-effective-run-config-v2`; its deterministic projection includes the complete secret-name-only autonomy declaration. Secret values never enter effective configuration or its hash. The policy acknowledgement is `revolvr-fully-unattended-v1:<policy-sha256>` and authorizes the nonrecursive material policy identity; changing workspace, permissions, commands, roots, external isolation, network, hooks, environment, or redaction policy invalidates it.
+- `internal/autonomoussafety` owns pure typed safety contracts and bounded host preflight. It consumes the exact ready/restored AW-18 workspace and current source identity, derives harness/model writable roots and protected path classes, resolves executable hashes/argv/directories/environment/timeouts/caps, inspects effective `core.hooksPath` without running or modifying hooks, distinguishes unknown/denied/restricted/unrestricted network posture, requires stable external attestations for full autonomy, and states that worktrees are Git/source isolation rather than a security sandbox.
+- Autonomous safety preflight runs inside `autonomouscycle` after canonical task/workspace/source/config authority is known and before dossier assembly or supervisor Codex. Unsafe or mismatched authority returns `safety_preflight_failed` and starts no supervisor, worker, verification, or commit. When AW-15 has already durably admitted the enclosing operation, the safety stop remains charged once and is classified as trusted safety-stop evidence; no duplicate admission occurs.
+- The same safety-policy SHA-256 and complete redacted policy/preflight projection are recorded in supervisor and worker provenance and ledger preparation evidence. Model-authored changed paths are checked against protected Git administration, task specs, profiles, guidance, state/history, ownership, locks, ledger, and config authority before verification or commit; task/model output never supplies commands, environment, writable roots, hooks, network policy, or bypass authority.
+- `internal/redact` provides dependency-free deterministic longest-first configured-secret replacement using explicit environment-variable names. Values are loaded only at runtime, short/missing/duplicate/malformed sources fail closed, and persistent Codex JSONL/stderr/final-output, returned output/errors, progress, and ledger summaries receive the redacted form plus source/match facts. Autonomous command results are redacted before verification/Git/commit evidence, and fully unattended execution can replace rather than inherit the ambient process environment through the bounded runner.
+- AW-20 terminal ownership lives in isolated `internal/autonomousfinalization`; it consumes one already-authorized complete decision and performs no Codex, worker, verification, audit, correction, optional-role, commit, restore, archive, or scheduling work. Pure completion authority is recomputed through `autonomouspolicy.Evaluate`, and a caller-supplied bounded live-evidence revalidator must confirm the frozen workspace/source/safety authority before admission and before task terminalization.
+- Canonical state uses `autonomous-finalization-state-v1` with monotonic `admitted`, `capsule_materialized`, `task_completed`, `state_completed`, and `ledger_completed` stages. Immutable operation, run, frozen-evidence, original/completed-task, capsule, manifest, and harness-time identities cannot be rewritten; legacy completed snapshots without AW-20 detail remain readable, while a real `finalizing` snapshot requires it.
+- Frozen authority is map-free schema `autonomous-completion-frozen-evidence-v1`. It binds exact canonical task/spec and state bytes, complete decision/reference/route, source and final-purpose tier gate, independent clean audit, plan/acceptance/findings/optional-role/attempt evidence, exact ready/restored checkpointed workspace, safety policy/preflight/config, ordered commit/run evidence, provenance, and harness times. Full state/task hashes are recomputed, no attempt may remain in flight, and final HEAD must equal the checkpoint and final commit evidence.
+- Completion artifacts live only under `.revolvr/autonomous/tasks/<task-id>/completion/` as `completion-evidence.json`, deterministic `completion.md`, and `completion-manifest.json`. Writes are immutable, same-directory temporary-file/file-sync/rename/directory-sync operations with containment, symlink-parent refusal, exact readback/hash/size checks, collision refusal, and configured-secret redaction. Schema `autonomous-completion-capsule-manifest-v1` records ordered source identities and explicit omissions without recursive self-hashing.
+- AW-20 changes the canonical autonomous task status from `pending` to `completed`; AW-21 still owns tracked archive movement and reopen. The expected completed task projection is frozen and validated before admission, so a crash after the task rename cannot authorize changed task bytes. No metadata-only source commit is created.
+- Transaction order is frozen artifact, admitted history/state, exact finalization run/prepared evidence, capsule and manifest, materialized history/state, exact task-status transition, task-completed history/state, completed lifecycle/terminal history/state, exact terminal ledger event/run completion, then ledger-completed history/state. Every state replacement uses `autonomous-finalization-transition-v1` under the shared per-task `state.lock`, history-before-state CAS, atomic replacement, strict readback, replay/conflict/stale classification, and committed-audit graph traversal. Once durable progress begins, reconciliation uses a non-cancelled context.
+- Finalization ledger events are versioned exact payloads for prepared, capsule-materialized, state-terminal, and terminal-completed effects. Retry reads and compares the deterministic run/event/completion evidence before writing; identical effects replay, different effects conflict, and terminal ledger completion can never precede the capsule/manifest it cites.
+- AW-21 archive ownership lives in isolated `internal/autonomousarchive`. Its bounded create/list/show/verify/reopen operations do not invoke Codex, verification commands, audit, correction, optional roles, workspace restoration/cleanup, a scheduler, or a repeated task loop. Active task discovery remains exclusively `.agent/tasks/*.md`; archive discovery is an independent strict scan of `.agent/archive/YYYY/MM/<task-id>/archive.json`.
+- Archive disposition authority is schema `autonomous-task-archive-authority-v1` and covers exactly `completed`, `cancelled`, `superseded`, and `abandoned`. Task status and autonomous lifecycle contracts represent those four terminal outcomes; blocked and needs-input remain active and are rejected. Non-completed admission requires matching terminal task/state disposition and reason plus explicit trusted provenance/time, and explicitly omits AW-20 completion authority.
+- Completed archive admission requires AW-20 `ledger_completed` state, exact completed task bytes, canonical terminal state, frozen evidence, completion manifest/capsule, source/workspace/checkpoint, final verification, independent clean audit, safety policy, and exact terminal finalization ledger event/run identities. Archived `completion.md` is a byte-identical copy of the verified AW-20 capsule; AW-21 never regenerates it.
+- Archive IDs are deterministic SHA-256-derived identities over task, operation, disposition, and one explicit UTC archive time. That time alone selects `.agent/archive/YYYY/MM/<task-id>/`; task/capsule/manifest paths and archive/task IDs are collision-fail-closed, and strict archive scanning rejects duplicates, foreign files/directories, traversal, symlinks, unsafe permissions, and hard-link surprises.
+- Tracked schema `autonomous-task-archive-manifest-v1` binds task/disposition/reason/provenance/terminal/archive times, original and archived task identity, canonical state, applicable AW-20 artifacts/finalization/ledger identity, expected tracked paths, and explicit omissions. It intentionally does not self-reference the administrative commit; the reconciled SHA lives in immutable runtime history and exact archive ledger evidence.
+- Archive transactions take the control-root Git-admin lock before the per-task `state.lock`, reject live control/workspace source writers, and validate active task/state/artifacts/ledger/Git/index/worktree/operation authority before admission. Each monotonic stage writes synchronized immutable `autonomous-task-archive-transition-v1` history before atomic mutable journal replacement, then publishes task/capsule/manifest, removes only the exact active task, reconciles the administrative commit, and completes exact ledger evidence. After admission, roll-forward uses a non-cancelled context; exact retry reuses effects and conflicting partial evidence remains inspectable.
+- Administrative archive commits are path-scoped and carry `Archive-Operation`, `Archive-ID`, `Task-ID`, `Disposition`, and `Terminal-Identity` lines. Pre/post HEAD reconciliation supports unborn repositories, retries HEAD lookup, accepts an advanced verified HEAD despite command failure, and rejects indeterminate outcomes. Commit verification checks the exact addition/deletion set and exact archive bytes; unrelated staged, dirty, untracked, conflicted, or source-worktree paths are never absorbed.
+- Archive verification is read-only and returns ordered named checks. It uses immutable SQLite access and read-only Git object commands to cross-check archive path/date/schema, task bytes/metadata, terminal state, AW-20 evidence/capsule/manifest, finalization ledger evidence, immutable archive history, archive ledger run/events, administrative commit message/tree/bytes, active-task exclusion/reopen lineage, and configured-secret absence without repair or sidecar creation.
+- Reopen uses a new task ID and schema `autonomous-reopen-lineage-v1`; terminal archives and old runtime history remain immutable. A verified archive produces one new pending autonomous task/state with only id/status/state-reference metadata rewritten and exact spec/unknown metadata/line endings preserved. Lineage binds archive/task/disposition/commit, operator authority/reason, operation, and UTC time. The new task addition receives its own path-scoped administrative commit, exact replay recovers partial publication, conflicting or second reopen attempts fail, and no task execution starts.
+- AW-23 scheduling metadata uses source-ordered comma-separated scalar lists: `depends_on`, `tags`, and `conflicts`. Items are stable nonblank safe identities without comma or surrounding whitespace; duplicates and self-dependencies are invalid. Source order is identity-significant and is preserved rather than silently sorted. Child tasks additionally carry exact `parent_task_id`, proposal/decision/run IDs, evidence tokens, and `parent_behavior`; status-only updates and archive/reopen projections do not rewrite those bytes.
+- `internal/autonomousscheduler` is the pure graph/readiness owner. Repository loading parses and duplicate-checks every active task before filtering, and exact archive evidence is a separate typed input. Missing dependencies, duplicate identities, active/archive coexistence, unverified archive authority, and deterministic directed cycles fail closed. Completed active tasks and verified/reconciled completed AW-21 archives satisfy edges; every other lifecycle/disposition waits, and archives are never runnable nodes.
+- Ready order preserves the established lower-integer-first priority direction, then canonical source path, then task ID. A conflict applies against exact occupied identities when either task names the other or both share a stable key. AW-23 remains sequential and creates no parallel-worker or fairness policy.
+- New AW-22 operations apply scheduler admission before workspace/model work. Omitted task IDs select once; explicit IDs must classify ready. A previously admitted operation's durable pinned task remains stronger than changed ambient graph/priority/archive state, so restart never reselects and one operation never advances to a second task.
+- Supervisor child proposals remain part of the existing no-worker `block` or `needs_input` decision rather than adding a queue action. The strict schema permits at most four children and bounds canonical proposal bytes, titles, scopes, criteria, evidence, and graph lists. Material scope evidence must exactly occur in accepted decision inputs. Dependent children name their parent edge; independent children cannot name, answer, or bypass the parent. Publication consumes no AW-15 worker attempt.
+- `internal/autonomouschild` owns deterministic ID derivation, exact child task/state projection, graph-impact validation, and restartable publication. Initial state is pending with immutable `autonomous-child-lineage-v1`; ordinary state transitions cannot attach, remove, or rewrite that lineage. Parent bytes/state/history are hash-revalidated and never written. Active task specs remain ordinary uncommitted canonical task files in this slice; AW-23 does not infer Git administrative commit authority.
+- Child publication takes `.revolvr/locks/child-publication.lock` without holding the AW-22 operation lease, Git-admin lock, a parent/child state lock, or a workspace source-writer lock. It writes immutable history before each mutable journal stage, publishes every child state before task bytes, refuses collisions, and makes incomplete publication authority a scheduler error until exact roll-forward. Three content-compared supervisor-run ledger events are replay-safe. Configured secret values are rejected before persistent child task/state evidence.
+- App status and task projections carry dependency, tag, conflict, parent, readiness, and deterministic next-autonomous facts. CLI task list exposes narrow scheduling columns, status names next autonomous readiness, and TUI `U` uses the same readiness result. `runonce` and `passpolicy` remain exclusively mixed-pass and do not consult the autonomous graph.

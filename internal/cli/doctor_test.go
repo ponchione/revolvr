@@ -120,6 +120,9 @@ verification:
 	want := "Dogfood preflight:\n" +
 		"OK state: initialized at " + filepath.Join(workDir, ".revolvr") + "\n" +
 		"OK config: loaded " + filepath.Join(workDir, ".revolvr", "config.yaml") + "\n" +
+		"OK autonomy safety: mode=operator_attended; operator remains responsible for host, network, hooks, and credentials; worktree isolation is Git/source isolation only\n" +
+		"OK artifact retention: schema=revolvr-artifact-retention-policy-v1 mutation_enabled=false recent_runs=20\n" +
+		"OK notification hooks: disabled; no executable lookup, environment load, outbox write, or process start\n" +
 		"OK codex executable: /fake/bin/codex-test\n" +
 		"OK codex model: gpt-5.6-sol\n" +
 		"OK codex reasoning effort: xhigh\n" +

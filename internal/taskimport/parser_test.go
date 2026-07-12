@@ -57,6 +57,26 @@ Second summary
 	}
 }
 
+func TestParseSchedulingMetadataPreservesHumanReadableSections(t *testing.T) {
+	markdown := []byte("## Task: Scheduled\nDo bounded work.\n\n### Depends On\n- task-a\n- task-b\n\n### Tags\n- api\n\n### Conflicts\n- shared-db\n")
+	specs, err := Parse(markdown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("specs=%d", len(specs))
+	}
+	spec := specs[0]
+	if strings.Join(spec.DependsOn, ",") != "task-a,task-b" || strings.Join(spec.Tags, ",") != "api" || strings.Join(spec.Conflicts, ",") != "shared-db" {
+		t.Fatalf("spec=%#v", spec)
+	}
+	for _, heading := range []string{"### Depends On", "### Tags", "### Conflicts"} {
+		if !strings.Contains(spec.Task, heading) {
+			t.Fatalf("task body lost %s", heading)
+		}
+	}
+}
+
 func TestParseSupportsExplicitTaskBodySection(t *testing.T) {
 	input := `## Task
 ### Summary

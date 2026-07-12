@@ -12,6 +12,7 @@ import (
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomouspolicy"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/pathguard"
 )
@@ -19,29 +20,36 @@ import (
 const workerProvenanceSchemaVersion = "revolvr-autonomous-worker-provenance-v1"
 
 type workerPaths struct {
-	prompt         string
-	provenance     string
-	outputSchema   string
-	output         string
-	sourceEvidence string
-	codexStdout    string
-	codexStderr    string
-	receipt        string
-	verification   string
+	dossier         string
+	dossierManifest string
+	prompt          string
+	provenance      string
+	outputSchema    string
+	output          string
+	sourceEvidence  string
+	codexStdout     string
+	codexStderr     string
+	receipt         string
+	verification    string
 }
 
 type workerProvenance struct {
-	SchemaVersion           string                         `json:"schema_version"`
-	RunID                   string                         `json:"run_id"`
-	TaskID                  string                         `json:"task_id"`
-	Dossier                 autonomous.TaskDossierManifest `json:"dossier_manifest"`
-	Decision                autonomous.SupervisorDecision  `json:"decision"`
-	Reference               autonomous.DecisionReference   `json:"decision_reference"`
-	Route                   autonomouspolicy.Route         `json:"route"`
-	Profile                 ProfileEvidence                `json:"profile"`
-	Invocation              codexexec.InvocationProvenance `json:"invocation"`
-	Artifacts               WorkerArtifacts                `json:"artifacts"`
-	AdmissionSourceRevision string                         `json:"admission_source_revision"`
+	SchemaVersion           string                            `json:"schema_version"`
+	RunID                   string                            `json:"run_id"`
+	TaskID                  string                            `json:"task_id"`
+	Dossier                 autonomous.TaskDossierManifest    `json:"dossier_manifest"`
+	Decision                autonomous.SupervisorDecision     `json:"decision"`
+	Reference               autonomous.DecisionReference      `json:"decision_reference"`
+	Route                   autonomouspolicy.Route            `json:"route"`
+	Profile                 ProfileEvidence                   `json:"profile"`
+	Invocation              codexexec.InvocationProvenance    `json:"invocation"`
+	Artifacts               WorkerArtifacts                   `json:"artifacts"`
+	PromptByteSize          int                               `json:"prompt_byte_size"`
+	PromptTokenEstimator    string                            `json:"prompt_token_estimator"`
+	PromptTokenEstimate     int                               `json:"prompt_token_estimate"`
+	AdmissionSourceRevision string                            `json:"admission_source_revision"`
+	SafetyPolicy            *autonomoussafety.Policy          `json:"safety_policy,omitempty"`
+	SafetyPreflight         *autonomoussafety.PreflightResult `json:"safety_preflight,omitempty"`
 }
 
 type optionalFile struct {
@@ -53,14 +61,16 @@ type optionalFile struct {
 func prepareWorkerPaths(root, runID string, action autonomous.Action) (workerPaths, error) {
 	base := filepath.Join(".revolvr", "runs", runID)
 	paths := workerPaths{
-		prompt:         filepath.Join(base, "worker-prompt.md"),
-		provenance:     filepath.Join(base, "worker-provenance.json"),
-		output:         filepath.Join(base, "worker-output.txt"),
-		sourceEvidence: filepath.Join(base, "worker-source.json"),
-		codexStdout:    filepath.Join(base, "codex.jsonl"),
-		codexStderr:    filepath.Join(base, "codex.stderr"),
-		receipt:        filepath.Join(".revolvr", "receipts", runID+".md"),
-		verification:   filepath.Join(base, "verification.json"),
+		dossier:         filepath.Join(base, "worker-dossier.md"),
+		dossierManifest: filepath.Join(base, "worker-dossier-manifest.json"),
+		prompt:          filepath.Join(base, "worker-prompt.md"),
+		provenance:      filepath.Join(base, "worker-provenance.json"),
+		output:          filepath.Join(base, "worker-output.txt"),
+		sourceEvidence:  filepath.Join(base, "worker-source.json"),
+		codexStdout:     filepath.Join(base, "codex.jsonl"),
+		codexStderr:     filepath.Join(base, "codex.stderr"),
+		receipt:         filepath.Join(".revolvr", "receipts", runID+".md"),
+		verification:    filepath.Join(base, "verification.json"),
 	}
 	if action == autonomous.ActionPlan {
 		paths.outputSchema = filepath.Join(base, "planner-output-schema.json")
@@ -72,7 +82,7 @@ func prepareWorkerPaths(root, runID string, action autonomous.Action) (workerPat
 		paths.outputSchema = filepath.Join(base, "corrector-output-schema.json")
 		paths.output = filepath.Join(base, "corrector-output.raw.json")
 	}
-	for _, path := range []string{paths.prompt, paths.provenance, paths.outputSchema, paths.output, paths.sourceEvidence, paths.codexStdout, paths.codexStderr, paths.receipt, paths.verification} {
+	for _, path := range []string{paths.dossier, paths.dossierManifest, paths.prompt, paths.provenance, paths.outputSchema, paths.output, paths.sourceEvidence, paths.codexStdout, paths.codexStderr, paths.receipt, paths.verification} {
 		if path == "" {
 			continue
 		}
@@ -85,13 +95,15 @@ func prepareWorkerPaths(root, runID string, action autonomous.Action) (workerPat
 
 func workerArtifactsWithPaths(paths workerPaths) WorkerArtifacts {
 	artifacts := WorkerArtifacts{
-		Prompt:         Artifact{Path: paths.prompt},
-		Provenance:     Artifact{Path: paths.provenance},
-		Output:         Artifact{Path: paths.output},
-		SourceEvidence: Artifact{Path: paths.sourceEvidence},
-		CodexStdout:    Artifact{Path: paths.codexStdout},
-		CodexStderr:    Artifact{Path: paths.codexStderr},
-		Receipt:        Artifact{Path: paths.receipt},
+		Dossier:         Artifact{Path: paths.dossier},
+		DossierManifest: Artifact{Path: paths.dossierManifest},
+		Prompt:          Artifact{Path: paths.prompt},
+		Provenance:      Artifact{Path: paths.provenance},
+		Output:          Artifact{Path: paths.output},
+		SourceEvidence:  Artifact{Path: paths.sourceEvidence},
+		CodexStdout:     Artifact{Path: paths.codexStdout},
+		CodexStderr:     Artifact{Path: paths.codexStderr},
+		Receipt:         Artifact{Path: paths.receipt},
 	}
 	if paths.outputSchema != "" {
 		artifact := Artifact{Path: paths.outputSchema}

@@ -6,20 +6,24 @@ import (
 )
 
 type RunArtifacts struct {
-	ContextPayloadPath        string `json:"context_payload_path"`
-	ContextManifestPath       string `json:"context_manifest_path"`
-	CodexStdoutJSONLPath      string `json:"codex_stdout_jsonl_path"`
-	CodexStderrPath           string `json:"codex_stderr_path"`
-	LastMessagePath           string `json:"last_message_path"`
-	ReceiptPath               string `json:"receipt_path"`
-	SupervisorPromptPath      string `json:"supervisor_prompt_path"`
-	SupervisorSchemaPath      string `json:"supervisor_schema_path"`
-	SupervisorOutputPath      string `json:"supervisor_output_path"`
-	SupervisorDecisionPath    string `json:"supervisor_decision_path"`
-	SupervisorProvenancePath  string `json:"supervisor_provenance_path"`
-	SupervisorSourcePath      string `json:"supervisor_source_path"`
-	SupervisorDiagnosticsPath string `json:"supervisor_diagnostics_path"`
-	VerificationEvidencePath  string `json:"verification_evidence_path"`
+	ContextPayloadPath            string `json:"context_payload_path"`
+	ContextManifestPath           string `json:"context_manifest_path"`
+	CodexStdoutJSONLPath          string `json:"codex_stdout_jsonl_path"`
+	CodexStderrPath               string `json:"codex_stderr_path"`
+	LastMessagePath               string `json:"last_message_path"`
+	ReceiptPath                   string `json:"receipt_path"`
+	DossierPath                   string `json:"dossier_path"`
+	DossierManifestPath           string `json:"dossier_manifest_path"`
+	SupervisorDossierPath         string `json:"supervisor_dossier_path"`
+	SupervisorDossierManifestPath string `json:"supervisor_dossier_manifest_path"`
+	SupervisorPromptPath          string `json:"supervisor_prompt_path"`
+	SupervisorSchemaPath          string `json:"supervisor_schema_path"`
+	SupervisorOutputPath          string `json:"supervisor_output_path"`
+	SupervisorDecisionPath        string `json:"supervisor_decision_path"`
+	SupervisorProvenancePath      string `json:"supervisor_provenance_path"`
+	SupervisorSourcePath          string `json:"supervisor_source_path"`
+	SupervisorDiagnosticsPath     string `json:"supervisor_diagnostics_path"`
+	VerificationEvidencePath      string `json:"verification_evidence_path"`
 }
 
 func (a RunArtifacts) Empty() bool {
@@ -29,6 +33,10 @@ func (a RunArtifacts) Empty() bool {
 		strings.TrimSpace(a.CodexStderrPath) == "" &&
 		strings.TrimSpace(a.LastMessagePath) == "" &&
 		strings.TrimSpace(a.ReceiptPath) == "" &&
+		strings.TrimSpace(a.DossierPath) == "" &&
+		strings.TrimSpace(a.DossierManifestPath) == "" &&
+		strings.TrimSpace(a.SupervisorDossierPath) == "" &&
+		strings.TrimSpace(a.SupervisorDossierManifestPath) == "" &&
 		strings.TrimSpace(a.SupervisorPromptPath) == "" &&
 		strings.TrimSpace(a.SupervisorSchemaPath) == "" &&
 		strings.TrimSpace(a.SupervisorOutputPath) == "" &&
@@ -71,6 +79,18 @@ func (a *RunArtifacts) mergeMissing(other RunArtifacts) {
 	}
 	if strings.TrimSpace(a.ReceiptPath) == "" {
 		a.ReceiptPath = strings.TrimSpace(other.ReceiptPath)
+	}
+	if strings.TrimSpace(a.DossierPath) == "" {
+		a.DossierPath = strings.TrimSpace(other.DossierPath)
+	}
+	if strings.TrimSpace(a.DossierManifestPath) == "" {
+		a.DossierManifestPath = strings.TrimSpace(other.DossierManifestPath)
+	}
+	if strings.TrimSpace(a.SupervisorDossierPath) == "" {
+		a.SupervisorDossierPath = strings.TrimSpace(other.SupervisorDossierPath)
+	}
+	if strings.TrimSpace(a.SupervisorDossierManifestPath) == "" {
+		a.SupervisorDossierManifestPath = strings.TrimSpace(other.SupervisorDossierManifestPath)
 	}
 	if strings.TrimSpace(a.SupervisorPromptPath) == "" {
 		a.SupervisorPromptPath = strings.TrimSpace(other.SupervisorPromptPath)
@@ -142,15 +162,17 @@ func decodeSupervisorArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 		return RunArtifacts{}, false
 	}
 	paths := RunArtifacts{
-		SupervisorPromptPath:      artifactPathField(artifactPayload, "prompt"),
-		SupervisorSchemaPath:      artifactPathField(artifactPayload, "schema"),
-		SupervisorOutputPath:      artifactPathField(artifactPayload, "raw_output"),
-		SupervisorDecisionPath:    artifactPathField(artifactPayload, "decision"),
-		SupervisorProvenancePath:  artifactPathField(artifactPayload, "provenance"),
-		SupervisorSourcePath:      artifactPathField(artifactPayload, "source_evidence"),
-		SupervisorDiagnosticsPath: artifactPathField(artifactPayload, "diagnostics"),
-		CodexStdoutJSONLPath:      artifactPathField(artifactPayload, "codex_stdout"),
-		CodexStderrPath:           artifactPathField(artifactPayload, "codex_stderr"),
+		SupervisorPromptPath:          artifactPathField(artifactPayload, "prompt"),
+		SupervisorDossierPath:         artifactPathField(artifactPayload, "dossier"),
+		SupervisorDossierManifestPath: artifactPathField(artifactPayload, "dossier_manifest"),
+		SupervisorSchemaPath:          artifactPathField(artifactPayload, "schema"),
+		SupervisorOutputPath:          artifactPathField(artifactPayload, "raw_output"),
+		SupervisorDecisionPath:        artifactPathField(artifactPayload, "decision"),
+		SupervisorProvenancePath:      artifactPathField(artifactPayload, "provenance"),
+		SupervisorSourcePath:          artifactPathField(artifactPayload, "source_evidence"),
+		SupervisorDiagnosticsPath:     artifactPathField(artifactPayload, "diagnostics"),
+		CodexStdoutJSONLPath:          artifactPathField(artifactPayload, "codex_stdout"),
+		CodexStderrPath:               artifactPathField(artifactPayload, "codex_stderr"),
 	}
 	return paths, !paths.Empty()
 }
@@ -177,6 +199,8 @@ func decodeRunArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 		CodexStderrPath:      stringField(payload, "codex_stderr_path"),
 		LastMessagePath:      stringField(payload, "last_message_path"),
 		ReceiptPath:          stringField(payload, "receipt_path"),
+		DossierPath:          stringField(payload, "dossier_path"),
+		DossierManifestPath:  stringField(payload, "dossier_manifest_path"),
 	}
 	return paths, !paths.Empty()
 }
@@ -186,6 +210,8 @@ func decodeContextArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 		ContextPayloadPath:  stringField(payload, "context_payload_path"),
 		ContextManifestPath: stringField(payload, "context_manifest_path"),
 		ReceiptPath:         stringField(payload, "receipt_path"),
+		DossierPath:         stringField(payload, "dossier_path"),
+		DossierManifestPath: stringField(payload, "dossier_manifest_path"),
 	}
 	return paths, !paths.Empty()
 }

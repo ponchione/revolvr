@@ -1,6 +1,6 @@
 // Package autonomousstate owns canonical AW-08 state loading and atomic,
-// compare-and-swap persistence for planning, audit, attempt, and optional-role
-// transitions.
+// compare-and-swap persistence for planning, audit, attempt, optional-role,
+// and structured input-lifecycle transitions.
 package autonomousstate
 
 import (

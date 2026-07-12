@@ -25,6 +25,7 @@ type Command struct {
 	Stdin                io.Reader
 	Dir                  string
 	Env                  []string
+	ReplaceEnv           bool
 	Timeout              time.Duration
 	TerminateGracePeriod time.Duration
 	StdoutLimit          int
@@ -67,7 +68,9 @@ func Run(ctx context.Context, in Command) Result {
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Dir = in.Dir
-	if len(in.Env) > 0 {
+	if in.ReplaceEnv {
+		cmd.Env = append([]string(nil), in.Env...)
+	} else if len(in.Env) > 0 {
 		cmd.Env = append(os.Environ(), in.Env...)
 	}
 	cmd.Cancel = func() error {

@@ -3,12 +3,15 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
+	"revolvr/internal/redact"
 	"revolvr/internal/runner"
 )
 
@@ -86,6 +89,24 @@ func Preflight(ctx context.Context, cfg Config, input PreflightInput) (Preflight
 		addCheck(PreflightOK, "config", "defaults used")
 	}
 	runCfg := configResult.Effective
+	addAutonomySafetyCheck(addCheck, runCfg.SafetyDeclaration)
+	if err := runCfg.RetentionPolicy.Validate(); err != nil {
+		addCheck(PreflightFail, "artifact retention", err.Error())
+	} else {
+		addCheck(PreflightOK, "artifact retention", fmt.Sprintf("schema=%s mutation_enabled=%t recent_runs=%d", runCfg.RetentionPolicy.SchemaVersion, runCfg.RetentionPolicy.MutationEnabled, runCfg.RetentionPolicy.RecentRunCount))
+	}
+	if !runCfg.NotificationPolicy.Enabled {
+		addCheck(PreflightOK, "notification hooks", "disabled; no executable lookup, environment load, outbox write, or process start")
+	} else if _, err := runCfg.NotificationPolicy.Normalize(runCfg.SafetyDeclaration.Redaction.EnvironmentVariables); err != nil {
+		addCheck(PreflightFail, "notification hooks", err.Error())
+	} else if notificationRedactor, _, err := redact.New(runCfg.SafetyDeclaration.Redaction, os.LookupEnv); err != nil {
+		addCheck(PreflightFail, "notification hooks", err.Error())
+	} else if resolved, lookupErr := lookPath(runCfg.NotificationPolicy.Executable); lookupErr != nil {
+		addCheck(PreflightFail, "notification executable", notificationRedactor.String(fmt.Sprintf("%q not found: %v", runCfg.NotificationPolicy.Executable, lookupErr)))
+	} else {
+		addCheck(PreflightOK, "notification executable", notificationRedactor.String(resolved))
+		addCheck(PreflightOK, "notification hooks", fmt.Sprintf("events=%d arguments=%d directory=%s timeout=%s attempts=%d output_caps=%d/%d replacement_environment_names=%d", len(runCfg.NotificationPolicy.Events), len(runCfg.NotificationPolicy.Args), runCfg.NotificationPolicy.Directory, runCfg.NotificationPolicy.Timeout, runCfg.NotificationPolicy.MaximumAttempts, runCfg.NotificationPolicy.StdoutCap, runCfg.NotificationPolicy.StderrCap, len(runCfg.NotificationPolicy.EnvironmentNames)))
+	}
 
 	codexExecutable := preflightEffectiveString(runCfg.CodexExecutable, DefaultCodexExecutable)
 	codexAvailable := addExecutableCheck(addCheck, lookPath, "codex executable", codexExecutable)
@@ -125,6 +146,18 @@ func Preflight(ctx context.Context, cfg Config, input PreflightInput) (Preflight
 	addVerificationCheck(addCheck, verificationCount, runCfg.AllowMissingVerification)
 
 	return result, nil
+}
+
+func addAutonomySafetyCheck(addCheck func(PreflightCheckStatus, string, string), declaration autonomoussafety.Declaration) {
+	if err := declaration.Validate(); err != nil {
+		addCheck(PreflightFail, "autonomy safety", err.Error())
+		return
+	}
+	if declaration.Mode == autonomoussafety.ModeFullyUnattended {
+		addCheck(PreflightFail, "autonomy safety", "fully unattended execution requires a task/workspace-bound safety preflight; worktree isolation alone is not a security sandbox")
+		return
+	}
+	addCheck(PreflightOK, "autonomy safety", fmt.Sprintf("mode=%s; operator remains responsible for host, network, hooks, and credentials; worktree isolation is Git/source isolation only", declaration.Mode))
 }
 
 func addExecutableCheck(addCheck func(PreflightCheckStatus, string, string), lookPath ExecutableLookPath, name string, executable string) bool {

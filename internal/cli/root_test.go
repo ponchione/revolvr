@@ -39,6 +39,12 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"task", "list"},
 		{"task", "retry"},
 		{"task", "unblock"},
+		{"archive"},
+		{"archive", "list"},
+		{"archive", "show"},
+		{"archive", "verify"},
+		{"archive", "create"},
+		{"archive", "reopen"},
 		{"config"},
 		{"config", "check"},
 		{"run"},
@@ -72,7 +78,7 @@ func TestRootHelpWorks(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "run", "doctor", "status", "tui", "show", "receipt"} {
+	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "archive", "run", "doctor", "status", "tui", "show", "receipt"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help output missing %q:\n%s", want, help)
 		}
@@ -1015,9 +1021,9 @@ func TestTaskListShowsFileBackedTasksInTaskfileOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute task list: %v", err)
 	}
-	want := "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tTASK\tSUMMARY\n" +
-		"010-first\tpending\tmixed-pass-v1\timplement\timplementer\taudit\t# First task First body.\tFirst task\n" +
-		"020-second\tpending\tmixed-pass-v1\tsimplify\tsimplifier\tcompleted\t" + oneLine(second) + "\tSecond task\n"
+	want := "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tDEPENDS_ON\tTAGS\tCONFLICTS\tPARENT\tTASK\tSUMMARY\n" +
+		"010-first\tpending\tmixed-pass-v1\timplement\timplementer\taudit\t\t\t\t\t# First task First body.\tFirst task\n" +
+		"020-second\tpending\tmixed-pass-v1\tsimplify\tsimplifier\tcompleted\t\t\t\t\t" + oneLine(second) + "\tSecond task\n"
 	if out != want {
 		t.Fatalf("task list output = %q, want %q", out, want)
 	}
@@ -1418,6 +1424,9 @@ func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 		"Codex timeout: 0s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
+		defaultAutonomyConfigOutput() +
+		defaultRetentionConfigOutput() +
+		defaultNotificationConfigOutput() +
 		"Git executable: git\n" +
 		"Git timeout: 30s\n" +
 		"Verification missing policy: fail\n" +
@@ -1456,6 +1465,9 @@ func TestConfigCheckMissingConfigPrintsDefaultVerificationCommand(t *testing.T) 
 		"Codex timeout: 0s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
+		defaultAutonomyConfigOutput() +
+		defaultRetentionConfigOutput() +
+		defaultNotificationConfigOutput() +
 		"Git executable: git\n" +
 		"Git timeout: 30s\n" +
 		"Verification missing policy: fail\n" +
@@ -1543,6 +1555,9 @@ output:
 		"Codex timeout: 45s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
+		defaultAutonomyConfigOutput() +
+		defaultRetentionConfigOutput() +
+		defaultNotificationConfigOutput() +
 		"Git executable: git-custom\n" +
 		"Git timeout: 12s\n" +
 		"Verification missing policy: pass\n" +
@@ -1570,6 +1585,104 @@ codex:
 	}
 	if !strings.Contains(out, "Codex dangerously bypass approvals and sandbox: false\n") {
 		t.Fatalf("config check output = %q, want yolo false", out)
+	}
+}
+
+func TestConfigCheckRendersSecretSourcesWithoutValues(t *testing.T) {
+	workDir := t.TempDir()
+	secret := "never-persist-this-token"
+	t.Setenv("REVOLVR_TEST_TOKEN", secret)
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), "autonomy:\n  redaction:\n    environment_variables: [REVOLVR_TEST_TOKEN]\n")
+	out, err := executeCLI(t, workDir, "config", "check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, secret) || !strings.Contains(out, "environment_variables=[\"REVOLVR_TEST_TOKEN\"]") {
+		t.Fatalf("config output = %q", out)
+	}
+}
+
+func defaultAutonomyConfigOutput() string {
+	return "Autonomy safety schema: revolvr-autonomous-safety-declaration-v1\n" +
+		"Autonomy mode: operator_attended\n" +
+		"Worktree isolation: Git/source isolation only; not a security sandbox\n" +
+		"External isolation: expectation=none enforcement=none attestation=false\n" +
+		"Network policy: access=unknown enforcement=none attestation=false\n" +
+		"Git hooks policy: operator_attended trusted=0\n" +
+		"Environment policy: inherit_host=true allow=[]\n" +
+		"Secret redaction sources: environment_variables=[]\n" +
+		"Fully unattended acknowledgement present: false\n"
+}
+
+func defaultRetentionConfigOutput() string {
+	return "Retention policy schema: revolvr-artifact-retention-policy-v1\n" +
+		"Retention mutation enabled: false\n" +
+		"Retention recent run count: 20\n" +
+		"Retention ages: compress=168h0m0s prune=2160h0m0s\n" +
+		"Retention classes: codex_jsonl=true codex_stderr=true prune_compressed=false\n" +
+		"Retention verified export required: true\n" +
+		"Retention operation bounds: files=100 bytes=1073741824\n"
+}
+
+func defaultNotificationConfigOutput() string {
+	return "Notification policy schema: revolvr-notification-policy-v1\n" +
+		"Notifications enabled: false\n" +
+		"Notification events: []\n" +
+		"Notification executable: \n" +
+		"Notification argument count: 0\n" +
+		"Notification directory: \n" +
+		"Notification environment names: []\n" +
+		"Notification bounds: timeout=0s stdout=0 stderr=0 attempts=0 retry_delay=0s\n"
+}
+
+func TestArtifactGCDryRunIsDefaultAndLedgerExportCommands(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := executeCLI(t, workDir, "artifact", "gc", "--operation-id", "dry-one", "--planned-at", "2026-07-12T12:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "Artifact GC dry-run\nOperation ID: dry-one\nPlan ID:") || !strings.Contains(out, "mutation_enabled=false") || !strings.Contains(out, "compress=0 prune=0") {
+		t.Fatalf("dry-run output=%q", out)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, ".revolvr", "retention")); !os.IsNotExist(err) {
+		t.Fatalf("dry-run created retention state: %v", err)
+	}
+	exported, err := executeCLI(t, workDir, "ledger", "export", "--operation-id", "export-one", "--exported-at", "2026-07-12T12:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := strings.Fields(exported)
+	if len(fields) < 3 {
+		t.Fatalf("export output=%q", exported)
+	}
+	exportID := fields[2]
+	verified, err := executeCLI(t, workDir, "ledger", "export", "verify", exportID)
+	if err != nil {
+		t.Fatalf("verify: %v output=%q", err, verified)
+	}
+	if !strings.Contains(verified, "Ledger export verification: true") {
+		t.Fatalf("verify output=%q", verified)
+	}
+	replayed, err := executeCLI(t, workDir, "ledger", "export", "replay-validate", exportID)
+	if err != nil {
+		t.Fatalf("replay: %v output=%q", err, replayed)
+	}
+	if !strings.Contains(replayed, "passed=true") {
+		t.Fatalf("replay output=%q", replayed)
+	}
+}
+
+func TestArtifactGCApplyRequiresExactPlan(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := executeCLI(t, workDir, "artifact", "gc", "--operation-id", "apply-one", "--planned-at", "2026-07-12T12:00:00Z", "--apply", "--plan-id", "wrong")
+	if err == nil || !strings.Contains(err.Error(), "exact --plan-id") {
+		t.Fatalf("apply error=%v", err)
 	}
 }
 

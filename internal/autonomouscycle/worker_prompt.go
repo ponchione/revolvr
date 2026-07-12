@@ -61,6 +61,16 @@ func buildWorkerPrompt(in workerPromptInput) ([]byte, error) {
 	if in.SourceRevision != in.Route.SourceRevision {
 		return nil, errors.New("build worker prompt: source revision does not match route")
 	}
+	role, err := autonomous.RoleForAction(in.Route.Action, in.Route.WorkerProfile)
+	if err != nil {
+		return nil, err
+	}
+	if in.Dossier.Manifest.SchemaVersion != autonomous.RoleDossierManifestSchemaVersion || in.Dossier.Manifest.Projection == nil || in.Dossier.Manifest.Projection.Role != role || in.Dossier.Manifest.TokenEstimate == nil {
+		return nil, errors.New("build worker prompt: dossier role projection does not match route")
+	}
+	if in.Dossier.Manifest.TaskID != in.Route.TaskID || in.Dossier.Manifest.DossierByteSize != len(in.Dossier.Markdown) || in.Dossier.Manifest.DossierSHA256 != fmt.Sprintf("%x", sha256.Sum256(in.Dossier.Markdown)) {
+		return nil, errors.New("build worker prompt: dossier identity mismatch")
+	}
 	decisionRaw, err := marshalPromptJSON(in.Decision)
 	if err != nil {
 		return nil, err

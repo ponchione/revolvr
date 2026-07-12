@@ -19,10 +19,13 @@ import (
 const TasksDir = ".agent/tasks"
 
 const (
-	StatusPending   = "pending"
-	StatusRunning   = "running"
-	StatusCompleted = "completed"
-	StatusBlocked   = "blocked"
+	StatusPending    = "pending"
+	StatusRunning    = "running"
+	StatusCompleted  = "completed"
+	StatusBlocked    = "blocked"
+	StatusCancelled  = "cancelled"
+	StatusSuperseded = "superseded"
+	StatusAbandoned  = "abandoned"
 )
 
 const (
@@ -49,20 +52,230 @@ type Task struct {
 	AutonomousStatePath string
 	Priority            int
 	HasPriority         bool
+	DependsOn           []string
+	Tags                []string
+	Conflicts           []string
+	ParentTaskID        string
+	ChildProposalID     string
+	ChildDecisionID     string
+	ChildRunID          string
+	ChildEvidence       []string
+	ParentBehavior      string
 	ContextBody         string
 	SourcePath          string
 	SourceBytes         []byte
 }
 
+const (
+	ParentBehaviorDependent   = "depends_on_parent"
+	ParentBehaviorIndependent = "independent"
+)
+
+// AutonomousCreateInput is the typed, canonical taskfile boundary used by
+// supervised child publication. Ordinary task add/import continues to use
+// CreateInput and therefore cannot manufacture autonomous lineage.
+type AutonomousCreateInput struct {
+	ID, Title, Body               string
+	Priority                      int
+	HasPriority                   bool
+	DependsOn, Tags, Conflicts    []string
+	ParentTaskID, ChildProposalID string
+	ChildDecisionID, ChildRunID   string
+	ChildEvidence                 []string
+	ParentBehavior                string
+}
+
 type CreateInput struct {
-	ID    string
-	Title string
-	Body  string
+	ID        string
+	Title     string
+	Body      string
+	DependsOn []string
+	Tags      []string
+	Conflicts []string
 }
 
 type MetadataUpdate struct {
 	Status string
 	Phase  string
+}
+
+type ReopenInput struct {
+	OriginalSourcePath  string
+	ArchivedSourceBytes []byte
+	NewTaskID           string
+}
+
+// ParseArchivedTask validates exact preserved task bytes against their former
+// canonical active path without requiring that active file to still exist.
+func ParseArchivedTask(repositoryRoot, originalSourcePath string, raw []byte) (Task, error) {
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, err
+	}
+	sourcePath, _, err := resolveTaskPath(root, originalSourcePath)
+	if err != nil {
+		return Task{}, err
+	}
+	task, err := parse(raw, sourcePath, root)
+	if err != nil {
+		return Task{}, fmt.Errorf("parse archived task source: %w", err)
+	}
+	return task, nil
+}
+
+// ProjectReopenedTask creates the exact pending autonomous task bytes for a
+// new lifecycle without mutating the archived terminal source. Only the
+// harness-owned id, status, and autonomous state reference are changed.
+func ProjectReopenedTask(repositoryRoot string, input ReopenInput) (Task, error) {
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, err
+	}
+	newID := strings.TrimSpace(input.NewTaskID)
+	if !validTaskID(newID) {
+		return Task{}, fmt.Errorf("project reopened task: invalid new task id %q", input.NewTaskID)
+	}
+	original, err := parse(input.ArchivedSourceBytes, input.OriginalSourcePath, root)
+	if err != nil {
+		return Task{}, fmt.Errorf("project reopened task: archived source: %w", err)
+	}
+	if original.Workflow != WorkflowAutonomousV1 || !terminalArchiveStatus(original.Status) {
+		return Task{}, errors.New("project reopened task: archived source is not a terminal autonomous task")
+	}
+	updated, err := rewriteReopenMetadata(input.ArchivedSourceBytes, newID)
+	if err != nil {
+		return Task{}, fmt.Errorf("project reopened task: %w", err)
+	}
+	target := filepath.ToSlash(filepath.Join(TasksDir, newID+".md"))
+	projected, err := parse(updated, target, root)
+	if err != nil {
+		return Task{}, fmt.Errorf("project reopened task: projected source: %w", err)
+	}
+	return projected, nil
+}
+
+// PublishReopenedTask atomically publishes a previously projected task with
+// no-overwrite semantics and strict byte-for-byte readback.
+func PublishReopenedTask(repositoryRoot string, projected Task) (Task, error) {
+	return publishProjectedTask(repositoryRoot, projected, "publish reopened task")
+}
+
+// ProjectAutonomousTask returns deterministic LF task bytes for a new pending
+// autonomous task. It performs the same strict parse used for canonical files.
+func ProjectAutonomousTask(repositoryRoot string, input AutonomousCreateInput) (Task, error) {
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, err
+	}
+	if !validTaskID(input.ID) {
+		return Task{}, fmt.Errorf("project autonomous task: invalid task id %q", input.ID)
+	}
+	title := taskTitle(input.Title)
+	body := strings.TrimSpace(normalizeLineEndings(input.Body))
+	if title == "" || body == "" {
+		return Task{}, errors.New("project autonomous task: title and body are required")
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "---\nid: %s\nstatus: %s\nworkflow: %s\nautonomous_state_path: %s\n", input.ID, StatusPending, WorkflowAutonomousV1, path.Join(".revolvr", "autonomous", "tasks", input.ID, "state.json"))
+	if input.HasPriority {
+		fmt.Fprintf(&out, "priority: %d\n", input.Priority)
+	}
+	writeListMetadata := func(key string, values []string) {
+		if len(values) != 0 {
+			fmt.Fprintf(&out, "%s: %s\n", key, strings.Join(values, ","))
+		}
+	}
+	writeListMetadata("depends_on", input.DependsOn)
+	writeListMetadata("tags", input.Tags)
+	writeListMetadata("conflicts", input.Conflicts)
+	if input.ParentTaskID != "" {
+		fmt.Fprintf(&out, "parent_task_id: %s\nchild_proposal_id: %s\nchild_decision_id: %s\nchild_run_id: %s\nparent_behavior: %s\n", input.ParentTaskID, input.ChildProposalID, input.ChildDecisionID, input.ChildRunID, input.ParentBehavior)
+		writeListMetadata("child_evidence", input.ChildEvidence)
+	}
+	fmt.Fprintf(&out, "---\n# %s\n\n%s\n", title, body)
+	sourcePath := filepath.ToSlash(filepath.Join(TasksDir, input.ID+".md"))
+	task, err := parse([]byte(out.String()), sourcePath, root)
+	if err != nil {
+		return Task{}, fmt.Errorf("project autonomous task: %w", err)
+	}
+	return task, nil
+}
+
+// PublishAutonomousTask atomically publishes exact projected bytes without
+// overwriting or adopting different user-owned content.
+func PublishAutonomousTask(repositoryRoot string, projected Task) (Task, error) {
+	return publishProjectedTask(repositoryRoot, projected, "publish autonomous task")
+}
+
+func publishProjectedTask(repositoryRoot string, projected Task, operation string) (Task, error) {
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, err
+	}
+	if projected.Status != StatusPending || projected.Workflow != WorkflowAutonomousV1 || len(projected.SourceBytes) == 0 {
+		return Task{}, fmt.Errorf("%s: projected pending autonomous task is required", operation)
+	}
+	sourcePath, absPath, err := resolveTaskPath(root, projected.SourcePath)
+	if err != nil {
+		return Task{}, err
+	}
+	if sourcePath != filepath.ToSlash(filepath.Join(TasksDir, projected.ID+".md")) && sourcePath != filepath.Join(TasksDir, projected.ID+".md") {
+		return Task{}, fmt.Errorf("%s: source path is not canonical for the new task id", operation)
+	}
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+		return Task{}, err
+	}
+	if _, err := os.Lstat(absPath); err == nil {
+		existing, loadErr := Load(root, sourcePath)
+		if loadErr == nil && bytes.Equal(existing.SourceBytes, projected.SourceBytes) {
+			return existing, nil
+		}
+		return Task{}, fmt.Errorf("%s: target %s already exists with different bytes", operation, sourcePath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return Task{}, err
+	}
+	file, err := os.CreateTemp(filepath.Dir(absPath), ".reopen-task.tmp-*")
+	if err != nil {
+		return Task{}, err
+	}
+	tempPath := file.Name()
+	defer os.Remove(tempPath)
+	if err := file.Chmod(0o644); err != nil {
+		_ = file.Close()
+		return Task{}, err
+	}
+	if _, err := file.Write(projected.SourceBytes); err != nil {
+		_ = file.Close()
+		return Task{}, err
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return Task{}, err
+	}
+	if err := file.Close(); err != nil {
+		return Task{}, err
+	}
+	if err := os.Link(tempPath, absPath); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			existing, loadErr := Load(root, sourcePath)
+			if loadErr == nil && bytes.Equal(existing.SourceBytes, projected.SourceBytes) {
+				return existing, nil
+			}
+			return Task{}, fmt.Errorf("%s: target %s appeared with different bytes", operation, sourcePath)
+		}
+		return Task{}, err
+	}
+	if err := os.Remove(tempPath); err != nil {
+		return Task{}, err
+	}
+	if err := syncTaskDirectory(filepath.Dir(absPath)); err != nil {
+		return Task{}, err
+	}
+	readback, err := Load(root, sourcePath)
+	if err != nil || !bytes.Equal(readback.SourceBytes, projected.SourceBytes) {
+		return Task{}, errors.Join(err, fmt.Errorf("%s: readback mismatch", operation))
+	}
+	return readback, nil
 }
 
 func Create(repositoryRoot string, input CreateInput) (Task, error) {
@@ -89,6 +302,9 @@ func Create(repositoryRoot string, input CreateInput) (Task, error) {
 		if !validTaskID(taskID) {
 			return Task{}, fmt.Errorf("create task file: invalid task id %q", taskID)
 		}
+		if err := validateCreateScheduling(taskID, input.DependsOn, input.Tags, input.Conflicts); err != nil {
+			return Task{}, fmt.Errorf("create task file: %w", err)
+		}
 
 		if existing, ok, err := FindByID(root, taskID); err != nil {
 			return Task{}, fmt.Errorf("create task file: %w", err)
@@ -100,7 +316,7 @@ func Create(repositoryRoot string, input CreateInput) (Task, error) {
 			return Task{}, fmt.Errorf("create task file: task id %q already exists at %s", taskID, existing.SourcePath)
 		}
 
-		task, err := writeNewTaskFile(root, taskID, title, body, generated)
+		task, err := writeNewTaskFile(root, taskID, title, body, input.DependsOn, input.Tags, input.Conflicts, generated)
 		if err != nil {
 			if generated && errors.Is(err, os.ErrExist) {
 				taskID = ""
@@ -111,6 +327,30 @@ func Create(repositoryRoot string, input CreateInput) (Task, error) {
 		return task, nil
 	}
 	return Task{}, errors.New("create task file: generated task id collided repeatedly")
+}
+
+func validateCreateScheduling(taskID string, dependsOn, tags, conflicts []string) error {
+	for _, value := range []struct {
+		key   string
+		items []string
+		valid func(string) bool
+	}{{"depends_on", dependsOn, validTaskID}, {"tags", tags, validSchedulingToken}, {"conflicts", conflicts, validSchedulingToken}} {
+		parsed, err := parseIdentityList(value.key, strings.Join(value.items, ","), value.valid)
+		if err != nil {
+			return err
+		}
+		if value.key == "depends_on" && containsString(parsed, taskID) {
+			return fmt.Errorf("depends_on contains self dependency %q", taskID)
+		}
+	}
+	return nil
+}
+
+// ValidateSchedulingMetadata validates list syntax and duplicates without a
+// task identity. Create and autonomous projection additionally reject self
+// dependencies once the canonical ID is known.
+func ValidateSchedulingMetadata(dependsOn, tags, conflicts []string) error {
+	return validateCreateScheduling("__validation_identity__", dependsOn, tags, conflicts)
 }
 
 func Load(repositoryRoot string, path string) (Task, error) {
@@ -331,6 +571,32 @@ func UpdateMetadataFromSnapshot(repositoryRoot string, snapshot Task, update Met
 	return updateMetadataFromBytes(root, sourcePath, absPath, snapshot.SourceBytes, update)
 }
 
+// ProjectMetadataFromSnapshot returns the exact task bytes that a snapshot
+// metadata update would write without reading or mutating the current file.
+func ProjectMetadataFromSnapshot(repositoryRoot string, snapshot Task, update MetadataUpdate) (Task, error) {
+	update, err := validateMetadataUpdate(update)
+	if err != nil {
+		return Task{}, err
+	}
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, err
+	}
+	sourcePath, _, err := resolveTaskPath(root, snapshot.SourcePath)
+	if err != nil {
+		return Task{}, err
+	}
+	parsed, err := parse(snapshot.SourceBytes, sourcePath, root)
+	if err != nil || parsed.ID != snapshot.ID {
+		return Task{}, errors.Join(err, errors.New("project task metadata: snapshot identity mismatch"))
+	}
+	updated, err := updateMetadataBytes(snapshot.SourceBytes, update)
+	if err != nil {
+		return Task{}, err
+	}
+	return parse(updated, sourcePath, root)
+}
+
 func validateMetadataUpdate(update MetadataUpdate) (MetadataUpdate, error) {
 	update.Status = strings.TrimSpace(update.Status)
 	update.Phase = strings.TrimSpace(update.Phase)
@@ -365,7 +631,7 @@ func updateMetadataFromBytes(root string, sourcePath string, absPath string, raw
 	return task, nil
 }
 
-func writeNewTaskFile(root string, taskID string, title string, body string, generated bool) (Task, error) {
+func writeNewTaskFile(root string, taskID string, title string, body string, dependsOn, tags, conflicts []string, generated bool) (Task, error) {
 	dir := filepath.Join(root, TasksDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return Task{}, fmt.Errorf("create task file: create %s: %w", TasksDir, err)
@@ -375,7 +641,7 @@ func writeNewTaskFile(root string, taskID string, title string, body string, gen
 	if err != nil {
 		return Task{}, fmt.Errorf("create task file: %w", err)
 	}
-	content := createTaskMarkdown(taskID, title, body)
+	content := createTaskMarkdown(taskID, title, body, dependsOn, tags, conflicts)
 	file, err := os.OpenFile(absPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) && generated {
@@ -399,9 +665,18 @@ func writeNewTaskFile(root string, taskID string, title string, body string, gen
 	return task, nil
 }
 
-func createTaskMarkdown(taskID string, title string, body string) []byte {
+func createTaskMarkdown(taskID string, title string, body string, dependsOn, tags, conflicts []string) []byte {
 	var out strings.Builder
-	fmt.Fprintf(&out, "---\nid: %s\nstatus: %s\n---\n# %s\n\n%s\n", taskID, StatusPending, title, body)
+	fmt.Fprintf(&out, "---\nid: %s\nstatus: %s\n", taskID, StatusPending)
+	for _, value := range []struct {
+		key   string
+		items []string
+	}{{"depends_on", dependsOn}, {"tags", tags}, {"conflicts", conflicts}} {
+		if len(value.items) != 0 {
+			fmt.Fprintf(&out, "%s: %s\n", value.key, strings.Join(value.items, ","))
+		}
+	}
+	fmt.Fprintf(&out, "---\n# %s\n\n%s\n", title, body)
 	return []byte(out.String())
 }
 
@@ -468,6 +743,53 @@ func parse(raw []byte, sourcePath string, repositoryRoot string) (Task, error) {
 		return Task{}, fmt.Errorf("invalid task id %q", taskID)
 	}
 
+	dependsOn, err := parseIdentityList("depends_on", meta["depends_on"], validTaskID)
+	if err != nil {
+		return Task{}, err
+	}
+	for _, dependency := range dependsOn {
+		if dependency == taskID {
+			return Task{}, fmt.Errorf("depends_on contains self dependency %q", taskID)
+		}
+	}
+	tags, err := parseIdentityList("tags", meta["tags"], validSchedulingToken)
+	if err != nil {
+		return Task{}, err
+	}
+	conflicts, err := parseIdentityList("conflicts", meta["conflicts"], validSchedulingToken)
+	if err != nil {
+		return Task{}, err
+	}
+	childEvidence, err := parseIdentityList("child_evidence", meta["child_evidence"], validEvidenceToken)
+	if err != nil {
+		return Task{}, err
+	}
+	parentTaskID := meta["parent_task_id"]
+	childProposalID := meta["child_proposal_id"]
+	childDecisionID := meta["child_decision_id"]
+	childRunID := meta["child_run_id"]
+	parentBehavior := meta["parent_behavior"]
+	lineageValues := []string{parentTaskID, childProposalID, childDecisionID, childRunID, parentBehavior}
+	lineageSet := false
+	for _, value := range lineageValues {
+		lineageSet = lineageSet || value != ""
+	}
+	lineageSet = lineageSet || len(childEvidence) != 0
+	if lineageSet {
+		if !validTaskID(parentTaskID) || parentTaskID == taskID || !validTaskID(childProposalID) || !validTaskID(childDecisionID) || !validTaskID(childRunID) || len(childEvidence) == 0 {
+			return Task{}, errors.New("child lineage requires distinct valid parent_task_id, child_proposal_id, child_decision_id, child_run_id, and child_evidence")
+		}
+		if parentBehavior != ParentBehaviorDependent && parentBehavior != ParentBehaviorIndependent {
+			return Task{}, fmt.Errorf("invalid parent_behavior %q", parentBehavior)
+		}
+		if parentBehavior == ParentBehaviorDependent && !containsString(dependsOn, parentTaskID) {
+			return Task{}, errors.New("depends_on_parent child must name parent_task_id in depends_on")
+		}
+		if parentBehavior == ParentBehaviorIndependent && containsString(dependsOn, parentTaskID) {
+			return Task{}, errors.New("independent child must not depend on parent_task_id")
+		}
+	}
+
 	profile := strings.TrimSpace(meta["profile"])
 	statePath, statePathSet := meta["autonomous_state_path"]
 	statePath = strings.TrimSpace(statePath)
@@ -512,6 +834,15 @@ func parse(raw []byte, sourcePath string, repositoryRoot string) (Task, error) {
 		AutonomousStatePath: statePath,
 		Priority:            priority,
 		HasPriority:         hasPriority,
+		DependsOn:           dependsOn,
+		Tags:                tags,
+		Conflicts:           conflicts,
+		ParentTaskID:        parentTaskID,
+		ChildProposalID:     childProposalID,
+		ChildDecisionID:     childDecisionID,
+		ChildRunID:          childRunID,
+		ChildEvidence:       childEvidence,
+		ParentBehavior:      parentBehavior,
 		ContextBody:         string(raw),
 		SourcePath:          sourcePath,
 		SourceBytes:         append([]byte(nil), raw...),
@@ -538,7 +869,7 @@ func parseFrontmatter(lines []string) (map[string]string, int, error) {
 		key = strings.ToLower(strings.TrimSpace(key))
 		value = trimScalar(strings.TrimSpace(value))
 		switch key {
-		case "id", "profile", "status", "priority", "workflow", "phase", "autonomous_state_path":
+		case "id", "profile", "status", "priority", "workflow", "phase", "autonomous_state_path", "depends_on", "tags", "conflicts", "parent_task_id", "child_proposal_id", "child_decision_id", "child_run_id", "child_evidence", "parent_behavior":
 			if _, exists := meta[key]; exists {
 				return nil, 0, fmt.Errorf("duplicate frontmatter key %q", key)
 			}
@@ -548,6 +879,49 @@ func parseFrontmatter(lines []string) (map[string]string, int, error) {
 		}
 	}
 	return nil, 0, errors.New("unterminated frontmatter")
+}
+
+func parseIdentityList(key, raw string, valid func(string) bool) ([]string, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	values := strings.Split(raw, ",")
+	seen := make(map[string]struct{}, len(values))
+	for i, value := range values {
+		if value == "" || value != strings.TrimSpace(value) || !valid(value) {
+			return nil, fmt.Errorf("invalid %s item %q at index %d", key, value, i)
+		}
+		if _, ok := seen[value]; ok {
+			return nil, fmt.Errorf("duplicate %s item %q", key, value)
+		}
+		seen[value] = struct{}{}
+	}
+	return values, nil
+}
+
+func validSchedulingToken(value string) bool {
+	return validTaskID(value)
+}
+
+func validEvidenceToken(value string) bool {
+	if value == "" || value != strings.TrimSpace(value) {
+		return false
+	}
+	for _, r := range value {
+		if r < 0x21 || r > 0x7e || r == ',' || r == '\\' {
+			return false
+		}
+	}
+	return true
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func updateMetadataBytes(raw []byte, update MetadataUpdate) ([]byte, error) {
@@ -763,11 +1137,82 @@ func stripClosingHashes(text string) string {
 
 func validStatus(status string) bool {
 	switch status {
-	case StatusPending, StatusRunning, StatusCompleted, StatusBlocked:
+	case StatusPending, StatusRunning, StatusCompleted, StatusBlocked, StatusCancelled, StatusSuperseded, StatusAbandoned:
 		return true
 	default:
 		return false
 	}
+}
+
+func terminalArchiveStatus(status string) bool {
+	return status == StatusCompleted || status == StatusCancelled || status == StatusSuperseded || status == StatusAbandoned
+}
+
+func rewriteReopenMetadata(raw []byte, newTaskID string) ([]byte, error) {
+	lines := splitRawLines(raw)
+	if len(lines) == 0 || strings.TrimSpace(string(lines[0].content)) != "---" {
+		return nil, errors.New("terminal autonomous task must have frontmatter")
+	}
+	end := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(string(lines[i].content)) == "---" {
+			end = i
+			break
+		}
+	}
+	if end < 0 {
+		return nil, errors.New("unterminated frontmatter")
+	}
+	statePath := path.Join(".revolvr", "autonomous", "tasks", newTaskID, "state.json")
+	eol := preferredLineEnding(lines)
+	replaced := map[string]bool{"id": false, "status": false, "autonomous_state_path": false}
+	var out bytes.Buffer
+	writeRawLine(&out, lines[0])
+	for i := 1; i < end; i++ {
+		key := frontmatterKey(string(lines[i].content))
+		value := ""
+		switch key {
+		case "id":
+			value = newTaskID
+		case "status":
+			value = StatusPending
+		case "autonomous_state_path":
+			value = statePath
+		}
+		if value != "" {
+			out.WriteString(key + ": " + value)
+			out.Write(lines[i].ending)
+			replaced[key] = true
+			continue
+		}
+		writeRawLine(&out, lines[i])
+	}
+	for _, key := range []string{"id", "status", "autonomous_state_path"} {
+		if replaced[key] {
+			continue
+		}
+		value := newTaskID
+		if key == "status" {
+			value = StatusPending
+		} else if key == "autonomous_state_path" {
+			value = statePath
+		}
+		out.WriteString(key + ": " + value)
+		out.Write(eol)
+	}
+	for i := end; i < len(lines); i++ {
+		writeRawLine(&out, lines[i])
+	}
+	return out.Bytes(), nil
+}
+
+func syncTaskDirectory(path string) error {
+	dir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 func validWorkflow(workflow string) bool {

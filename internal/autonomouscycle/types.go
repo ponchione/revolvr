@@ -10,6 +10,7 @@ import (
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousassembly"
 	"revolvr/internal/autonomouspolicy"
+	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
@@ -28,6 +29,7 @@ type Outcome string
 
 const (
 	OutcomeInvalidConfiguration       Outcome = "invalid_configuration"
+	OutcomeSafetyPreflightFailed      Outcome = "safety_preflight_failed"
 	OutcomeNoTaskState                Outcome = "no_autonomous_task_or_state"
 	OutcomeDossierFailed              Outcome = "dossier_failed"
 	OutcomeSourceChangedDuringDossier Outcome = "source_changed_during_dossier_assembly"
@@ -36,6 +38,7 @@ const (
 	OutcomePolicyRejected             Outcome = "policy_rejected"
 	OutcomeCompleteAuthorized         Outcome = "complete_authorized"
 	OutcomeBlockAuthorized            Outcome = "block_authorized"
+	OutcomeNeedsInputAuthorized       Outcome = "needs_input_authorized"
 	OutcomeWorkerFailed               Outcome = "worker_failed"
 	OutcomeReadOnlyMutation           Outcome = "unauthorized_read_only_worker_mutation"
 	OutcomeWorkerNoChanges            Outcome = "worker_completed_no_source_changes"
@@ -72,11 +75,30 @@ type TieredVerificationRunner func(context.Context, autonomousverification.Confi
 type CommitRunner func(context.Context, commit.Config) (commit.Result, error)
 type LockAcquirer func(context.Context, lock.Config) (SourceLock, error)
 type CommandRunner func(context.Context, runner.Command) runner.Result
+type SafetyPreflightRunner func(context.Context, autonomoussafety.Input) (autonomoussafety.Output, error)
 
-type Config struct {
-	RepositoryRoot string
+// WorkerAdmission runs after the supervisor decision and policy route have
+// been validated against the admission source, but before any worker starts.
+// It is the composition seam used by the task runner to durably charge AW-15.
+type WorkerAdmission func(context.Context, WorkerAdmissionInput) error
+
+type WorkerAdmissionInput struct {
 	TaskID         string
 	State          autonomous.ExecutionState
+	Decision       autonomous.SupervisorDecision
+	Reference      autonomous.DecisionReference
+	Route          autonomouspolicy.Route
+	SourceRevision string
+}
+
+type Config struct {
+	// RepositoryRoot is the canonical control root. Workspace, when supplied,
+	// authorizes a distinct execution worktree for source mutation.
+	RepositoryRoot    string
+	Workspace         *autonomous.TaskWorkspace
+	TaskID            string
+	State             autonomous.ExecutionState
+	SafetyDeclaration autonomoussafety.Declaration
 
 	SourceSafety      autonomouspolicy.SourceSafety
 	LatestMutation    *autonomouspolicy.SourceMutation
@@ -84,11 +106,12 @@ type Config struct {
 	Audit             *autonomouspolicy.AuditEvidence
 	CorrectionFailure *autonomous.VerificationFailureTarget
 
-	HistoryPolicy  autonomousassembly.HistoryPolicy
-	HistoryReader  autonomousassembly.HistoryReader
-	LedgerPath     string
-	GuidancePolicy autonomousassembly.GuidancePolicy
-	Ledger         Ledger
+	HistoryPolicy       autonomousassembly.HistoryPolicy
+	HistoryReader       autonomousassembly.HistoryReader
+	LedgerPath          string
+	GuidancePolicy      autonomousassembly.GuidancePolicy
+	RepositoryMapPolicy autonomousassembly.RepositoryMapPolicy
+	Ledger              Ledger
 
 	CodexExecutable                string
 	CodexModel                     string
@@ -143,6 +166,10 @@ type Config struct {
 	CommitRunner               CommitRunner
 	LockAcquirer               LockAcquirer
 	CommandRunner              CommandRunner
+	SafetyPreflightRunner      SafetyPreflightRunner
+	SafetyLookPath             func(string) (string, error)
+	SafetyLookupEnv            func(string) (string, bool)
+	BeforeWorker               WorkerAdmission
 }
 
 type Artifact struct {
@@ -152,15 +179,17 @@ type Artifact struct {
 }
 
 type WorkerArtifacts struct {
-	Prompt         Artifact  `json:"prompt"`
-	Provenance     Artifact  `json:"provenance"`
-	OutputSchema   *Artifact `json:"output_schema,omitempty"`
-	Output         Artifact  `json:"output"`
-	SourceEvidence Artifact  `json:"source_evidence"`
-	CodexStdout    Artifact  `json:"codex_stdout"`
-	CodexStderr    Artifact  `json:"codex_stderr"`
-	Receipt        Artifact  `json:"receipt"`
-	Verification   *Artifact `json:"verification,omitempty"`
+	Dossier         Artifact  `json:"dossier"`
+	DossierManifest Artifact  `json:"dossier_manifest"`
+	Prompt          Artifact  `json:"prompt"`
+	Provenance      Artifact  `json:"provenance"`
+	OutputSchema    *Artifact `json:"output_schema,omitempty"`
+	Output          Artifact  `json:"output"`
+	SourceEvidence  Artifact  `json:"source_evidence"`
+	CodexStdout     Artifact  `json:"codex_stdout"`
+	CodexStderr     Artifact  `json:"codex_stderr"`
+	Receipt         Artifact  `json:"receipt"`
+	Verification    *Artifact `json:"verification,omitempty"`
 }
 
 type ProfileEvidence struct {
@@ -241,4 +270,6 @@ type Result struct {
 	Worker          WorkerEvidence
 	Source          SourceEvidence
 	Failure         *Failure
+	SafetyPolicy    *autonomoussafety.Policy
+	SafetyPreflight *autonomoussafety.PreflightResult
 }

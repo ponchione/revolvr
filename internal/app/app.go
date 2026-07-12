@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/ledger"
 	"revolvr/internal/passpolicy"
 	"revolvr/internal/receipt"
@@ -27,13 +28,19 @@ type Config struct {
 }
 
 type AddTaskInput struct {
-	Task    string
-	Summary string
+	Task      string
+	Summary   string
+	DependsOn []string
+	Tags      []string
+	Conflicts []string
 }
 
 type TaskImport struct {
-	Task    string
-	Summary string
+	Task      string
+	Summary   string
+	DependsOn []string
+	Tags      []string
+	Conflicts []string
 }
 
 type ImportTasksInput struct {
@@ -52,9 +59,12 @@ type ImportTasksResult struct {
 }
 
 type ImportedTask struct {
-	ID      string
-	Task    string
-	Summary string
+	ID        string
+	Task      string
+	Summary   string
+	DependsOn []string
+	Tags      []string
+	Conflicts []string
 }
 
 type StatusResult struct {
@@ -69,6 +79,9 @@ func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskmodel.Tas
 	if err != nil {
 		return taskmodel.Task{}, err
 	}
+	if err := taskfile.ValidateSchedulingMetadata(input.DependsOn, input.Tags, input.Conflicts); err != nil {
+		return taskmodel.Task{}, fmt.Errorf("task add scheduling metadata: %w", err)
+	}
 
 	paths, err := resolveStatePaths(cfg.WorkDir)
 	if err != nil {
@@ -76,8 +89,9 @@ func AddTask(ctx context.Context, cfg Config, input AddTaskInput) (taskmodel.Tas
 	}
 
 	task, err := taskfile.Create(paths.WorkDir, taskfile.CreateInput{
-		Title: taskFileTitle(validated),
-		Body:  validated.Task,
+		Title:     taskFileTitle(validated),
+		Body:      validated.Task,
+		DependsOn: input.DependsOn, Tags: input.Tags, Conflicts: input.Conflicts,
 	})
 	if err != nil {
 		return taskmodel.Task{}, err
@@ -94,8 +108,9 @@ func ParseTaskImport(markdown []byte) ([]TaskImport, error) {
 	tasks := make([]TaskImport, 0, len(specs))
 	for _, spec := range specs {
 		tasks = append(tasks, TaskImport{
-			Task:    spec.Task,
-			Summary: spec.Summary,
+			Task:      spec.Task,
+			Summary:   spec.Summary,
+			DependsOn: append([]string(nil), spec.DependsOn...), Tags: append([]string(nil), spec.Tags...), Conflicts: append([]string(nil), spec.Conflicts...),
 		})
 	}
 	return tasks, nil
@@ -124,8 +139,9 @@ func ImportTasks(ctx context.Context, cfg Config, input ImportTasksInput) (Impor
 	}
 	for _, task := range tasks {
 		result.Tasks = append(result.Tasks, ImportedTask{
-			Task:    task.Task,
-			Summary: task.Summary,
+			Task:      task.Task,
+			Summary:   task.Summary,
+			DependsOn: append([]string(nil), task.DependsOn...), Tags: append([]string(nil), task.Tags...), Conflicts: append([]string(nil), task.Conflicts...),
 		})
 	}
 	if input.DryRun || len(tasks) == 0 {
@@ -139,8 +155,9 @@ func ImportTasks(ctx context.Context, cfg Config, input ImportTasksInput) (Impor
 
 	for i, task := range tasks {
 		created, err := taskfile.Create(paths.WorkDir, taskfile.CreateInput{
-			Title: taskFileTitle(task),
-			Body:  task.Task,
+			Title:     taskFileTitle(task),
+			Body:      task.Task,
+			DependsOn: task.DependsOn, Tags: task.Tags, Conflicts: task.Conflicts,
 		})
 		if err != nil {
 			return ImportTasksResult{}, fmt.Errorf("task import: create task %d: %w", i+1, err)
@@ -234,6 +251,41 @@ func listTaskFilesAsTasks(workDir string) ([]taskmodel.Task, error) {
 		adapted.NextRunnable = i == nextRunnable
 		result = append(result, adapted)
 	}
+	hasAutonomous := false
+	for _, task := range tasks {
+		hasAutonomous = hasAutonomous || task.Workflow == taskfile.WorkflowAutonomousV1
+	}
+	if hasAutonomous {
+		runCfg, err := LoadRunOnceConfig(workDir, DefaultRunOnceConfig(workDir))
+		if err != nil {
+			return nil, err
+		}
+		archives, err := verifiedSchedulingArchives(context.Background(), workDir, runCfg)
+		if err != nil {
+			return nil, err
+		}
+		active, err := autonomousscheduler.LoadActive(context.Background(), workDir)
+		if err != nil {
+			return nil, err
+		}
+		graph, err := autonomousscheduler.BuildSnapshot(active, archives)
+		if err != nil {
+			return nil, err
+		}
+		selected := autonomousscheduler.SelectNextReady(graph, nil)
+		for i := range result {
+			if result[i].Workflow != taskfile.WorkflowAutonomousV1 {
+				continue
+			}
+			node, classifyErr := autonomousscheduler.ClassifyTask(graph, result[i].ID, nil)
+			if classifyErr != nil {
+				return nil, classifyErr
+			}
+			result[i].AutonomousReady = node.Reason == autonomousscheduler.ReasonReady
+			result[i].ReadinessReason = string(node.Reason)
+			result[i].NextAutonomous = selected.Found && selected.Task.ID == result[i].ID
+		}
+	}
 	return result, nil
 }
 
@@ -263,11 +315,15 @@ func taskRunsBefore(left taskfile.Task, right taskfile.Task) bool {
 func taskFromFileTask(task taskfile.Task) (taskmodel.Task, error) {
 	if task.Workflow == taskfile.WorkflowAutonomousV1 {
 		return taskmodel.Task{
-			ID:       task.ID,
-			Task:     task.ContextBody,
-			Status:   task.Status,
-			Summary:  task.Title,
-			Workflow: task.Workflow,
+			ID:           task.ID,
+			Task:         task.ContextBody,
+			Status:       task.Status,
+			Summary:      task.Title,
+			Workflow:     task.Workflow,
+			DependsOn:    append([]string(nil), task.DependsOn...),
+			Tags:         append([]string(nil), task.Tags...),
+			Conflicts:    append([]string(nil), task.Conflicts...),
+			ParentTaskID: task.ParentTaskID,
 		}, nil
 	}
 	policy, err := passpolicy.Lookup(task.Workflow, task.Phase)
@@ -280,14 +336,18 @@ func taskFromFileTask(task taskfile.Task) (taskmodel.Task, error) {
 		nextState = taskmodel.StatusCompleted
 	}
 	return taskmodel.Task{
-		ID:         task.ID,
-		Task:       task.ContextBody,
-		Status:     task.Status,
-		Summary:    task.Title,
-		Workflow:   policy.Workflow,
-		Phase:      policy.Phase,
-		RunProfile: policy.ProfileName,
-		NextState:  nextState,
+		ID:           task.ID,
+		Task:         task.ContextBody,
+		Status:       task.Status,
+		Summary:      task.Title,
+		Workflow:     policy.Workflow,
+		Phase:        policy.Phase,
+		RunProfile:   policy.ProfileName,
+		NextState:    nextState,
+		DependsOn:    append([]string(nil), task.DependsOn...),
+		Tags:         append([]string(nil), task.Tags...),
+		Conflicts:    append([]string(nil), task.Conflicts...),
+		ParentTaskID: task.ParentTaskID,
 	}, nil
 }
 
@@ -394,6 +454,12 @@ func validateTaskImports(tasks []TaskImport) ([]AddTaskInput, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := taskfile.ValidateSchedulingMetadata(task.DependsOn, task.Tags, task.Conflicts); err != nil {
+			return nil, fmt.Errorf("task import: task %d scheduling metadata: %w", i+1, err)
+		}
+		input.DependsOn = append([]string(nil), task.DependsOn...)
+		input.Tags = append([]string(nil), task.Tags...)
+		input.Conflicts = append([]string(nil), task.Conflicts...)
 		validated = append(validated, input)
 	}
 	return validated, nil

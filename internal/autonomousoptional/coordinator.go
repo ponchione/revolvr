@@ -31,6 +31,7 @@ type Ledger interface {
 
 type Config struct {
 	RepositoryRoot string
+	Workspace      *autonomous.TaskWorkspace
 	TaskID         string
 	Expected       autonomousstate.ExpectedState
 	Assessment     autonomous.OptionalRoleAssessment
@@ -119,12 +120,37 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	started := n.Clock().UTC()
 	roleCfg := n.RoleCycle
-	roleCfg.RepositoryRoot, roleCfg.TaskID, roleCfg.State = n.RepositoryRoot, n.TaskID, admission.Current.State
+	roleCfg.RepositoryRoot, roleCfg.Workspace, roleCfg.TaskID, roleCfg.State = n.RepositoryRoot, n.Workspace, n.TaskID, admission.Current.State
 	roleCfg.SourceSafety = autonomouspolicy.SourceSafetySafe
 	roleCfg.Verification = cloneVerification(n.RoleCycle.Verification)
 	roleCfg.Audit = cloneAudit(n.RoleCycle.Audit)
 	role, roleErr := n.CycleRunner(ctx, roleCfg)
 	result.RoleCycle = role
+	return finishRun(ctx, n, admission, role, roleErr, started, gate, result)
+}
+
+// Continue resumes optional-role ownership after a caller used the AW-10
+// pre-worker seam to admit and execute the exact role cycle. It performs the
+// same completion, fresh-audit, and occurrence persistence as Run without
+// starting or charging the role worker again.
+func Continue(ctx context.Context, cfg Config, admission autonomousattempt.Result, role autonomouscycle.Result, started time.Time) (Result, error) {
+	result := Result{TaskID: cfg.TaskID, Admission: admission, RoleCycle: role}
+	if replay, ok, err := replayResult(ctx, cfg); err != nil {
+		return stopped(result, OutcomePersistenceStopped, err)
+	} else if ok {
+		return replay, nil
+	}
+	n, snapshot, currentAudit, err := normalize(ctx, cfg)
+	if err != nil {
+		return stopped(result, OutcomePersistenceStopped, err)
+	}
+	if cfg.Assessment.Disposition != autonomous.OptionalRoleDispositionRun || started.IsZero() || admission.Disposition != autonomousattempt.DispositionAdmitted && admission.Disposition != autonomousattempt.DispositionReplayed || admission.Current.SHA256 != snapshot.SHA256 || admission.Current.ByteSize != snapshot.ByteSize || !attemptAdmitted(snapshot.State, cfg.Admission.AttemptID, cfg.Assessment.DecisionReference) {
+		return stopped(result, OutcomeAdmissionStopped, errors.New("optional-role continuation lacks the exact open admitted attempt"))
+	}
+	return finishRun(ctx, n, admission, role, nil, started, gateFromAudit(currentAudit), result)
+}
+
+func finishRun(ctx context.Context, n normalized, admission autonomousattempt.Result, role autonomouscycle.Result, roleErr error, started time.Time, gate autonomous.OptionalRoleGate, result Result) (Result, error) {
 	if roleErr != nil || validateRoleCycle(n.Assessment, role) != nil {
 		if roleErr == nil {
 			roleErr = validateRoleCycle(n.Assessment, role)
@@ -166,7 +192,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return stopped(result, OutcomeRoleStopped, errors.Join(err, completeErr))
 	}
 	auditCfg := n.AuditCycle
-	auditCfg.RepositoryRoot, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, n.TaskID, admission.Current.State
+	auditCfg.RepositoryRoot, auditCfg.Workspace, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, n.Workspace, n.TaskID, admission.Current.State
 	auditCfg.SourceSafety, auditCfg.Verification, auditCfg.Audit = autonomouspolicy.SourceSafetySafe, &verification, nil
 	auditCfg.LatestMutation = &autonomouspolicy.SourceMutation{TaskID: n.TaskID, RunID: role.Worker.RunID, DecisionID: role.Route.DecisionID, Action: role.Route.Action, ResultingRevision: role.Source.FinalRevision}
 	auditResult, auditErr := n.CycleRunner(ctx, auditCfg)
@@ -209,6 +235,22 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	result.Outcome = OutcomeSourceChanged
 	return result, nil
+}
+
+func attemptAdmitted(state autonomous.ExecutionState, attemptID string, decision autonomous.DecisionReference) bool {
+	admitted, completed := false, false
+	for _, event := range state.Attempts.Events {
+		if event.AttemptID != attemptID {
+			continue
+		}
+		if event.Kind == autonomous.AttemptEventAdmitted && event.Decision == decision {
+			admitted = true
+		}
+		if event.Kind == autonomous.AttemptEventCompleted {
+			completed = true
+		}
+	}
+	return admitted && !completed
 }
 
 func replayResult(ctx context.Context, cfg Config) (Result, bool, error) {
@@ -261,8 +303,15 @@ func normalize(ctx context.Context, cfg Config) (normalized, autonomousstate.Sna
 	if snapshot.SHA256 != cfg.Expected.SHA256 || snapshot.ByteSize != cfg.Expected.ByteSize || snapshot.SHA256 != cfg.Assessment.StateSHA256 {
 		return normalized{}, snapshot, autonomousstate.AuditSnapshot{}, autonomousstate.ErrStaleWrite
 	}
+	if cfg.Workspace != nil && (snapshot.State.Workspace == nil || snapshot.State.Workspace.WorkspaceID != cfg.Workspace.WorkspaceID || snapshot.State.Workspace.ExecutionRoot != cfg.Workspace.ExecutionRoot) {
+		return normalized{}, snapshot, autonomousstate.AuditSnapshot{}, errors.New("durable workspace does not match optional-role authority")
+	}
 	if cfg.CycleRunner == nil {
-		cfg.CycleRunner = autonomouscycle.Run
+		if cfg.Workspace != nil {
+			cfg.CycleRunner = autonomouscycle.RunInWorkspace
+		} else {
+			cfg.CycleRunner = autonomouscycle.Run
+		}
 	}
 	if cfg.AuditApplier == nil {
 		cfg.AuditApplier = autonomousauditapply.ApplyAuditResult
