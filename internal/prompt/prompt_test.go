@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"revolvr/internal/codexexec"
 )
 
 func TestBuildContextPayloadSnapshot(t *testing.T) {
@@ -211,6 +214,7 @@ func TestBuildContextManifestHashesPayloadAndSources(t *testing.T) {
 		ContextPayload:     payload,
 		ContextPayloadPath: ".revolvr/runs/run-123/context.md",
 		GeneratedAt:        generatedAt,
+		Invocation:         testInvocationProvenance(),
 	})
 	if err != nil {
 		t.Fatalf("build context manifest: %v", err)
@@ -271,6 +275,7 @@ func TestBuildContextManifestUsesSelectedTaskFileSourceBytes(t *testing.T) {
 		ContextPayload:     []byte("payload"),
 		ContextPayloadPath: ".revolvr/runs/run-task-file/context.md",
 		GeneratedAt:        time.Date(2026, 7, 9, 20, 0, 0, 0, time.UTC),
+		Invocation:         testInvocationProvenance(),
 	})
 	if err != nil {
 		t.Fatalf("build context manifest: %v", err)
@@ -290,6 +295,7 @@ func TestBuildContextManifestUsesSelectedTaskFileSourceBytes(t *testing.T) {
 
 func TestMarshalContextManifestWritesStableJSON(t *testing.T) {
 	generatedAt := time.Date(2026, 7, 9, 19, 30, 0, 0, time.UTC)
+	invocation := testInvocationProvenance()
 	manifest, err := BuildContextManifest(ContextManifestInput{
 		Input: Input{
 			RunID:       "run-json",
@@ -301,6 +307,7 @@ func TestMarshalContextManifestWritesStableJSON(t *testing.T) {
 		ContextPayload:     []byte("payload"),
 		ContextPayloadPath: ".revolvr/runs/run-json/context.md",
 		GeneratedAt:        generatedAt,
+		Invocation:         invocation,
 	})
 	if err != nil {
 		t.Fatalf("build context manifest: %v", err)
@@ -312,6 +319,17 @@ func TestMarshalContextManifestWritesStableJSON(t *testing.T) {
 	}
 	if raw[len(raw)-1] != '\n' {
 		t.Fatalf("manifest JSON does not end with newline: %q", raw)
+	}
+	invocation.Argv[0] = "resume"
+	if manifest.Invocation.Argv[0] != "exec" {
+		t.Fatalf("caller-owned invocation argv mutated manifest: %#v", manifest.Invocation.Argv)
+	}
+	repeated, err := MarshalContextManifest(manifest)
+	if err != nil {
+		t.Fatalf("marshal context manifest again: %v", err)
+	}
+	if !bytes.Equal(raw, repeated) {
+		t.Fatalf("manifest JSON is not deterministic:\n%s\n%s", raw, repeated)
 	}
 	var reparsed ContextManifest
 	if err := json.Unmarshal(raw, &reparsed); err != nil {
@@ -380,4 +398,23 @@ func defaultImplementerProfileContent(t *testing.T) string {
 	}
 	t.Fatalf("default profile template %q not found", DefaultRunProfileName)
 	return ""
+}
+
+func testInvocationProvenance() codexexec.InvocationProvenance {
+	return codexexec.InvocationProvenance{
+		Executable:            "codex-test",
+		Version:               "codex-test 1.2.3",
+		Model:                 codexexec.DefaultModel,
+		ReasoningEffort:       codexexec.DefaultReasoningEffort,
+		Ephemeral:             true,
+		SessionMode:           codexexec.SessionModeEphemeral,
+		EffectiveConfigSchema: "test-effective-config-v1",
+		EffectiveConfigSHA256: strings.Repeat("a", 64),
+		Argv: []string{
+			"exec", "--json", "--model", codexexec.DefaultModel,
+			"-c", "model_reasoning_effort=" + codexexec.DefaultReasoningEffort,
+			"--ephemeral", "--cd", "/repo", "-",
+		},
+		WorkingDir: "/repo",
+	}
 }

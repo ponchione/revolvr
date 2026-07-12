@@ -400,6 +400,60 @@ func TestListLoadsOnlyDirectMarkdownFiles(t *testing.T) {
 	}
 }
 
+func TestTaskDiscoveryReservesAGENTSForGuidance(t *testing.T) {
+	repo := t.TempDir()
+	writeTaskFile(t, repo, "AGENTS.md", "Instructions that are not a task document.\n")
+	writeTaskFile(t, repo, "existing.md", taskMarkdownWithPhase("Existing", StatusPending, "1", PhaseAudit))
+
+	tasks, err := List(repo)
+	if err != nil {
+		t.Fatalf("list task files: %v", err)
+	}
+	if got, want := taskSourcePaths(tasks), []string{filepath.Join(TasksDir, "existing.md")}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("listed task files = %#v, want %#v", got, want)
+	}
+
+	found, ok, err := FindByID(repo, "existing")
+	if err != nil || !ok {
+		t.Fatalf("find existing task = %+v, %v, %v", found, ok, err)
+	}
+	if got, want := found.Phase, PhaseAudit; got != want {
+		t.Fatalf("existing task phase = %q, want %q", got, want)
+	}
+
+	next, ok, err := SelectNext(repo)
+	if err != nil || !ok {
+		t.Fatalf("select next task = %+v, %v, %v", next, ok, err)
+	}
+	if got, want := next.ID, "existing"; got != want {
+		t.Fatalf("next task id = %q, want %q", got, want)
+	}
+
+	created, err := Create(repo, CreateInput{ID: "created", Title: "Created", Body: "Create beside nested guidance."})
+	if err != nil {
+		t.Fatalf("create task beside guidance: %v", err)
+	}
+	if got, want := created.ID, "created"; got != want {
+		t.Fatalf("created task id = %q, want %q", got, want)
+	}
+}
+
+func TestTaskDiscoveryStillRejectsMalformedTaskDocuments(t *testing.T) {
+	repo := t.TempDir()
+	writeTaskFile(t, repo, "AGENTS.md", "Instructions that are not a task document.\n")
+	writeTaskFile(t, repo, "malformed.md", "## Missing H1\n")
+
+	_, err := List(repo)
+	if err == nil {
+		t.Fatal("list malformed task files succeeded, want error")
+	}
+	for _, want := range []string{"malformed.md", "no H1 title"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("list error = %v, want %q", err, want)
+		}
+	}
+}
+
 func TestCreateWritesCanonicalPendingTaskFile(t *testing.T) {
 	repo := t.TempDir()
 

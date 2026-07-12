@@ -143,12 +143,14 @@ func TestLookupNoChangePermissions(t *testing.T) {
 }
 
 func TestLookupRejectsInvalidWorkflow(t *testing.T) {
-	_, err := Lookup("single-pass-v1", taskfile.PhaseImplement)
-	if err == nil {
-		t.Fatal("lookup pass policy succeeded, want invalid workflow error")
-	}
-	if !strings.Contains(err.Error(), `unsupported workflow "single-pass-v1"`) {
-		t.Fatalf("error = %v, want unsupported workflow", err)
+	for _, workflow := range []string{"single-pass-v1", taskfile.WorkflowAutonomousV1} {
+		_, err := Lookup(workflow, taskfile.PhaseImplement)
+		if err == nil {
+			t.Fatalf("lookup pass policy for %q succeeded, want invalid workflow error", workflow)
+		}
+		if !strings.Contains(err.Error(), `unsupported workflow "`+workflow+`"`) {
+			t.Fatalf("error = %v, want unsupported workflow %q", err, workflow)
+		}
 	}
 }
 

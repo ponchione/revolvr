@@ -11,6 +11,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"revolvr/internal/autonomousverification"
+	"revolvr/internal/codexexec"
 	"revolvr/internal/runonce"
 	"revolvr/internal/verification"
 )
@@ -18,7 +20,10 @@ import (
 const DefaultConfigFile = "config.yaml"
 
 const (
-	DefaultCodexExecutable                = "codex"
+	DefaultCodexExecutable                = codexexec.DefaultExecutable
+	DefaultCodexModel                     = codexexec.DefaultModel
+	DefaultCodexReasoningEffort           = codexexec.DefaultReasoningEffort
+	DefaultCodexEphemeral                 = true
 	DefaultCodexBypassApprovalsAndSandbox = true
 	DefaultGitExecutable                  = "git"
 	DefaultGitTimeout                     = 30 * time.Second
@@ -26,9 +31,11 @@ const (
 )
 
 type RunConfigCheckResult struct {
-	Path      string
-	Found     bool
-	Effective runonce.Config
+	Path                  string
+	Found                 bool
+	Effective             runonce.Config
+	EffectiveConfigSchema string
+	EffectiveConfigSHA256 string
 }
 
 type fileConfig struct {
@@ -40,12 +47,15 @@ type fileConfig struct {
 }
 
 type codexConfig struct {
-	Executable                           string `yaml:"executable"`
-	Sandbox                              string `yaml:"sandbox"`
-	ApprovalPolicy                       string `yaml:"approval_policy"`
-	DangerouslyBypassApprovalsAndSandbox *bool  `yaml:"dangerously_bypass_approvals_and_sandbox"`
-	Yolo                                 *bool  `yaml:"yolo"`
-	TimeoutSeconds                       int    `yaml:"timeout_seconds"`
+	Executable                           string  `yaml:"executable"`
+	Model                                *string `yaml:"model"`
+	ReasoningEffort                      *string `yaml:"reasoning_effort"`
+	Ephemeral                            *bool   `yaml:"ephemeral"`
+	Sandbox                              string  `yaml:"sandbox"`
+	ApprovalPolicy                       string  `yaml:"approval_policy"`
+	DangerouslyBypassApprovalsAndSandbox *bool   `yaml:"dangerously_bypass_approvals_and_sandbox"`
+	Yolo                                 *bool   `yaml:"yolo"`
+	TimeoutSeconds                       int     `yaml:"timeout_seconds"`
 }
 
 type gitConfig struct {
@@ -54,8 +64,9 @@ type gitConfig struct {
 }
 
 type verificationConfig struct {
-	MissingPolicy string             `yaml:"missing_policy"`
-	Commands      []verificationItem `yaml:"commands"`
+	MissingPolicy string              `yaml:"missing_policy"`
+	Commands      *[]verificationItem `yaml:"commands"`
+	Tiers         *[]verificationTier `yaml:"tiers"`
 }
 
 type verificationItem struct {
@@ -63,6 +74,19 @@ type verificationItem struct {
 	Args           []string `yaml:"args"`
 	Dir            string   `yaml:"dir"`
 	TimeoutSeconds int      `yaml:"timeout_seconds"`
+	Env            []string `yaml:"env"`
+	StdoutCapBytes int      `yaml:"stdout_cap_bytes"`
+	StderrCapBytes int      `yaml:"stderr_cap_bytes"`
+}
+
+type verificationTier struct {
+	ID               string             `yaml:"id"`
+	Kind             string             `yaml:"kind"`
+	RequiredForFinal bool               `yaml:"required_for_final"`
+	RunForFast       bool               `yaml:"run_for_fast"`
+	RunForFinal      bool               `yaml:"run_for_final"`
+	RerunPolicy      string             `yaml:"rerun_policy"`
+	Commands         []verificationItem `yaml:"commands"`
 }
 
 type commitConfig struct {
@@ -101,16 +125,26 @@ func CheckRunConfig(workDir string) (RunConfigCheckResult, error) {
 	if err != nil {
 		return RunConfigCheckResult{}, err
 	}
+	fingerprint, err := runonce.FingerprintEffectiveConfig(effective)
+	if err != nil {
+		return RunConfigCheckResult{}, err
+	}
 	return RunConfigCheckResult{
-		Path:      path,
-		Found:     found,
-		Effective: effective,
+		Path:                  path,
+		Found:                 found,
+		Effective:             effective,
+		EffectiveConfigSchema: fingerprint.Schema,
+		EffectiveConfigSHA256: fingerprint.SHA256,
 	}, nil
 }
 
 func DefaultRunOnceConfig(workDir string) runonce.Config {
 	return runonce.Config{
 		WorkingDir:                     workDir,
+		CodexExecutable:                DefaultCodexExecutable,
+		CodexModel:                     DefaultCodexModel,
+		CodexReasoningEffort:           DefaultCodexReasoningEffort,
+		CodexEphemeral:                 DefaultCodexEphemeral,
 		CodexBypassApprovalsAndSandbox: DefaultCodexBypassApprovalsAndSandbox,
 	}
 }
@@ -153,6 +187,34 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	if value := strings.TrimSpace(cfg.Codex.Executable); value != "" {
 		base.CodexExecutable = value
 	}
+	if cfg.Codex.Model != nil {
+		value := strings.TrimSpace(*cfg.Codex.Model)
+		if value == "" {
+			return runonce.Config{}, errors.New("codex model must not be empty")
+		}
+		normalized, err := codexexec.NormalizeModel(value)
+		if err != nil {
+			return runonce.Config{}, err
+		}
+		base.CodexModel = normalized
+	}
+	if cfg.Codex.ReasoningEffort != nil {
+		value := strings.TrimSpace(*cfg.Codex.ReasoningEffort)
+		if value == "" {
+			return runonce.Config{}, errors.New("codex reasoning_effort must not be empty")
+		}
+		normalized, err := codexexec.NormalizeReasoningEffort(value)
+		if err != nil {
+			return runonce.Config{}, err
+		}
+		base.CodexReasoningEffort = normalized
+	}
+	if cfg.Codex.Ephemeral != nil {
+		if !*cfg.Codex.Ephemeral {
+			return runonce.Config{}, errors.New("codex ephemeral must be true; persistent or resumed sessions are not supported")
+		}
+		base.CodexEphemeral = true
+	}
 	if value := strings.TrimSpace(cfg.Codex.Sandbox); value != "" {
 		base.CodexSandbox = value
 	}
@@ -188,17 +250,23 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 			return runonce.Config{}, fmt.Errorf("invalid verification missing_policy %q (want %q or %q)", value, verification.MissingCommandsFail, verification.MissingCommandsPass)
 		}
 	}
-	if len(cfg.Verification.Commands) > 0 {
-		commands := make([]verification.Command, 0, len(cfg.Verification.Commands))
-		for i, command := range cfg.Verification.Commands {
+	if cfg.Verification.Commands != nil && cfg.Verification.Tiers != nil {
+		return runonce.Config{}, errors.New("verification commands and tiers cannot both be set")
+	}
+	if cfg.Verification.Commands != nil && len(*cfg.Verification.Commands) > 0 {
+		commands := make([]verification.Command, 0, len(*cfg.Verification.Commands))
+		for i, command := range *cfg.Verification.Commands {
 			name := strings.TrimSpace(command.Name)
 			if name == "" {
 				return runonce.Config{}, fmt.Errorf("verification.commands[%d].name is required", i)
 			}
 			item := verification.Command{
-				Name: name,
-				Args: append([]string(nil), command.Args...),
-				Dir:  strings.TrimSpace(command.Dir),
+				Name:      name,
+				Args:      append([]string(nil), command.Args...),
+				Dir:       strings.TrimSpace(command.Dir),
+				Env:       append([]string(nil), command.Env...),
+				StdoutCap: command.StdoutCapBytes,
+				StderrCap: command.StderrCapBytes,
 			}
 			if command.TimeoutSeconds > 0 {
 				item.Timeout = seconds(command.TimeoutSeconds)
@@ -206,6 +274,34 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 			commands = append(commands, item)
 		}
 		base.VerificationCommands = commands
+	}
+	if cfg.Verification.Tiers != nil {
+		tiers := make([]autonomousverification.Tier, 0, len(*cfg.Verification.Tiers))
+		for i, configured := range *cfg.Verification.Tiers {
+			commands := make([]verification.Command, 0, len(configured.Commands))
+			for j, command := range configured.Commands {
+				name := strings.TrimSpace(command.Name)
+				if name == "" {
+					return runonce.Config{}, fmt.Errorf("verification.tiers[%d].commands[%d].name is required", i, j)
+				}
+				item := verification.Command{Name: name, Args: append([]string(nil), command.Args...), Dir: strings.TrimSpace(command.Dir), Env: append([]string(nil), command.Env...), StdoutCap: command.StdoutCapBytes, StderrCap: command.StderrCapBytes}
+				if command.TimeoutSeconds > 0 {
+					item.Timeout = seconds(command.TimeoutSeconds)
+				}
+				commands = append(commands, item)
+			}
+			rerunPolicy := autonomousverification.RerunPolicy(strings.TrimSpace(configured.RerunPolicy))
+			if rerunPolicy == "" {
+				rerunPolicy = autonomousverification.RerunNever
+			}
+			tiers = append(tiers, autonomousverification.Tier{ID: strings.TrimSpace(configured.ID), Kind: autonomousverification.TierKind(strings.TrimSpace(configured.Kind)), RequiredForFinal: configured.RequiredForFinal, RunForFast: configured.RunForFast, RunForFinal: configured.RunForFinal, Commands: commands, RerunPolicy: rerunPolicy})
+		}
+		plan := autonomousverification.Plan{SchemaVersion: autonomousverification.PlanSchemaVersion, Tiers: tiers}
+		if err := plan.Validate(); err != nil {
+			return runonce.Config{}, err
+		}
+		base.VerificationCommands = nil
+		base.VerificationPlan = &plan
 	}
 
 	if cfg.Commit.AllowPreExistingDirty != nil {

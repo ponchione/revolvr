@@ -149,6 +149,25 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	if !reflect.DeepEqual(artifacts, wantArtifacts) {
 		t.Fatalf("run artifacts = %#v, want %#v", artifacts, wantArtifacts)
 	}
+	manifest := readContextManifestArtifact(t, env, result.Run.ID)
+	var contextBuilt struct {
+		Invocation codexexec.InvocationProvenance `json:"invocation"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventContextBuilt, &contextBuilt) {
+		t.Fatal("context built event not found")
+	}
+	var codexStarted struct {
+		Invocation codexexec.InvocationProvenance `json:"provenance"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventCodexStarted, &codexStarted) {
+		t.Fatal("codex started event not found")
+	}
+	if !reflect.DeepEqual(manifest.Invocation, contextBuilt.Invocation) || !reflect.DeepEqual(manifest.Invocation, codexStarted.Invocation) {
+		t.Fatalf("invocation provenance disagrees:\nmanifest=%+v\ncontext=%+v\nstarted=%+v", manifest.Invocation, contextBuilt.Invocation, codexStarted.Invocation)
+	}
+	if got := manifest.Invocation; got.Executable != "codex-test" || got.Version != "codex-test 1.2.3" || got.Model != codexexec.DefaultModel || got.ReasoningEffort != codexexec.DefaultReasoningEffort || !got.Ephemeral || got.SessionMode != codexexec.SessionModeEphemeral || got.EffectiveConfigSchema != EffectiveConfigSchema || got.EffectiveConfigSHA256 == "" || !reflect.DeepEqual(got.Argv, state.codexArgs) {
+		t.Fatalf("invocation provenance = %+v, args=%#v", got, state.codexArgs)
+	}
 	assertRunEvents(t, env.ledger, result.Run.ID, []ledger.EventType{
 		ledger.EventRunStarted,
 		ledger.EventTaskSelected,
@@ -221,7 +240,8 @@ func TestRunSuccessfulCommitChangedFilesIncludeAdvancedTaskFile(t *testing.T) {
 			commitChangedFiles = changedFiles(*cfg.PostRunChanged)
 			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123", ChangedFiles: commitChangedFiles}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -336,7 +356,8 @@ func TestRunPolicyPermittedNoChangePhaseAdvancement(t *testing.T) {
 					commitChangedFiles = changedFiles(*cfg.PostRunChanged)
 					return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123", ChangedFiles: commitChangedFiles}, nil
 				},
-				Clock: env.clock,
+				Clock:                  env.clock,
+				CodexVersionDiscoverer: testCodexVersionDiscoverer,
 			})
 			if err != nil {
 				t.Fatalf("run once: %v", err)
@@ -453,7 +474,8 @@ func TestRunCommitFailureAfterMetadataUpdateDoesNotAdvancePhase(t *testing.T) {
 		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
 			return commit.Result{Status: commit.StatusFailed, Message: "git commit failed"}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -544,7 +566,8 @@ func TestRunIndeterminateCommitBlocksTransitionedPhaseForInspection(t *testing.T
 		CommandRunner: func(context.Context, runner.Command) runner.Result {
 			return runner.Result{ExitCode: 0}
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -615,7 +638,8 @@ func TestRunRealGitCommitFailureRestagesBlockedOriginalPhase(t *testing.T) {
 		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
 			return passedVerificationResult("go test ./..."), nil
 		},
-		Clock: func() time.Time { return now.Add(time.Minute) },
+		Clock:                  func() time.Time { return now.Add(time.Minute) },
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -701,7 +725,8 @@ Mutated instructions.
 			commitCalled = true
 			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "unexpected"}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -753,7 +778,8 @@ func TestRunImplementTaskFileOnlyChangeIsNotMeaningful(t *testing.T) {
 			commitCalled = true
 			return commit.Result{}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -798,7 +824,8 @@ func TestRunImplementPreExistingDirtyFileDoesNotCountAsNewMeaningfulChange(t *te
 			commitCalled = true
 			return commit.Result{}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -841,7 +868,8 @@ func TestRunChangedFileCaptureFailureBlocksBeforeTransitionAndCommit(t *testing.
 			commitCalled = true
 			return commit.Result{}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -896,7 +924,8 @@ func TestRunCommitRunnerErrorPreservesResultAndRollsBackPhase(t *testing.T) {
 		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
 			return commit.Result{Status: commit.StatusFailed, Message: "git process unavailable"}, errors.New("start git: executable not found")
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -944,7 +973,8 @@ func TestRunTaskRollbackFailureStillFinalizesLedgerEvidence(t *testing.T) {
 			}
 			return commit.Result{Status: commit.StatusFailed, Message: "git commit failed"}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err == nil || !strings.Contains(err.Error(), "update task after failed run") {
 		t.Fatalf("run error = %v, want task rollback failure", err)
@@ -987,7 +1017,8 @@ func TestRunSelectsLowestPriorityPendingTaskFileByPriorityThenFilename(t *testin
 		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
 			return codexexec.Result{ExitCode: 1}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -1003,6 +1034,58 @@ func TestRunSelectsLowestPriorityPendingTaskFileByPriorityThenFilename(t *testin
 	}
 	if got := loadRunTask(t, env, filepath.Join(taskfile.TasksDir, "010-beta.md")).Status; got != taskfile.StatusPending {
 		t.Fatalf("unselected file status = %q, want pending", got)
+	}
+}
+
+func TestRunSelectsOnlyMixedPassTasks(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	autonomous := writeRunTaskFile(t, env, "001-autonomous.md", `---
+id: task-autonomous
+status: pending
+workflow: autonomous-v1
+autonomous_state_path: .revolvr/autonomous/tasks/task-autonomous/state.json
+priority: 1
+---
+# Autonomous Task
+
+Do not run through mixed-pass.
+`)
+	mixed := writeRunTaskFile(t, env, "010-mixed.md", `---
+id: task-mixed
+status: pending
+workflow: mixed-pass-v1
+phase: implement
+priority: 2
+---
+# Mixed Task
+
+Run through mixed-pass.
+`)
+	codexCalls := 0
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalls++
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Task.ID != mixed.ID || result.FileTask.Workflow != taskfile.WorkflowMixedPassV1 || codexCalls != 1 {
+		t.Fatalf("result = %+v, codex calls = %d; want selected mixed-pass task", result, codexCalls)
+	}
+	if got := loadRunTask(t, env, autonomous.SourcePath); got.Status != taskfile.StatusPending || got.Workflow != taskfile.WorkflowAutonomousV1 {
+		t.Fatalf("autonomous task after run = %+v, want untouched pending autonomous task", got)
+	}
+	if got := loadRunTask(t, env, mixed.SourcePath); got.Status != taskfile.StatusBlocked {
+		t.Fatalf("mixed task status = %q, want blocked after failed Codex pass", got.Status)
 	}
 }
 
@@ -1086,8 +1169,9 @@ func TestRunSecondPendingTaskAfterSuccessfulFileTaskCommitStartsClean(t *testing
 
 	var codexCalls int
 	cfg := Config{
-		WorkingDir:  workDir,
-		LedgerStore: runs,
+		WorkingDir:             workDir,
+		LedgerStore:            runs,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 		CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
 			codexCalls++
 			path := filepath.Join(cfg.WorkingDir, fmt.Sprintf("generated-%d.txt", codexCalls))
@@ -1147,7 +1231,8 @@ func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
 			runnerPayload = cfg.Prompt
 			return codexexec.Result{ExitCode: 1}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -1244,6 +1329,41 @@ func TestRunWritesContextBundleWithDefaultProfile(t *testing.T) {
 	}
 }
 
+func TestRunBlocksWhenCodexVersionDiscoveryFails(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeRunTask(t, env, "task-version-failure", "Require Codex version provenance")
+	codexCalled := false
+	var versionConfig codexexec.VersionConfig
+	result, err := Run(ctx, Config{
+		WorkingDir:     env.workDir,
+		LedgerStore:    env.ledger,
+		DirtyCapture:   cleanDirtyCapture,
+		ChangedCapture: emptyChangedCapture,
+		CodexVersionDiscoverer: func(_ context.Context, cfg codexexec.VersionConfig) (string, error) {
+			versionConfig = cfg
+			return "", errors.New("version output is malformed")
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalled = true
+			return codexexec.Result{}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeBlocked || codexCalled || !strings.Contains(result.Message, "discover Codex version failed") {
+		t.Fatalf("result=%+v codex_called=%v", result, codexCalled)
+	}
+	if versionConfig.Executable != codexexec.DefaultExecutable || versionConfig.WorkingDir != env.workDir || versionConfig.Timeout != codexexec.DefaultVersionTimeout || versionConfig.StdoutCap != defaultOutputCap || versionConfig.StderrCap != defaultOutputCap {
+		t.Fatalf("version config = %+v", versionConfig)
+	}
+	if _, statErr := os.Stat(filepath.Join(env.workDir, ".revolvr", "runs", result.Run.ID, "context.json")); !os.IsNotExist(statErr) {
+		t.Fatalf("context manifest stat error = %v, want not exist", statErr)
+	}
+}
+
 func TestRunLoadsProfileForSelectedTaskPhase(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1301,7 +1421,8 @@ func TestRunLoadsProfileForSelectedTaskPhase(t *testing.T) {
 					runnerPayload = cfg.Prompt
 					return codexexec.Result{ExitCode: 1}, nil
 				},
-				Clock: env.clock,
+				Clock:                  env.clock,
+				CodexVersionDiscoverer: testCodexVersionDiscoverer,
 			})
 			if err != nil {
 				t.Fatalf("run once: %v", err)
@@ -1392,7 +1513,8 @@ Use the policy-selected profile.
 			payload = cfg.Prompt
 			return codexexec.Result{ExitCode: 1}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -1446,7 +1568,8 @@ func TestRunSmokeScriptTaskFileManifestUsesExactPreRunBytes(t *testing.T) {
 		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
 			return codexexec.Result{ExitCode: 1}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -1494,7 +1617,8 @@ func TestRunBlocksBeforeCodexWhenMappedProfileMissing(t *testing.T) {
 			codexCalled = true
 			return codexexec.Result{ExitCode: 0}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -1940,7 +2064,8 @@ func TestRunBlocksPreExistingDirtyBeforeContextCodexVerificationAndCommit(t *tes
 			commitCalled = true
 			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123"}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -2033,7 +2158,8 @@ func TestRunBlocksWhenPreRunDirtyCaptureReportsFailure(t *testing.T) {
 			codexCalled = true
 			return codexexec.Result{ExitCode: 0}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -2115,7 +2241,8 @@ func TestRunAllowsPreExistingDirtyWhenConfigured(t *testing.T) {
 			}
 			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123", Message: "commit created"}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -2214,7 +2341,8 @@ func TestRunBlocksBeforeVerificationAndCommitWhenReceiptCannotBeSynthesized(t *t
 			commitCalled = true
 			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "unexpected"}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -2259,7 +2387,8 @@ func TestRunLedgerCompletionFailureStillBlocksTaskAndFinalizesReceipt(t *testing
 			}
 			return codexexec.Result{ExitCode: 2, FinalMessage: "failed"}, nil
 		},
-		Clock: env.clock,
+		Clock:                  env.clock,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
 	if err == nil {
 		t.Fatal("run once succeeded, want ledger completion error")
@@ -2363,6 +2492,7 @@ func TestRunRefreshesSourceWriterLockWhileCodexRuns(t *testing.T) {
 		SourceWriterLockPID:               321,
 		SourceWriterLockTimeout:           time.Hour,
 		SourceWriterLockHeartbeatInterval: time.Millisecond,
+		CodexVersionDiscoverer:            testCodexVersionDiscoverer,
 	})
 	if err != nil {
 		t.Fatalf("run once: %v", err)
@@ -2396,9 +2526,10 @@ func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
 	}
 
 	_, err := Run(ctx, Config{
-		WorkingDir:  env.workDir,
-		LedgerStore: env.ledger,
-		CodexRunner: codexRunner,
+		WorkingDir:             env.workDir,
+		LedgerStore:            env.ledger,
+		CodexRunner:            codexRunner,
+		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
 			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
 		},
@@ -2430,6 +2561,7 @@ func TestRunPassesCodexBypassApprovalsAndSandbox(t *testing.T) {
 		DirtyCapture:                   cleanDirtyCapture,
 		ChangedCapture:                 emptyChangedCapture,
 		Clock:                          env.clock,
+		CodexVersionDiscoverer:         testCodexVersionDiscoverer,
 		CodexRunner: func(_ context.Context, cfg codexexec.Config) (codexexec.Result, error) {
 			codexCalled = true
 			if !cfg.BypassApprovalsAndSandbox {
@@ -2609,6 +2741,10 @@ func emptyChangedCapture(context.Context, gitstate.Config) (gitstate.Capture, er
 	return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
 }
 
+func testCodexVersionDiscoverer(context.Context, codexexec.VersionConfig) (string, error) {
+	return "codex-test 1.2.3", nil
+}
+
 type advancingClock struct {
 	mu      sync.Mutex
 	current time.Time
@@ -2661,10 +2797,16 @@ func (s *fakeCommandState) run(_ context.Context, command runner.Command) runner
 }
 
 func (s *fakeCommandState) runCodex(command runner.Command) runner.Result {
+	if reflect.DeepEqual(command.Args, []string{"--version"}) {
+		return runner.Result{ExitCode: 0, Stdout: "codex-test 1.2.3\n"}
+	}
 	s.codexArgs = append([]string(nil), command.Args...)
 	contextPayload := readContextPayload(s.t, command.Stdin)
 	receiptRel := contextPayloadValue(s.t, contextPayload, "Receipt path")
 	runID := contextPayloadValue(s.t, contextPayload, "Run ID")
+	if _, err := os.Stat(filepath.Join(command.Dir, ".revolvr", "runs", runID, "context.json")); err != nil {
+		s.t.Fatalf("context manifest was not written before Codex started: %v", err)
+	}
 	taskID := contextPayloadValue(s.t, contextPayload, "Task ID")
 	taskText := contextPayloadTaskText(s.t, contextPayload)
 	if s.writeReceipt {

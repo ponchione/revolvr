@@ -86,6 +86,10 @@ fail() {
 if [[ "$#" -eq 0 ]]; then
   fail "missing subcommand"
 fi
+if [[ "$#" -eq 1 && "$1" == "--version" ]]; then
+  printf 'fake-codex 1.2.3\n'
+  exit 0
+fi
 if [[ "$1" != "exec" ]]; then
   fail "expected first argument to be exec, got $1"
 fi
@@ -96,12 +100,34 @@ dangerous_seen=0
 cd_dir=""
 last_message=""
 stdin_marker=0
+model_seen=0
+effort_seen=0
+ephemeral_seen=0
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --json)
       json_seen=1
       shift
+      ;;
+    --model)
+      [[ "$#" -ge 2 ]] || fail "--model requires a value"
+      [[ "$2" == "gpt-5.6-sol" ]] || fail "unexpected model: $2"
+      model_seen=$((model_seen + 1))
+      shift 2
+      ;;
+    -c)
+      [[ "$#" -ge 2 ]] || fail "-c requires a value"
+      [[ "$2" == "model_reasoning_effort=xhigh" ]] || fail "unexpected config override: $2"
+      effort_seen=$((effort_seen + 1))
+      shift 2
+      ;;
+    --ephemeral)
+      ephemeral_seen=$((ephemeral_seen + 1))
+      shift
+      ;;
+    resume)
+      fail "resume is forbidden"
       ;;
     --dangerously-bypass-approvals-and-sandbox)
       dangerous_seen=1
@@ -136,6 +162,9 @@ done
 [[ "$json_seen" -eq 1 ]] || fail "missing --json"
 [[ "$dangerous_seen" -eq 1 ]] || fail "missing dangerous bypass flag"
 [[ "$stdin_marker" -eq 1 ]] || fail "missing stdin prompt marker '-'"
+[[ "$model_seen" -eq 1 ]] || fail "expected exactly one --model, saw $model_seen"
+[[ "$effort_seen" -eq 1 ]] || fail "expected exactly one reasoning-effort override, saw $effort_seen"
+[[ "$ephemeral_seen" -eq 1 ]] || fail "expected exactly one --ephemeral, saw $ephemeral_seen"
 [[ -n "$cd_dir" ]] || fail "missing --cd"
 [[ -d "$cd_dir" ]] || fail "--cd does not point at a directory: $cd_dir"
 [[ "$(cd "$cd_dir" && pwd -P)" == "$(pwd -P)" ]] || fail "--cd does not match working directory"
@@ -270,6 +299,9 @@ CONFIG_YAML
 run_revolvr config-check config check
 assert_contains "$TMP_ROOT/config-check.out" "Config found: true"
 assert_contains "$TMP_ROOT/config-check.out" "Codex executable: $FAKE_CODEX"
+assert_contains "$TMP_ROOT/config-check.out" "Codex model: gpt-5.6-sol"
+assert_contains "$TMP_ROOT/config-check.out" "Codex reasoning effort: xhigh"
+assert_contains "$TMP_ROOT/config-check.out" "Codex session mode: ephemeral (ephemeral=true)"
 assert_contains "$TMP_ROOT/config-check.out" "Codex dangerously bypass approvals and sandbox: true"
 assert_contains "$TMP_ROOT/config-check.out" "Verification command count: 1"
 assert_contains "$TMP_ROOT/config-check.out" 'Verification command 0: name=sh args=["-c", "test -f required.txt"] timeout=30s'
@@ -310,6 +342,10 @@ assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md" "## Selected Task"
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md" "## Required Receipt Schema"
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"context_payload_path"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"context_payload_sha256"'
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"version": "fake-codex 1.2.3"'
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"model": "gpt-5.6-sol"'
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"reasoning_effort": "xhigh"'
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"ephemeral": true'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"label": "selected_task"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" "\"path\": \"$TASK_REL\""
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" "\"sha256\": \"$TASK_SHA\""
@@ -341,7 +377,8 @@ assert_contains "$TMP_ROOT/show-run.out" "codex: exit_code=0, timed_out=false"
 assert_contains "$TMP_ROOT/show-run.out" "verification: failed"
 assert_contains "$TMP_ROOT/show-run.out" 'failed verification: sh -c "test -f required.txt" (exit_code=1)'
 assert_contains "$TMP_ROOT/show-run.out" "receipt: verification_failed (.revolvr/receipts/$RUN_ID.md)"
-assert_contains "$TMP_ROOT/show-run.out" "changed files: generated.txt"
+assert_contains "$TMP_ROOT/show-run.out" "changed files:"
+assert_contains "$TMP_ROOT/show-run.out" "generated.txt"
 assert_contains "$TMP_ROOT/show-run.out" "Events:"
 
 echo "Fake-Codex run --once verification-failure smoke test passed."

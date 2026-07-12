@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/runner"
 )
@@ -87,7 +88,27 @@ func Preflight(ctx context.Context, cfg Config, input PreflightInput) (Preflight
 	runCfg := configResult.Effective
 
 	codexExecutable := preflightEffectiveString(runCfg.CodexExecutable, DefaultCodexExecutable)
-	addExecutableCheck(addCheck, lookPath, "codex executable", codexExecutable)
+	codexAvailable := addExecutableCheck(addCheck, lookPath, "codex executable", codexExecutable)
+	addCheck(PreflightOK, "codex model", runCfg.CodexModel)
+	addCheck(PreflightOK, "codex reasoning effort", runCfg.CodexReasoningEffort)
+	addCheck(PreflightOK, "codex session", fmt.Sprintf("%s (ephemeral=%t)", codexexec.SessionModeEphemeral, runCfg.CodexEphemeral))
+	if codexAvailable {
+		version, versionErr := codexexec.DiscoverVersion(ctx, codexexec.VersionConfig{
+			Executable:    codexExecutable,
+			WorkingDir:    paths.WorkDir,
+			Timeout:       runCfg.CodexTimeout,
+			StdoutCap:     runCfg.CodexStdoutCap,
+			StderrCap:     runCfg.CodexStderrCap,
+			CommandRunner: codexexec.CommandRunner(commandRunner),
+		})
+		if versionErr != nil {
+			addCheck(PreflightFail, "codex version", versionErr.Error())
+		} else {
+			addCheck(PreflightOK, "codex version", version)
+		}
+	} else {
+		addCheck(PreflightFail, "codex version", "not checked because the configured Codex executable is unavailable")
+	}
 
 	gitExecutable := preflightEffectiveString(runCfg.GitExecutable, DefaultGitExecutable)
 	addExecutableCheck(addCheck, lookPath, "git executable", gitExecutable)
@@ -95,18 +116,25 @@ func Preflight(ctx context.Context, cfg Config, input PreflightInput) (Preflight
 	addGitIdentityCheck(ctx, addCheck, commandRunner, paths.WorkDir, gitExecutable, runCfg.GitTimeout, runCfg.GitStdoutCap, runCfg.GitStderrCap)
 	addWorktreeCheck(ctx, addCheck, commandRunner, paths.WorkDir, gitExecutable, runCfg.GitTimeout, runCfg.GitStdoutCap, runCfg.GitStderrCap)
 	addRuntimeIgnoreCheck(ctx, addCheck, commandRunner, paths.WorkDir, gitExecutable, runCfg.GitTimeout, runCfg.GitStdoutCap, runCfg.GitStderrCap)
-	addVerificationCheck(addCheck, len(runCfg.VerificationCommands), runCfg.AllowMissingVerification)
+	verificationCount := len(runCfg.VerificationCommands)
+	if runCfg.VerificationPlan != nil {
+		for _, tier := range runCfg.VerificationPlan.Tiers {
+			verificationCount += len(tier.Commands)
+		}
+	}
+	addVerificationCheck(addCheck, verificationCount, runCfg.AllowMissingVerification)
 
 	return result, nil
 }
 
-func addExecutableCheck(addCheck func(PreflightCheckStatus, string, string), lookPath ExecutableLookPath, name string, executable string) {
+func addExecutableCheck(addCheck func(PreflightCheckStatus, string, string), lookPath ExecutableLookPath, name string, executable string) bool {
 	resolved, err := lookPath(executable)
 	if err != nil {
 		addCheck(PreflightFail, name, fmt.Sprintf("%q not found: %v", executable, err))
-		return
+		return false
 	}
 	addCheck(PreflightOK, name, resolved)
+	return true
 }
 
 func addGitIdentityCheck(ctx context.Context, addCheck func(PreflightCheckStatus, string, string), commandRunner PreflightCommandRunner, workDir string, gitExecutable string, timeout time.Duration, stdoutCap int, stderrCap int) {

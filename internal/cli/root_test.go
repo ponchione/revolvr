@@ -490,6 +490,9 @@ verification:
 			}, nil
 		},
 		DoctorCommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			if command.Name == "codex-test" && reflect.DeepEqual(command.Args, []string{"--version"}) {
+				return runner.Result{ExitCode: 0, Stdout: "codex-test 1.2.3\n"}
+			}
 			switch strings.Join(command.Args, "\x00") {
 			case "config\x00--get\x00user.name":
 				return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
@@ -716,9 +719,17 @@ func TestInitCreatesStoresAndIsIdempotent(t *testing.T) {
 	taskFilesDir := filepath.Join(workDir, taskfile.TasksDir)
 	assertDirExists(t, taskFilesDir)
 	assertDirEntries(t, taskFilesDir, nil)
+	seededAutonomousProfiles := make(map[string]bool)
 	for _, template := range prompt.DefaultRunProfileTemplates() {
 		assertProfileFileContent(t, workDir, template.Name, strings.TrimRight(template.Content, "\n")+"\n")
+		seededAutonomousProfiles[template.Name] = true
 	}
+	for _, name := range []string{"supervisor", "planner", "corrector"} {
+		if !seededAutonomousProfiles[name] {
+			t.Fatalf("init did not seed autonomous profile %q", name)
+		}
+	}
+	firstProfileContents := readProfileFileContents(t, workDir)
 	assertLedgerStoreOpens(t, paths.LedgerDBPath)
 
 	customTask := "# Existing Task\n\n## Goal\nKeep this file.\n"
@@ -730,6 +741,9 @@ func TestInitCreatesStoresAndIsIdempotent(t *testing.T) {
 	if secondOut != firstOut {
 		t.Fatalf("second init output = %q, want %q", secondOut, firstOut)
 	}
+	if got := readProfileFileContents(t, workDir); !reflect.DeepEqual(got, firstProfileContents) {
+		t.Fatalf("profile files changed after repeated init\nfirst:  %#v\nsecond: %#v", firstProfileContents, got)
+	}
 	assertFileContent(t, filepath.Join(taskFilesDir, "existing.md"), customTask)
 	assertLedgerStoreOpens(t, paths.LedgerDBPath)
 }
@@ -738,6 +752,9 @@ func TestInitDoesNotOverwriteExistingProfileFiles(t *testing.T) {
 	workDir := t.TempDir()
 	customProfiles := map[string]string{
 		prompt.DefaultRunProfileName: "Custom implementer profile.\n",
+		"supervisor":                 "Custom supervisor profile.\nKeep this byte-for-byte.\n",
+		"planner":                    "Custom planner profile.\n",
+		"corrector":                  "Custom corrector profile without a final newline.",
 		"simplifier":                 "Custom simplifier profile.\n",
 	}
 	for name, content := range customProfiles {
@@ -751,6 +768,30 @@ func TestInitDoesNotOverwriteExistingProfileFiles(t *testing.T) {
 	for _, template := range prompt.DefaultRunProfileTemplates() {
 		want, ok := customProfiles[template.Name]
 		if !ok {
+			want = strings.TrimRight(template.Content, "\n") + "\n"
+		}
+		assertProfileFileContent(t, workDir, template.Name, want)
+	}
+}
+
+func TestInitCreatesOnlyMissingProfileFiles(t *testing.T) {
+	workDir := t.TempDir()
+	customProfiles := map[string]string{
+		"supervisor": "Existing supervisor profile.\n",
+		"auditor":    "Existing auditor profile.\r\nPreserve line endings.\r\n",
+		"corrector":  "Existing corrector profile without a final newline.",
+	}
+	for name, content := range customProfiles {
+		writeCLIFile(t, filepath.Join(workDir, prompt.RunProfileSourcePath(name)), content)
+	}
+
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+
+	for _, template := range prompt.DefaultRunProfileTemplates() {
+		want, exists := customProfiles[template.Name]
+		if !exists {
 			want = strings.TrimRight(template.Content, "\n") + "\n"
 		}
 		assertProfileFileContent(t, workDir, template.Name, want)
@@ -1143,7 +1184,7 @@ func TestRunOnceInvokesRunnerAndPrintsSummary(t *testing.T) {
 			if cfg.WorkingDir != "/repo" {
 				t.Fatalf("working dir = %q, want /repo", cfg.WorkingDir)
 			}
-			if cfg.CodexExecutable != "" || cfg.GitExecutable != "" || cfg.VerificationCommands != nil || cfg.AllowPreExistingDirty {
+			if cfg.CodexExecutable != "codex" || cfg.CodexModel != "gpt-5.6-sol" || cfg.CodexReasoningEffort != "xhigh" || !cfg.CodexEphemeral || cfg.GitExecutable != "" || cfg.VerificationCommands != nil || cfg.AllowPreExistingDirty {
 				t.Fatalf("run config = %+v, want no config-file overrides", cfg)
 			}
 			if !cfg.CodexBypassApprovalsAndSandbox {
@@ -1210,6 +1251,9 @@ func TestRunOnceLoadsRepoLocalConfig(t *testing.T) {
 	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
 codex:
   executable: codex-custom
+  model: gpt-custom
+  reasoning_effort: high
+  ephemeral: true
   sandbox: danger-full-access
   approval_policy: on-request
   dangerously_bypass_approvals_and_sandbox: true
@@ -1258,7 +1302,7 @@ output:
 	if got.WorkingDir != workDir {
 		t.Fatalf("working dir = %q, want %q", got.WorkingDir, workDir)
 	}
-	if got.CodexExecutable != "codex-custom" || got.CodexSandbox != "danger-full-access" || got.CodexApprovalPolicy != "on-request" || !got.CodexBypassApprovalsAndSandbox || got.CodexTimeout != 45*time.Second {
+	if got.CodexExecutable != "codex-custom" || got.CodexModel != "gpt-custom" || got.CodexReasoningEffort != "high" || !got.CodexEphemeral || got.CodexSandbox != "danger-full-access" || got.CodexApprovalPolicy != "on-request" || !got.CodexBypassApprovalsAndSandbox || got.CodexTimeout != 45*time.Second {
 		t.Fatalf("codex config = %+v, want config overrides", got)
 	}
 	if got.GitExecutable != "git-custom" || got.GitTimeout != 12*time.Second {
@@ -1352,6 +1396,10 @@ codex:
 
 func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 	workDir := t.TempDir()
+	configResult, configErr := checkRunConfig(workDir)
+	if configErr != nil {
+		t.Fatalf("check run config: %v", configErr)
+	}
 
 	out, err := executeCLI(t, workDir, "config", "check")
 	if err != nil {
@@ -1361,10 +1409,15 @@ func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 		"Config found: false\n" +
 		"Defaults: used\n" +
 		"Codex executable: codex\n" +
+		"Codex model: gpt-5.6-sol\n" +
+		"Codex reasoning effort: xhigh\n" +
+		"Codex session mode: ephemeral (ephemeral=true)\n" +
 		"Codex dangerously bypass approvals and sandbox: true\n" +
 		"Codex sandbox: workspace-write\n" +
 		"Codex approval policy: never\n" +
 		"Codex timeout: 0s\n" +
+		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
+		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
 		"Git executable: git\n" +
 		"Git timeout: 30s\n" +
 		"Verification missing policy: fail\n" +
@@ -1381,6 +1434,10 @@ func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 func TestConfigCheckMissingConfigPrintsDefaultVerificationCommand(t *testing.T) {
 	workDir := t.TempDir()
 	writeCLIFile(t, filepath.Join(workDir, "go.mod"), "module example.com/revolvrtest\n")
+	configResult, configErr := checkRunConfig(workDir)
+	if configErr != nil {
+		t.Fatalf("check run config: %v", configErr)
+	}
 
 	out, err := executeCLI(t, workDir, "config", "check")
 	if err != nil {
@@ -1390,10 +1447,15 @@ func TestConfigCheckMissingConfigPrintsDefaultVerificationCommand(t *testing.T) 
 		"Config found: false\n" +
 		"Defaults: used\n" +
 		"Codex executable: codex\n" +
+		"Codex model: gpt-5.6-sol\n" +
+		"Codex reasoning effort: xhigh\n" +
+		"Codex session mode: ephemeral (ephemeral=true)\n" +
 		"Codex dangerously bypass approvals and sandbox: true\n" +
 		"Codex sandbox: workspace-write\n" +
 		"Codex approval policy: never\n" +
 		"Codex timeout: 0s\n" +
+		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
+		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
 		"Git executable: git\n" +
 		"Git timeout: 30s\n" +
 		"Verification missing policy: fail\n" +
@@ -1413,6 +1475,9 @@ func TestConfigCheckValidConfigPrintsEffectiveValuesAndDoesNotRunOnce(t *testing
 	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
 codex:
   executable: codex-custom
+  model: gpt-override
+  reasoning_effort: low
+  ephemeral: true
   sandbox: danger-full-access
   approval_policy: on-request
   yolo: true
@@ -1441,6 +1506,10 @@ output:
   commit_stdout_cap_bytes: 107
   commit_stderr_cap_bytes: 108
 `)
+	configResult, configErr := checkRunConfig(workDir)
+	if configErr != nil {
+		t.Fatalf("check run config: %v", configErr)
+	}
 
 	var out bytes.Buffer
 	called := false
@@ -1465,10 +1534,15 @@ output:
 		"Config found: true\n" +
 		"Defaults: merged\n" +
 		"Codex executable: codex-custom\n" +
+		"Codex model: gpt-override\n" +
+		"Codex reasoning effort: low\n" +
+		"Codex session mode: ephemeral (ephemeral=true)\n" +
 		"Codex dangerously bypass approvals and sandbox: true\n" +
 		"Codex sandbox: danger-full-access\n" +
 		"Codex approval policy: on-request\n" +
 		"Codex timeout: 45s\n" +
+		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
+		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
 		"Git executable: git-custom\n" +
 		"Git timeout: 12s\n" +
 		"Verification missing policy: pass\n" +
@@ -2468,6 +2542,20 @@ func assertProfileFileContent(t *testing.T, workDir string, name string, want st
 	if got := string(content); got != want {
 		t.Fatalf("profile %s content = %q, want %q", name, got, want)
 	}
+}
+
+func readProfileFileContents(t *testing.T, workDir string) map[string]string {
+	t.Helper()
+	contents := make(map[string]string)
+	for _, template := range prompt.DefaultRunProfileTemplates() {
+		path := filepath.Join(workDir, prompt.RunProfileSourcePath(template.Name))
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read profile %s: %v", path, err)
+		}
+		contents[template.Name] = string(raw)
+	}
+	return contents
 }
 
 func writeCLIFile(t *testing.T, path string, content string) {

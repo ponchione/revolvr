@@ -140,10 +140,11 @@ func compactVerification(entries []VerificationEntry) []VerificationEntry {
 		if entry.Command == "" {
 			continue
 		}
-		if _, ok := seen[entry.Command]; ok {
+		key := fmt.Sprintf("%s\x00%s\x00%d", entry.Command, entry.Status, entry.ExitCode)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[entry.Command] = struct{}{}
+		seen[key] = struct{}{}
 		out = append(out, entry)
 	}
 	return out

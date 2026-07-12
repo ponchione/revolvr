@@ -194,6 +194,69 @@ phase: audit
 	}
 }
 
+func TestListAndRetryAutonomousTaskWithoutMixedPassRouting(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTaskFile(t, workDir, "001-autonomous.md", `---
+id: task-autonomous
+status: pending
+workflow: autonomous-v1
+autonomous_state_path: .revolvr/autonomous/tasks/task-autonomous/state.json
+priority: 1
+custom: preserved
+---
+# Autonomous Task
+
+Keep this specification.
+`)
+	writeAppTaskFile(t, workDir, "010-mixed.md", `---
+id: task-mixed
+status: pending
+priority: 2
+---
+# Mixed Task
+`)
+
+	tasks, err := ListTasks(ctx, Config{WorkDir: workDir})
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("listed tasks = %+v, want two", tasks)
+	}
+	if got := tasks[0]; got.ID != "task-autonomous" || got.Workflow != taskfile.WorkflowAutonomousV1 || got.Phase != "" || got.RunProfile != "" || got.NextState != "" || got.NextRunnable {
+		t.Fatalf("autonomous projection = %+v, want lifecycle identity without mixed-pass routing", got)
+	}
+	if got := tasks[1]; got.ID != "task-mixed" || got.Workflow != taskfile.WorkflowMixedPassV1 || !got.NextRunnable {
+		t.Fatalf("mixed-pass projection = %+v, want current runnable task", got)
+	}
+
+	path := filepath.Join(taskfile.TasksDir, "001-autonomous.md")
+	if _, err := taskfile.UpdateStatus(workDir, path, taskfile.StatusBlocked); err != nil {
+		t.Fatalf("block autonomous task: %v", err)
+	}
+	retried, err := RetryTask(ctx, Config{WorkDir: workDir}, "task-autonomous")
+	if err != nil {
+		t.Fatalf("retry autonomous task: %v", err)
+	}
+	if retried.Status != taskmodel.StatusPending || retried.Workflow != taskfile.WorkflowAutonomousV1 || retried.Phase != "" || retried.RunProfile != "" {
+		t.Fatalf("retried autonomous projection = %+v", retried)
+	}
+	fileTask, err := taskfile.Load(workDir, path)
+	if err != nil {
+		t.Fatalf("load retried autonomous task: %v", err)
+	}
+	if got, want := fileTask.AutonomousStatePath, ".revolvr/autonomous/tasks/task-autonomous/state.json"; got != want {
+		t.Fatalf("state path = %q, want %q", got, want)
+	}
+	if !strings.Contains(fileTask.ContextBody, "custom: preserved") || !strings.Contains(fileTask.ContextBody, "Keep this specification.") {
+		t.Fatalf("retried task content = %q", fileTask.ContextBody)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, ".revolvr")); !os.IsNotExist(err) {
+		t.Fatalf("retry created autonomous runtime state: %v", err)
+	}
+}
+
 func TestTaskFromFileTaskReportsPolicyLookupErrors(t *testing.T) {
 	_, err := taskFromFileTask(taskfile.Task{
 		ID:       "task-invalid-policy",
@@ -425,6 +488,10 @@ verification:
 		{Status: PreflightOK, Name: "state", Detail: "initialized at " + filepath.Join(workDir, ".revolvr")},
 		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
 		{Status: PreflightOK, Name: "codex executable", Detail: "/fake/bin/codex-test"},
+		{Status: PreflightOK, Name: "codex model", Detail: "gpt-5.6-sol"},
+		{Status: PreflightOK, Name: "codex reasoning effort", Detail: "xhigh"},
+		{Status: PreflightOK, Name: "codex session", Detail: "ephemeral (ephemeral=true)"},
+		{Status: PreflightOK, Name: "codex version", Detail: "codex-test 1.2.3"},
 		{Status: PreflightOK, Name: "git executable", Detail: "/fake/bin/git-test"},
 		{Status: PreflightOK, Name: "git identity", Detail: "Revolvr Doctor <doctor@example.invalid>"},
 		{Status: PreflightOK, Name: "worktree clean", Detail: "no changes"},
@@ -464,6 +531,10 @@ verification:
 		{Status: PreflightFail, Name: "state", Detail: "not initialized; run `revolvr init`"},
 		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
 		{Status: PreflightFail, Name: "codex executable", Detail: `"missing-codex" not found: executable missing-codex not found`},
+		{Status: PreflightOK, Name: "codex model", Detail: "gpt-5.6-sol"},
+		{Status: PreflightOK, Name: "codex reasoning effort", Detail: "xhigh"},
+		{Status: PreflightOK, Name: "codex session", Detail: "ephemeral (ephemeral=true)"},
+		{Status: PreflightFail, Name: "codex version", Detail: "not checked because the configured Codex executable is unavailable"},
 		{Status: PreflightOK, Name: "git executable", Detail: "/fake/bin/git-test"},
 		{Status: PreflightFail, Name: "git identity", Detail: "missing user.name and user.email"},
 		{Status: PreflightFail, Name: "worktree clean", Detail: "dirty files: internal/app/preflight.go, scratch.txt"},
@@ -472,6 +543,81 @@ verification:
 	}
 	if !reflect.DeepEqual(result.Checks, want) {
 		t.Fatalf("preflight checks = %#v, want %#v", result.Checks, want)
+	}
+}
+
+func TestPreflightCodexVersionFailuresAreNotReady(t *testing.T) {
+	tests := []struct {
+		name   string
+		result runner.Result
+		want   string
+	}{
+		{name: "timeout", result: runner.Result{TimedOut: true, Err: context.DeadlineExceeded}, want: "timed out"},
+		{name: "execution", result: runner.Result{ExitCode: -1, Err: errors.New("start failed")}, want: "execution failed"},
+		{name: "nonzero", result: runner.Result{ExitCode: 2, Stderr: "unsupported\n"}, want: "exited with code 2"},
+		{name: "truncated", result: runner.Result{ExitCode: 0, Stdout: "codex-test", StdoutTruncatedBytes: 1}, want: "output was truncated"},
+		{name: "malformed", result: runner.Result{ExitCode: 0, Stdout: "first\nsecond\n"}, want: "one well-formed line"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workDir := t.TempDir()
+			createAppPreflightState(t, workDir)
+			writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), "verification:\n  commands:\n    - name: go\n")
+			result, err := Preflight(context.Background(), Config{WorkDir: workDir}, PreflightInput{
+				CommandRunner: preflightCommandRunnerWithVersion(t, tt.result),
+				LookPath: preflightLookPath(map[string]string{
+					"codex": "/fake/bin/codex",
+					"git":   "/fake/bin/git",
+				}),
+			})
+			if err != nil {
+				t.Fatalf("preflight: %v", err)
+			}
+			if result.Ready {
+				t.Fatal("preflight ready = true, want false")
+			}
+			var detail string
+			for _, check := range result.Checks {
+				if check.Name == "codex version" {
+					detail = check.Detail
+				}
+			}
+			if !strings.Contains(detail, tt.want) {
+				t.Fatalf("codex version detail = %q, want %q", detail, tt.want)
+			}
+		})
+	}
+}
+
+func TestPreflightInvalidCodexConfigStopsBeforeCommands(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{name: "effort", config: "codex:\n  reasoning_effort: extreme\n", want: "invalid Codex reasoning effort"},
+		{name: "session", config: "codex:\n  ephemeral: false\n", want: "persistent or resumed sessions are not supported"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			workDir := t.TempDir()
+			writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), tt.config)
+			called := false
+			result, err := Preflight(context.Background(), Config{WorkDir: workDir}, PreflightInput{
+				CommandRunner: func(context.Context, runner.Command) runner.Result {
+					called = true
+					return runner.Result{}
+				},
+			})
+			if err != nil {
+				t.Fatalf("preflight: %v", err)
+			}
+			if result.Ready || called {
+				t.Fatalf("ready=%v command_called=%v, want false/false", result.Ready, called)
+			}
+			if len(result.Checks) != 2 || result.Checks[1].Name != "config" || !strings.Contains(result.Checks[1].Detail, tt.want) {
+				t.Fatalf("checks = %#v", result.Checks)
+			}
+		})
 	}
 }
 
@@ -517,6 +663,9 @@ func TestTaskAddListAndRetryOperations(t *testing.T) {
 	}
 	if !ok {
 		t.Fatalf("added task file %s not found", task.ID)
+	}
+	if fileTask.Workflow != taskfile.WorkflowMixedPassV1 || fileTask.Phase != taskfile.PhaseImplement || fileTask.AutonomousStatePath != "" {
+		t.Fatalf("added task lifecycle = %+v, want default mixed-pass implement task", fileTask)
 	}
 	if _, err := taskfile.UpdateStatus(workDir, fileTask.SourcePath, taskfile.StatusBlocked); err != nil {
 		t.Fatalf("block task file: %v", err)
@@ -715,6 +864,11 @@ Create third.
 	if got, want := taskTexts(tasks), wantTexts; !reflect.DeepEqual(got, want) {
 		t.Fatalf("persisted task text = %#v, want %#v", got, want)
 	}
+	for _, task := range tasks {
+		if task.Workflow != taskfile.WorkflowMixedPassV1 || task.Phase != taskfile.PhaseImplement || task.RunProfile != "implementer" {
+			t.Fatalf("imported task lifecycle = %+v, want default mixed-pass implement task", task)
+		}
+	}
 }
 
 func TestTaskImportValidationFailureDoesNotPartiallyWrite(t *testing.T) {
@@ -784,6 +938,9 @@ func TestRunOnceLoadsConfigAndProgressCallback(t *testing.T) {
 	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
 codex:
   executable: codex-custom
+  model: gpt-custom
+  reasoning_effort: high
+  ephemeral: true
   sandbox: danger-full-access
   approval_policy: on-request
   yolo: false
@@ -842,7 +999,7 @@ output:
 	if got.WorkingDir != workDir {
 		t.Fatalf("working dir = %q, want %q", got.WorkingDir, workDir)
 	}
-	if got.CodexExecutable != "codex-custom" || got.CodexSandbox != "danger-full-access" || got.CodexApprovalPolicy != "on-request" || got.CodexBypassApprovalsAndSandbox || got.CodexTimeout != 45*time.Second {
+	if got.CodexExecutable != "codex-custom" || got.CodexModel != "gpt-custom" || got.CodexReasoningEffort != "high" || !got.CodexEphemeral || got.CodexSandbox != "danger-full-access" || got.CodexApprovalPolicy != "on-request" || got.CodexBypassApprovalsAndSandbox || got.CodexTimeout != 45*time.Second {
 		t.Fatalf("codex config = %+v, want config overrides", got)
 	}
 	if got.GitExecutable != "git-custom" || got.GitTimeout != 12*time.Second {
@@ -1357,7 +1514,15 @@ func preflightLookPath(paths map[string]string) ExecutableLookPath {
 
 func readyPreflightCommandRunner(t *testing.T) PreflightCommandRunner {
 	t.Helper()
+	return preflightCommandRunnerWithVersion(t, runner.Result{ExitCode: 0, Stdout: "codex-test 1.2.3\n"})
+}
+
+func preflightCommandRunnerWithVersion(t *testing.T, version runner.Result) PreflightCommandRunner {
+	t.Helper()
 	return func(_ context.Context, command runner.Command) runner.Result {
+		if reflect.DeepEqual(command.Args, []string{"--version"}) {
+			return version
+		}
 		switch strings.Join(command.Args, "\x00") {
 		case "config\x00--get\x00user.name":
 			return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}

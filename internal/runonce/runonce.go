@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/gitstate"
@@ -28,6 +29,7 @@ import (
 const (
 	defaultCodexSandbox        = "workspace-write"
 	defaultCodexApprovalPolicy = "never"
+	defaultGitExecutable       = "git"
 	defaultOutputCap           = 256 * 1024
 	defaultLockTimeout         = 5 * time.Minute
 	defaultLockReleaseTimeout  = 5 * time.Second
@@ -48,6 +50,7 @@ const (
 type CommandRunner func(context.Context, runner.Command) runner.Result
 
 type CodexRunner func(context.Context, codexexec.Config) (codexexec.Result, error)
+type CodexVersionDiscoverer func(context.Context, codexexec.VersionConfig) (string, error)
 type DirtyCapture func(context.Context, gitstate.Config) (gitstate.Capture, error)
 type ChangedCapture func(context.Context, gitstate.Config) (gitstate.Capture, error)
 type VerificationRunner func(context.Context, verification.Config) (verification.Result, error)
@@ -60,6 +63,9 @@ type Config struct {
 	LedgerPath  string
 
 	CodexExecutable                string
+	CodexModel                     string
+	CodexReasoningEffort           string
+	CodexEphemeral                 bool
 	CodexSandbox                   string
 	CodexApprovalPolicy            string
 	CodexBypassApprovalsAndSandbox bool
@@ -73,6 +79,7 @@ type Config struct {
 	GitStderrCap  int
 
 	VerificationCommands      []verification.Command
+	VerificationPlan          *autonomousverification.Plan
 	MissingVerificationPolicy verification.MissingCommandsPolicy
 	VerificationTimeout       time.Duration
 	VerificationStdoutCap     int
@@ -88,14 +95,15 @@ type Config struct {
 	SourceWriterLockHeartbeatInterval time.Duration
 	SourceWriterLockPID               int
 
-	CommandRunner      CommandRunner
-	CodexRunner        CodexRunner
-	DirtyCapture       DirtyCapture
-	ChangedCapture     ChangedCapture
-	VerificationRunner VerificationRunner
-	CommitRunner       CommitRunner
-	Clock              func() time.Time
-	CodexProgress      func(codexexec.ProgressEvent)
+	CommandRunner          CommandRunner
+	CodexRunner            CodexRunner
+	CodexVersionDiscoverer CodexVersionDiscoverer
+	DirtyCapture           DirtyCapture
+	ChangedCapture         ChangedCapture
+	VerificationRunner     VerificationRunner
+	CommitRunner           CommitRunner
+	Clock                  func() time.Time
+	CodexProgress          func(codexexec.ProgressEvent)
 }
 
 type Result struct {
@@ -130,6 +138,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	if cfg.VerificationPlan != nil {
+		return Result{}, errors.New("run once: tiered autonomous verification is not supported by mixed-pass-v1")
+	}
+	effectiveConfig, err := FingerprintEffectiveConfig(cfg)
+	if err != nil {
+		return Result{}, err
+	}
 	result := Result{WorkingDir: workDir}
 	runID := id.New()
 
@@ -158,7 +173,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	defer closeLedger()
 
-	fileTask, ok, err := taskfile.SelectNext(workDir)
+	fileTask, ok, err := taskfile.SelectNextForWorkflow(workDir, taskfile.WorkflowMixedPassV1)
 	if err != nil {
 		return result, err
 	}
@@ -245,6 +260,44 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		result.Message = "load run profile failed: " + err.Error()
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
+	versionTimeout := cfg.CodexTimeout
+	if versionTimeout <= 0 {
+		versionTimeout = codexexec.DefaultVersionTimeout
+	}
+	codexVersion, err := cfg.CodexVersionDiscoverer(ctx, codexexec.VersionConfig{
+		Executable:    cfg.CodexExecutable,
+		WorkingDir:    workDir,
+		Timeout:       versionTimeout,
+		StdoutCap:     cfg.CodexStdoutCap,
+		StderrCap:     cfg.CodexStderrCap,
+		CommandRunner: codexCommandRunner(cfg.CommandRunner),
+	})
+	if err != nil {
+		result.Message = "discover Codex version failed: " + err.Error()
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
+	invocation, _, err := codexexec.PrepareInvocation(codexexec.InvocationConfig{
+		Executable:             cfg.CodexExecutable,
+		WorkingDir:             workDir,
+		Model:                  cfg.CodexModel,
+		ReasoningEffort:        cfg.CodexReasoningEffort,
+		Ephemeral:              cfg.CodexEphemeral,
+		Sandbox:                cfg.CodexSandbox,
+		ApprovalPolicy:         cfg.CodexApprovalPolicy,
+		BypassApprovalsSandbox: cfg.CodexBypassApprovalsAndSandbox,
+		Artifacts: codexexec.ArtifactPaths{
+			StdoutJSONL: paths.stdoutRel,
+			Stderr:      paths.stderrRel,
+			LastMessage: paths.lastMessageRel,
+		},
+		CodexVersion:          codexVersion,
+		EffectiveConfigSchema: effectiveConfig.Schema,
+		EffectiveConfigSHA256: effectiveConfig.SHA256,
+	})
+	if err != nil {
+		result.Message = "prepare Codex invocation failed: " + err.Error()
+		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	}
 
 	contextInput := prompt.Input{
 		RunID:          run.ID,
@@ -273,6 +326,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		ContextPayload:     []byte(contextPayload),
 		ContextPayloadPath: paths.contextPayloadRel,
 		GeneratedAt:        cfg.Clock(),
+		Invocation:         invocation,
 	})
 	if err != nil {
 		result.Message = "build context manifest failed: " + err.Error()
@@ -297,12 +351,16 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		"context_payload_sha256":    contextManifest.ContextPayloadSHA256,
 		"context_payload_byte_size": contextManifest.ContextPayloadByteSize,
 		"receipt_path":              paths.receiptRel,
+		"invocation":                invocation,
 	})
 
 	codexResult, err := cfg.CodexRunner(ctx, codexexec.Config{
 		Executable:                cfg.CodexExecutable,
 		WorkingDir:                workDir,
 		Prompt:                    contextPayload,
+		Model:                     cfg.CodexModel,
+		ReasoningEffort:           cfg.CodexReasoningEffort,
+		Ephemeral:                 &cfg.CodexEphemeral,
 		Timeout:                   cfg.CodexTimeout,
 		StdoutCap:                 cfg.CodexStdoutCap,
 		StderrCap:                 cfg.CodexStderrCap,
@@ -318,6 +376,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		Ledger:        ledgerStore,
 		CommandRunner: codexCommandRunner(cfg.CommandRunner),
 		OnProgress:    cfg.CodexProgress,
+		Provenance:    invocation,
 	})
 	if err != nil {
 		if codexResult.ExitCode == 0 {
@@ -463,6 +522,29 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 		return Config{}, "", fmt.Errorf("resolve working directory: %w", err)
 	}
 	cfg.WorkingDir = workDir
+	cfg.CodexExecutable = strings.TrimSpace(cfg.CodexExecutable)
+	if cfg.CodexExecutable == "" {
+		cfg.CodexExecutable = codexexec.DefaultExecutable
+	}
+	if strings.TrimSpace(cfg.CodexModel) == "" {
+		cfg.CodexModel = codexexec.DefaultModel
+	}
+	if strings.TrimSpace(cfg.CodexReasoningEffort) == "" {
+		cfg.CodexReasoningEffort = codexexec.DefaultReasoningEffort
+	}
+	if !cfg.CodexEphemeral {
+		cfg.CodexEphemeral = true
+	}
+	model, err := codexexec.NormalizeModel(cfg.CodexModel)
+	if err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
+	effort, err := codexexec.NormalizeReasoningEffort(cfg.CodexReasoningEffort)
+	if err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
+	cfg.CodexModel = model
+	cfg.CodexReasoningEffort = effort
 	cfg.CodexSandbox = strings.TrimSpace(cfg.CodexSandbox)
 	if cfg.CodexSandbox == "" {
 		cfg.CodexSandbox = defaultCodexSandbox
@@ -495,6 +577,10 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.CommitStderrCap <= 0 {
 		cfg.CommitStderrCap = defaultOutputCap
 	}
+	cfg.GitExecutable = strings.TrimSpace(cfg.GitExecutable)
+	if cfg.GitExecutable == "" {
+		cfg.GitExecutable = defaultGitExecutable
+	}
 	if cfg.SourceWriterLockTimeout <= 0 {
 		cfg.SourceWriterLockTimeout = defaultLockTimeout
 	}
@@ -512,11 +598,24 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	default:
 		return Config{}, "", fmt.Errorf("run once: invalid missing verification policy %q", cfg.MissingVerificationPolicy)
 	}
-	if cfg.VerificationCommands == nil {
+	if cfg.VerificationCommands == nil && cfg.VerificationPlan == nil {
 		cfg.VerificationCommands = defaultVerificationCommands(workDir)
+	}
+	if cfg.VerificationPlan != nil {
+		if len(cfg.VerificationCommands) > 0 {
+			return Config{}, "", errors.New("run once: flat verification commands and a tiered verification plan cannot both be configured")
+		}
+		if err := cfg.VerificationPlan.Validate(); err != nil {
+			return Config{}, "", fmt.Errorf("run once: %w", err)
+		}
+		plan := autonomousverification.ClonePlan(*cfg.VerificationPlan)
+		cfg.VerificationPlan = &plan
 	}
 	if cfg.CodexRunner == nil {
 		cfg.CodexRunner = codexexec.Run
+	}
+	if cfg.CodexVersionDiscoverer == nil {
+		cfg.CodexVersionDiscoverer = codexexec.DiscoverVersion
 	}
 	if cfg.DirtyCapture == nil {
 		cfg.DirtyCapture = gitstate.CaptureDirtyWorktree

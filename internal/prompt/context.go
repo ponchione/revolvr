@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"revolvr/internal/codexexec"
 )
 
 type ContextManifestInput struct {
@@ -14,17 +16,19 @@ type ContextManifestInput struct {
 	ContextPayload     []byte
 	ContextPayloadPath string
 	GeneratedAt        time.Time
+	Invocation         codexexec.InvocationProvenance
 }
 
 type ContextManifest struct {
-	RunID                  string          `json:"run_id"`
-	TaskID                 string          `json:"task_id"`
-	ProfileName            string          `json:"profile_name"`
-	ContextPayloadPath     string          `json:"context_payload_path"`
-	ContextPayloadSHA256   string          `json:"context_payload_sha256"`
-	ContextPayloadByteSize int             `json:"context_payload_byte_size"`
-	GeneratedAt            time.Time       `json:"generated_at"`
-	Sources                []ContextSource `json:"sources"`
+	RunID                  string                         `json:"run_id"`
+	TaskID                 string                         `json:"task_id"`
+	ProfileName            string                         `json:"profile_name"`
+	ContextPayloadPath     string                         `json:"context_payload_path"`
+	ContextPayloadSHA256   string                         `json:"context_payload_sha256"`
+	ContextPayloadByteSize int                            `json:"context_payload_byte_size"`
+	GeneratedAt            time.Time                      `json:"generated_at"`
+	Invocation             codexexec.InvocationProvenance `json:"invocation"`
+	Sources                []ContextSource                `json:"sources"`
 }
 
 type ContextSource struct {
@@ -48,6 +52,9 @@ func BuildContextManifest(in ContextManifestInput) (ContextManifest, error) {
 	if runProfileSourcePath == "" {
 		return ContextManifest{}, errors.New("build context manifest: run profile source path is required")
 	}
+	if err := in.Invocation.Validate(); err != nil {
+		return ContextManifest{}, fmt.Errorf("build context manifest: %w", err)
+	}
 
 	generatedAt := in.GeneratedAt
 	if generatedAt.IsZero() {
@@ -60,6 +67,8 @@ func BuildContextManifest(in ContextManifestInput) (ContextManifest, error) {
 		return ContextManifest{}, err
 	}
 
+	invocation := in.Invocation
+	invocation.Argv = append([]string(nil), in.Invocation.Argv...)
 	return ContextManifest{
 		RunID:                  normalized.RunID,
 		TaskID:                 normalized.TaskID,
@@ -68,6 +77,7 @@ func BuildContextManifest(in ContextManifestInput) (ContextManifest, error) {
 		ContextPayloadSHA256:   sha256Hex(in.ContextPayload),
 		ContextPayloadByteSize: len(in.ContextPayload),
 		GeneratedAt:            generatedAt,
+		Invocation:             invocation,
 		Sources: []ContextSource{
 			selectedTaskSource,
 			contextSource("run_profile", runProfileSourcePath, []byte(normalized.RunProfile.Description)),

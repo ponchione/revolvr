@@ -224,6 +224,20 @@ func TestRewriteHarnessFieldsRefreshesHarnessOwnedBodySections(t *testing.T) {
 	}
 }
 
+func TestRewriteHarnessFieldsPreservesFlakyClassificationAttempts(t *testing.T) {
+	entries := []VerificationEntry{{Command: "go test ./...", ExitCode: 1, Status: "failed"}, {Command: "go test ./...", ExitCode: 0, Status: "passed"}}
+	updated, parsed, _, err := RewriteHarnessFields([]byte(validReceiptContent()), HarnessFields{Verdict: VerdictVerificationFailed, VerificationStatus: "failed", Verification: entries})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(parsed.Verification, entries) || parsed.VerificationStatus != "failed" || parsed.Verdict != VerdictVerificationFailed {
+		t.Fatalf("receipt=%+v", parsed)
+	}
+	if got := strings.Count(string(updated), "`go test ./...`"); got != 2 {
+		t.Fatalf("rendered attempt count=%d\n%s", got, updated)
+	}
+}
+
 func TestRewriteMetricsFromCodexJSONL(t *testing.T) {
 	jsonl := []byte(strings.Join([]string{
 		`{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":4},"duration_ms":1500}`,

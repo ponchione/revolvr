@@ -240,7 +240,7 @@ func listTaskFilesAsTasks(workDir string) ([]taskmodel.Task, error) {
 func nextRunnableTaskIndex(tasks []taskfile.Task) int {
 	next := -1
 	for i, task := range tasks {
-		if task.Status != taskfile.StatusPending {
+		if task.Status != taskfile.StatusPending || task.Workflow != taskfile.WorkflowMixedPassV1 {
 			continue
 		}
 		if next == -1 || taskRunsBefore(task, tasks[next]) {
@@ -261,6 +261,15 @@ func taskRunsBefore(left taskfile.Task, right taskfile.Task) bool {
 }
 
 func taskFromFileTask(task taskfile.Task) (taskmodel.Task, error) {
+	if task.Workflow == taskfile.WorkflowAutonomousV1 {
+		return taskmodel.Task{
+			ID:       task.ID,
+			Task:     task.ContextBody,
+			Status:   task.Status,
+			Summary:  task.Title,
+			Workflow: task.Workflow,
+		}, nil
+	}
 	policy, err := passpolicy.Lookup(task.Workflow, task.Phase)
 	if err != nil {
 		return taskmodel.Task{}, fmt.Errorf("resolve workflow state for task %q: %w", task.ID, err)

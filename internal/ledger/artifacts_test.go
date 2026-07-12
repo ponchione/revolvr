@@ -42,15 +42,24 @@ func TestRunArtifactsFromEventsUsesExplicitArtifactEvent(t *testing.T) {
 	}
 }
 
+func TestRunArtifactsFromTieredVerificationCompleted(t *testing.T) {
+	events := []Event{{Type: EventVerificationCompleted, Payload: json.RawMessage(`{"status":"failed","artifact":{"path":".revolvr/runs/worker/verification.json","sha256":"abc","byte_size":10}}`)}}
+	got, found := RunArtifactsFromEvents(events)
+	if !found || got.VerificationEvidencePath != ".revolvr/runs/worker/verification.json" {
+		t.Fatalf("artifacts=%+v found=%t", got, found)
+	}
+}
+
 func TestRunArtifactsFromEventsReadsContextCodexAndReceiptPayloads(t *testing.T) {
 	events := []Event{
 		{
 			Type:    EventContextBuilt,
-			Payload: json.RawMessage(`{"context_payload_path":".revolvr/runs/run-2/context.md","context_manifest_path":".revolvr/runs/run-2/context.json","receipt_path":".revolvr/receipts/run-2.md"}`),
+			Payload: json.RawMessage(`{"context_payload_path":".revolvr/runs/run-2/context.md","context_manifest_path":".revolvr/runs/run-2/context.json","receipt_path":".revolvr/receipts/run-2.md","invocation":{"model":"gpt-5.6-sol","ephemeral":true}}`),
 		},
 		{
 			Type: EventCodexStarted,
 			Payload: json.RawMessage(`{
+				"provenance": {"model": "gpt-5.6-sol", "reasoning_effort": "xhigh", "ephemeral": true},
 				"artifacts": {
 					"stdout_jsonl": "/repo/.revolvr/runs/run-2/codex.jsonl",
 					"stderr": "/repo/.revolvr/runs/run-2/codex.stderr",

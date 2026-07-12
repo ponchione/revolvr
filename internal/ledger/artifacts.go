@@ -6,12 +6,20 @@ import (
 )
 
 type RunArtifacts struct {
-	ContextPayloadPath   string `json:"context_payload_path"`
-	ContextManifestPath  string `json:"context_manifest_path"`
-	CodexStdoutJSONLPath string `json:"codex_stdout_jsonl_path"`
-	CodexStderrPath      string `json:"codex_stderr_path"`
-	LastMessagePath      string `json:"last_message_path"`
-	ReceiptPath          string `json:"receipt_path"`
+	ContextPayloadPath        string `json:"context_payload_path"`
+	ContextManifestPath       string `json:"context_manifest_path"`
+	CodexStdoutJSONLPath      string `json:"codex_stdout_jsonl_path"`
+	CodexStderrPath           string `json:"codex_stderr_path"`
+	LastMessagePath           string `json:"last_message_path"`
+	ReceiptPath               string `json:"receipt_path"`
+	SupervisorPromptPath      string `json:"supervisor_prompt_path"`
+	SupervisorSchemaPath      string `json:"supervisor_schema_path"`
+	SupervisorOutputPath      string `json:"supervisor_output_path"`
+	SupervisorDecisionPath    string `json:"supervisor_decision_path"`
+	SupervisorProvenancePath  string `json:"supervisor_provenance_path"`
+	SupervisorSourcePath      string `json:"supervisor_source_path"`
+	SupervisorDiagnosticsPath string `json:"supervisor_diagnostics_path"`
+	VerificationEvidencePath  string `json:"verification_evidence_path"`
 }
 
 func (a RunArtifacts) Empty() bool {
@@ -20,7 +28,15 @@ func (a RunArtifacts) Empty() bool {
 		strings.TrimSpace(a.CodexStdoutJSONLPath) == "" &&
 		strings.TrimSpace(a.CodexStderrPath) == "" &&
 		strings.TrimSpace(a.LastMessagePath) == "" &&
-		strings.TrimSpace(a.ReceiptPath) == ""
+		strings.TrimSpace(a.ReceiptPath) == "" &&
+		strings.TrimSpace(a.SupervisorPromptPath) == "" &&
+		strings.TrimSpace(a.SupervisorSchemaPath) == "" &&
+		strings.TrimSpace(a.SupervisorOutputPath) == "" &&
+		strings.TrimSpace(a.SupervisorDecisionPath) == "" &&
+		strings.TrimSpace(a.SupervisorProvenancePath) == "" &&
+		strings.TrimSpace(a.SupervisorSourcePath) == "" &&
+		strings.TrimSpace(a.SupervisorDiagnosticsPath) == "" &&
+		strings.TrimSpace(a.VerificationEvidencePath) == ""
 }
 
 func RunArtifactsFromEvents(events []Event) (RunArtifacts, bool) {
@@ -56,6 +72,30 @@ func (a *RunArtifacts) mergeMissing(other RunArtifacts) {
 	if strings.TrimSpace(a.ReceiptPath) == "" {
 		a.ReceiptPath = strings.TrimSpace(other.ReceiptPath)
 	}
+	if strings.TrimSpace(a.SupervisorPromptPath) == "" {
+		a.SupervisorPromptPath = strings.TrimSpace(other.SupervisorPromptPath)
+	}
+	if strings.TrimSpace(a.SupervisorSchemaPath) == "" {
+		a.SupervisorSchemaPath = strings.TrimSpace(other.SupervisorSchemaPath)
+	}
+	if strings.TrimSpace(a.SupervisorOutputPath) == "" {
+		a.SupervisorOutputPath = strings.TrimSpace(other.SupervisorOutputPath)
+	}
+	if strings.TrimSpace(a.SupervisorDecisionPath) == "" {
+		a.SupervisorDecisionPath = strings.TrimSpace(other.SupervisorDecisionPath)
+	}
+	if strings.TrimSpace(a.SupervisorProvenancePath) == "" {
+		a.SupervisorProvenancePath = strings.TrimSpace(other.SupervisorProvenancePath)
+	}
+	if strings.TrimSpace(a.SupervisorSourcePath) == "" {
+		a.SupervisorSourcePath = strings.TrimSpace(other.SupervisorSourcePath)
+	}
+	if strings.TrimSpace(a.SupervisorDiagnosticsPath) == "" {
+		a.SupervisorDiagnosticsPath = strings.TrimSpace(other.SupervisorDiagnosticsPath)
+	}
+	if strings.TrimSpace(a.VerificationEvidencePath) == "" {
+		a.VerificationEvidencePath = strings.TrimSpace(other.VerificationEvidencePath)
+	}
 }
 
 func artifactsFromEvent(event Event) (RunArtifacts, bool) {
@@ -75,9 +115,55 @@ func artifactsFromEvent(event Event) (RunArtifacts, bool) {
 			return RunArtifacts{}, false
 		}
 		return RunArtifacts{ReceiptPath: receiptPath}, true
+	case EventSupervisorPrepared, EventSupervisorValidated, EventSupervisorRejected, EventSupervisorMutation:
+		paths, ok := decodeSupervisorArtifacts(event.Payload)
+		return paths, ok
+	case EventVerificationCompleted:
+		artifactPayload := objectField(event.Payload, "Artifact")
+		if len(artifactPayload) == 0 {
+			artifactPayload = objectField(event.Payload, "artifact")
+		}
+		path := stringField(artifactPayload, "Path")
+		if path == "" {
+			path = stringField(artifactPayload, "path")
+		}
+		if path == "" {
+			return RunArtifacts{}, false
+		}
+		return RunArtifacts{VerificationEvidencePath: path}, true
 	default:
 		return RunArtifacts{}, false
 	}
+}
+
+func decodeSupervisorArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
+	artifactPayload := objectField(payload, "artifacts")
+	if len(artifactPayload) == 0 {
+		return RunArtifacts{}, false
+	}
+	paths := RunArtifacts{
+		SupervisorPromptPath:      artifactPathField(artifactPayload, "prompt"),
+		SupervisorSchemaPath:      artifactPathField(artifactPayload, "schema"),
+		SupervisorOutputPath:      artifactPathField(artifactPayload, "raw_output"),
+		SupervisorDecisionPath:    artifactPathField(artifactPayload, "decision"),
+		SupervisorProvenancePath:  artifactPathField(artifactPayload, "provenance"),
+		SupervisorSourcePath:      artifactPathField(artifactPayload, "source_evidence"),
+		SupervisorDiagnosticsPath: artifactPathField(artifactPayload, "diagnostics"),
+		CodexStdoutJSONLPath:      artifactPathField(artifactPayload, "codex_stdout"),
+		CodexStderrPath:           artifactPathField(artifactPayload, "codex_stderr"),
+	}
+	return paths, !paths.Empty()
+}
+
+func artifactPathField(payload json.RawMessage, key string) string {
+	value := objectField(payload, key)
+	if len(value) == 0 {
+		return ""
+	}
+	if stringField(value, "sha256") == "" {
+		return ""
+	}
+	return stringField(value, "path")
 }
 
 func decodeRunArtifacts(payload json.RawMessage) (RunArtifacts, bool) {

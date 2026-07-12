@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	defaultExecutable = "codex"
-	maxSummaryText    = 500
+	maxSummaryText = 500
 )
 
 type CommandRunner func(context.Context, runner.Command) runner.Result
@@ -43,6 +42,9 @@ type Config struct {
 	Executable                string
 	WorkingDir                string
 	Prompt                    string
+	Model                     string
+	ReasoningEffort           string
+	Ephemeral                 *bool
 	Timeout                   time.Duration
 	StdoutCap                 int
 	StderrCap                 int
@@ -50,10 +52,12 @@ type Config struct {
 	ApprovalPolicy            string
 	BypassApprovalsAndSandbox bool
 	Artifacts                 ArtifactPaths
+	OutputSchema              string
 	RunID                     string
 	Ledger                    Ledger
 	CommandRunner             CommandRunner
 	OnProgress                func(ProgressEvent)
+	Provenance                InvocationProvenance
 }
 
 type CappedOutput struct {
@@ -84,9 +88,32 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	artifacts, err := resolveArtifacts(workDir, cfg.Artifacts)
+	provenance, artifacts, err := PrepareInvocation(InvocationConfig{
+		Executable:             cfg.Executable,
+		WorkingDir:             workDir,
+		Model:                  cfg.Model,
+		ReasoningEffort:        cfg.ReasoningEffort,
+		Ephemeral:              *cfg.Ephemeral,
+		Sandbox:                cfg.Sandbox,
+		ApprovalPolicy:         cfg.ApprovalPolicy,
+		BypassApprovalsSandbox: cfg.BypassApprovalsAndSandbox,
+		Artifacts:              cfg.Artifacts,
+		OutputSchema:           cfg.OutputSchema,
+		CodexVersion:           cfg.Provenance.Version,
+		EffectiveConfigSchema:  cfg.Provenance.EffectiveConfigSchema,
+		EffectiveConfigSHA256:  cfg.Provenance.EffectiveConfigSHA256,
+	})
 	if err != nil {
 		return Result{}, err
+	}
+	if len(cfg.Provenance.Argv) > 0 {
+		if err := cfg.Provenance.Validate(); err != nil {
+			return Result{}, err
+		}
+		if !sameInvocation(cfg.Provenance, provenance) {
+			return Result{}, errors.New("run codex exec: supplied invocation provenance does not match effective invocation")
+		}
+		provenance = cfg.Provenance
 	}
 
 	stdoutFile, err := createArtifact(artifacts.StdoutJSONL)
@@ -128,12 +155,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		}
 	}
 
-	args := buildArgs(workDir, cfg, artifacts)
+	args := append([]string(nil), provenance.Argv...)
 	appendLedger(ledger.EventCodexStarted, map[string]any{
 		"executable":  cfg.Executable,
 		"args":        args,
 		"working_dir": workDir,
 		"artifacts":   artifacts,
+		"provenance":  provenance,
 	})
 
 	runResult := cfg.CommandRunner(ctx, runner.Command{
@@ -249,7 +277,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 func normalizeConfig(cfg Config) (Config, string, error) {
 	cfg.Executable = strings.TrimSpace(cfg.Executable)
 	if cfg.Executable == "" {
-		cfg.Executable = defaultExecutable
+		cfg.Executable = DefaultExecutable
 	}
 	if strings.TrimSpace(cfg.WorkingDir) == "" {
 		return Config{}, "", errors.New("run codex exec: working directory is required")
@@ -266,6 +294,28 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.CommandRunner == nil {
 		cfg.CommandRunner = runner.Run
 	}
+	if strings.TrimSpace(cfg.Model) == "" {
+		cfg.Model = DefaultModel
+	}
+	if strings.TrimSpace(cfg.ReasoningEffort) == "" {
+		cfg.ReasoningEffort = DefaultReasoningEffort
+	}
+	if cfg.Ephemeral == nil {
+		ephemeral := true
+		cfg.Ephemeral = &ephemeral
+	} else if !*cfg.Ephemeral {
+		return Config{}, "", errors.New("run codex exec: only ephemeral sessions are supported")
+	}
+	model, err := NormalizeModel(cfg.Model)
+	if err != nil {
+		return Config{}, "", fmt.Errorf("run codex exec: %w", err)
+	}
+	effort, err := NormalizeReasoningEffort(cfg.ReasoningEffort)
+	if err != nil {
+		return Config{}, "", fmt.Errorf("run codex exec: %w", err)
+	}
+	cfg.Model = model
+	cfg.ReasoningEffort = effort
 	cfg.Sandbox = strings.TrimSpace(cfg.Sandbox)
 	cfg.ApprovalPolicy = strings.TrimSpace(cfg.ApprovalPolicy)
 	cfg.RunID = strings.TrimSpace(cfg.RunID)
@@ -277,18 +327,29 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	return cfg, workDir, nil
 }
 
-func buildArgs(workDir string, cfg Config, artifacts ArtifactPaths) []string {
-	args := make([]string, 0, 12)
+func buildArgs(workDir string, cfg Config, artifacts ArtifactPaths, outputSchema string) []string {
+	args := make([]string, 0, 20)
 	if !cfg.BypassApprovalsAndSandbox && cfg.ApprovalPolicy != "" {
 		args = append(args, "--ask-for-approval", cfg.ApprovalPolicy)
 	}
-	args = append(args, "exec", "--json")
+	args = append(args,
+		"exec",
+		"--json",
+		"--model", cfg.Model,
+		"-c", "model_reasoning_effort="+cfg.ReasoningEffort,
+	)
+	if cfg.Ephemeral != nil && *cfg.Ephemeral {
+		args = append(args, "--ephemeral")
+	}
 	if cfg.BypassApprovalsAndSandbox {
 		args = append(args, "--dangerously-bypass-approvals-and-sandbox")
 	} else if cfg.Sandbox != "" {
 		args = append(args, "--sandbox", cfg.Sandbox)
 	}
 	args = append(args, "--cd", workDir)
+	if outputSchema != "" {
+		args = append(args, "--output-schema", outputSchema)
+	}
 	if artifacts.LastMessage != "" {
 		args = append(args, "--output-last-message", artifacts.LastMessage)
 	}

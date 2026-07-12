@@ -3,6 +3,7 @@ package ledger
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -184,6 +185,122 @@ func TestListRecentRuns(t *testing.T) {
 	}
 }
 
+func TestListRecentRunsForTaskWithEventsFiltersBeforeLimitAndOrdersTies(t *testing.T) {
+	ctx := context.Background()
+	base := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	store := openTestStore(t, func() time.Time { return base })
+	defer store.Close()
+
+	for _, spec := range []RunSpec{
+		{ID: "run-z", TaskID: "task-selected", Task: "selected", StartedAt: base},
+		{ID: "run-a", TaskID: "task-selected", Task: "selected", StartedAt: base},
+		{ID: "run-other-newest", TaskID: "task-other", Task: "other", StartedAt: base.Add(time.Hour)},
+		{ID: "run-old", TaskID: "task-selected", Task: "selected", StartedAt: base.Add(-time.Hour)},
+	} {
+		if _, err := store.CreateRun(ctx, spec); err != nil {
+			t.Fatalf("create %s: %v", spec.ID, err)
+		}
+	}
+	if _, err := store.AppendEvent(ctx, "run-a", EventRunStarted, map[string]any{"run_id": "run-a"}); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+
+	history, err := store.ListRecentRunsForTaskWithEvents(ctx, "task-selected", 2)
+	if err != nil {
+		t.Fatalf("ListRecentRunsForTaskWithEvents() error = %v", err)
+	}
+	if got, want := []string{history[0].Run.ID, history[1].Run.ID}, []string{"run-a", "run-z"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("run order = %#v, want %#v", got, want)
+	}
+	if len(history[0].Events) != 1 || history[0].Events[0].Type != EventRunStarted {
+		t.Fatalf("run-a events = %#v, want ordered run_started", history[0].Events)
+	}
+
+	zero, err := store.ListRecentRunsForTaskWithEvents(ctx, "task-selected", 0)
+	if err != nil || len(zero) != 0 {
+		t.Fatalf("zero limit = %#v, %v; want no history", zero, err)
+	}
+	if _, err := store.ListRecentRunsForTaskWithEvents(ctx, "task-selected", -1); err == nil {
+		t.Fatal("negative limit error = nil")
+	}
+}
+
+func TestEvidenceHistoryPreservesMalformedIrrelevantPayload(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC)
+	store := openTestStore(t, func() time.Time { return now })
+	defer store.Close()
+	run, err := store.CreateRun(ctx, RunSpec{ID: "run-malformed-event", TaskID: "task-1", Task: "task", StartedAt: now})
+	if err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	if _, err := store.db.ExecContext(ctx, `INSERT INTO events(run_id, event_type, event_data, created_at) VALUES (?, ?, ?, ?)`, run.ID, EventCodexJSONEvent, `{bad`, formatTime(now)); err != nil {
+		t.Fatalf("insert malformed event fixture: %v", err)
+	}
+
+	history, err := store.ListRecentRunsForTaskWithEvents(ctx, "task-1", 1)
+	if err != nil {
+		t.Fatalf("ListRecentRunsForTaskWithEvents() error = %v", err)
+	}
+	if got, want := string(history[0].Events[0].Payload), `{bad`; got != want {
+		t.Fatalf("payload = %q, want %q", got, want)
+	}
+}
+
+func TestOpenReadOnlyDoesNotCreateOrInitializeLedger(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	missing := filepath.Join(root, "missing", "ledger.sqlite")
+	if _, err := OpenReadOnly(ctx, missing); err == nil {
+		t.Fatal("OpenReadOnly(missing) error = nil")
+	}
+	if _, err := os.Stat(filepath.Dir(missing)); !os.IsNotExist(err) {
+		t.Fatalf("missing parent stat error = %v, want not exist", err)
+	}
+
+	path := filepath.Join(root, "ledger.sqlite")
+	store, err := OpenWithClock(ctx, path, func() time.Time { return time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC) })
+	if err != nil {
+		t.Fatalf("open writable fixture: %v", err)
+	}
+	if _, err := store.CreateRun(ctx, RunSpec{ID: "run-read-only", TaskID: "task-1", Task: "task"}); err != nil {
+		t.Fatalf("create fixture run: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close fixture: %v", err)
+	}
+	beforeBytes, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read ledger before read-only open: %v", err)
+	}
+	beforeEntries := directoryEntryNames(t, root)
+
+	readOnly, err := OpenReadOnly(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenReadOnly() error = %v", err)
+	}
+	history, err := readOnly.ListRecentRunsForTaskWithEvents(ctx, "task-1", 1)
+	if err != nil || len(history) != 1 {
+		t.Fatalf("read-only history = %#v, %v", history, err)
+	}
+	startedAt := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
+	if _, err := readOnly.CreateRun(ctx, RunSpec{ID: "run-write-refused", TaskID: "task-1", Task: "task", StartedAt: startedAt}); err == nil {
+		t.Fatal("CreateRun through read-only store error = nil")
+	}
+	if got := directoryEntryNames(t, root); !reflect.DeepEqual(got, beforeEntries) {
+		t.Fatalf("directory entries during read-only use = %#v, want %#v", got, beforeEntries)
+	}
+	if err := readOnly.Close(); err != nil {
+		t.Fatalf("close read-only store: %v", err)
+	}
+	if got, err := os.ReadFile(path); err != nil || !reflect.DeepEqual(got, beforeBytes) {
+		t.Fatalf("ledger bytes after read-only use changed or failed to read: equal=%t err=%v", reflect.DeepEqual(got, beforeBytes), err)
+	}
+	if got := directoryEntryNames(t, root); !reflect.DeepEqual(got, beforeEntries) {
+		t.Fatalf("directory entries after read-only close = %#v, want %#v", got, beforeEntries)
+	}
+}
+
 func TestGetRunWithEventsReturnsHistory(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 6, 25, 14, 0, 0, 0, time.UTC)
@@ -316,4 +433,17 @@ func assertJSONEqual(t *testing.T, got json.RawMessage, want string) {
 	if !reflect.DeepEqual(gotValue, wantValue) {
 		t.Fatalf("JSON payload = %#v, want %#v", gotValue, wantValue)
 	}
+}
+
+func directoryEntryNames(t *testing.T, path string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		t.Fatalf("read directory %s: %v", path, err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return names
 }

@@ -98,6 +98,9 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 	wantArgs := []string{
 		"--ask-for-approval", "never",
 		"exec", "--json",
+		"--model", DefaultModel,
+		"-c", "model_reasoning_effort=" + DefaultReasoningEffort,
+		"--ephemeral",
 		"--sandbox", "workspace-write",
 		"--cd", workDir,
 		"--output-last-message", filepath.Join(workDir, ".revolvr/runs/run-1/last-message.txt"),
@@ -190,15 +193,21 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 
 func TestBuildArgsBypassesApprovalsAndSandbox(t *testing.T) {
 	args := buildArgs("/repo", Config{
+		Model:                     DefaultModel,
+		ReasoningEffort:           DefaultReasoningEffort,
+		Ephemeral:                 boolPointer(true),
 		ApprovalPolicy:            "never",
 		Sandbox:                   "workspace-write",
 		BypassApprovalsAndSandbox: true,
 	}, ArtifactPaths{
 		LastMessage: "/repo/.revolvr/runs/run-1/last-message.txt",
-	})
+	}, "")
 
 	want := []string{
 		"exec", "--json",
+		"--model", DefaultModel,
+		"-c", "model_reasoning_effort=" + DefaultReasoningEffort,
+		"--ephemeral",
 		"--dangerously-bypass-approvals-and-sandbox",
 		"--cd", "/repo",
 		"--output-last-message", "/repo/.revolvr/runs/run-1/last-message.txt",
@@ -212,6 +221,142 @@ func TestBuildArgsBypassesApprovalsAndSandbox(t *testing.T) {
 	}
 	if containsArg(args, "--sandbox") {
 		t.Fatalf("args include sandbox despite bypass: %#v", args)
+	}
+}
+
+func TestBuildArgsUsesOverridesWithoutLastMessage(t *testing.T) {
+	args := buildArgs("/repo", Config{
+		Model:                     "gpt-custom",
+		ReasoningEffort:           "high",
+		Ephemeral:                 boolPointer(true),
+		BypassApprovalsAndSandbox: true,
+	}, ArtifactPaths{}, "")
+	want := []string{
+		"exec", "--json",
+		"--model", "gpt-custom",
+		"-c", "model_reasoning_effort=high",
+		"--ephemeral",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"--cd", "/repo",
+		"-",
+	}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+	if containsArg(args, "resume") || containsArg(args, "--output-last-message") {
+		t.Fatalf("args contain forbidden or optional argument: %#v", args)
+	}
+}
+
+func TestRunAddsTypedOutputSchemaToInvocation(t *testing.T) {
+	workDir := t.TempDir()
+	schemaRel := "artifacts/schema.json"
+	if err := os.MkdirAll(filepath.Join(workDir, "artifacts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, schemaRel), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var got runner.Command
+	_, err := Run(context.Background(), Config{
+		WorkingDir:   workDir,
+		Prompt:       "return JSON",
+		OutputSchema: schemaRel,
+		Artifacts: ArtifactPaths{
+			StdoutJSONL: "artifacts/codex.jsonl",
+			LastMessage: "artifacts/output.json",
+		},
+		CommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			got = command
+			if err := os.WriteFile(argAfter(command.Args, "--output-last-message"), []byte("{}\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			return runner.Result{ExitCode: 0}
+		},
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	wantSchema := filepath.Join(workDir, schemaRel)
+	if gotValue := argAfter(got.Args, "--output-schema"); gotValue != wantSchema {
+		t.Fatalf("--output-schema = %q, want %q; args=%#v", gotValue, wantSchema, got.Args)
+	}
+	if countArg(got.Args, "--output-schema") != 1 || countArg(got.Args, "--output-last-message") != 1 {
+		t.Fatalf("schema/last-message flags must occur exactly once: %#v", got.Args)
+	}
+	if containsArg(got.Args, "resume") {
+		t.Fatalf("args include resume: %#v", got.Args)
+	}
+}
+
+func TestRunRejectsUnsafeOrMissingOutputSchemaBeforeCommand(t *testing.T) {
+	for _, schemaPath := range []string{"missing-schema.json", "../outside-schema.json", filepath.Join(t.TempDir(), "schema.json")} {
+		t.Run(schemaPath, func(t *testing.T) {
+			called := false
+			_, err := Run(context.Background(), Config{
+				WorkingDir:   t.TempDir(),
+				Prompt:       "return JSON",
+				OutputSchema: schemaPath,
+				Artifacts:    ArtifactPaths{StdoutJSONL: "codex.jsonl"},
+				CommandRunner: func(context.Context, runner.Command) runner.Result {
+					called = true
+					return runner.Result{}
+				},
+			})
+			if err == nil {
+				t.Fatal("Run() error = nil")
+			}
+			if called {
+				t.Fatal("command runner called after output-schema rejection")
+			}
+		})
+	}
+}
+
+func TestDiscoverVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		result  runner.Result
+		want    string
+		wantErr string
+	}{
+		{name: "success", result: runner.Result{ExitCode: 0, Stdout: "codex-cli 1.2.3\n"}, want: "codex-cli 1.2.3"},
+		{name: "timeout", result: runner.Result{ExitCode: -1, TimedOut: true, Err: context.DeadlineExceeded}, wantErr: "timed out"},
+		{name: "execution failure", result: runner.Result{ExitCode: -1, Err: errors.New("start failed")}, wantErr: "execution failed"},
+		{name: "nonzero", result: runner.Result{ExitCode: 2, Stderr: "bad version\n"}, wantErr: "exited with code 2: bad version"},
+		{name: "stdout truncation", result: runner.Result{ExitCode: 0, Stdout: "codex-cli", StdoutTruncatedBytes: 4}, wantErr: "output was truncated"},
+		{name: "stderr truncation", result: runner.Result{ExitCode: 0, Stdout: "codex-cli", StderrTruncatedBytes: 4}, wantErr: "output was truncated"},
+		{name: "empty", result: runner.Result{ExitCode: 0, Stdout: " \n"}, wantErr: "version output is empty"},
+		{name: "multiple lines", result: runner.Result{ExitCode: 0, Stdout: "codex-cli 1\nextra\n"}, wantErr: "one well-formed line"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var command runner.Command
+			got, err := DiscoverVersion(context.Background(), VersionConfig{
+				Executable: "codex-test",
+				WorkingDir: "/repo",
+				Timeout:    2 * time.Second,
+				StdoutCap:  101,
+				StderrCap:  102,
+				CommandRunner: func(_ context.Context, in runner.Command) runner.Result {
+					command = in
+					return tt.result
+				},
+			})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("DiscoverVersion error = %v, want %q", err, tt.wantErr)
+				}
+			} else if err != nil || got != tt.want {
+				t.Fatalf("DiscoverVersion = %q, %v, want %q, nil", got, err, tt.want)
+			}
+			if command.Name != "codex-test" || !reflect.DeepEqual(command.Args, []string{"--version"}) || command.Dir != "/repo" {
+				t.Fatalf("version command = %+v", command)
+			}
+			if command.Timeout != 2*time.Second || command.StdoutLimit != 101 || command.StderrLimit != 102 {
+				t.Fatalf("version command bounds = %+v", command)
+			}
+		})
 	}
 }
 
@@ -272,6 +417,26 @@ func TestRunValidatesRequiredConfig(t *testing.T) {
 	}
 }
 
+func TestRunRejectsDisabledEphemeralMode(t *testing.T) {
+	called := false
+	_, err := Run(context.Background(), Config{
+		WorkingDir: t.TempDir(),
+		Prompt:     "x",
+		Ephemeral:  boolPointer(false),
+		Artifacts:  ArtifactPaths{StdoutJSONL: "codex.jsonl"},
+		CommandRunner: func(context.Context, runner.Command) runner.Result {
+			called = true
+			return runner.Result{}
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "only ephemeral sessions are supported") {
+		t.Fatalf("error = %v, want ephemeral requirement", err)
+	}
+	if called {
+		t.Fatal("command runner called after disabled ephemeral mode")
+	}
+}
+
 func TestRunRejectsEscapingArtifactPaths(t *testing.T) {
 	for _, artifactPath := range []string{"../outside/codex.jsonl", filepath.Join(t.TempDir(), "codex.jsonl")} {
 		t.Run(artifactPath, func(t *testing.T) {
@@ -326,6 +491,16 @@ func containsArg(args []string, value string) bool {
 	return false
 }
 
+func countArg(args []string, value string) int {
+	count := 0
+	for _, arg := range args {
+		if arg == value {
+			count++
+		}
+	}
+	return count
+}
+
 func containsProgress(events []ProgressEvent, want ProgressEvent) bool {
 	for _, event := range events {
 		if event == want {
@@ -333,4 +508,8 @@ func containsProgress(events []ProgressEvent, want ProgressEvent) bool {
 		}
 	}
 	return false
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }

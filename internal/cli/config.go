@@ -13,6 +13,8 @@ import (
 
 const (
 	defaultCodexExecutable                = app.DefaultCodexExecutable
+	defaultCodexModel                     = app.DefaultCodexModel
+	defaultCodexReasoningEffort           = app.DefaultCodexReasoningEffort
 	defaultCodexBypassApprovalsAndSandbox = app.DefaultCodexBypassApprovalsAndSandbox
 	defaultGitExecutable                  = app.DefaultGitExecutable
 	defaultGitTimeout                     = app.DefaultGitTimeout
@@ -36,10 +38,15 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Config found: %t", result.Found),
 		fmt.Sprintf("Defaults: %s", defaults),
 		fmt.Sprintf("Codex executable: %s", effectiveString(cfg.CodexExecutable, defaultCodexExecutable)),
+		fmt.Sprintf("Codex model: %s", effectiveString(cfg.CodexModel, defaultCodexModel)),
+		fmt.Sprintf("Codex reasoning effort: %s", effectiveString(cfg.CodexReasoningEffort, defaultCodexReasoningEffort)),
+		fmt.Sprintf("Codex session mode: ephemeral (ephemeral=%t)", cfg.CodexEphemeral),
 		fmt.Sprintf("Codex dangerously bypass approvals and sandbox: %t", cfg.CodexBypassApprovalsAndSandbox),
 		fmt.Sprintf("Codex sandbox: %s", cfg.CodexSandbox),
 		fmt.Sprintf("Codex approval policy: %s", cfg.CodexApprovalPolicy),
 		fmt.Sprintf("Codex timeout: %s", cfg.CodexTimeout),
+		fmt.Sprintf("Effective config schema: %s", result.EffectiveConfigSchema),
+		fmt.Sprintf("Effective config SHA-256: %s", result.EffectiveConfigSHA256),
 		fmt.Sprintf("Git executable: %s", effectiveString(cfg.GitExecutable, defaultGitExecutable)),
 		fmt.Sprintf("Git timeout: %s", effectiveDuration(cfg.GitTimeout, defaultGitTimeout)),
 		fmt.Sprintf("Verification missing policy: %s", cfg.MissingVerificationPolicy),
@@ -47,6 +54,12 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 	}
 	for i, command := range cfg.VerificationCommands {
 		lines = append(lines, formatVerificationCommand(i, command))
+	}
+	if cfg.VerificationPlan != nil {
+		lines = append(lines, fmt.Sprintf("Verification tiered plan: %s", cfg.VerificationPlan.SchemaVersion), fmt.Sprintf("Verification tier count: %d", len(cfg.VerificationPlan.Tiers)))
+		for i, tier := range cfg.VerificationPlan.Tiers {
+			lines = append(lines, fmt.Sprintf("Verification tier %d: id=%s kind=%s required_for_final=%t run_for_fast=%t run_for_final=%t rerun_policy=%s command_count=%d", i, tier.ID, tier.Kind, tier.RequiredForFinal, tier.RunForFast, tier.RunForFinal, tier.RerunPolicy, len(tier.Commands)))
+		}
 	}
 	lines = append(lines,
 		fmt.Sprintf("Commit allow pre-existing dirty: %t", cfg.AllowPreExistingDirty),

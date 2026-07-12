@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,6 +135,42 @@ func OpenWithClock(ctx context.Context, path string, clk func() time.Time) (*Sto
 		return nil, err
 	}
 	return store, nil
+}
+
+// OpenReadOnly opens an existing ledger without creating parent directories,
+// initializing schema, or applying migrations. The immutable SQLite option
+// prevents journal or shared-memory writes during evidence assembly.
+func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, errors.New("open ledger read-only: path is required")
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("open ledger read-only: resolve path: %w", err)
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("open ledger read-only: inspect %s: %w", path, err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("open ledger read-only: %s is a directory", path)
+	}
+
+	dsnURL := &url.URL{Scheme: "file", Path: filepath.ToSlash(absPath)}
+	query := dsnURL.Query()
+	query.Set("mode", "ro")
+	query.Set("immutable", "1")
+	dsnURL.RawQuery = query.Encode()
+	db, err := sql.Open(driverName, dsnURL.String())
+	if err != nil {
+		return nil, fmt.Errorf("open ledger read-only: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("open ledger read-only: %w", err)
+	}
+	return &Store{db: db}, nil
 }
 
 func NewStore(ctx context.Context, db *sql.DB) (*Store, error) {
@@ -384,6 +421,69 @@ LIMIT ?`, limit)
 	return runs, nil
 }
 
+// ListRecentRunsForTaskWithEvents filters by exact task identity before
+// applying the explicit limit. Zero returns no history; negative limits are
+// rejected. Runs are newest-first with ascending run ID as the stable
+// timestamp tie-breaker, and events are ordered by ledger event ID.
+func (s *Store) ListRecentRunsForTaskWithEvents(ctx context.Context, taskID string, limit int) ([]RunWithEvents, error) {
+	if err := s.ready(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(taskID) == "" {
+		return nil, errors.New("list recent task runs: task id is required")
+	}
+	if limit < 0 {
+		return nil, fmt.Errorf("list recent task runs: limit cannot be negative (got %d; zero selects no runs)", limit)
+	}
+	if limit == 0 {
+		return nil, nil
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+SELECT
+	id,
+	task_id,
+	task,
+	status,
+	summary,
+	started_at,
+	completed_at,
+	duration_seconds,
+	codex_exit_code,
+	verification_status,
+	commit_sha
+FROM runs
+WHERE task_id = ?
+ORDER BY started_at DESC, id ASC
+LIMIT ?`, taskID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list recent task runs: %w", err)
+	}
+	defer rows.Close()
+
+	var runs []Run
+	for rows.Next() {
+		run, err := scanRun(rows)
+		if err != nil {
+			return nil, fmt.Errorf("list recent task runs: %w", err)
+		}
+		runs = append(runs, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list recent task runs: %w", err)
+	}
+
+	history := make([]RunWithEvents, 0, len(runs))
+	for _, run := range runs {
+		events, err := s.listEventsForEvidence(ctx, run.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list recent task runs: run %q: %w", run.ID, err)
+		}
+		history = append(history, RunWithEvents{Run: run, Events: events})
+	}
+	return history, nil
+}
+
 func (s *Store) GetRun(ctx context.Context, runID string) (Run, bool, error) {
 	if err := s.ready(); err != nil {
 		return Run{}, false, err
@@ -527,6 +627,34 @@ ORDER BY id ASC`, runID)
 	return events, nil
 }
 
+// listEventsForEvidence preserves malformed JSON payload bytes so callers can
+// ignore irrelevant event detail while applying strict validation to payloads
+// that provide identity or provenance.
+func (s *Store) listEventsForEvidence(ctx context.Context, runID string) ([]Event, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, run_id, event_type, event_data, created_at
+FROM events
+WHERE run_id = ?
+ORDER BY id ASC`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list evidence events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []Event
+	for rows.Next() {
+		event, err := scanEvidenceEvent(rows)
+		if err != nil {
+			return nil, fmt.Errorf("list evidence events: %w", err)
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list evidence events: %w", err)
+	}
+	return events, nil
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }
@@ -589,6 +717,26 @@ func scanEvent(row scanner) (Event, error) {
 		if !json.Valid([]byte(eventData.String)) {
 			return Event{}, errors.New("event payload is not valid JSON")
 		}
+		event.Payload = json.RawMessage(eventData.String)
+	}
+	return event, nil
+}
+
+func scanEvidenceEvent(row scanner) (Event, error) {
+	var event Event
+	var eventType string
+	var eventData sql.NullString
+	var createdAt string
+	if err := row.Scan(&event.ID, &event.RunID, &eventType, &eventData, &createdAt); err != nil {
+		return Event{}, err
+	}
+	parsedCreatedAt, err := parseTime(createdAt)
+	if err != nil {
+		return Event{}, fmt.Errorf("parse created_at: %w", err)
+	}
+	event.Type = EventType(eventType)
+	event.CreatedAt = parsedCreatedAt
+	if eventData.Valid {
 		event.Payload = json.RawMessage(eventData.String)
 	}
 	return event, nil

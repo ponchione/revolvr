@@ -33,13 +33,13 @@ type Ledger interface {
 }
 
 type Command struct {
-	Name      string
-	Args      []string
-	Dir       string
-	Env       []string
-	Timeout   time.Duration
-	StdoutCap int
-	StderrCap int
+	Name      string        `json:"name"`
+	Args      []string      `json:"args"`
+	Dir       string        `json:"dir"`
+	Env       []string      `json:"env"`
+	Timeout   time.Duration `json:"timeout"`
+	StdoutCap int           `json:"stdout_cap"`
+	StderrCap int           `json:"stderr_cap"`
 }
 
 type Config struct {
@@ -55,39 +55,39 @@ type Config struct {
 }
 
 type CappedOutput struct {
-	Content        string
-	TruncatedBytes int64
+	Content        string `json:"content"`
+	TruncatedBytes int64  `json:"truncated_bytes"`
 }
 
 type CommandResult struct {
-	Index     int
-	Command   string
-	Name      string
-	Args      []string
-	Dir       string
-	Status    Status
-	Passed    bool
-	ExitCode  int
-	TimedOut  bool
-	Err       error
-	Error     string
-	Timeout   time.Duration
-	Stdout    CappedOutput
-	Stderr    CappedOutput
-	StartedAt time.Time
-	EndedAt   time.Time
+	Index     int           `json:"index"`
+	Command   string        `json:"command"`
+	Name      string        `json:"name"`
+	Args      []string      `json:"args"`
+	Dir       string        `json:"dir"`
+	Status    Status        `json:"status"`
+	Passed    bool          `json:"passed"`
+	ExitCode  int           `json:"exit_code"`
+	TimedOut  bool          `json:"timed_out"`
+	Err       error         `json:"-"`
+	Error     string        `json:"error,omitempty"`
+	Timeout   time.Duration `json:"timeout"`
+	Stdout    CappedOutput  `json:"stdout"`
+	Stderr    CappedOutput  `json:"stderr"`
+	StartedAt time.Time     `json:"started_at"`
+	EndedAt   time.Time     `json:"ended_at"`
 }
 
 type Result struct {
-	Status             Status
-	Passed             bool
-	MissingCommands    bool
-	Message            string
-	FailedCommandIndex int
-	Commands           []CommandResult
-	LedgerError        error
-	StartedAt          time.Time
-	EndedAt            time.Time
+	Status             Status          `json:"status"`
+	Passed             bool            `json:"passed"`
+	MissingCommands    bool            `json:"missing_commands"`
+	Message            string          `json:"message"`
+	FailedCommandIndex int             `json:"failed_command_index"`
+	Commands           []CommandResult `json:"commands"`
+	LedgerError        error           `json:"-"`
+	StartedAt          time.Time       `json:"started_at"`
+	EndedAt            time.Time       `json:"ended_at"`
 }
 
 func Run(ctx context.Context, cfg Config) (Result, error) {

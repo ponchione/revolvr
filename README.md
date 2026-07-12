@@ -93,6 +93,11 @@ Revolvr policy selects the repo-authored profile for each phase:
 - `simplify` uses `simplifier` to reduce worthwhile complexity or duplication.
   It may succeed without product or source changes and completes the task.
 
+`revolvr init` also seeds the repo-authored `supervisor`, `planner`, and
+`corrector` profiles for the future autonomous workflow. They define
+decision-only supervision, planning-only output, and finding/failure-scoped
+correction, but `mixed-pass-v1` does not select or execute them.
+
 Task frontmatter `profile` is not an operator override. Revolvr derives the
 selected profile from `workflow` and `phase` through its pass policy.
 
@@ -195,6 +200,9 @@ Example:
 ```yaml
 codex:
   executable: codex
+  model: gpt-5.6-sol
+  reasoning_effort: xhigh
+  ephemeral: true
   dangerously_bypass_approvals_and_sandbox: true
   timeout_seconds: 1800
 git:
@@ -216,7 +224,10 @@ For Go repositories, the effective default verification command is
 `go test ./...` when no verification commands are configured. CLI-initiated
 runs default to Codex dangerous bypass/yolo mode for unattended local harness
 passes; set `codex.dangerously_bypass_approvals_and_sandbox: false` or
-`codex.yolo: false` to disable that default.
+`codex.yolo: false` to disable that default. Every run starts a fresh
+`codex exec` session and explicitly passes the effective model,
+`model_reasoning_effort`, and `--ephemeral`; persistent and resumed sessions
+are not supported. The defaults are `gpt-5.6-sol`, `xhigh`, and ephemeral.
 
 ## Dogfooding
 
@@ -230,10 +241,11 @@ go run ./cmd/revolvr status
 go run ./cmd/revolvr show <run-id>
 ```
 
-`doctor` reports initialized state, configured Codex and Git executables, Git
-identity, clean worktree state, `.revolvr/` ignore state, and effective
-verification coverage. It exits nonzero when a required check fails. Use
-`status` to find recent run IDs for `show`.
+`doctor` reports initialized state, the effective Codex model/reasoning/session
+settings, the bounded `<codex> --version` result, configured Codex and Git
+executables, Git identity, clean worktree state, `.revolvr/` ignore state, and
+effective verification coverage. It exits nonzero when a required check fails.
+Use `status` to find recent run IDs for `show`.
 
 Note: Real dogfood runs should start from a clean worktree and use `status` and
 `show <run-id>` to inspect the recorded result.
