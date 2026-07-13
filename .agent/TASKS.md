@@ -337,10 +337,12 @@ Completion and verification evidence for every item below is preserved in
   Acceptance: production LOC decreases with no behavior change; intentional validation/evaluation remains explicit; no cosmetic TUI or API refactor is introduced.
   Verification: run focused touched-package tests, `go test ./...`, `go vet ./...`, and `git diff --check`; make no code change if safety cannot be proven.
 
-### Second Wide-Sweep Audit Follow-up (2026-07-13)
+### Second Wide-Sweep Audit Follow-up (Completed 2026-07-13)
 
-Detailed evidence, failure scenarios, and test guidance are in
-`CODEBASE_AUDIT_2026-07-13.md`. Each item below is one bounded follow-up task.
+The source audit was deleted after every finding passed a final
+requirement-by-requirement review and the complete closing verification matrix.
+Implementation evidence remains in `.agent/STATE.md`, `.agent/DECISIONS.md`,
+and the R2 commit sequence beginning at `e68792a`.
 
 - [x] R2-01 — Replace raw SQLite main-file hashes with WAL-safe logical ledger authority.
 - [x] R2-02 — Make artifact-retention exclusion race-free across every competing mutator.

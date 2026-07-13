@@ -2,12 +2,71 @@
 
 ## Current Focus
 
-The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`, and all eleven bounded follow-ups are complete. The detailed
-report remains `CODEBASE_AUDIT_2026-07-13.md` only until a fresh final pass
-audits every resolution, runs the closing verification matrix, and deletes the
-report. The prior AUD-01 through AUD-16 queue and the ordered AW-01 through
+The second 2026-07-13 wide-sweep audit, R2-01 through R2-11, is complete. A
+fresh requirement-by-requirement review proved every resolution against the
+current implementation and focused tests, the complete closing verification
+matrix passed, and the audit report was deleted as requested. No R2 follow-up
+remains. The prior AUD-01 through AUD-16 queue and the ordered AW-01 through
 AW-31 autonomous workflow program remain complete and published.
+
+## Second Wide-Sweep Audit Closure (2026-07-13)
+
+- Selected task: independently re-audit all eleven R2 resolutions, run the
+  report's closing verification matrix, and delete the report. No product code
+  changed during this closing pass.
+- R2-01 is proved by the complete logical `ledger.IdentifySnapshot` authority
+  used by export and retention, plus logical-field, WAL/no-op-checkpoint,
+  same-high-water divergence, concurrent-commit, and retention-revalidation
+  tests.
+- R2-02 is proved by full-transaction retention, autonomous-execution,
+  Git-admin, and child-publication leases plus the shared retention admission
+  held by control/workspace source writers. Barrier tests cover every competing
+  entrant before mutation.
+- R2-03 is proved by contiguous immutable GC history reconstruction, strict
+  journal transitions, completed-effect reconciliation, and export verify/
+  replay before resumed prune or terminal replay. Corrupt, missing, stale,
+  ahead, reordered, fake-export, and false-cleaned cases are covered.
+- R2-04 is proved by shared `autonomouschildpublication` journal validation and
+  history projection consumed by both publication replay and the scheduler.
+  Empty/substituted children, changed authority fields, history divergence,
+  incomplete publication, and active-child mismatches fail tests.
+- R2-05 is proved by queue and child persistence/read/lock paths using
+  `internal/runtimepath` containment, identity, mode, link, opened-file, and
+  revalidation checks. Ancestor, final-file, hard-link, rename/open-race, and
+  outside-root sentinel tests cover both stores.
+- R2-06 is proved by queue authority derived from canonical, contiguous,
+  legally transitioned immutable history, with the checkpoint accepted only
+  when backed and equal/behind. Gap, duplicate, jump, missing, ahead, behind,
+  conflict, foreign, and legacy-migration cases are covered.
+- R2-07 is proved by source-directory and complete destination-parent-chain
+  synchronization before the action journal, plus operation-directory sync
+  after quarantine cleanup. Failure injection exercises and recovers from
+  every rename, sync, journal, removal, and terminal boundary in order.
+- R2-08 is proved by one 16 MiB JSON-record contract shared by writer and
+  reader, with writer admission before publication. Exact-limit task exports
+  verify/replay; limit-plus-one task and oversized-event exports publish
+  nothing.
+- R2-09 is proved by preserving omitted/null versus present empty verification
+  commands through merge, effective hashing, normalization, app execution,
+  config rendering, and doctor behavior. Every base/input shape is covered.
+- R2-10 is proved by bare `revolvr run` using the ordinary one-pass path, with
+  placeholder code absent, help documenting the default, success/error tests,
+  and a live no-task smoke.
+- R2-11 is proved by apply/resume returning joined operation and result-write
+  errors while rendering journal evidence when available. Failing-writer tests
+  cover successful and failed apply and resume.
+- Closing verification passed: `go test -count=1 ./...`; `go test -race
+  -count=1 ./...`; `go test -shuffle=on -count=1 ./...`;
+  `GOTOOLCHAIN=go1.22.12 go test -count=1 ./...`; `go vet ./...`;
+  `govulncheck ./...` with zero reachable vulnerabilities; clean `gofmt -l`
+  and `go mod tidy -diff`; `go mod verify`; and `git diff --check`.
+- Live smokes passed for root help, run help, artifact-GC help, `config check`,
+  `status`, and bare `run`; bare run printed `No pending runnable tasks.` and
+  exited zero after performing its one-pass contract.
+- Files changed in the closing pass: `.agent/{TASKS,STATE}.md`; deleted
+  `CODEBASE_AUDIT_2026-07-13.md`.
+- What remains: nothing for this audit goal.
+- Blockers: none.
 
 ## R2-11 Completion (2026-07-13)
 
