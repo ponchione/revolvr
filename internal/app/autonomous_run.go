@@ -179,6 +179,7 @@ type QueueInput struct {
 	OperationID           string
 	MaxTasks              int64
 	MaxCycles             int64
+	MaximumWorkers        int
 	Mode                  autonomousqueue.Mode
 	Sweep                 int64
 	Clock                 func() time.Time
@@ -211,6 +212,9 @@ func runQueue(ctx context.Context, cfg Config, input QueueInput) (autonomousqueu
 	}
 	if err != nil {
 		return autonomousqueue.Result{}, err
+	}
+	if input.MaximumWorkers != 0 {
+		runCfg.QueuePolicy.MaximumWorkers = input.MaximumWorkers
 	}
 	effective, err := runonce.EffectiveConfig(runCfg)
 	if err != nil {
@@ -266,13 +270,14 @@ func runQueue(ctx context.Context, cfg Config, input QueueInput) (autonomousqueu
 			return runTaskUntilTerminal(runCtx, cfg, TaskRunInput{OperationID: task.OperationID, TaskID: task.TaskID, MaxCycles: maxCycles, Clock: clock, RunConfig: &effective})
 		}
 	}
-	return autonomousqueue.RunUntilExhausted(ctx, autonomousqueue.Config{RepositoryRoot: cfg.WorkDir, OperationID: operationID, Mode: mode, ConfigSchema: fingerprint.Schema, ConfigSHA256: fingerprint.SHA256, SafetyIdentity: safetyDeclarationIdentity(effective), MaxTasks: maxTasks, Sweep: sweep, DaemonWakeCount: input.DaemonWakeCount, DaemonWakeFingerprint: input.DaemonWakeFingerprint, Clock: clock, Loader: loader, Runner: taskRunner, Progress: input.Progress, Redact: redactor.String, Ledger: queueLedger})
+	return autonomousqueue.RunUntilExhausted(ctx, autonomousqueue.Config{RepositoryRoot: cfg.WorkDir, OperationID: operationID, Mode: mode, ConfigSchema: fingerprint.Schema, ConfigSHA256: fingerprint.SHA256, SafetyIdentity: safetyDeclarationIdentity(effective), MaxTasks: maxTasks, MaximumWorkers: effective.QueuePolicy.MaximumWorkers, Sweep: sweep, DaemonWakeCount: input.DaemonWakeCount, DaemonWakeFingerprint: input.DaemonWakeFingerprint, Clock: clock, Loader: loader, Runner: taskRunner, Progress: input.Progress, Redact: redactor.String, Ledger: queueLedger})
 }
 
 type DaemonInput struct {
 	OperationID         string
 	MaxTasks            int64
 	MaxCycles           int64
+	MaximumWorkers      int
 	MaxSweeps           int64
 	Poll                time.Duration
 	Debounce            time.Duration
@@ -331,7 +336,7 @@ func RunDaemon(ctx context.Context, cfg Config, input DaemonInput) (autonomousda
 		},
 		Sweep: func(sweepCtx context.Context, generation int64) (autonomousqueue.Result, error) {
 			sweepID := "queue-" + hashText("autonomous-daemon-sweep-v1", baseID, fmt.Sprint(generation))[:24]
-			return RunQueue(sweepCtx, cfg, QueueInput{OperationID: sweepID, MaxTasks: input.MaxTasks, MaxCycles: input.MaxCycles, Mode: autonomousqueue.ModeDaemon, Sweep: generation, DaemonWakeCount: wakeCount, DaemonWakeFingerprint: lastWake.Fingerprint, Clock: input.Clock, RunConfig: &effective, Notification: input.Notification, NotificationRuntime: input.NotificationRuntime})
+			return RunQueue(sweepCtx, cfg, QueueInput{OperationID: sweepID, MaxTasks: input.MaxTasks, MaxCycles: input.MaxCycles, MaximumWorkers: input.MaximumWorkers, Mode: autonomousqueue.ModeDaemon, Sweep: generation, DaemonWakeCount: wakeCount, DaemonWakeFingerprint: lastWake.Fingerprint, Clock: input.Clock, RunConfig: &effective, Notification: input.Notification, NotificationRuntime: input.NotificationRuntime})
 		},
 	})
 	dispatchDaemonFailure(ctx, cfg.WorkDir, baseID, result, daemonErr, input.NotificationRuntime, input.Notification)
@@ -365,7 +370,9 @@ func loadQueueSnapshot(ctx context.Context, root string, cfg runonce.Config) (au
 	if err != nil {
 		return autonomousqueue.Snapshot{}, err
 	}
-	return autonomousqueue.Snapshot{Fingerprint: hashText(string(raw)), Nodes: nodes}, nil
+	return autonomousqueue.Snapshot{Fingerprint: hashText(string(raw)), Nodes: nodes, Classify: func(occupied []string) ([]autonomousscheduler.Node, error) {
+		return autonomousscheduler.ClassifyAll(graph, occupied), nil
+	}}, nil
 }
 
 func safetyDeclarationIdentity(cfg runonce.Config) string {

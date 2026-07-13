@@ -2,10 +2,165 @@
 
 ## Current Focus
 
-AW-29 is complete. AW-30 is the next unchecked task and must be started in a
-new fresh session. The AW-01 through AW-16 baseline remains committed at
-`28371e4`; AW-17 through AW-29 are intentionally uncommitted and must be
-preserved unless the operator commits them first.
+AW-31 is complete. The ordered AW-01 through AW-31 autonomous-workflow program
+is complete. AW-30 and AW-31 are published together as the final
+program-completion change, with no remaining backlog.
+
+## Final Publication (2026-07-12)
+
+- The operator authorized a final full documentation/hygiene sweep followed by
+  one raw-Git commit and push of the complete AW-30/AW-31 worktree.
+- Live README guidance now distinguishes terminal replay from unresolved-slot
+  recovery and documents default/capped CLI, daemon, and TUI worker behavior.
+- Historical dated records remain unchanged where their former forward-looking
+  statements accurately describe those earlier task boundaries.
+- No temporary/editor residue or unrelated untracked file was present; every
+  untracked source/test file belonged to AW-30 metrics.
+- Final validation: `git diff --check`, `go test -count=1 ./...`, the previously
+  completed full `go test -race -count=1 ./...`, focused vet, and CLI smokes all
+  passed before publication.
+
+## AW-31 Completion (2026-07-12)
+
+- Selected task: AW-31 — add bounded parallel queue workers after isolation
+  was proven. No unrelated follow-up task was started.
+- Configuration/operator contract: new strict `autonomous-queue-policy-v1`
+  defaults `maximum_workers` to 1 and caps it at 4. It is part of
+  `revolvr-effective-run-config-v5`. Config rejects unknown/schema-invalid,
+  zero, negative, and excessive values; CLI `run --queue/--daemon --workers N`
+  rejects invalid and duplicate occurrences. TUI `Q` intentionally pins one
+  worker. Worker material participates in queue replay compatibility and task
+  operation identity.
+- Durable coordinator: queue operations advance to
+  `autonomous-queue-operation-v2` with ordered batches, contiguous selection
+  sequences, deterministic slots, exact task-operation identities, slot
+  admitted/terminal state, per-slot outcomes, worker bound, peak activity,
+  batch counts, and typed sequential fallback. Complete batches are persisted
+  before any goroutine starts. Queue checkpoint/history and queue ledger writes
+  remain coordinator-only and history-before-checkpoint.
+- Admission: each boundary loads one exact scheduler snapshot in canonical
+  order. The first ready task is selected, then every additional candidate is
+  reclassified by AW-23 against the exact occupied set containing earlier batch
+  selections. Dependency and symmetric/shared-key conflict authority therefore
+  prevents overlap. Missing overlap classifier or inability to prove another
+  admission records `overlap_authority_unavailable` or
+  `no_additional_safe_candidate` and conservatively reduces the batch.
+- Execution and failure semantics: only the bounded persisted batch receives
+  goroutines and each worker gets queue operation, selection, batch, slot,
+  task, and exact AW-22 operation identities. Results reconcile in slot order,
+  independent of completion timing. Safe task-local stops preserve peers.
+  Queue cancellation cancels all child contexts, waits for every return, and
+  persists all outcomes before returning. Safety lets already-admitted peers
+  reach their bounded task-run boundary, preserves their evidence, and then
+  stops new admission. Coordinator-owned runner panics become typed unsafe
+  slot evidence without losing peer evidence.
+- Recovery/compatibility: exact retry starts only unresolved slots. Already
+  reconciled slots and canonical outcomes are retained; AW-22 replay remains
+  the authority for a worker whose task completed before queue reconciliation.
+  Existing terminal v1 sequential operations replay as one-worker evidence,
+  nonterminal v1 operations migrate forward with their pinned task operation,
+  and changed worker material is refused. Queue ledger advances compatibly to
+  v3 while v2 remains decodable; ledger export accepts both.
+- Shared effects and locks: one outer autonomous-execution lease still admits
+  only a direct run or one queue coordinator. Workers use distinct AW-18
+  workspaces/source-writer locks; existing Git-admin, state, child-publication,
+  and SQLite owner boundaries serialize their shared effects without holding a
+  coordinator mutex across model/verification/source work. Archive/reopen now
+  take a nonwaiting outer execution lease before Git-admin then task-state, so
+  they refuse while a queue/direct coordinator is active. Retention keeps its
+  existing retention-then-nonwaiting-execution refusal. Notifications still
+  dispatch once from the terminal queue after outer lease release.
+- Evidence/rendering: queue ledger schema v3 records worker bounds, ordered
+  slots, fallbacks, statistics, and ordered outcomes. AW-30 metrics add maximum
+  configured workers, peak active workers, parallel sweeps, batches, and
+  fallbacks while marking legacy concurrency omissions; live/export logical
+  equality is preserved. CLI summaries identify selection/batch/slot/task/task
+  operation and worker statistics. TUI progress can render durable slots.
+- Tests added/updated: strict config default/bounds/hash/unknown fields; CLI
+  flag propagation/duplicates/summary and daemon propagation; limits 1/2/4;
+  deterministic selection/outcome order with inverted completion; dependencies
+  and shared conflicts; conservative fallback; cancellation cleanup; panic peer
+  preservation; crash after batch admission and after first reconciliation;
+  exact unresolved-slot replay; worker replay mismatch; terminal legacy replay;
+  ledger deduplication/ordering; metrics concurrency; outer lease nonblocking
+  probe; archive refusal; TUI sequential default; and full race execution.
+- Verification passed: required focused non-race matrix; `go test -count=1
+  ./...`; required focused race matrix; `go test -race -count=1 ./...`; focused
+  changed-package `go vet`; `git diff --check`; root/run/metrics help, config
+  check, and status smokes. No live model/Codex, hook, network request, daemon,
+  archive/retention mutation, queue against this repository, dependency,
+  commit, push, reset, clean, restore, checkout, or stash was used.
+- Remaining work: none in the AW-01 through AW-31 program.
+- Blockers: none.
+
+## AW-30 Completion (2026-07-12)
+
+- Selected task: AW-30 — add autonomous-loop metrics and deterministic
+  evaluation scenarios. AW-31 parallel workers were not started.
+- Projection ownership: new dependency-free `internal/autonomousmetrics` owns
+  strict map-free `autonomous-loop-metrics-v1`, canonical JSON, validation,
+  deterministic ordering, logical occurrence deduplication/conflict refusal,
+  explicit source references, and legacy/partial omission diagnostics. It
+  performs no filesystem, SQLite, Git, model, workflow, notification,
+  retention, archive-verification, daemon, or scheduling work.
+- Authority and compatibility: metrics consume one `ledger.Snapshot` logical
+  shape. `ledgerexport.ReplaySnapshot` first verifies an immutable AW-25 export
+  and reconstructs that same public shape. A content-derived logical source
+  identity makes equal live and exported histories byte-identical. Relevant
+  legacy events remain readable as explicit omissions; unknown current
+  schemas/fields/enums, malformed occurrences, duplicate conflicts, and
+  corrupted exports fail clearly.
+- Versioned owner evidence: task-run and queue ledger events advance to strict
+  v2 payloads with exact UTC operation times, full statistics, ordered queue
+  outcomes, and bounded task attempt/finding/breaker/finalization evidence.
+  Archive v2 events add exact matching terminal/archive times; finalization v2
+  adds admitted/terminal authority. Tiered verification now emits versioned v1
+  start/tier/rerun/completion events and retains ordinary failures/passes,
+  flaky classifications, reruns, timeout/cancellation/missing/runner facts.
+  Existing v1 archive/finalization verification remains compatible.
+- Metrics semantics: terminal task-operation IDs are the outcome unit and
+  `no_task` is omitted; replay/duplicate copies do not enlarge counts. Success
+  is completed operations over all counted terminal operations, with explicit
+  numerator/denominator. Safety, budget, no-progress, cancellation, max-cycle,
+  and unsafe outcomes remain distinct. Attempts retain task/run/occurrence and
+  recorded token/duration references; missing tokens are counted, never
+  estimated. Audit introductions and explicit resolution dispositions remain
+  separate, so clean re-audit cannot erase or resolve history. Archive latency
+  uses exact matching owner times only. Queue throughput is sequential tasks
+  run over durable nanoseconds; no concurrency metric exists.
+- Read-only app/CLI surface: app `ShowMetrics` opens the live ledger immutable
+  and read-only or verifies/replays one export, loads configured redaction
+  values only to reject secret-bearing output, and invokes the pure projector.
+  CLI adds `metrics show`, `--json`, and `--export`; human output uses stable
+  ordering, explicit denominators/units/omissions, and no ambient clock. Tests
+  prove no SQLite WAL/SHM or runtime entry is created. Status, AW-27 views,
+  AW-28 TUI refresh, AW-29 notification outbox, retention, and archives remain
+  noninteracting.
+- Deterministic evaluation: the no-model source suite covers exactly straight
+  success, correction with retained finding evidence, clean re-audit with
+  explicit resolution, conditional document/simplify skips, repeated-signature
+  no progress, exact needs-input terminal evidence, blocked queue yield followed
+  by unrelated completion, and crash-finalization duplicate replay. Fixtures
+  use fixed UTC times, stable safe IDs, typed owner payloads, exact action order,
+  explicit terminal evidence, and no Codex/network/hook/daemon/retention/
+  archive mutation or parallel worker. Existing AW-20 failure-injection tests
+  remain the production crash-boundary authority; metrics assert one logical
+  completion on replay.
+- Tests added: strict/canonical projection decoding, unknown fields/schemas,
+  caller ownership, all task stop classes and denominator, duplicate/conflict
+  handling, attempt/token/duration, correction/audit/finding/resolution,
+  real fake-runner flaky fail/pass/rerun evidence, finalization/archive latency,
+  queue throughput, live/export byte equality, corrupted export refusal,
+  read-only app behavior, human/JSON/help CLI output, and all eight scenarios.
+- Verification passed: required baseline focused matrix; baseline and final
+  `go test -count=1 ./...`; final required focused package matrix including
+  `internal/autonomousmetrics`; focused changed-package `go vet`; `git diff
+  --check`; root/metrics help, metrics human/JSON, config check, and status
+  smokes. No live Codex/model, notification receiver, network service, Git
+  hook, daemon service, archive/retention mutation, source task, dependency,
+  commit, push, reset, clean, restore, checkout, stash, or parallel worker ran.
+- Remaining work: AW-31 exclusively owns bounded parallel queue workers.
+- Blockers: none.
 
 ## AW-29 Completion (2026-07-12)
 

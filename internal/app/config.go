@@ -13,6 +13,7 @@ import (
 
 	"revolvr/internal/artifactretention"
 	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
@@ -50,6 +51,12 @@ type fileConfig struct {
 	Autonomy      autonomyConfig     `yaml:"autonomy"`
 	Retention     retentionConfig    `yaml:"retention"`
 	Notifications notificationConfig `yaml:"notifications"`
+	Queue         queueConfig        `yaml:"queue"`
+}
+
+type queueConfig struct {
+	SchemaVersion  string `yaml:"schema_version"`
+	MaximumWorkers *int   `yaml:"maximum_workers"`
 }
 
 type notificationConfig struct {
@@ -224,6 +231,7 @@ func DefaultRunOnceConfig(workDir string) runonce.Config {
 		SafetyDeclaration:              autonomoussafety.DefaultDeclaration(),
 		RetentionPolicy:                artifactretention.DefaultPolicy(),
 		NotificationPolicy:             autonomousnotification.DefaultPolicy(),
+		QueuePolicy:                    autonomousqueue.DefaultPolicy(),
 		CodexExecutable:                DefaultCodexExecutable,
 		CodexModel:                     DefaultCodexModel,
 		CodexReasoningEffort:           DefaultCodexReasoningEffort,
@@ -277,6 +285,11 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 		return runonce.Config{}, err
 	}
 	base.NotificationPolicy = notifications
+	queue, err := cfg.Queue.apply(base.QueuePolicy)
+	if err != nil {
+		return runonce.Config{}, err
+	}
+	base.QueuePolicy = queue
 	retention, err := cfg.Retention.apply(base.RetentionPolicy)
 	if err != nil {
 		return runonce.Config{}, err
@@ -421,6 +434,22 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	applyPositiveInt(&base.CommitStdoutCap, cfg.Output.CommitStdoutCapBytes)
 	applyPositiveInt(&base.CommitStderrCap, cfg.Output.CommitStderrCapBytes)
 
+	return base, nil
+}
+
+func (cfg queueConfig) apply(base autonomousqueue.Policy) (autonomousqueue.Policy, error) {
+	if base.SchemaVersion == "" {
+		base = autonomousqueue.DefaultPolicy()
+	}
+	if value := strings.TrimSpace(cfg.SchemaVersion); value != "" {
+		base.SchemaVersion = value
+	}
+	if cfg.MaximumWorkers != nil {
+		base.MaximumWorkers = *cfg.MaximumWorkers
+	}
+	if err := base.Validate(); err != nil {
+		return autonomousqueue.Policy{}, err
+	}
 	return base, nil
 }
 

@@ -542,6 +542,52 @@ func ReplayValidate(ctx context.Context, repositoryRoot, exportID string, secret
 	return report, nil
 }
 
+// ReplaySnapshot verifies an immutable export and reconstructs the same
+// logical ledger.Snapshot shape used by live read-only metrics. It performs no
+// repair and does not open or mutate the live ledger after verification.
+func ReplaySnapshot(ctx context.Context, repositoryRoot, exportID string, secrets []string) (ledger.Snapshot, error) {
+	verify, err := Verify(ctx, repositoryRoot, exportID, secrets)
+	if err != nil {
+		return ledger.Snapshot{}, err
+	}
+	if !verify.Passed {
+		return ledger.Snapshot{}, errors.New("ledger export: verified logical snapshot refused because export checks failed")
+	}
+	manifest, _, root, err := loadManifest(repositoryRoot, exportID)
+	if err != nil {
+		return ledger.Snapshot{}, err
+	}
+	recordsAbs, err := pathguard.Resolve(root, manifest.Records.Path)
+	if err != nil {
+		return ledger.Snapshot{}, err
+	}
+	raw, err := safeRead(recordsAbs, 1<<30)
+	if err != nil {
+		return ledger.Snapshot{}, err
+	}
+	histories, _, _, _, err := parseRecords(ctx, raw)
+	if err != nil {
+		return ledger.Snapshot{}, err
+	}
+	out := ledger.Snapshot{Runs: make([]ledger.RunWithEvents, 0, len(histories))}
+	for _, history := range histories {
+		run := ledger.Run{ID: history.Run.ID, TaskID: history.Run.TaskID, Task: history.Run.Task, Status: history.Run.Status, Summary: history.Run.Summary, StartedAt: history.Run.StartedAt, CompletedAt: history.Run.CompletedAt, DurationSeconds: history.Run.DurationSeconds, CodexExitCode: history.Run.CodexExitCode, VerificationStatus: history.Run.VerificationStatus, CommitSHA: history.Run.CommitSHA}
+		events := make([]ledger.Event, 0, len(history.Events))
+		for _, record := range history.Events {
+			payload, decodeErr := base64.StdEncoding.DecodeString(record.PayloadBase64)
+			if decodeErr != nil {
+				return ledger.Snapshot{}, decodeErr
+			}
+			events = append(events, ledger.Event{ID: record.ID, RunID: record.RunID, Type: ledger.EventType(record.Type), Payload: append([]byte(nil), payload...), CreatedAt: record.CreatedAt})
+			if record.ID > out.MaxEventID {
+				out.MaxEventID = record.ID
+			}
+		}
+		out.Runs = append(out.Runs, ledger.RunWithEvents{Run: run, Events: events})
+	}
+	return out, nil
+}
+
 type replayHistory struct {
 	Run    RunRecord
 	Events []EventRecord
@@ -771,6 +817,14 @@ func safeID(value string) bool {
 func supportedPayloadSchema(value string) bool {
 	if value == ledger.LegacyEventPayloadSchema {
 		return true
+	}
+	if strings.HasSuffix(value, "-v2") {
+		switch value {
+		case "autonomous-task-run-event-v2", "autonomous-queue-event-v2", "autonomous-queue-event-v3", "autonomous-task-archive-ledger-event-v2", "autonomous-finalization-ledger-event-v2":
+			return true
+		default:
+			return false
+		}
 	}
 	if !strings.HasSuffix(value, "-v1") || len(value) > 128 {
 		return false

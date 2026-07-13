@@ -33,6 +33,7 @@ type StepResult struct {
 	LatestMutation *autonomouspolicy.SourceMutation
 	Verification   *autonomouspolicy.VerificationEvidence
 	Audit          *autonomouspolicy.AuditEvidence
+	Metrics        *MetricsEvidence
 }
 type StepRunner func(context.Context, StepInput) (StepResult, error)
 type Progress func(Operation)
@@ -171,10 +172,12 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 		op.LatestMutation = step.LatestMutation
 		op.Verification = step.Verification
 		op.Audit = step.Audit
+		op.Metrics = step.Metrics
 		if authority, authorityErr := currentAuthority(n.root, op.TaskID); authorityErr == nil {
 			op.State = authority.State
 			op.WorkspaceID = authority.WorkspaceID
 			op.CheckpointSHA = authority.CheckpointSHA
+			op.Metrics = authority.Metrics
 		} else if !errors.Is(authorityErr, autonomousstate.ErrTaskMissing) {
 			runErr = errors.Join(runErr, fmt.Errorf("reload pinned authority: %w", authorityErr))
 		}
@@ -220,6 +223,7 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 type authoritySnapshot struct {
 	State                      Identity
 	WorkspaceID, CheckpointSHA string
+	Metrics                    *MetricsEvidence
 }
 
 func currentAuthority(root, taskID string) (authoritySnapshot, error) {
@@ -240,7 +244,7 @@ func currentAuthority(root, taskID string) (authoritySnapshot, error) {
 	}
 	identity := hashBytes(raw)
 	identity.Path = snap.SourcePath
-	result := authoritySnapshot{State: identity}
+	result := authoritySnapshot{State: identity, Metrics: metricsEvidence(snap.State)}
 	if snap.State.Workspace != nil {
 		result.WorkspaceID = snap.State.Workspace.WorkspaceID
 		result.CheckpointSHA = snap.State.Workspace.Checkpoint.CommitSHA
@@ -330,11 +334,28 @@ func admit(n normalized, task taskfile.Task) (Operation, error) {
 	stateID := hashBytes(stateRaw)
 	stateID.Path = snap.SourcePath
 	op := Operation{SchemaVersion: OperationSchemaVersion, OperationID: n.OperationID, TaskID: task.ID, Task: taskID, State: stateID, ConfigSHA256: n.ConfigSHA256, MaxCycles: n.MaxCycles, StartedAt: now, UpdatedAt: now, Stage: "admitted"}
+	op.Metrics = metricsEvidence(snap.State)
 	if snap.State.Workspace != nil {
 		op.WorkspaceID = snap.State.Workspace.WorkspaceID
 		op.CheckpointSHA = snap.State.Workspace.Checkpoint.CommitSHA
 	}
 	return op, nil
+}
+
+func metricsEvidence(state autonomous.ExecutionState) *MetricsEvidence {
+	result := &MetricsEvidence{
+		Attempts:           state.Attempts,
+		FindingResolutions: append([]autonomous.FindingResolution(nil), state.FindingResolutions...),
+	}
+	if state.CircuitBreaker != nil {
+		value := *state.CircuitBreaker
+		result.CircuitBreaker = &value
+	}
+	if state.Finalization != nil {
+		value := *state.Finalization
+		result.Finalization = &value
+	}
+	return result
 }
 func canonicalTerminal(root, taskID string) (StopReason, string, error) {
 	t, ok, err := taskfile.FindByID(root, taskID)

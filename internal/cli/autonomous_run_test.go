@@ -61,16 +61,16 @@ func TestRunAutonomousFlagsRequireModeAndPositiveLimit(t *testing.T) {
 func TestRunQueueFlagsAndSummary(t *testing.T) {
 	var out bytes.Buffer
 	root := NewRootCommand(Options{Out: &out, WorkDir: t.TempDir(), RunQueue: func(_ context.Context, _ app.Config, input app.QueueInput) (autonomousqueue.Result, error) {
-		if input.OperationID != "queue-one" || input.MaxTasks != 2 || input.MaxCycles != 3 {
+		if input.OperationID != "queue-one" || input.MaxTasks != 2 || input.MaxCycles != 3 || input.MaximumWorkers != 2 {
 			t.Fatalf("input=%+v", input)
 		}
-		return autonomousqueue.Result{OperationID: "queue-one", Mode: autonomousqueue.ModeUntilExhausted, StopReason: autonomousqueue.StopWaitingInput, StopDetail: "operator answer required", Outcomes: []autonomousqueue.TaskOutcome{{TaskID: "a", TaskOperationID: "task-run-a", StopReason: autonomoustaskrun.StopCompleted}, {TaskID: "b", TaskOperationID: "task-run-b", StopReason: autonomoustaskrun.StopNeedsInput, StopDetail: "choose"}}, Statistics: autonomousqueue.Statistics{Selections: 2, TasksRun: 2}, RemainingWaiting: []string{"b:needs_input"}}, nil
+		return autonomousqueue.Result{OperationID: "queue-one", Mode: autonomousqueue.ModeUntilExhausted, StopReason: autonomousqueue.StopWaitingInput, StopDetail: "operator answer required", MaximumWorkers: 2, Outcomes: []autonomousqueue.TaskOutcome{{SelectionSequence: 1, Batch: 1, Slot: 1, TaskID: "a", TaskOperationID: "task-run-a", StopReason: autonomoustaskrun.StopCompleted}, {SelectionSequence: 2, Batch: 1, Slot: 2, TaskID: "b", TaskOperationID: "task-run-b", StopReason: autonomoustaskrun.StopNeedsInput, StopDetail: "choose"}}, Statistics: autonomousqueue.Statistics{Selections: 2, TasksRun: 2, Batches: 1, PeakActiveWorkers: 2}, RemainingWaiting: []string{"b:needs_input"}}, nil
 	}})
-	root.SetArgs([]string{"run", "--queue", "--operation-id", "queue-one", "--max-tasks", "2", "--max-cycles", "3"})
+	root.SetArgs([]string{"run", "--queue", "--operation-id", "queue-one", "--max-tasks", "2", "--max-cycles", "3", "--workers", "2"})
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	want := "Queue: operation=queue-one mode=until_exhausted stop=waiting_input replayed=false tasks=2 selections=2\nTask: id=a operation=task-run-a stop=completed replayed=false detail=\nTask: id=b operation=task-run-b stop=needs_input replayed=false detail=choose\nRemaining: ready= waiting=b:needs_input\nDetail: operator answer required\n"
+	want := "Queue: operation=queue-one mode=until_exhausted stop=waiting_input replayed=false tasks=2 selections=2 workers=2 peak=2 batches=1 fallbacks=0\nTask: selection=1 batch=1 slot=1 id=a operation=task-run-a stop=completed replayed=false detail=\nTask: selection=2 batch=1 slot=2 id=b operation=task-run-b stop=needs_input replayed=false detail=choose\nRemaining: ready= waiting=b:needs_input\nDetail: operator answer required\n"
 	if out.String() != want {
 		t.Fatalf("output=%q want=%q", out.String(), want)
 	}
@@ -79,12 +79,12 @@ func TestRunQueueFlagsAndSummary(t *testing.T) {
 func TestRunDaemonFlagsValidationAndSummary(t *testing.T) {
 	var out bytes.Buffer
 	root := NewRootCommand(Options{Out: &out, WorkDir: t.TempDir(), RunDaemon: func(_ context.Context, _ app.Config, input app.DaemonInput) (autonomousdaemon.Result, error) {
-		if input.OperationID != "daemon-one" || input.MaxSweeps != 4 || input.Poll != 2*time.Second || input.Debounce != time.Second {
+		if input.OperationID != "daemon-one" || input.MaximumWorkers != 3 || input.MaxSweeps != 4 || input.Poll != 2*time.Second || input.Debounce != time.Second {
 			t.Fatalf("input=%+v", input)
 		}
 		return autonomousdaemon.Result{StopReason: autonomousdaemon.StopCancelled, StopDetail: "signal", Sweeps: 2, Wakes: []autonomousdaemon.Wake{{Generation: 2, Fingerprint: "abc"}}, LastFingerprint: "abc"}, nil
 	}})
-	root.SetArgs([]string{"run", "--daemon", "--operation-id", "daemon-one", "--max-sweeps", "4", "--daemon-poll", "2s", "--daemon-debounce", "1s"})
+	root.SetArgs([]string{"run", "--daemon", "--operation-id", "daemon-one", "--workers", "3", "--max-sweeps", "4", "--daemon-poll", "2s", "--daemon-debounce", "1s"})
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestRunDaemonFlagsValidationAndSummary(t *testing.T) {
 		t.Fatalf("output=%q", got)
 	}
 
-	for _, args := range [][]string{{"run", "--queue", "--daemon"}, {"run", "--queue", "--task", "x"}, {"run", "--queue", "--daemon-poll", "1s"}, {"run", "--daemon", "--max-sweeps", "0"}} {
+	for _, args := range [][]string{{"run", "--queue", "--daemon"}, {"run", "--queue", "--task", "x"}, {"run", "--queue", "--daemon-poll", "1s"}, {"run", "--daemon", "--max-sweeps", "0"}, {"run", "--queue", "--workers", "0"}, {"run", "--queue", "--workers", "5"}, {"run", "--queue", "--workers", "1", "--workers", "2"}} {
 		cmd := NewRootCommand(Options{Out: &bytes.Buffer{}, WorkDir: t.TempDir()})
 		cmd.SetArgs(args)
 		if err := cmd.Execute(); err == nil {

@@ -13,6 +13,9 @@ func TestLeaseExcludesDirectAndQueueDriversAndCancelsPromptly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := TryAcquire(root); !errors.Is(err, ErrActive) {
+		t.Fatalf("nonblocking contention err=%v", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	if _, err := Acquire(ctx, root); !errors.Is(err, context.DeadlineExceeded) {
@@ -24,4 +27,9 @@ func TestLeaseExcludesDirectAndQueueDriversAndCancelsPromptly(t *testing.T) {
 		t.Fatal(err)
 	}
 	second()
+	probe, err := TryAcquire(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe()
 }

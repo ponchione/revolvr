@@ -12,7 +12,19 @@ import (
 	"time"
 )
 
+var ErrActive = errors.New("autonomous execution: another coordinator is active")
+
 func Acquire(ctx context.Context, repositoryRoot string) (func(), error) {
+	return acquire(ctx, repositoryRoot, true)
+}
+
+// TryAcquire takes the outer coordinator lease without waiting. Administrative
+// operations use it to fail closed while a direct run or queue is active.
+func TryAcquire(repositoryRoot string) (func(), error) {
+	return acquire(context.Background(), repositoryRoot, false)
+}
+
+func acquire(ctx context.Context, repositoryRoot string, wait bool) (func(), error) {
 	root, err := filepath.Abs(repositoryRoot)
 	if err != nil {
 		return nil, err
@@ -36,6 +48,10 @@ func Acquire(ctx context.Context, repositoryRoot string) (func(), error) {
 	for {
 		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
 			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
+		}
+		if !wait {
+			_ = f.Close()
+			return nil, ErrActive
 		}
 		select {
 		case <-ctx.Done():

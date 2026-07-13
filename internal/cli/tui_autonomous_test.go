@@ -15,7 +15,7 @@ func TestTUIRunnerReceivesAutonomousEvidenceInputTaskAndQueueCallbacks(t *testin
 		WorkDir: t.TempDir(),
 		RunQueue: func(_ context.Context, _ app.Config, input app.QueueInput) (autonomousqueue.Result, error) {
 			queueCalled = true
-			if input.MaxTasks != 100 || input.MaxCycles != 50 || input.Progress == nil {
+			if input.MaxTasks != 100 || input.MaxCycles != 50 || input.MaximumWorkers != 1 || input.Progress == nil {
 				t.Fatalf("queue input = %#v", input)
 			}
 			return autonomousqueue.Result{OperationID: "queue-tui", StopReason: autonomousqueue.StopDrained}, nil

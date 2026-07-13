@@ -2,6 +2,7 @@ package autonomousarchive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomousexec"
 	"revolvr/internal/autonomousfinalization"
 	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/autonomoussafety"
@@ -22,6 +24,19 @@ import (
 )
 
 var archiveTestTime = time.Date(2026, 7, 12, 23, 59, 59, 0, time.UTC)
+
+func TestArchiveRefusesWhileQueueCoordinatorLeaseIsActive(t *testing.T) {
+	root := t.TempDir()
+	release, err := autonomousexec.Acquire(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	_, err = Archive(context.Background(), Config{RepositoryRoot: root}, ArchiveRequest{TaskID: "terminal-task", OperationID: "archive-race", Authority: authority(DispositionCancelled), ArchivedAt: archiveTestTime})
+	if !errors.Is(err, autonomousexec.ErrActive) {
+		t.Fatalf("archive contention err=%v", err)
+	}
+}
 
 func TestArchiveCompletedCopiesAndVerifiesAW20Capsule(t *testing.T) {
 	root, store := completedRepo(t)

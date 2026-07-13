@@ -3,6 +3,7 @@ package autonomousqueue
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -207,14 +208,84 @@ func TestCrashAfterSelectionHistoryRecoversSamePinnedTaskOperation(t *testing.T)
 		t.Fatal("injected crash succeeded")
 	}
 	op, found, err := Inspect(root, "queue-crash")
-	if err != nil || !found || op.InFlight == nil {
+	if err != nil || !found || len(op.Slots) != 1 {
 		t.Fatalf("inspect=%+v found=%v err=%v", op, found, err)
 	}
-	pinned := op.InFlight.TaskOperationID
+	pinned := op.Slots[0].Selection.TaskOperationID
 	cfg.FailureInjector = nil
 	result, err := RunUntilExhausted(context.Background(), cfg)
 	if err != nil || len(result.Outcomes) != 1 || result.Outcomes[0].TaskOperationID != pinned {
 		t.Fatalf("recovery=%+v err=%v pinned=%s", result, err, pinned)
+	}
+}
+
+func TestLegacySequentialTerminalOperationReplaysAndRejectsParallelChange(t *testing.T) {
+	root := t.TempDir()
+	clock := newClock()
+	started := clock().UTC()
+	done := clock().UTC()
+	op := Operation{SchemaVersion: LegacyOperationSchemaVersion, OperationID: "queue-legacy", Mode: ModeUntilExhausted, ConfigSchema: "config-v1", ConfigSHA256: strings.Repeat("a", 64), SafetyIdentity: strings.Repeat("b", 64), MaxTasks: 20, StartedAt: started, UpdatedAt: done, CompletedAt: &done, Sequence: 1, Sweep: 1, Stage: "terminal", StopReason: StopDrained, StopDetail: "legacy drained"}
+	if err := persist(root, Operation{}, op, nil); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testConfig(root, "queue-legacy", clock, func(context.Context) (Snapshot, error) {
+		t.Fatal("terminal legacy replay loaded scheduler")
+		return Snapshot{}, nil
+	}, func(context.Context, RunTaskInput) (autonomoustaskrun.Result, error) {
+		t.Fatal("terminal legacy replay started task")
+		return autonomoustaskrun.Result{}, nil
+	})
+	result, err := RunUntilExhausted(context.Background(), cfg)
+	if err != nil || !result.Replayed || result.MaximumWorkers != 1 || result.StopReason != StopDrained {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	cfg.MaximumWorkers = 2
+	if _, err := RunUntilExhausted(context.Background(), cfg); err == nil {
+		t.Fatal("legacy replay accepted changed worker bound")
+	}
+}
+
+func TestCrashAfterFirstParallelReconciliationReopensExactRemainingSlot(t *testing.T) {
+	root := t.TempDir()
+	clock := newClock()
+	var mu sync.Mutex
+	states := map[string]string{"one": "pending", "two": "pending"}
+	loader := graphLoader(&mu, states, []taskfile.Task{node("one", 0, "pending").Task, node("two", 1, "pending").Task})
+	calls := map[string][]string{}
+	runner := func(_ context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
+		mu.Lock()
+		calls[in.TaskID] = append(calls[in.TaskID], in.OperationID)
+		count := len(calls[in.TaskID])
+		states[in.TaskID] = "completed"
+		mu.Unlock()
+		result := taskResult(in, autonomoustaskrun.StopCompleted)
+		if count > 1 {
+			result.Replayed = true
+		}
+		return result, nil
+	}
+	cfg := testConfig(root, "queue-parallel-crash", clock, loader, runner)
+	cfg.MaximumWorkers = 2
+	histories := 0
+	cfg.FailureInjector = func(point FailurePoint) error {
+		if point == FailureAfterHistory {
+			histories++
+			if histories == 3 {
+				return errors.New("crash after first slot history")
+			}
+		}
+		return nil
+	}
+	if _, err := RunUntilExhausted(context.Background(), cfg); err == nil {
+		t.Fatal("injected reconciliation crash succeeded")
+	}
+	cfg.FailureInjector = nil
+	result, err := RunUntilExhausted(context.Background(), cfg)
+	if err != nil || len(result.Outcomes) != 2 || result.Outcomes[0].TaskID != "one" || result.Outcomes[1].TaskID != "two" {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if len(calls["one"]) != 1 || len(calls["two"]) != 2 || calls["two"][0] != calls["two"][1] {
+		t.Fatalf("calls=%v", calls)
 	}
 }
 
@@ -249,6 +320,11 @@ func TestOperationConflictLeaseCancellationAndRedaction(t *testing.T) {
 	conflict.MaxTasks++
 	if _, err := RunUntilExhausted(context.Background(), conflict); err == nil || !strings.Contains(err.Error(), "different material") {
 		t.Fatalf("changed operation err=%v", err)
+	}
+	conflict = cfg
+	conflict.MaximumWorkers = 2
+	if _, err := RunUntilExhausted(context.Background(), conflict); err == nil || !strings.Contains(err.Error(), "different material") {
+		t.Fatalf("changed worker operation err=%v", err)
 	}
 
 	secretNodes := []autonomousscheduler.Node{node("secret", 0, "pending")}
@@ -302,10 +378,243 @@ func TestQueueLedgerEffectsAreDeduplicatedOnTerminalReplay(t *testing.T) {
 			t.Fatalf("event %s count=%d", kind, counts[kind])
 		}
 	}
+	for _, event := range history.Events {
+		if event.Type != ledger.EventQueueStopped {
+			continue
+		}
+		decoded, err := DecodeLedgerEvent(event.Payload)
+		if err != nil || decoded.MaximumWorkers != 1 || len(decoded.Outcomes) != 1 || decoded.Outcomes[0].SelectionSequence != 1 {
+			t.Fatalf("terminal ledger event=%+v err=%v", decoded, err)
+		}
+	}
+}
+
+func TestParallelWorkersRespectBoundAndPublishSelectionOrder(t *testing.T) {
+	for _, workers := range []int{1, 2, MaximumWorkerLimit} {
+		t.Run(fmt.Sprintf("workers-%d", workers), func(t *testing.T) {
+			root := t.TempDir()
+			clock := newClock()
+			var mu sync.Mutex
+			states := map[string]string{}
+			var tasks []taskfile.Task
+			for i := 0; i < MaximumWorkerLimit; i++ {
+				id := fmt.Sprintf("task-%d", i+1)
+				states[id] = "pending"
+				tasks = append(tasks, node(id, i, "pending").Task)
+			}
+			loader := graphLoader(&mu, states, tasks)
+			active, peak := 0, 0
+			runner := func(_ context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
+				mu.Lock()
+				active++
+				if active > peak {
+					peak = active
+				}
+				mu.Unlock()
+				time.Sleep(10 * time.Millisecond)
+				mu.Lock()
+				states[in.TaskID] = "completed"
+				active--
+				mu.Unlock()
+				return taskResult(in, autonomoustaskrun.StopCompleted), nil
+			}
+			cfg := testConfig(root, "queue-bound", clock, loader, runner)
+			cfg.MaximumWorkers = workers
+			result, err := RunUntilExhausted(context.Background(), cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantPeak := workers
+			if wantPeak > len(tasks) {
+				wantPeak = len(tasks)
+			}
+			if peak != wantPeak || result.Statistics.PeakActiveWorkers != wantPeak || result.MaximumWorkers != workers {
+				t.Fatalf("peak=%d statistics=%+v workers=%d", peak, result.Statistics, result.MaximumWorkers)
+			}
+			for i, outcome := range result.Outcomes {
+				if outcome.TaskID != fmt.Sprintf("task-%d", i+1) || outcome.SelectionSequence != int64(i+1) {
+					t.Fatalf("outcomes are not canonical: %+v", result.Outcomes)
+				}
+			}
+		})
+	}
+}
+
+func TestParallelAdmissionHonorsDependenciesConflictsAndInvertedCompletion(t *testing.T) {
+	root := t.TempDir()
+	clock := newClock()
+	var mu sync.Mutex
+	states := map[string]string{"first": "pending", "conflict": "pending", "independent": "pending", "dependent": "pending"}
+	first := node("first", 0, "pending").Task
+	first.Conflicts = []string{"shared"}
+	conflict := node("conflict", 1, "pending").Task
+	conflict.Conflicts = []string{"shared"}
+	independent := node("independent", 2, "pending").Task
+	dependent := node("dependent", 3, "pending").Task
+	dependent.DependsOn = []string{"first"}
+	loader := graphLoader(&mu, states, []taskfile.Task{first, conflict, independent, dependent})
+	started := make(chan string, 4)
+	releases := map[string]chan struct{}{"first": make(chan struct{}), "independent": make(chan struct{}), "conflict": make(chan struct{}), "dependent": make(chan struct{})}
+	runner := func(_ context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
+		started <- in.TaskID
+		<-releases[in.TaskID]
+		mu.Lock()
+		states[in.TaskID] = "completed"
+		mu.Unlock()
+		return taskResult(in, autonomoustaskrun.StopCompleted), nil
+	}
+	cfg := testConfig(root, "queue-overlap", clock, loader, runner)
+	cfg.MaximumWorkers = 2
+	done := make(chan struct {
+		result Result
+		err    error
+	}, 1)
+	go func() {
+		result, err := RunUntilExhausted(context.Background(), cfg)
+		done <- struct {
+			result Result
+			err    error
+		}{result, err}
+	}()
+	firstBatch := []string{<-started, <-started}
+	sort.Strings(firstBatch)
+	if strings.Join(firstBatch, ",") != "first,independent" {
+		t.Fatalf("unsafe first batch %v", firstBatch)
+	}
+	close(releases["independent"])
+	close(releases["first"])
+	secondBatch := []string{<-started, <-started}
+	sort.Strings(secondBatch)
+	if strings.Join(secondBatch, ",") != "conflict,dependent" {
+		t.Fatalf("second batch=%v", secondBatch)
+	}
+	close(releases["conflict"])
+	close(releases["dependent"])
+	finished := <-done
+	if finished.err != nil || finished.result.StopReason != StopDrained {
+		t.Fatalf("result=%+v err=%v", finished.result, finished.err)
+	}
+	if got := taskIDsFromOutcomes(finished.result.Outcomes); got != "first,independent,conflict,dependent" {
+		t.Fatalf("outcome order=%s", got)
+	}
+}
+
+func TestParallelCancellationWaitsForEveryWorkerAndFallbackIsDurable(t *testing.T) {
+	t.Run("cancel", func(t *testing.T) {
+		root := t.TempDir()
+		clock := newClock()
+		var mu sync.Mutex
+		states := map[string]string{"one": "pending", "two": "pending"}
+		loader := graphLoader(&mu, states, []taskfile.Task{node("one", 0, "pending").Task, node("two", 1, "pending").Task})
+		started := make(chan struct{}, 2)
+		cleaned := make(chan struct{}, 2)
+		runner := func(ctx context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
+			started <- struct{}{}
+			<-ctx.Done()
+			cleaned <- struct{}{}
+			return taskResult(in, autonomoustaskrun.StopOperationCancelled), ctx.Err()
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cfg := testConfig(root, "queue-cancel-all", clock, loader, runner)
+		cfg.MaximumWorkers = 2
+		done := make(chan Result, 1)
+		go func() { result, _ := RunUntilExhausted(ctx, cfg); done <- result }()
+		<-started
+		<-started
+		cancel()
+		result := <-done
+		if len(cleaned) != 2 || result.StopReason != StopCancelled || len(result.Outcomes) != 2 {
+			t.Fatalf("cleanup=%d result=%+v", len(cleaned), result)
+		}
+	})
+
+	t.Run("fallback", func(t *testing.T) {
+		root := t.TempDir()
+		clock := newClock()
+		var mu sync.Mutex
+		states := map[string]string{"one": "pending", "two": "pending"}
+		base := graphLoader(&mu, states, []taskfile.Task{node("one", 0, "pending").Task, node("two", 1, "pending").Task})
+		loader := func(ctx context.Context) (Snapshot, error) {
+			snapshot, err := base(ctx)
+			snapshot.Classify = nil
+			return snapshot, err
+		}
+		cfg := testConfig(root, "queue-fallback", clock, loader, func(_ context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
+			mu.Lock()
+			states[in.TaskID] = "completed"
+			mu.Unlock()
+			return taskResult(in, autonomoustaskrun.StopCompleted), nil
+		})
+		cfg.MaximumWorkers = 3
+		result, err := RunUntilExhausted(context.Background(), cfg)
+		if err != nil || result.Statistics.PeakActiveWorkers != 1 || result.Statistics.SequentialFallbacks == 0 {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+		op, _, _ := Inspect(root, "queue-fallback")
+		if op.Statistics.SequentialFallbacks == 0 {
+			t.Fatal("fallback was not durable")
+		}
+	})
+}
+
+func TestParallelWorkerPanicPreservesPeerEvidence(t *testing.T) {
+	root := t.TempDir()
+	clock := newClock()
+	var mu sync.Mutex
+	states := map[string]string{"panic": "pending", "peer": "pending"}
+	loader := graphLoader(&mu, states, []taskfile.Task{node("panic", 0, "pending").Task, node("peer", 1, "pending").Task})
+	cfg := testConfig(root, "queue-panic", clock, loader, func(_ context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
+		if in.TaskID == "panic" {
+			panic("injected")
+		}
+		mu.Lock()
+		states[in.TaskID] = "completed"
+		mu.Unlock()
+		return taskResult(in, autonomoustaskrun.StopCompleted), nil
+	})
+	cfg.MaximumWorkers = 2
+	result, err := RunUntilExhausted(context.Background(), cfg)
+	if err == nil || result.StopReason != StopUnsafeAmbiguous || len(result.Outcomes) != 2 || result.Outcomes[1].StopReason != autonomoustaskrun.StopCompleted {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+}
+
+func graphLoader(mu *sync.Mutex, states map[string]string, tasks []taskfile.Task) Loader {
+	return func(context.Context) (Snapshot, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		active := make([]autonomousscheduler.ActiveTask, len(tasks))
+		for i, task := range tasks {
+			copyTask := task
+			copyTask.DependsOn = append([]string(nil), task.DependsOn...)
+			copyTask.Conflicts = append([]string(nil), task.Conflicts...)
+			lifecycle := states[task.ID]
+			if lifecycle == "completed" {
+				copyTask.Status = taskfile.StatusCompleted
+			}
+			active[i] = autonomousscheduler.ActiveTask{Task: copyTask, Lifecycle: lifecycle, StateSHA256: strings.Repeat("c", 64), StateByteSize: len(task.ID)}
+		}
+		graph, err := autonomousscheduler.BuildSnapshot(active, nil)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		nodes := autonomousscheduler.ClassifyAll(graph, nil)
+		return Snapshot{Fingerprint: nodesFingerprint(nodes), Nodes: nodes, Classify: func(occupied []string) ([]autonomousscheduler.Node, error) {
+			return autonomousscheduler.ClassifyAll(graph, occupied), nil
+		}}, nil
+	}
+}
+
+func taskIDsFromOutcomes(outcomes []TaskOutcome) string {
+	ids := make([]string, len(outcomes))
+	for i, outcome := range outcomes {
+		ids[i] = outcome.TaskID
+	}
+	return strings.Join(ids, ",")
 }
 
 func testConfig(root, id string, clock func() time.Time, loader Loader, runner TaskRunner) Config {
-	return Config{RepositoryRoot: root, OperationID: id, Mode: ModeUntilExhausted, ConfigSchema: "config-v1", ConfigSHA256: strings.Repeat("a", 64), SafetyIdentity: strings.Repeat("b", 64), MaxTasks: 20, Sweep: 1, Clock: clock, Loader: loader, Runner: runner}
+	return Config{RepositoryRoot: root, OperationID: id, Mode: ModeUntilExhausted, ConfigSchema: "config-v1", ConfigSHA256: strings.Repeat("a", 64), SafetyIdentity: strings.Repeat("b", 64), MaxTasks: 20, MaximumWorkers: 1, Sweep: 1, Clock: clock, Loader: loader, Runner: runner}
 }
 
 func node(id string, priority int, lifecycle string) autonomousscheduler.Node {

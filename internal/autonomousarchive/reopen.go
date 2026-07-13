@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomousexec"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/ledger"
 	"revolvr/internal/taskfile"
@@ -86,6 +87,11 @@ func Reopen(ctx context.Context, cfg Config, request ReopenRequest) (ReopenResul
 		return ReopenResult{Record: existing, Task: task, State: autonomousstate.Snapshot{State: state, SHA256: artifact(task.AutonomousStatePath, raw).SHA256, ByteSize: len(raw), SourcePath: task.AutonomousStatePath}, Replayed: true}, nil
 	}
 
+	releaseExecution, err := autonomousexec.TryAcquire(root)
+	if err != nil {
+		return ReopenResult{}, fmt.Errorf("reopen archive: %w", err)
+	}
+	defer releaseExecution()
 	releaseAdmin, err := acquireFileLock(ctx, root, ".revolvr/locks/git-admin.lock")
 	if err != nil {
 		return ReopenResult{}, err

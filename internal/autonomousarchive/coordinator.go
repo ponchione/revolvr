@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomousexec"
 	"revolvr/internal/autonomousfinalization"
 	"revolvr/internal/ledger"
 	revolvrlock "revolvr/internal/lock"
@@ -94,7 +95,12 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 		return ArchiveResult{}, errors.New("archive task: archive run id is malformed")
 	}
 
-	// Git administration is always acquired before the per-task state lock.
+	// Lock order is outer execution lease, Git administration, then task state.
+	releaseExecution, err := autonomousexec.TryAcquire(root)
+	if err != nil {
+		return ArchiveResult{}, fmt.Errorf("archive task: %w", err)
+	}
+	defer releaseExecution()
 	releaseAdmin, err := acquireFileLock(ctx, root, ".revolvr/locks/git-admin.lock")
 	if err != nil {
 		return ArchiveResult{}, err
@@ -383,7 +389,7 @@ func terminalLedgerIdentity(ctx context.Context, store Ledger, frozen autonomous
 		Stage         autonomous.FinalizationStage     `json:"stage"`
 		Manifest      *autonomous.FinalizationArtifact `json:"manifest"`
 	}
-	if err := json.Unmarshal(foundEvent.Payload, &payload); err != nil || payload.SchemaVersion != "autonomous-finalization-ledger-event-v1" || payload.TaskID != frozen.Task.TaskID || payload.OperationID != frozen.OperationID || payload.Stage != autonomous.FinalizationStageLedgerCompleted || payload.Manifest == nil || payload.Manifest.Path != completionManifest.Path || payload.Manifest.SHA256 != completionManifest.SHA256 || payload.Manifest.ByteSize != completionManifest.ByteSize {
+	if err := json.Unmarshal(foundEvent.Payload, &payload); err != nil || (payload.SchemaVersion != "autonomous-finalization-ledger-event-v1" && payload.SchemaVersion != autonomousfinalization.LedgerEventSchemaVersion) || payload.TaskID != frozen.Task.TaskID || payload.OperationID != frozen.OperationID || payload.Stage != autonomous.FinalizationStageLedgerCompleted || payload.Manifest == nil || payload.Manifest.Path != completionManifest.Path || payload.Manifest.SHA256 != completionManifest.SHA256 || payload.Manifest.ByteSize != completionManifest.ByteSize {
 		return LedgerIdentity{}, errors.Join(err, errors.New("archive task: terminal finalization ledger payload is mismatched"))
 	}
 	return LedgerIdentity{RunID: frozen.FinalizationRunID, TerminalEventID: foundEvent.ID, TerminalEventType: string(foundEvent.Type)}, nil
@@ -470,20 +476,9 @@ func archiveTrailers(m Manifest) []string {
 	return []string{"Archive-Operation: " + m.OperationID, "Archive-ID: " + m.ArchiveID, "Task-ID: " + m.TaskID, "Disposition: " + string(m.Disposition), "Terminal-Identity: " + terminal}
 }
 
-type ledgerArchiveEvent struct {
-	SchemaVersion string      `json:"schema_version"`
-	ArchiveID     string      `json:"archive_id"`
-	OperationID   string      `json:"operation_id"`
-	TaskID        string      `json:"task_id"`
-	Disposition   Disposition `json:"disposition"`
-	Stage         Stage       `json:"stage"`
-	Manifest      Artifact    `json:"manifest"`
-	CommitSHA     string      `json:"commit_sha,omitempty"`
-}
-
-func archiveEvent(m Manifest, stage Stage, commit string) ledgerArchiveEvent {
+func archiveEvent(m Manifest, stage Stage, commit string) LedgerEvent {
 	manifestPath := archiveManifestPath(m.ArchivedAt, m.TaskID)
-	return ledgerArchiveEvent{LedgerEventSchemaVersion, m.ArchiveID, m.OperationID, m.TaskID, m.Disposition, stage, artifact(manifestPath, mustMarshal(m)), commit}
+	return LedgerEvent{SchemaVersion: LedgerEventSchemaVersion, ArchiveID: m.ArchiveID, OperationID: m.OperationID, TaskID: m.TaskID, Disposition: m.Disposition, Stage: stage, Manifest: artifact(manifestPath, mustMarshal(m)), CommitSHA: commit, TerminalAt: m.TerminalAt, ArchivedAt: m.ArchivedAt}
 }
 
 func ensureArchiveRun(ctx context.Context, store Ledger, m Manifest) error {

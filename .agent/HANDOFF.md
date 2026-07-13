@@ -4,91 +4,53 @@ Date: 2026-07-12
 
 ## Where We Left Off
 
-AW-29 is complete. AW-30 is the next unchecked task and must begin in a fresh
-`codex exec` invocation. Do not resume this session and do not start AW-31.
+The complete AW-01 through AW-31 autonomous-workflow program is finished.
+There is no later numbered AW slice and no discovered follow-up backlog.
 
-External notifications are explicit opt-in `notifications` configuration and
-part of `revolvr-effective-run-config-v4`. The exact event allowlist is task
-completed, blocked, typed needs input, trusted safety stop, queue drained, and
-daemon failure. Disabled policy performs no notification lookup, secret load,
-directory/lock/ledger/temp creation, or subprocess work.
+AW-31 adds bounded parallel queue batches with a strict default of one worker
+and cap of four. `autonomous-queue-operation-v2` persists canonical
+selection/batch/slot/task/task-operation authority before launch, reconciles in
+slot order, and resumes only unresolved slots. Every additional batch candidate
+is reclassified by AW-23 against the exact occupied set, so dependency,
+conflict, malformed, or unavailable authority reduces concurrency rather than
+broadening it. Cancellation joins all children; safe local stops preserve
+peers; safety/unsafe evidence stops later admission; runner panics are bounded.
 
-`internal/autonomousnotification` owns strict v1 policy/payload/outbox
-contracts, deterministic event/delivery IDs, exact canonical JSON stdin,
-immutable intent/payload/history, synchronized journals, bounded runner
-execution, replacement environment, redaction, retry/restart, and inspection.
-Task, queue, daemon, input, finalization, archive, safety, ledger, and retention
-owners remain authoritative. Hook failure is durable and operator-visible but
-cannot change their result, bytes, stop reason, or source error precedence.
+Configuration is `autonomous-queue-policy-v1` in
+`revolvr-effective-run-config-v5`; CLI supports `run --queue/--daemon --workers
+N`, while TUI queue control remains sequential. Queue ledger v3 and AW-30
+metrics retain worker/batch/fallback facts and legacy omissions. Existing v1
+queue operations and v2 queue ledger events remain compatible.
 
-Direct task and queue app wrappers release the global autonomous-execution
-lease before hook execution. Queue-internal tasks do not dispatch; their exact
-durable outcomes are adapted once by the enclosing queue. Replays rebuild the
-same delivery identity, successful delivery starts no second process, and
-running/history-ahead crashes consume and recover one bounded attempt. Stable
-receiver keys support deduplication, but external exactly-once is deliberately
-not claimed across the receiver-success/local-crash window.
-
-Operator inspection is limited to redacted read-only `notification list/show`.
-Config check and doctor show nonsecret policy facts. AW-27 views and AW-28 TUI
-refresh remain read-only and do not dispatch or retry. Notification evidence is
-kept in its isolated outbox rather than changing AW-25 ledger export/replay or
-retention schemas.
+The outer autonomous execution lease still admits only one coordinator.
+Workers retain exact AW-18 workspaces and existing Git/state/source/ledger
+owners. Archive/reopen take a nonwaiting outer lease before Git-admin/task-state
+and refuse during a coordinator. Retention and notifications keep their
+established refusal/post-lease behavior.
 
 ## Verification Status
 
-All checks passed:
+All required baseline, focused, complete-suite, focused race, full-repository
+race, vet, diff, and non-model CLI checks passed. Deterministic tests cover
+limits 1/2/4, dependency/conflict admission, inverted completion, cancellation,
+panic, fallback, crash/replay, ledger order/export, metrics, worker flag/config,
+TUI compatibility, and archive refusal.
 
-```text
-go test -count=1 <required AW-28 baseline packages>
-go test -count=1 ./internal/app ./internal/cli ./internal/tui \
-  ./internal/autonomoustaskrun ./internal/autonomousqueue \
-  ./internal/autonomousdaemon ./internal/autonomousexec \
-  ./internal/autonomousfinalization ./internal/autonomousinput \
-  ./internal/autonomousstate ./internal/autonomousarchive \
-  ./internal/autonomoussafety ./internal/ledger ./internal/ledgerexport \
-  ./internal/artifactretention ./internal/redact ./internal/runner \
-  ./internal/pathguard ./internal/lock ./internal/runonce \
-  ./internal/autonomousnotification
-go test -count=1 ./...
-go vet ./internal/app ./internal/cli ./internal/runonce \
-  ./internal/autonomousnotification
-git diff --check
-go run ./cmd/revolvr --help
-go run ./cmd/revolvr run --help
-go run ./cmd/revolvr notification --help
-go run ./cmd/revolvr notification list
-go run ./cmd/revolvr config check
-go run ./cmd/revolvr doctor # expected nonzero only for accumulated dirty tree
-go run ./cmd/revolvr status
-```
-
-Tests use injected runners/lookups/clocks/waits and temporary repositories. They
-cover six-event payload goldens, strict configuration, redaction, exact process
-authority, caps/timeouts/retries/cancellation, duplicate/restart/history-ahead
-recovery, disabled no-op behavior, source-durable replay reconciliation,
-failure isolation, lease ordering, CLI diagnostics, and read-only inspection.
-No live Codex/model, real hook/receiver, network request, daemon service,
-archive/retention mutation, metrics/evaluation, or parallel worker ran.
+No live Codex/model, notification receiver, network service, Git hook, daemon,
+archive/retention mutation, source task, real repository queue, or destructive
+Git command ran during implementation and verification.
 
 ## Worktree State
 
-The AW-01 through AW-16 baseline remains committed at `28371e4` (`Build
-autonomous workflow through conditional roles`). AW-17 through AW-29 source,
-tests, documentation, and durable-state changes are intentionally uncommitted
-and must be preserved. The consumed AW-29 kickoff prompt is deleted as
-expected.
-
-Start the next fresh session with `git status --short --branch` and
-`git log -1 --oneline`, then read `AGENTS.md`, this handoff, `.agent/TASKS.md`,
-`.agent/STATE.md`, `.agent/DECISIONS.md`, and
-`.agent/AUTONOMOUS_WORKFLOW_REFACTOR.md` completely. Never reset, clean,
-restore, stash, or otherwise discard accumulated work.
+AW-30 and AW-31 source, tests, documentation, and durable-state changes are
+published together in the final program-completion commit on `main`. After the
+authorized raw-Git push, the expected worktree is clean and aligned with
+`origin/main`; preserve and investigate any later local change rather than
+discarding it.
 
 ## Next Task
 
-AW-30 — add autonomous-loop metrics and deterministic evaluation scenarios.
-Do not add bounded parallel workers; AW-31 retains that scope.
+None. Await an explicitly authored new task rather than inventing a roadmap.
 
 ## Blockers
 

@@ -507,7 +507,9 @@ Use number keys to switch views, `j`/`k` or arrow keys to move list selections,
 mixed-pass pass after preflight is ready, `U` to run the selected
 `autonomous-v1` task until a terminal-for-now outcome, `n` to cycle the
 mixed-pass loop max through 2/3/5 (default 3), `L` to start that bounded loop,
-and `Q` to start a bounded sequential autonomous queue sweep. In Workflow,
+and `Q` to start a bounded sequential autonomous queue sweep. The TUI control
+intentionally stays at one worker; use CLI/config for bounded parallelism. In
+Workflow,
 `a` opens answer selection only for a current typed needs-input question; no
 option or recommendation is preselected, and submission requires an explicit
 choice plus confirmation. Press `c` to request cancellation of the active
@@ -579,19 +581,26 @@ The loop never spends surplus cycles on another task. `--once` and
 `--max-passes` retain their existing mixed-pass meanings and cannot be combined
 with `--until-terminal`.
 
-Run every currently ready autonomous task sequentially until the queue is
+Run every currently ready autonomous task until the queue is
 drained, waiting, bounded, cancelled, or stopped by safety evidence:
 
 ```bash
 go run ./cmd/revolvr run --queue \
   --operation-id <stable-queue-id> \
   --max-tasks 100 \
-  --max-cycles 50
+  --max-cycles 50 \
+  --workers 2
 ```
 
-The queue rebuilds the exact dependency graph before every selection and
-persists the selected task plus its derived AW-22 operation ID before starting
-it. Completed tasks can immediately unlock dependents. Clean blocked,
+Queue workers default to `1` and are capped at `4`. The strict config equivalent
+is `queue.maximum_workers`; `--workers` overrides it for one queue or daemon
+operation and becomes part of that operation's effective-config identity. The
+queue rebuilds the exact dependency graph before every admission, walks its
+canonical order against the exact occupied set, and durably persists the whole
+ordered batch, slot identities, and derived AW-22 operation IDs before starting
+any worker. When overlap cannot be proven, it records a sequential fallback.
+Dependent or conflicting tasks never share a batch. Completed tasks can unlock
+dependents at the next boundary. Clean blocked,
 needs-input, task-cancelled, no-progress, budget, and max-cycle outcomes are
 recorded and yielded so unrelated ready work can continue; unsafe or ambiguous
 state stops the queue immediately. A yielded task is excluded only while its
@@ -599,11 +608,17 @@ exact task/state authority is unchanged, preventing a high-priority task from
 starving later work without rewriting priority or dependencies.
 
 Queue checkpoints and immutable history live under
-`.revolvr/autonomous/queues/<operation-id>/`. Replaying a terminal operation
-returns its ordered prior outcomes without starting another task. Stop reasons
+`.revolvr/autonomous/queues/<operation-id>/`. Replaying a nonterminal operation
+reopens only unresolved exact slots; replaying a terminal operation returns its
+ordered prior outcomes without starting work. Canonical outcomes remain in
+selection order even when workers finish in another order. Caller cancellation
+cancels every active child, waits for cleanup, and reconciles all evidence
+before returning. A task-local safe stop does not cancel its peers. Stop reasons
 distinguish `drained`, dependency/input/blocked waiting, queue budget,
-cancelled, safety, and unsafe/ambiguous state. Queue execution is sequential;
-AW-31, not this mode, owns any future parallel workers.
+cancelled, safety, and unsafe/ambiguous state. The outer execution lease still
+admits only one direct run or queue coordinator; parallelism exists only among
+isolated task workspaces inside that coordinator. Archive mutation refuses
+while the coordinator is active, and retention keeps its existing refusal.
 
 An optional foreground daemon runs the same bounded sweeps after a stable
 readiness-authority change:
@@ -613,6 +628,7 @@ go run ./cmd/revolvr run --daemon \
   --operation-id <stable-daemon-id> \
   --max-tasks 100 \
   --max-cycles 50 \
+  --workers 2 \
   --max-sweeps 1000 \
   --daemon-poll 1s \
   --daemon-debounce 500ms
@@ -727,6 +743,36 @@ namespace; AW-26 adds no cache eviction or ordinary status/config/TUI cache
 population.
 
 ## Status, Show, And Receipt Validation
+
+Project autonomous-loop metrics from the live immutable ledger snapshot or an
+already verified immutable export:
+
+```bash
+go run ./cmd/revolvr metrics show
+go run ./cmd/revolvr metrics show --json
+go run ./cmd/revolvr metrics show --export <export-id>
+```
+
+The versioned projection reports an explicit success numerator/denominator,
+typed terminal outcomes, attempts and correction cycles, audit findings and
+their explicit dispositions, verification attempts/flaky reruns, recorded
+tokens and stable nanosecond durations, exact archive latency, queue throughput,
+configured/peak workers, batches, parallel sweeps, and sequential fallbacks.
+Missing legacy concurrency evidence is listed as an omission; tokens are
+never estimated, a later clean audit never invents finding resolution, and a
+flaky classification is not converted into a pass. Logical operation and
+occurrence identities deduplicate replay, so equal live and exported history
+produces byte-identical canonical JSON. The command is read-only: it does not
+run tasks, verification, archive verification, retention, notifications,
+Codex, Git, a daemon, or workers.
+
+The source-of-truth AW-30 evaluation suite is
+`internal/autonomousmetrics/TestDeterministicEvaluationScenarios`. It uses
+fixed UTC clocks and stable typed fake occurrences for straight success,
+correction, clean re-audit, conditional skips, no progress, needs input,
+blocked queue yield, and crash-finalization replay. It invokes no live model,
+network service, notification hook, or repository runtime. Live dogfood remains
+the separate opt-in script described below.
 
 Show aggregate task and run state:
 

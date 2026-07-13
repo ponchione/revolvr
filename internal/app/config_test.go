@@ -259,6 +259,45 @@ notifications:
 	}
 }
 
+func TestCheckRunConfigQueueWorkersDefaultBoundsAndFingerprint(t *testing.T) {
+	root := t.TempDir()
+	base, err := CheckRunConfig(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if base.Effective.QueuePolicy.MaximumWorkers != 1 {
+		t.Fatalf("default queue policy=%+v", base.Effective.QueuePolicy)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".revolvr"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, ".revolvr", DefaultConfigFile)
+	if err := os.WriteFile(path, []byte("queue:\n  schema_version: autonomous-queue-policy-v1\n  maximum_workers: 3\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configured, err := CheckRunConfig(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configured.Effective.QueuePolicy.MaximumWorkers != 3 || configured.EffectiveConfigSHA256 == base.EffectiveConfigSHA256 {
+		t.Fatalf("configured=%+v base_hash=%s", configured, base.EffectiveConfigSHA256)
+	}
+	for _, value := range []string{"0", "-1", "5"} {
+		if err := os.WriteFile(path, []byte("queue:\n  maximum_workers: "+value+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := CheckRunConfig(root); err == nil {
+			t.Fatalf("maximum_workers=%s succeeded", value)
+		}
+	}
+	if err := os.WriteFile(path, []byte("queue:\n  unknown: true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CheckRunConfig(root); err == nil {
+		t.Fatal("unknown queue field succeeded")
+	}
+}
+
 func TestCheckRunConfigRejectsInvalidNotificationPolicy(t *testing.T) {
 	base := "autonomy:\n  redaction:\n    environment_variables: [HOOK_TOKEN]\n"
 	for _, test := range []struct{ name, config, want string }{

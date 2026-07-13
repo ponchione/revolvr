@@ -45,6 +45,8 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"archive", "verify"},
 		{"archive", "create"},
 		{"archive", "reopen"},
+		{"metrics"},
+		{"metrics", "show"},
 		{"config"},
 		{"config", "check"},
 		{"run"},
@@ -1611,7 +1613,9 @@ func defaultAutonomyConfigOutput() string {
 		"Git hooks policy: operator_attended trusted=0\n" +
 		"Environment policy: inherit_host=true allow=[]\n" +
 		"Secret redaction sources: environment_variables=[]\n" +
-		"Fully unattended acknowledgement present: false\n"
+		"Fully unattended acknowledgement present: false\n" +
+		"Queue policy schema: autonomous-queue-policy-v1\n" +
+		"Queue maximum workers: 1\n"
 }
 
 func defaultRetentionConfigOutput() string {

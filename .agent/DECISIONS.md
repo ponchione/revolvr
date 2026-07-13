@@ -1,5 +1,102 @@
 # Agent Decisions
 
+## AW-31 Bounded Parallel Queue Workers (2026-07-12)
+
+- Queue concurrency policy is strict `autonomous-queue-policy-v1`, included in
+  `revolvr-effective-run-config-v5`, defaults to one worker, and has a fixed
+  harness cap of four. CLI override is `run --queue/--daemon --workers N`; the
+  TUI remains explicitly sequential.
+- `internal/autonomousqueue` owns durable batch admission and reconciliation,
+  not task lifecycle work. `autonomous-queue-operation-v2` persists a complete
+  ordered batch before launch, with monotonic selection sequence, batch/slot,
+  exact scheduling fingerprint/authority, task and task-operation identities,
+  slot state/outcome, worker bound, peak, batches, and fallback reason.
+- Admission retains AW-23 authority: start with canonical ready order and
+  re-run the exact snapshot classifier against the occupied IDs after every
+  candidate. Dependency/conflict uncertainty never broadens overlap. A missing
+  classifier or no provably safe next candidate reduces the batch and records
+  a typed sequential fallback.
+- Task-operation IDs hash queue operation, selection, batch, slot, task,
+  scheduling fingerprint, and worker bound. Stable IDs and result order never
+  use goroutine identity, PID, map order, completion timing, or ambient time.
+- Workers receive child contexts and exact persisted slot material. The
+  coordinator owns queue progress/checkpoint/history/ledger mutation and
+  reconciles returned evidence in slot order. Safe local terminal-for-now
+  results do not cancel peers. Global cancellation cancels and joins all
+  workers. Safety preserves the first canonical slot's authority after all
+  already-admitted peers reach their task-run boundary. Panic/ambiguous/runner
+  failures become unsafe slot evidence and prevent new admission.
+- Restart runs only admitted unresolved slots with their original AW-22 IDs;
+  terminal slots and outcomes are never duplicated. Existing v1 sequential
+  operations remain readable/replayable and nonterminal pinned selections
+  migrate forward at one worker. Queue ledger v3 adds real concurrency facts;
+  v2 sequential evidence remains decodable/exportable and is not reinterpreted.
+- Lock order is: outer autonomous-execution lease; queue operation lease; then
+  worker-owned existing boundaries as needed (Git-admin before task state,
+  child publication, or workspace source writer according to their owners).
+  The coordinator holds no shared mutex across model, verification, or source
+  work. Queue checkpoint/ledger publication happens after worker joins and is
+  coordinator-only. Independent SQLite stores use their existing WAL/busy
+  ownership; Git/ref/state effects retain existing explicit locks.
+- Archive/reopen mutation now nonblockingly takes the outer execution lease
+  before Git-admin and task-state, refusing while a direct run or queue is
+  active. Retention retains its existing retention lease then nonwaiting outer
+  execution probe. Queue execution never implicitly archives or retains.
+- Notifications remain post-lease, one terminal queue adaptation with no
+  worker dispatch. AW-30 metrics add configured/peak workers, parallel sweeps,
+  batches, and fallbacks from queue ledger v3; older queue evidence produces an
+  explicit concurrency omission. CLI/TUI render only durable attribution.
+
+## AW-30 Metrics And Deterministic Evaluations (2026-07-12)
+
+- Pure metrics projection lives in isolated `internal/autonomousmetrics` with
+  schema `autonomous-loop-metrics-v1`. Its public contract is strict,
+  map-free, deterministically ordered, caller-owned, canonical JSON with one
+  final newline, and contains source references plus explicit omissions.
+- Both sources adapt to `ledger.Snapshot`. Live reads use immutable read-only
+  SQLite; `ledgerexport.ReplaySnapshot` verifies the immutable export before
+  rebuilding the same logical runs/events. Canonical source identity hashes
+  logical evidence rather than its live/export location, so identical history
+  produces identical metric bytes.
+- Logical terminal task operation ID, attempt ID/kind, audit run, verification
+  run/occurrence, archive ID, finalization operation, and queue operation are
+  the deduplication keys. Exact duplicates/replay are ignored; materially
+  conflicting reuse fails. `no_task` is not a terminal task operation.
+- Success numerator is completed terminal task operations; denominator is all
+  counted terminal task operations. Raw stop authority is retained while
+  rendering completed, blocked, needs-input, safety, budget, no-progress,
+  cancelled, max-cycle, and unsafe classes distinctly.
+- Actual AW-15 completion tokens and nanosecond durations are counted only when
+  recorded. Missing token values are explicit and never estimated. Ledger run,
+  task-operation, verification, and queue durations use recorded stable units
+  and no ambient `now`.
+- Audits are keyed by exact audit run. Findings are introduced once by exact
+  report evidence and joined only to explicit durable resolution dispositions;
+  a later clean audit never manufactures resolution. Verification ordinary
+  attempts, failures/passes, flaky classifications, reruns, timeout,
+  cancellation, missing-command, and runner-error facts remain distinct.
+- Task-run/queue/archive/finalization owner payloads advance compatibly to v2
+  where exact timing/statistics were absent. Tiered verification ledger events
+  gain `autonomous-verification-ledger-event-v1`. Relevant older payloads yield
+  typed omissions; unknown current schemas/fields/enums fail rather than being
+  guessed.
+- Archive latency is recorded only from the archive owner's exact matching
+  terminal/archive UTC authority. Queue throughput is tasks run divided by
+  durable queue nanoseconds, with sweeps, selections, ordered outcomes, stop
+  reasons, and drained counts. AW-30 defines no concurrency metric or worker.
+- App owns source loading, export verification/replay, configured-secret
+  refusal, and pure projection invocation. CLI owns stable `metrics show`,
+  `--json`, and `--export` rendering. The path is read-only and cannot dispatch
+  notifications, run archive verification, mutate retention, execute workflow
+  work, invoke Git/Codex, or populate ordinary status/TUI views.
+- The source-of-truth evaluation suite is fixed-time typed fake evidence in
+  `internal/autonomousmetrics`; it composes production owner contracts and the
+  pure projector without duplicating production execution. It covers exactly
+  the eight AW-30 scenarios. Existing owner failure-injection tests remain the
+  crash/persistence authority, and live dogfood remains separate and opt-in.
+- AW-31 remains the sole owner of bounded parallel workers, overlap analysis,
+  concurrency configuration, and parallel scheduling.
+
 ## AW-29 External Notification Hooks (2026-07-12)
 
 - Notification delivery is isolated in `internal/autonomousnotification`.

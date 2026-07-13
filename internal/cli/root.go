@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousarchive"
 	"revolvr/internal/autonomousdaemon"
+	"revolvr/internal/autonomousmetrics"
 	"revolvr/internal/autonomousnotification"
 	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoustaskrun"
@@ -86,6 +88,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newArchiveCommand(opts),
 		newArtifactCommand(opts),
 		newLedgerCommand(opts),
+		newMetricsCommand(opts),
 		newNotificationCommand(opts),
 		newConfigCommand(opts),
 		newRunCommand(opts),
@@ -97,6 +100,51 @@ func NewRootCommand(opts Options) *cobra.Command {
 	)
 
 	return root
+}
+
+func newMetricsCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{Use: "metrics", Short: "Project autonomous-loop metrics from ledger evidence", Args: cobra.NoArgs, RunE: runHelp}
+	var jsonOutput bool
+	var exportID string
+	show := &cobra.Command{Use: "show", Short: "Show deterministic autonomous-loop metrics", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		projection, err := app.ShowMetrics(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, strings.TrimSpace(exportID))
+		if err != nil {
+			return err
+		}
+		if jsonOutput {
+			raw, err := autonomousmetrics.Marshal(projection)
+			if err != nil {
+				return err
+			}
+			_, err = cmd.OutOrStdout().Write(raw)
+			return err
+		}
+		return writeMetrics(cmd.OutOrStdout(), projection)
+	}}
+	show.Flags().BoolVar(&jsonOutput, "json", false, "emit canonical JSON")
+	show.Flags().StringVar(&exportID, "export", "", "project one verified immutable ledger export")
+	cmd.AddCommand(show)
+	return cmd
+}
+
+func writeMetrics(out io.Writer, p autonomousmetrics.Projection) error {
+	if _, err := fmt.Fprintf(out, "Metrics schema: %s\nSource: %s %s runs=%d events=%d high-water=%d\nTask success: %d/%d terminal=%d\n", p.SchemaVersion, p.Source.Kind, p.Source.Reference, p.Source.RunCount, p.Source.EventCount, p.Source.MaxEventID, p.TaskOutcomes.SuccessNumerator, p.TaskOutcomes.SuccessDenominator, p.TaskOutcomes.Total); err != nil {
+		return err
+	}
+	for _, count := range p.TaskOutcomes.Counts {
+		if _, err := fmt.Fprintf(out, "Outcome: %s=%d\n", count.Name, count.Value); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(out, "Attempts: admitted=%d completed=%d corrections=%d tokens=%d missing_tokens=%d attempt_duration_ns=%d task_duration_ns=%d\nAudits: performed=%d clean=%d changes_required=%d blocking_findings=%d nonblocking_findings=%d\nVerification: occurrences=%d tiers=%d commands=%d passes=%d failures=%d flaky=%d reruns=%d timeouts=%d cancellations=%d missing=%d runner_errors=%d duration_ns=%d\nArchives: completed=%d cancelled=%d superseded=%d abandoned=%d latency=%d/%d_ns\nQueues: sweeps=%d selections=%d tasks=%d drained=%d configured_workers=%d peak_workers=%d parallel=%d fallbacks=%d duration_ns=%d\nOmissions: %d\n", p.Attempts.Admitted, p.Attempts.Completed, p.Attempts.CorrectionCycles, p.Usage.RecordedTokens, p.Usage.AttemptsMissingTokens, p.Usage.AttemptDurationNanoseconds, p.Usage.TaskDurationNanoseconds, p.Audits.Performed, p.Audits.Clean, p.Audits.ChangesRequired, p.Audits.BlockingFindings, p.Audits.NonblockingFindings, p.Verification.Occurrences, p.Verification.TierAttempts, p.Verification.CommandAttempts, p.Verification.OrdinaryPasses, p.Verification.OrdinaryFailures, p.Verification.FlakyClassifications, p.Verification.Reruns, p.Verification.Timeouts, p.Verification.Cancellations, p.Verification.MissingCommands, p.Verification.RunnerErrors, p.Usage.VerificationDurationNanoseconds, p.Archives.Completed, p.Archives.Cancelled, p.Archives.Superseded, p.Archives.Abandoned, p.Archives.LatencyCount, p.Archives.LatencyNanoseconds, p.Queues.Sweeps, p.Queues.Selections, p.Queues.TasksRun, p.Queues.Drained, p.Queues.MaximumConfiguredWorkers, p.Queues.PeakActiveWorkers, p.Queues.ParallelSweeps, p.Queues.SequentialFallbacks, p.Usage.QueueDurationNanoseconds, len(p.Omissions)); err != nil {
+		return err
+	}
+	for _, omission := range p.Omissions {
+		if _, err := fmt.Fprintf(out, "Omitted: %s: %s\n", omission.Code, oneLine(omission.Detail)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type notificationObservation struct {
@@ -1000,6 +1048,7 @@ func newRunCommand(opts Options) *cobra.Command {
 	var untilTerminal, queueMode, daemonMode bool
 	var taskID, operationID string
 	var maxCycles, maxTasks, maxSweeps int64
+	var maximumWorkers int
 	var daemonPoll, daemonDebounce time.Duration
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -1026,7 +1075,7 @@ func newRunCommand(opts Options) *cobra.Command {
 				return errors.New("run: --once, --max-passes, --until-terminal, --queue, and --daemon are mutually exclusive")
 			}
 			autonomousMode := untilTerminal || queueMode || daemonMode
-			if !autonomousMode && (cmd.Flags().Changed("task") || cmd.Flags().Changed("operation-id") || cmd.Flags().Changed("max-cycles") || cmd.Flags().Changed("max-tasks") || cmd.Flags().Changed("max-sweeps") || cmd.Flags().Changed("daemon-poll") || cmd.Flags().Changed("daemon-debounce")) {
+			if !autonomousMode && (cmd.Flags().Changed("task") || cmd.Flags().Changed("operation-id") || cmd.Flags().Changed("max-cycles") || cmd.Flags().Changed("max-tasks") || cmd.Flags().Changed("workers") || cmd.Flags().Changed("max-sweeps") || cmd.Flags().Changed("daemon-poll") || cmd.Flags().Changed("daemon-debounce")) {
 				return errors.New("run: autonomous operation and bound flags require --until-terminal, --queue, or --daemon")
 			}
 			if !untilTerminal && cmd.Flags().Changed("task") {
@@ -1037,6 +1086,12 @@ func newRunCommand(opts Options) *cobra.Command {
 			}
 			if untilTerminal && cmd.Flags().Changed("max-tasks") {
 				return errors.New("run: --max-tasks requires --queue or --daemon")
+			}
+			if untilTerminal && cmd.Flags().Changed("workers") {
+				return errors.New("run: --workers requires --queue or --daemon")
+			}
+			if cmd.Flags().Changed("workers") && (maximumWorkers <= 0 || maximumWorkers > autonomousqueue.MaximumWorkerLimit) {
+				return fmt.Errorf("run: --workers must be between 1 and %d", autonomousqueue.MaximumWorkerLimit)
 			}
 			if untilTerminal {
 				if maxCycles <= 0 {
@@ -1067,7 +1122,7 @@ func newRunCommand(opts Options) *cobra.Command {
 					runner = app.RunQueue
 				}
 				var notifications []notificationObservation
-				result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.QueueInput{OperationID: operationID, MaxTasks: maxTasks, MaxCycles: maxCycles, Notification: collectNotifications(&notifications)})
+				result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.QueueInput{OperationID: operationID, MaxTasks: maxTasks, MaxCycles: maxCycles, MaximumWorkers: maximumWorkers, Notification: collectNotifications(&notifications)})
 				if result.StopReason != "" {
 					if writeErr := writeQueueSummary(cmd.OutOrStdout(), result); writeErr != nil {
 						return writeErr
@@ -1087,7 +1142,7 @@ func newRunCommand(opts Options) *cobra.Command {
 					runner = app.RunDaemon
 				}
 				var notifications []notificationObservation
-				result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.DaemonInput{OperationID: operationID, MaxTasks: maxTasks, MaxCycles: maxCycles, MaxSweeps: maxSweeps, Poll: daemonPoll, Debounce: daemonDebounce, Notification: collectNotifications(&notifications)})
+				result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.DaemonInput{OperationID: operationID, MaxTasks: maxTasks, MaxCycles: maxCycles, MaximumWorkers: maximumWorkers, MaxSweeps: maxSweeps, Poll: daemonPoll, Debounce: daemonDebounce, Notification: collectNotifications(&notifications)})
 				if result.StopReason != "" {
 					if writeErr := writeDaemonSummary(cmd.OutOrStdout(), result); writeErr != nil {
 						return writeErr
@@ -1110,17 +1165,44 @@ func newRunCommand(opts Options) *cobra.Command {
 	cmd.Flags().BoolVar(&once, "once", false, "run one selected task")
 	cmd.Flags().IntVar(&maxPasses, "max-passes", 0, "run up to N fresh passes")
 	cmd.Flags().BoolVar(&untilTerminal, "until-terminal", false, "run one pinned autonomous task until a terminal stop")
-	cmd.Flags().BoolVar(&queueMode, "queue", false, "run ready autonomous tasks sequentially until exhausted")
+	cmd.Flags().BoolVar(&queueMode, "queue", false, "run ready autonomous tasks until exhausted")
 	cmd.Flags().BoolVar(&daemonMode, "daemon", false, "watch readiness authority and run bounded autonomous queue sweeps")
 	cmd.Flags().StringVar(&taskID, "task", "", "exact autonomous task ID (default selects once)")
 	cmd.Flags().StringVar(&operationID, "operation-id", "", "durable autonomous operation ID to start or resume")
 	cmd.Flags().Int64Var(&maxCycles, "max-cycles", 50, "maximum fresh autonomous supervisor cycles")
 	cmd.Flags().Int64Var(&maxTasks, "max-tasks", 100, "maximum tasks in one bounded queue sweep")
+	cmd.Flags().Var(&singleIntValue{target: &maximumWorkers}, "workers", fmt.Sprintf("maximum parallel queue workers (configured default 1, cap %d)", autonomousqueue.MaximumWorkerLimit))
 	cmd.Flags().Int64Var(&maxSweeps, "max-sweeps", 1000, "maximum bounded daemon queue sweeps")
 	cmd.Flags().DurationVar(&daemonPoll, "daemon-poll", time.Second, "daemon readiness polling interval")
 	cmd.Flags().DurationVar(&daemonDebounce, "daemon-debounce", 500*time.Millisecond, "daemon stable-change debounce interval")
 	return cmd
 }
+
+type singleIntValue struct {
+	target *int
+	set    bool
+}
+
+func (v *singleIntValue) String() string {
+	if v == nil || v.target == nil {
+		return "0"
+	}
+	return strconv.Itoa(*v.target)
+}
+
+func (v *singleIntValue) Set(raw string) error {
+	if v.set {
+		return errors.New("flag may be specified only once")
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return err
+	}
+	*v.target, v.set = parsed, true
+	return nil
+}
+
+func (*singleIntValue) Type() string { return "int" }
 
 func writeTaskRunSummary(out io.Writer, result autonomoustaskrun.Result, maxCycles int64) error {
 	actions := make([]string, 0, len(result.Statistics.Actions))
@@ -1132,11 +1214,11 @@ func writeTaskRunSummary(out io.Writer, result autonomoustaskrun.Result, maxCycl
 }
 
 func writeQueueSummary(out io.Writer, result autonomousqueue.Result) error {
-	if _, err := fmt.Fprintf(out, "Queue: operation=%s mode=%s stop=%s replayed=%t tasks=%d selections=%d\n", result.OperationID, result.Mode, result.StopReason, result.Replayed, len(result.Outcomes), result.Statistics.Selections); err != nil {
+	if _, err := fmt.Fprintf(out, "Queue: operation=%s mode=%s stop=%s replayed=%t tasks=%d selections=%d workers=%d peak=%d batches=%d fallbacks=%d\n", result.OperationID, result.Mode, result.StopReason, result.Replayed, len(result.Outcomes), result.Statistics.Selections, result.MaximumWorkers, result.Statistics.PeakActiveWorkers, result.Statistics.Batches, result.Statistics.SequentialFallbacks); err != nil {
 		return err
 	}
 	for _, outcome := range result.Outcomes {
-		if _, err := fmt.Fprintf(out, "Task: id=%s operation=%s stop=%s replayed=%t detail=%s\n", outcome.TaskID, outcome.TaskOperationID, outcome.StopReason, outcome.Replayed, oneLine(outcome.StopDetail)); err != nil {
+		if _, err := fmt.Fprintf(out, "Task: selection=%d batch=%d slot=%d id=%s operation=%s stop=%s replayed=%t detail=%s\n", outcome.SelectionSequence, outcome.Batch, outcome.Slot, outcome.TaskID, outcome.TaskOperationID, outcome.StopReason, outcome.Replayed, oneLine(outcome.StopDetail)); err != nil {
 			return err
 		}
 	}
@@ -1291,7 +1373,7 @@ func newTUICommand(opts Options) *cobra.Command {
 					if runner == nil {
 						runner = app.RunQueue
 					}
-					return runner(runCtx, cfg, app.QueueInput{MaxTasks: maxTasks, MaxCycles: maxCycles, Progress: progress})
+					return runner(runCtx, cfg, app.QueueInput{MaxTasks: maxTasks, MaxCycles: maxCycles, MaximumWorkers: 1, Progress: progress})
 				},
 			})
 		},

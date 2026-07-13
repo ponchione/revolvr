@@ -12,6 +12,7 @@ import (
 
 	"revolvr/internal/artifactretention"
 	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
@@ -64,6 +65,7 @@ type Config struct {
 	SafetyDeclaration  autonomoussafety.Declaration
 	RetentionPolicy    artifactretention.Policy
 	NotificationPolicy autonomousnotification.Policy
+	QueuePolicy        autonomousqueue.Policy
 
 	LedgerStore *ledger.Store
 	LedgerPath  string
@@ -537,10 +539,16 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.NotificationPolicy.SchemaVersion == "" {
 		cfg.NotificationPolicy = autonomousnotification.DefaultPolicy()
 	}
+	if cfg.QueuePolicy.SchemaVersion == "" {
+		cfg.QueuePolicy = autonomousqueue.DefaultPolicy()
+	}
 	if err := cfg.RetentionPolicy.Validate(); err != nil {
 		return Config{}, "", fmt.Errorf("run once: %w", err)
 	}
 	if err := cfg.SafetyDeclaration.Validate(); err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
+	if err := cfg.QueuePolicy.Validate(); err != nil {
 		return Config{}, "", fmt.Errorf("run once: %w", err)
 	}
 	notificationPolicy, err := cfg.NotificationPolicy.Normalize(cfg.SafetyDeclaration.Redaction.EnvironmentVariables)

@@ -456,6 +456,10 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		line := fmt.Sprintf("queue: stage %s selections %d tasks %d", msg.operation.Stage, msg.operation.Statistics.Selections, msg.operation.Statistics.TasksRun)
 		if msg.operation.InFlight != nil {
 			line += " task " + msg.operation.InFlight.TaskID
+		} else if len(msg.operation.Slots) != 0 {
+			for _, slot := range msg.operation.Slots {
+				line += fmt.Sprintf(" slot %d selection %d task %s operation %s", slot.Selection.Slot, slot.Selection.Sequence, slot.Selection.TaskID, slot.Selection.TaskOperationID)
+			}
 		}
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, line)
 		m.message = "Autonomous queue in progress."

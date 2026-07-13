@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -325,7 +326,10 @@ func commitStage(ctx context.Context, cfg Config, current autonomousstate.Snapsh
 	return result.Current, nil
 }
 
-type finalizationEvent struct {
+const LedgerEventSchemaVersion = "autonomous-finalization-ledger-event-v2"
+const LegacyLedgerEventSchemaVersion = "autonomous-finalization-ledger-event-v1"
+
+type LedgerEvent struct {
 	SchemaVersion  string                           `json:"schema_version"`
 	TaskID         string                           `json:"task_id"`
 	OperationID    string                           `json:"operation_id"`
@@ -333,10 +337,32 @@ type finalizationEvent struct {
 	SourceRevision string                           `json:"source_revision"`
 	PolicySHA256   string                           `json:"policy_sha256"`
 	Manifest       *autonomous.FinalizationArtifact `json:"manifest,omitempty"`
+	AdmittedAt     time.Time                        `json:"admitted_at"`
+	TerminalAt     time.Time                        `json:"terminal_at"`
 }
 
-func stageEvent(e FrozenEvidence, stage autonomous.FinalizationStage, m *autonomous.FinalizationArtifact) finalizationEvent {
-	return finalizationEvent{"autonomous-finalization-ledger-event-v1", e.Task.TaskID, e.OperationID, stage, e.Source.Revision, e.SafetyPolicy.PolicySHA256, m}
+func stageEvent(e FrozenEvidence, stage autonomous.FinalizationStage, m *autonomous.FinalizationArtifact) LedgerEvent {
+	return LedgerEvent{LedgerEventSchemaVersion, e.Task.TaskID, e.OperationID, stage, e.Source.Revision, e.SafetyPolicy.PolicySHA256, m, e.AdmittedAt, e.TerminalAt}
+}
+
+func DecodeLedgerEvent(raw []byte) (LedgerEvent, error) {
+	var event LedgerEvent
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&event); err != nil {
+		return event, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return event, errors.New("finalization ledger event contains trailing JSON")
+	}
+	if event.SchemaVersion != LedgerEventSchemaVersion {
+		return event, fmt.Errorf("unknown finalization ledger schema %q", event.SchemaVersion)
+	}
+	if event.TaskID == "" || event.OperationID == "" || event.AdmittedAt.IsZero() || event.TerminalAt.Before(event.AdmittedAt) {
+		return event, errors.New("finalization ledger event authority is malformed")
+	}
+	return event, nil
 }
 
 func ensureRun(ctx context.Context, l Ledger, e FrozenEvidence) error {

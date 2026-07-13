@@ -90,6 +90,11 @@ func Preflight(ctx context.Context, cfg Config, input PreflightInput) (Preflight
 	}
 	runCfg := configResult.Effective
 	addAutonomySafetyCheck(addCheck, runCfg.SafetyDeclaration)
+	if err := runCfg.QueuePolicy.Validate(); err != nil {
+		addCheck(PreflightFail, "autonomous queue", err.Error())
+	} else {
+		addCheck(PreflightOK, "autonomous queue", fmt.Sprintf("schema=%s maximum_workers=%d", runCfg.QueuePolicy.SchemaVersion, runCfg.QueuePolicy.MaximumWorkers))
+	}
 	if err := runCfg.RetentionPolicy.Validate(); err != nil {
 		addCheck(PreflightFail, "artifact retention", err.Error())
 	} else {

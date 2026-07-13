@@ -8,12 +8,13 @@ import (
 
 	"revolvr/internal/artifactretention"
 	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/verification"
 )
 
-const EffectiveConfigSchema = "revolvr-effective-run-config-v4"
+const EffectiveConfigSchema = "revolvr-effective-run-config-v5"
 
 type EffectiveConfigFingerprint struct {
 	Schema     string
@@ -33,6 +34,7 @@ type EffectiveConfigProjection struct {
 	Autonomy         autonomoussafety.Declaration  `json:"autonomy"`
 	Retention        artifactretention.Policy      `json:"retention"`
 	Notifications    autonomousnotification.Policy `json:"notifications"`
+	Queue            autonomousqueue.Policy        `json:"queue"`
 }
 
 type EffectiveCodexConfig struct {
@@ -147,6 +149,7 @@ func FingerprintEffectiveConfig(cfg Config) (EffectiveConfigFingerprint, error) 
 		Autonomy:      normalized.SafetyDeclaration,
 		Retention:     normalized.RetentionPolicy,
 		Notifications: normalized.NotificationPolicy,
+		Queue:         normalized.QueuePolicy,
 	}
 	raw, hash, err := fingerprintProjection(projection)
 	if err != nil {

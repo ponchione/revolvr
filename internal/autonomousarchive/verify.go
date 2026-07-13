@@ -165,8 +165,8 @@ func verifyArchiveLedger(ctx context.Context, store Ledger, m Manifest, journal 
 				continue
 			}
 			count++
-			var payload ledgerArchiveEvent
-			if err := json.Unmarshal(event.Payload, &payload); err != nil || payload.SchemaVersion != LedgerEventSchemaVersion || payload.ArchiveID != m.ArchiveID || payload.OperationID != m.OperationID || payload.TaskID != m.TaskID {
+			var payload LedgerEvent
+			if err := json.Unmarshal(event.Payload, &payload); err != nil || (payload.SchemaVersion != LedgerEventSchemaVersion && payload.SchemaVersion != LegacyLedgerEventSchemaVersion) || payload.ArchiveID != m.ArchiveID || payload.OperationID != m.OperationID || payload.TaskID != m.TaskID {
 				return fmt.Errorf("archive ledger event %s payload mismatch", kind)
 			}
 		}

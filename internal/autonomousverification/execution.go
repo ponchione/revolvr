@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -143,6 +144,48 @@ type Result struct {
 	Artifact       *Artifact           `json:"-"`
 }
 
+const LedgerEventSchemaVersion = "autonomous-verification-ledger-event-v1"
+
+// CompletedLedgerEvent is the strict, self-contained verification occurrence
+// recorded in the ledger and replayed by metrics.
+type CompletedLedgerEvent struct {
+	SchemaVersion  string                       `json:"schema_version"`
+	Status         verification.Status          `json:"status"`
+	Passed         bool                         `json:"passed"`
+	Message        string                       `json:"message"`
+	Commands       []verification.CommandResult `json:"commands"`
+	TaskID         string                       `json:"task_id"`
+	OccurrenceID   string                       `json:"occurrence_id"`
+	SourceRevision string                       `json:"source_revision"`
+	Plan           PlanIdentity                 `json:"plan"`
+	Purpose        Purpose                      `json:"purpose"`
+	Outcome        Outcome                      `json:"outcome"`
+	Gate           GateEvidence                 `json:"gate"`
+	Tiers          []TierResult                 `json:"tiers"`
+	Artifact       *Artifact                    `json:"artifact,omitempty"`
+}
+
+func DecodeCompletedLedgerEvent(raw []byte) (CompletedLedgerEvent, error) {
+	var event CompletedLedgerEvent
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&event); err != nil {
+		return event, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return event, errors.New("verification ledger event contains trailing JSON")
+	}
+	if event.SchemaVersion != LedgerEventSchemaVersion {
+		return event, fmt.Errorf("unknown verification ledger schema %q", event.SchemaVersion)
+	}
+	result := Result{SchemaVersion: ResultSchemaVersion, TaskID: event.TaskID, RunID: "ledger-event", OccurrenceID: event.OccurrenceID, SourceRevision: event.SourceRevision, Plan: event.Plan, Purpose: event.Purpose, Outcome: event.Outcome, Gate: event.Gate, Tiers: event.Tiers}
+	if err := result.Validate(); err != nil {
+		return event, fmt.Errorf("verification ledger event: %w", err)
+	}
+	return event, nil
+}
+
 type Ledger interface {
 	AppendEvent(context.Context, string, ledger.EventType, any) (ledger.Event, error)
 }
@@ -189,7 +232,10 @@ func Execute(ctx context.Context, cfg Config) (Result, error) {
 		}
 		tierResult := TierResult{ID: tier.ID, Kind: tier.Kind, RequiredForFinal: tier.RequiredForFinal, Outcome: OutcomePassed, StartedAt: n.Clock().UTC()}
 		result.Gate.ExecutedTiers = append(result.Gate.ExecutedTiers, tier.ID)
-		if err := appendEvent(ctx, n, ledger.EventVerificationTierStarted, tierResult); err != nil {
+		if err := appendEvent(ctx, n, ledger.EventVerificationTierStarted, struct {
+			SchemaVersion string     `json:"schema_version"`
+			Tier          TierResult `json:"tier"`
+		}{LedgerEventSchemaVersion, tierResult}); err != nil {
 			result.Tiers = append(result.Tiers, tierResult)
 			return failOperation(n, result, OutcomeLedgerError, "ledger_tier_start", err)
 		}
@@ -198,7 +244,10 @@ func Execute(ctx context.Context, cfg Config) (Result, error) {
 			tierResult.EndedAt = n.Clock().UTC()
 			tierResult.Duration = duration(tierResult.StartedAt, tierResult.EndedAt)
 			result.Tiers = append(result.Tiers, tierResult)
-			if err := appendEvent(ctx, n, ledger.EventVerificationTierCompleted, tierResult); err != nil {
+			if err := appendEvent(ctx, n, ledger.EventVerificationTierCompleted, struct {
+				SchemaVersion string     `json:"schema_version"`
+				Tier          TierResult `json:"tier"`
+			}{LedgerEventSchemaVersion, tierResult}); err != nil {
 				return failOperation(n, result, OutcomeLedgerError, "ledger_tier_complete", err)
 			}
 			return finishOperation(ctx, n, result, OutcomeMissing, "missing_commands", fmt.Errorf("selected tier %q has no commands", tier.ID))
@@ -245,7 +294,10 @@ func Execute(ctx context.Context, cfg Config) (Result, error) {
 				tierResult.EndedAt = n.Clock().UTC()
 				tierResult.Duration = duration(tierResult.StartedAt, tierResult.EndedAt)
 				result.Tiers = append(result.Tiers, tierResult)
-				if err := appendEvent(ctx, n, ledger.EventVerificationTierCompleted, tierResult); err != nil {
+				if err := appendEvent(ctx, n, ledger.EventVerificationTierCompleted, struct {
+					SchemaVersion string     `json:"schema_version"`
+					Tier          TierResult `json:"tier"`
+				}{LedgerEventSchemaVersion, tierResult}); err != nil {
 					return failOperation(n, result, OutcomeLedgerError, "ledger_tier_complete", err)
 				}
 				return finishOperation(ctx, n, result, commandResult.Outcome, "command", fmt.Errorf("tier %q command %d classified %s", tier.ID, position, commandResult.Outcome))
@@ -254,7 +306,10 @@ func Execute(ctx context.Context, cfg Config) (Result, error) {
 		tierResult.EndedAt = n.Clock().UTC()
 		tierResult.Duration = duration(tierResult.StartedAt, tierResult.EndedAt)
 		result.Tiers = append(result.Tiers, tierResult)
-		if err := appendEvent(ctx, n, ledger.EventVerificationTierCompleted, tierResult); err != nil {
+		if err := appendEvent(ctx, n, ledger.EventVerificationTierCompleted, struct {
+			SchemaVersion string     `json:"schema_version"`
+			Tier          TierResult `json:"tier"`
+		}{LedgerEventSchemaVersion, tierResult}); err != nil {
 			return failOperation(n, result, OutcomeLedgerError, "ledger_tier_complete", err)
 		}
 	}
@@ -644,35 +699,23 @@ func appendEvent(ctx context.Context, cfg Config, event ledger.EventType, payloa
 }
 func startedEvent(r Result, s TierSelection) any {
 	return struct {
+		SchemaVersion                        string `json:"schema_version"`
 		TaskID, OccurrenceID, SourceRevision string
 		Plan                                 PlanIdentity
 		Purpose                              Purpose
 		Selected, Required                   []string
-	}{r.TaskID, r.OccurrenceID, r.SourceRevision, r.Plan, r.Purpose, s.SelectedTierIDs, s.RequiredFinalTiers}
+	}{LedgerEventSchemaVersion, r.TaskID, r.OccurrenceID, r.SourceRevision, r.Plan, r.Purpose, s.SelectedTierIDs, s.RequiredFinalTiers}
 }
 func completedEvent(r Result) any {
-	return struct {
-		Status         verification.Status          `json:"status"`
-		Passed         bool                         `json:"passed"`
-		Message        string                       `json:"message"`
-		Commands       []verification.CommandResult `json:"commands"`
-		TaskID         string                       `json:"task_id"`
-		OccurrenceID   string                       `json:"occurrence_id"`
-		SourceRevision string                       `json:"source_revision"`
-		Plan           PlanIdentity                 `json:"plan"`
-		Purpose        Purpose                      `json:"purpose"`
-		Outcome        Outcome                      `json:"outcome"`
-		Gate           GateEvidence                 `json:"gate"`
-		Tiers          []TierResult                 `json:"tiers"`
-		Artifact       *Artifact                    `json:"artifact,omitempty"`
-	}{r.Aggregate.Status, r.Aggregate.Passed, r.FailureReason, r.Aggregate.Commands, r.TaskID, r.OccurrenceID, r.SourceRevision, r.Plan, r.Purpose, r.Outcome, r.Gate, r.Tiers, r.Artifact}
+	return CompletedLedgerEvent{LedgerEventSchemaVersion, r.Aggregate.Status, r.Aggregate.Passed, r.FailureReason, r.Aggregate.Commands, r.TaskID, r.OccurrenceID, r.SourceRevision, r.Plan, r.Purpose, r.Outcome, r.Gate, r.Tiers, r.Artifact}
 }
 func rerunEvent(t Tier, c CommandIdentity) any {
 	return struct {
-		TierID  string
-		Policy  RerunPolicy
-		Command CommandIdentity
-	}{t.ID, t.RerunPolicy, c}
+		SchemaVersion string `json:"schema_version"`
+		TierID        string
+		Policy        RerunPolicy
+		Command       CommandIdentity
+	}{LedgerEventSchemaVersion, t.ID, t.RerunPolicy, c}
 }
 func writeArtifact(root, path string, raw []byte) error {
 	abs, err := pathguard.Resolve(root, path)

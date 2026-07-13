@@ -57,6 +57,8 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Environment policy: inherit_host=%t allow=%s", cfg.SafetyDeclaration.Environment.InheritHost, formatVerificationArgs(cfg.SafetyDeclaration.Environment.Allow)),
 		fmt.Sprintf("Secret redaction sources: environment_variables=%s", formatVerificationArgs(cfg.SafetyDeclaration.Redaction.EnvironmentVariables)),
 		fmt.Sprintf("Fully unattended acknowledgement present: %t", strings.TrimSpace(cfg.SafetyDeclaration.Acknowledgement) != ""),
+		fmt.Sprintf("Queue policy schema: %s", cfg.QueuePolicy.SchemaVersion),
+		fmt.Sprintf("Queue maximum workers: %d", cfg.QueuePolicy.MaximumWorkers),
 		fmt.Sprintf("Retention policy schema: %s", cfg.RetentionPolicy.SchemaVersion),
 		fmt.Sprintf("Retention mutation enabled: %t", cfg.RetentionPolicy.MutationEnabled),
 		fmt.Sprintf("Retention recent run count: %d", cfg.RetentionPolicy.RecentRunCount),

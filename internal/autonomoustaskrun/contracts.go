@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomouspolicy"
 )
 
@@ -92,6 +93,15 @@ type Statistics struct {
 	Actions             []ActionCount `json:"actions,omitempty"`
 }
 
+// MetricsEvidence is the bounded, typed state evidence copied into task-run
+// ledger events. It is observational: lifecycle owners remain authoritative.
+type MetricsEvidence struct {
+	Attempts           autonomous.AttemptState          `json:"attempts"`
+	FindingResolutions []autonomous.FindingResolution   `json:"finding_resolutions,omitempty"`
+	CircuitBreaker     *autonomous.CircuitBreakerDetail `json:"circuit_breaker,omitempty"`
+	Finalization       *autonomous.FinalizationDetail   `json:"finalization,omitempty"`
+}
+
 func (s *Statistics) Add(d Statistics) {
 	s.SupervisorStarted += d.SupervisorStarted
 	s.SupervisorCompleted += d.SupervisorCompleted
@@ -144,6 +154,7 @@ type Operation struct {
 	LatestMutation *autonomouspolicy.SourceMutation       `json:"latest_mutation,omitempty"`
 	Verification   *autonomouspolicy.VerificationEvidence `json:"verification,omitempty"`
 	Audit          *autonomouspolicy.AuditEvidence        `json:"audit,omitempty"`
+	Metrics        *MetricsEvidence                       `json:"metrics_evidence,omitempty"`
 	StopReason     StopReason                             `json:"stop_reason,omitempty"`
 	StopDetail     string                                 `json:"stop_detail,omitempty"`
 }

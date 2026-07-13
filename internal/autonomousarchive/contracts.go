@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path"
 	"strings"
 	"time"
@@ -19,13 +20,14 @@ import (
 )
 
 const (
-	ManifestSchemaVersion     = "autonomous-task-archive-manifest-v1"
-	AuthoritySchemaVersion    = "autonomous-task-archive-authority-v1"
-	JournalSchemaVersion      = "autonomous-task-archive-journal-v1"
-	HistorySchemaVersion      = "autonomous-task-archive-transition-v1"
-	ReopenRecordSchemaVersion = "autonomous-task-reopen-record-v1"
-	LedgerEventSchemaVersion  = "autonomous-task-archive-ledger-event-v1"
-	ArchiveRoot               = ".agent/archive"
+	ManifestSchemaVersion          = "autonomous-task-archive-manifest-v1"
+	AuthoritySchemaVersion         = "autonomous-task-archive-authority-v1"
+	JournalSchemaVersion           = "autonomous-task-archive-journal-v1"
+	HistorySchemaVersion           = "autonomous-task-archive-transition-v1"
+	ReopenRecordSchemaVersion      = "autonomous-task-reopen-record-v1"
+	LedgerEventSchemaVersion       = "autonomous-task-archive-ledger-event-v2"
+	LegacyLedgerEventSchemaVersion = "autonomous-task-archive-ledger-event-v1"
+	ArchiveRoot                    = ".agent/archive"
 )
 
 type Disposition string
@@ -126,6 +128,42 @@ type Manifest struct {
 	TerminalLedger     *LedgerIdentity       `json:"terminal_ledger,omitempty"`
 	ExpectedPaths      []string              `json:"expected_paths"`
 	Omissions          []string              `json:"omissions"`
+}
+
+// LedgerEvent is a compact immutable archive occurrence. Exact terminal and
+// archive times are included so historical latency never depends on ambient
+// filesystem state or archive verification side effects.
+type LedgerEvent struct {
+	SchemaVersion string      `json:"schema_version"`
+	ArchiveID     string      `json:"archive_id"`
+	OperationID   string      `json:"operation_id"`
+	TaskID        string      `json:"task_id"`
+	Disposition   Disposition `json:"disposition"`
+	Stage         Stage       `json:"stage"`
+	Manifest      Artifact    `json:"manifest"`
+	CommitSHA     string      `json:"commit_sha,omitempty"`
+	TerminalAt    time.Time   `json:"terminal_at"`
+	ArchivedAt    time.Time   `json:"archived_at"`
+}
+
+func DecodeLedgerEvent(raw []byte) (LedgerEvent, error) {
+	var event LedgerEvent
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&event); err != nil {
+		return event, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return event, errors.New("archive ledger event contains trailing JSON")
+	}
+	if event.SchemaVersion != LedgerEventSchemaVersion {
+		return event, fmt.Errorf("unknown archive ledger schema %q", event.SchemaVersion)
+	}
+	if !event.Disposition.Valid() || event.ArchiveID == "" || event.OperationID == "" || event.TaskID == "" || event.TerminalAt.IsZero() || event.ArchivedAt.Before(event.TerminalAt) {
+		return event, errors.New("archive ledger event authority is malformed")
+	}
+	return event, nil
 }
 
 func (m Manifest) Validate() error {

@@ -157,12 +157,12 @@
   Acceptance: event delivery is deduplicated/idempotent across restart; timeouts/output caps apply; unknown events/config fail clearly; retries are bounded; notifications never gain broader execution permissions than configured.
   Verification: add payload golden, redaction, timeout, retry, duplicate, restart, disabled-hook, and failure-isolation tests; run focused tests and `go test ./...`.
 
-- [ ] AW-30 — Add autonomous-loop metrics and deterministic evaluation scenarios.
+- [x] AW-30 — Add autonomous-loop metrics and deterministic evaluation scenarios.
   Scope: project task success, correction cycles, audit findings, no-progress stops, verification flakes, token/duration usage, archive latency, and queue throughput from ledger evidence. Build a fake-Codex evaluation suite covering straight success, correction, clean re-audit, conditional skips, no progress, needs input, blocked-skip, and crash finalization.
   Acceptance: metrics are reproducible from exported history; schemas are versioned; evaluations have deterministic fixtures and explicit expected terminal evidence; no live model call is required for the source-of-truth suite; optional live dogfood remains opt-in.
   Verification: run focused projection/evaluation tests, `go test ./...`, ledger export/replay fixtures, and `git diff --check`.
 
-- [ ] AW-31 — Add bounded parallel queue workers after isolation is proven.
+- [x] AW-31 — Add bounded parallel queue workers after isolation is proven.
   Scope: allow a configurable small number of independent task worktrees to run concurrently only when dependency/conflict analysis permits it. Serialize shared ledger/finalization/archive operations, retain per-task cancellation, and fall back to sequential execution on uncertain overlap.
   Acceptance: conflicting/dependent tasks never overlap; source-writer and archive races are prevented; worker failure/cancellation does not corrupt peers; output remains attributable; max concurrency is enforced; sequential mode remains default.
   Verification: add deterministic concurrency, dependency/conflict, cancellation, crash, ledger ordering, archive race, and fallback tests under `go test -race`; run `go test -race ./...` and `git diff --check`.
