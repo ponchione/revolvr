@@ -36,7 +36,8 @@ func TestSourceSnapshotDetectsContentChangeOnAlreadyDirtyPath(t *testing.T) {
 
 func TestSourceSnapshotExcludesRevolvrRuntimeArtifacts(t *testing.T) {
 	root := sourceTestRepository(t)
-	before, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root})
+	cfg := SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true}
+	before, err := CaptureSourceSnapshot(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,12 +47,161 @@ func TestSourceSnapshotExcludesRevolvrRuntimeArtifacts(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".revolvr", "runs", "run-1", "artifact"), []byte("runtime"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	after, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root})
+	after, err := CaptureSourceSnapshot(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if difference := CompareSourceSnapshots(before, after); difference.Changed {
 		t.Fatalf("runtime-only difference = %+v", difference)
+	}
+}
+
+func TestSourceSnapshotRejectsPolicyRelevantIgnoredState(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		wantPath string
+		make     func(*testing.T, string)
+		want     string
+	}{
+		{name: "regular file", path: "local.env", wantPath: "local.env", make: func(t *testing.T, path string) {
+			writeSourceTestFile(t, path, []byte("do-not-log-this-secret\n"))
+		}, want: "regular"},
+		{name: "ignored directory", path: "cache/value", wantPath: "cache", make: func(t *testing.T, path string) {
+			writeSourceTestFile(t, path, []byte("cache bytes\n"))
+		}, want: "directory"},
+		{name: "empty ignored directory", path: "empty-cache", wantPath: "empty-cache", make: func(t *testing.T, path string) {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}, want: "directory"},
+		{name: "symlink", path: "secret-link.env", wantPath: "secret-link.env", make: func(t *testing.T, path string) {
+			if err := os.Symlink("/outside/secret-target", path); err != nil {
+				t.Fatal(err)
+			}
+		}, want: "symlink"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sourceTestRepository(t)
+			writeSourceTestFile(t, filepath.Join(root, ".gitignore"), []byte(".revolvr/\n*.env\ncache/\nempty-cache/\n"))
+			runGitTest(t, root, "add", ".gitignore")
+			runGitTest(t, root, "commit", "-qm", "ignore policy inputs")
+			tt.make(t, filepath.Join(root, filepath.FromSlash(tt.path)))
+
+			_, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true})
+			if err == nil || !strings.Contains(err.Error(), tt.wantPath) || !strings.Contains(err.Error(), tt.want) || !strings.Contains(err.Error(), "classification=policy_relevant") {
+				t.Fatalf("error = %v, want safe path/type/classification", err)
+			}
+			for _, forbidden := range []string{"do-not-log-this-secret", "/outside/secret-target", "cache bytes"} {
+				if strings.Contains(err.Error(), forbidden) {
+					t.Fatalf("error exposed ignored content or symlink target: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestSourceSnapshotHarnessRuntimeAllowanceIsExplicit(t *testing.T) {
+	root := sourceTestRepository(t)
+	writeSourceTestFile(t, filepath.Join(root, ".revolvr", "runs", "run-1", "artifact"), []byte("runtime"))
+
+	_, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root})
+	if err == nil || !strings.Contains(err.Error(), `".revolvr"`) || !strings.Contains(err.Error(), "policy_relevant") {
+		t.Fatalf("default error = %v, want policy-relevant runtime refusal", err)
+	}
+	first, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeSourceTestFile(t, filepath.Join(root, ".revolvr", "runs", "run-2", "artifact"), []byte("more runtime"))
+	second, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if difference := CompareSourceSnapshots(first, second); difference.Changed {
+		t.Fatalf("allowlisted runtime changed source evidence: %+v", difference)
+	}
+}
+
+func TestSourceSnapshotRejectsNestedAndHostileIgnoredPaths(t *testing.T) {
+	root := sourceTestRepository(t)
+	writeSourceTestFile(t, filepath.Join(root, "nested", ".gitignore"), []byte("generated/\n*.env\n"))
+	runGitTest(t, root, "add", "nested/.gitignore")
+	runGitTest(t, root, "commit", "-qm", "nested ignore policy")
+	writeSourceTestFile(t, filepath.Join(root, "nested", "generated", "value"), []byte("nested secret bytes\n"))
+	writeSourceTestFile(t, filepath.Join(root, "nested", "line\nbreak.env"), []byte("hostile secret bytes\n"))
+
+	_, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true})
+	if err == nil || !strings.Contains(err.Error(), "nested/generated") || !strings.Contains(err.Error(), `line\nbreak.env`) {
+		t.Fatalf("error = %v, want nested and escaped hostile paths", err)
+	}
+	for _, forbidden := range []string{"nested secret bytes", "hostile secret bytes"} {
+		if strings.Contains(err.Error(), forbidden) {
+			t.Fatalf("error exposed ignored content: %v", err)
+		}
+	}
+}
+
+func TestSourceSnapshotIncludesTrackedAndUnignoredRevolvrPaths(t *testing.T) {
+	root := sourceTestRepository(t)
+	writeSourceTestFile(t, filepath.Join(root, ".gitignore"), nil)
+	writeSourceTestFile(t, filepath.Join(root, ".revolvr", "tracked.conf"), []byte("tracked\n"))
+	writeSourceTestFile(t, filepath.Join(root, ".revolvr", "untracked.conf"), []byte("untracked\n"))
+	runGitTest(t, root, "add", ".gitignore", ".revolvr/tracked.conf")
+	runGitTest(t, root, "commit", "-qm", "track revolvr input")
+
+	snapshot, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]string, 0, len(snapshot.Entries))
+	for _, entry := range snapshot.Entries {
+		got = append(got, entry.Path)
+	}
+	for _, want := range []string{".revolvr/tracked.conf", ".revolvr/untracked.conf"} {
+		if !containsSourceTestString(got, want) {
+			t.Fatalf("snapshot paths = %v, missing %q", got, want)
+		}
+	}
+}
+
+func TestSourceSnapshotIgnoredInputCannotEnterCleanCheckoutEvidence(t *testing.T) {
+	root := sourceTestRepository(t)
+	writeSourceTestFile(t, filepath.Join(root, ".gitignore"), []byte(".revolvr/\n*.env\n"))
+	runGitTest(t, root, "add", ".gitignore")
+	runGitTest(t, root, "commit", "-qm", "ignore environment")
+	writeSourceTestFile(t, filepath.Join(root, "tracked.txt"), []byte("verified only with local input\n"))
+	writeSourceTestFile(t, filepath.Join(root, "test.env"), []byte("hidden input\n"))
+
+	if _, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true}); err == nil {
+		t.Fatal("snapshot accepted an ignored verification input")
+	}
+	if err := os.Remove(filepath.Join(root, "test.env")); err != nil {
+		t.Fatal(err)
+	}
+	accepted, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root, AllowHarnessRuntime: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptedRevision, err := PolicySourceRevision(accepted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, root, "add", "tracked.txt")
+	runGitTest(t, root, "commit", "-qm", "reproducible change")
+	clone := filepath.Join(t.TempDir(), "clone")
+	runGitTest(t, filepath.Dir(clone), "clone", "-q", root, clone)
+	replayed, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: clone})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayedRevision, err := PolicySourceRevision(replayed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayedRevision != acceptedRevision {
+		t.Fatalf("clean replay revision = %s, want %s\naccepted=%+v\nreplayed=%+v", replayedRevision, acceptedRevision, accepted.Entries, replayed.Entries)
 	}
 }
 
@@ -160,9 +310,31 @@ func sourceTestRepository(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(root, "tracked.txt"), []byte("baseline\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runGitTest(t, root, "add", "tracked.txt")
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".revolvr/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitTest(t, root, "add", "tracked.txt", ".gitignore")
 	runGitTest(t, root, "commit", "-qm", "baseline")
 	return root
+}
+
+func writeSourceTestFile(t *testing.T, path string, raw []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func containsSourceTestString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func runGitTest(t *testing.T, root string, args ...string) {

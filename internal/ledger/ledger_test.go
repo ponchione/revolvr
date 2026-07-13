@@ -247,12 +247,12 @@ func TestEvidenceHistoryPreservesMalformedIrrelevantPayload(t *testing.T) {
 	}
 }
 
-func TestOpenReadOnlyDoesNotCreateOrInitializeLedger(t *testing.T) {
+func TestOpenLiveReadOnlyDoesNotCreateOrInitializeLedger(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	missing := filepath.Join(root, "missing", "ledger.sqlite")
-	if _, err := OpenReadOnly(ctx, missing); err == nil {
-		t.Fatal("OpenReadOnly(missing) error = nil")
+	if _, err := OpenLiveReadOnly(ctx, missing); err == nil {
+		t.Fatal("OpenLiveReadOnly(missing) error = nil")
 	}
 	if _, err := os.Stat(filepath.Dir(missing)); !os.IsNotExist(err) {
 		t.Fatalf("missing parent stat error = %v, want not exist", err)
@@ -275,9 +275,9 @@ func TestOpenReadOnlyDoesNotCreateOrInitializeLedger(t *testing.T) {
 	}
 	beforeEntries := directoryEntryNames(t, root)
 
-	readOnly, err := OpenReadOnly(ctx, path)
+	readOnly, err := OpenLiveReadOnly(ctx, path)
 	if err != nil {
-		t.Fatalf("OpenReadOnly() error = %v", err)
+		t.Fatalf("OpenLiveReadOnly() error = %v", err)
 	}
 	history, err := readOnly.ListRecentRunsForTaskWithEvents(ctx, "task-1", 1)
 	if err != nil || len(history) != 1 {

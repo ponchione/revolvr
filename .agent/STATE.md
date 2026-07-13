@@ -2,9 +2,576 @@
 
 ## Current Focus
 
-AW-31 is complete. The ordered AW-01 through AW-31 autonomous-workflow program
-is complete. AW-30 and AW-31 are published together as the final
-program-completion change, with no remaining backlog.
+The 2026-07-13 wide-sweep audit is registered as AUD-01 through AUD-16 in
+`.agent/TASKS.md`. AUD-01 through AUD-16 are complete and the wide-sweep audit
+queue is exhausted. The ordered AW-01 through AW-31
+autonomous-workflow program remains complete and published.
+
+## Wide-Sweep Audit Queue (2026-07-13)
+
+- The audit itself was read-only. It found 4 high-priority correctness and
+  integrity risks, 8 medium-priority fault-path/configuration risks, and 4
+  safe or conditional efficiency/cleanup opportunities.
+- Work is deliberately split into 16 bounded items. Correctness and evidence
+  integrity precede performance, deduplication, and line-count cleanup.
+- AUD-06 depends on AUD-05's authoritative JSONL record contract. AUD-15
+  depends on AUD-11's filesystem hardening and must be skipped if it cannot
+  prove both semantic equivalence and a net production-LOC reduction.
+- Audit verification passed: `go test -count=1 ./...`, `go test -race -count=1
+  ./...`, shuffled tests, Go 1.22 compatibility tests, `go vet ./...`,
+  `govulncheck ./...` with no reachable vulnerabilities, module verification,
+  tidy/format/diff checks, and CLI help/config/status smokes.
+- There are no recorded blockers. Each fresh autonomous pass must take exactly
+  one `AUD-*` item and update the durable records before stopping.
+
+## AUD-01 Completion (2026-07-13)
+
+- Selected task: AUD-01 — close ignored-file gaps in source and verification
+  evidence. No later audit item was started.
+- Source snapshots now inventory ignored paths with NUL-delimited Git output,
+  classify safe relative paths without reading contents or following symlinks,
+  and fail with `ErrPolicyRelevantIgnored` for every non-allowlisted ignored
+  source or verification input.
+- The only ignored-state allowance is explicit control-repository
+  `AllowHarnessRuntime` authority for safe `.revolvr` directories/regular
+  files. Autonomous task worktrees do not receive that allowance. Tracked or
+  unignored `.revolvr` paths remain ordinary source evidence rather than being
+  excluded by pathname.
+- Cycle captures enforce the invariant before supervision/model admission,
+  after worker execution, after verification, and after commit. Workspace
+  reopen/checkpoint and finalization revalidation use the same capture, so an
+  unexplained ignored input cannot advance a checkpoint or completion claim.
+  Existing cleanup refusal retains its typed `ErrCleanupRefused` authority.
+- Policy source revisions now normalize regular-file permissions to executable
+  bits. Full snapshots still detect all permission changes, while identical
+  committed bytes replay to the same policy revision across checkout umasks.
+- Real-Git coverage includes ignored regular files, collapsed and empty
+  directories, nested ignore rules, newline-containing names, symlinks,
+  explicit harness runtime state, tracked/unignored `.revolvr` paths,
+  pre-existing/worker-created/verification-created inputs, checkpoint refusal,
+  secret-safe diagnostics, and clean-clone replay.
+- Verification passed: focused affected-package tests; `go test -count=1
+  ./...`; and `go test -race -count=1` for `internal/gitstate`,
+  `internal/autonomousworkspace`, `internal/autonomouscycle`,
+  `internal/autonomouscorrection`, `internal/supervisor`, and `internal/app`.
+- Remaining audit work: AUD-02 through AUD-16. Blockers: none.
+
+## AUD-02 Completion (2026-07-13)
+
+- Selected task: AUD-02 — fail closed on source-lock heartbeat failure. No
+  later audit item was started.
+- A shared source-lease guard now owns the heartbeat monitor, serializes
+  heartbeat checks, records the first ownership failure, cancels active work,
+  and joins heartbeat and release errors without discarding the primary
+  operation error.
+- Direct runs and autonomous cycles use the guard's context for model and
+  verification work and synchronously prove ownership around verification,
+  task transitions, commit, and terminal publication. Autonomous ownership
+  loss returns a source-changed result so checkpoint and finalization cannot
+  advance.
+- Expired leases cannot be revived or released as if they were still owned.
+  Token replacement and lock persistence failures are reported as inspectable
+  ownership loss while retaining their underlying errors.
+- Deterministic tests cover heartbeat I/O and permission failures, expiry,
+  replacement-owner tokens, cancellation races, commit prevention, release
+  failure, prompt worker cancellation, and healthy monitor shutdown.
+- Verification passed: repeated focused lock, run-once, and autonomous-cycle
+  tests; affected-package tests; `go test -count=1 ./...`; `go test -race
+  -count=1 ./...`; formatting; and `git diff --check`.
+- Remaining audit work: AUD-03 through AUD-16. Blockers: none.
+
+## AUD-03 Completion (2026-07-13)
+
+- Selected task: AUD-03 — terminate complete spawned process trees on
+  cancellation. No later audit item was started.
+- Every production command still converges on `internal/runner`, which now
+  starts commands in dedicated process groups on Unix. Cancellation sends
+  `SIGTERM` to the captured group, polls during the configured grace interval,
+  and sends `SIGKILL` to that same group when descendants remain.
+- The runner owns cancellation independently of `exec.CommandContext`, waits
+  for its termination monitor before returning, and retains bounded
+  stdout/stderr draining, timeout classification, caller-cancellation errors,
+  exit-code behavior, and graceful-exit output.
+- Platforms without the Unix process-group contract fail before process start
+  with typed `ErrProcessTreeUnsupported` evidence. They do not silently fall
+  back to unsafe direct-child-only termination.
+- Helper-process integration tests exercise a root, child, and grandchild;
+  delayed sentinel mutations; inherited output pipes; signal-ignoring
+  descendants; bounded force termination; repeated cancellation; graceful
+  exit; and an unrelated sibling process.
+- Verification passed: ten repeated focused runs; three repeated runner race
+  runs; Go 1.22 runner tests; Darwin, FreeBSD, Windows, and Plan 9 runner
+  cross-compilation; focused vet; `go test -count=1 ./...`; `go test -race
+  -count=1 ./...`; formatting; and `git diff --check`.
+- Remaining audit work: AUD-04 through AUD-16. Blockers: none.
+
+## AUD-04 Completion (2026-07-13)
+
+- Selected task: AUD-04 — use safe read semantics for the live SQLite ledger.
+  No later audit item was started.
+- Raw database callers now use the explicitly live `OpenLiveReadOnly` API with
+  SQLite `mode=ro`, ordinary locking/change detection, query-only enforcement,
+  and no immutable promise. Immutable evidence remains the independently
+  verified ledger export/replay format rather than a raw live database handle.
+- Full snapshots, task dossier history, and individual run/event projections
+  read all related rows in one read transaction. Dossier, metrics, export,
+  archive, retention, and scheduling callers therefore receive coherent
+  snapshots while concurrent writers continue safely.
+- Live-reader lock contention uses short SQLite busy slices with bounded retry
+  up to the existing five-second limit. Caller cancellation interrupts between
+  slices promptly and preserves both context and SQLite busy evidence.
+- Mutation methods on a live read-only store fail immediately with typed
+  `ErrReadOnly` evidence instead of reaching SQLite or a nil writer clock.
+- WAL and rollback-journal tests prove same-reader freshness and coherent
+  atomic run/event versions under concurrent commits. Read access creates no
+  database or sidecar files and changes no durable database/WAL bytes. SQLite
+  may update transient reader marks in an existing in-process `-shm` index;
+  tests require its presence, size, and mode to remain bounded while preserving
+  the locking protocol.
+- Verification passed: repeated WAL/rollback focused tests; repeated affected
+  package race tests; Go 1.22 affected-package tests; focused vet; `go test
+  -count=1 ./...`; `go test -race -count=1 ./...`; formatting; and `git diff
+  --check`.
+- Remaining audit work: AUD-05 through AUD-16. Blockers: none.
+
+## AUD-05 Completion (2026-07-13)
+
+- Selected task: AUD-05 — preserve long Codex JSONL records without silent
+  corruption. AUD-06 metrics parsing was not started.
+- Runner stdout now has independent paths for capped in-memory capture,
+  bounded human line previews, and an authoritative byte sink. Preview lines
+  remain at most 64 KiB including a visible truncation marker, emit once per
+  oversized logical line, and resynchronize at its newline without converting
+  discarded fragments into new lines.
+- `internal/jsonl` owns the shared streaming record contract: records are
+  reconstructed across arbitrary chunks, a final unterminated record is
+  emitted deterministically, and the documented hard limit is 1 MiB excluding
+  the newline delimiter. `ErrRecordTooLarge` and `RecordTooLargeError` retain
+  the rejected record number and limit without retaining its content.
+- Codex stdout artifacts consume the authoritative stream. Each complete
+  record is redacted as one value before persistence or JSON parsing, so split
+  secrets and UTF-8 remain deterministic. Records over 64 KiB are complete;
+  records over 1 MiB fail the invocation and artifact with typed evidence and
+  are never partially persisted as fabricated JSONL. Existing invalid-JSON
+  diagnostics and bounded returned stdout remain intact.
+- Coverage includes record sizes around 64 KiB and the 1 MiB hard boundary,
+  multiple large records, actual process-pipe fanout, arbitrary chunks, split
+  newlines/secrets/UTF-8, final records without newlines, invalid JSON, typed
+  writer failure propagation, record-by-record artifact decoding, and preview
+  resynchronization.
+- Verification passed: focused `internal/jsonl`, `internal/runner`,
+  `internal/codexexec`, and `internal/runonce` tests; `go test -count=1 ./...`;
+  `go test -race -count=1 ./...`; formatting; and `git diff --check`.
+- Remaining audit work: AUD-06 through AUD-16. Blockers: none.
+
+## AUD-06 Completion (2026-07-13)
+
+- Selected task: AUD-06 — stream and bound Codex JSONL metrics parsing. AUD-07
+  last-message publication was not started.
+- `internal/jsonl.ReadRecords` now consumes arbitrary readers in fixed 32 KiB
+  chunks, checks cancellation between reads and records, reconstructs final
+  unterminated records, and enforces the shared AUD-05 1 MiB record limit.
+  Memory is therefore bounded by one record rather than total artifact size.
+- `internal/receipt` exposes reader- and file-based metrics parsing and receipt
+  rewriting. Production Codex finalization, mixed-pass receipt parsing, and
+  autonomous worker receipt parsing all use the file stream; no production
+  metrics caller loads the JSONL artifact with `os.ReadFile` or a retention
+  read cap. Byte-slice APIs remain compatibility wrappers over the same parser.
+- Metrics diagnostics are explicit and non-destructive. Malformed records
+  report first record/count while retaining partial totals only as diagnostic
+  output; individual and aggregate integer overflow report exact record/field;
+  oversized records retain `jsonl.ErrRecordTooLarge`; and open/read failures
+  retain typed `ErrCodexJSONLSource` evidence. Receipt rewrite refuses partial
+  metrics and returns the original parsed receipt bytes unchanged.
+- File parsing owns and closes its descriptor. A cancellation watcher closes a
+  blocked source so cancellation returns promptly. Codex classifies source
+  access failure as `ArtifactError`, while cancellation, malformed input,
+  overflow, and other optional metrics degradation remain `ParseError`; the
+  authoritative redacted JSONL is never rewritten or truncated.
+- Coverage includes 64 one-megabyte-shaped records, an exact maximum-size
+  unterminated record, shared oversize errors, malformed middle records,
+  individual and aggregate numeric overflow, blocked-reader cancellation and
+  closure, missing/unreadable sources, unchanged malformed artifacts, bounded
+  read requests, and valid receipt compatibility.
+- A one-shot generated benchmark processed 2,148,532,224 bytes (more than 2
+  GiB) in about 0.52 seconds with 9,539,744 bytes allocated. The ordinary 16
+  MiB allocation benchmark used 1,732,824 bytes, guarding against whole-file
+  buffering regressions.
+- Verification passed: repeated shuffled focused tests; focused race tests;
+  Go 1.22 focused tests; focused `go vet`; both generated benchmarks;
+  `go test -count=1 ./...`; `go test -race -count=1 ./...`; formatting; and
+  `git diff --check`.
+- Remaining audit work: AUD-07 through AUD-16. Blockers: none.
+
+## AUD-07 Completion (2026-07-13)
+
+- Selected task: AUD-07 — atomically publish redacted last-message artifacts.
+  AUD-08 Git-status truncation was not started.
+- Codex now receives a deterministic restricted raw staging path beside the
+  canonical last-message artifact; the canonical path is never present in the
+  child argv. Exact invocation provenance records that actual staging path,
+  while result and ledger artifact metadata continue to name the canonical
+  destination.
+- Preparation removes and directory-syncs any stale canonical, raw temporary,
+  or redacted temporary, then precreates the child target as a regular `0600`
+  file. This gives restart cleanup a deterministic orphan contract and keeps
+  stale output from being mistaken for the current invocation.
+- Publication validates the raw file and its restricted mode, redacts the
+  complete value, writes a second same-directory temporary, sets the protected
+  `0644` published mode, syncs and closes it, atomically renames it, removes the
+  raw temporary, verifies the canonical type/mode, and syncs the parent
+  directory. Handled failures remove and directory-sync temporary artifacts.
+- Compatibility is explicit: an absent or zero-byte child output remains
+  missing; returned messages remain trimmed; without a redactor the canonical
+  file preserves the child's exact bytes; with a redactor it retains the
+  prior normalized message-plus-newline form. Existing canonical output is
+  replaced at invocation start.
+- Coverage injects failures after child completion and around raw read,
+  redaction, temporary write, file sync, rename, and directory sync. Every
+  pre-rename failure leaves the canonical path absent; a post-rename directory
+  sync failure may leave it present but only with redacted bytes. Tests also
+  cover a real configured secret, `0600` raw and `0644` canonical modes,
+  unsafe raw-mode rejection, orphan restart cleanup, missing output, byte and
+  parsing compatibility, and removal of both temporary paths.
+- Verification passed: repeated focused `internal/codexexec` tests; focused
+  `internal/codexexec`, `internal/runonce`, `internal/autonomouscycle`, and
+  `internal/supervisor` tests and race tests; Go 1.22 full tests; `go vet
+  ./...`; `go test -count=1 ./...`; `go test -race -count=1 ./...`; shuffled
+  full tests; formatting; and `git diff --check`.
+- Remaining audit work: AUD-08 through AUD-16. Blockers: none.
+
+## AUD-08 Completion (2026-07-13)
+
+- Selected task: AUD-08 — make Git-status truncation fail closed. AUD-09
+  literal pathspec staging was not started.
+- Dirty and changed-file capture now invokes the stable machine contract
+  `git status --porcelain=v1 -z --untracked-files=all`. Its strict parser
+  preserves arbitrary non-NUL filename bytes, treats the first rename/copy
+  path as the destination and the following field as the source, validates
+  status/framing, and returns a deterministic byte-sorted unique path set.
+- Command failure, timeout, nonzero exit, stdout truncation, stderr truncation,
+  or malformed porcelain now makes the capture incomplete. The bounded raw
+  preview and truncation counts remain diagnostic evidence, but entries,
+  paths, dirty files, and changed files are all empty; no caller can mistake a
+  parsed prefix for an authoritative set.
+- The preflight worktree check consumes the same capture contract. Autonomous
+  workspace ignored-path inspection now uses porcelain-v1 `-z` and the shared
+  parser, so newline and raw-byte names are unambiguous. Autonomous archive Git
+  results now treat truncation as failure for status and every other parsed
+  command, including special unborn-HEAD and missing-object branches.
+- Commit refuses captures carrying any integrity error before resolving HEAD,
+  staging, or committing, and does not repeat partial paths in its result.
+  Existing run-once, autonomous-cycle, correction, workspace, and application
+  gates already refuse `CaptureError`; focused integration and race tests prove
+  verification, checkpoint, transition, staging, and completion cannot advance
+  through incomplete status evidence.
+- Real-Git coverage uses 4,000 long untracked paths to exceed the former 256
+  KiB cap. At that cap the result is a bounded truncation failure with zero
+  paths; at 2 MiB repeated captures produce the exact same complete 4,000-path
+  set. A commit-gate fixture proves truncated real output leaves HEAD and the
+  index unchanged and invokes no Git command inside the commit component.
+- Hostile-path coverage includes modification, deletion, staged rename source
+  and destination, untracked newline names, leading/trailing whitespace,
+  ignored newline names, embedded quotes/tabs/arrows, and non-UTF-8 filename
+  bytes on supported filesystems. Clean and ordinary small captures retain
+  their existing path/kind behavior.
+- Verification passed: ten repeated focused `internal/gitstate` and
+  `internal/commit` runs; focused affected-package tests and race tests; Go
+  1.22 full tests; `go vet ./...`; `go test -count=1 ./...`; `go test -race
+  -count=1 ./...`; shuffled full tests; CLI help/config/status smokes;
+  formatting; and `git diff --check`.
+- Remaining audit work: AUD-09 through AUD-16. Blockers: none.
+
+## AUD-09 Completion (2026-07-13)
+
+- Selected task: AUD-09 — stage repository paths with literal Git pathspec
+  semantics. AUD-10 notification cancellation handling was not started.
+- Every exact machine-generated staging list now invokes Git as
+  `git --literal-pathspecs add -- ...`: the primary auto-commit gate,
+  autonomous archive staging, and run-once recovery when a blocked task must
+  be restaged after a failed commit. Pathless whole-tree `git add -A` remains
+  unchanged because it carries no generated pathspec.
+- Commit path collection now treats filenames as opaque nonempty strings.
+  Deduplication and byte sorting remain deterministic, but leading/trailing
+  spaces, tabs, and newlines are no longer trimmed into a different filename.
+  Recovery logic recognizes the global Git option when determining whether a
+  failed commit had successfully staged changes.
+- Real-Git commit coverage captures a complete hostile-name set, creates
+  matching decoys after capture, and inspects both `git diff --cached
+  --no-renames -z` and `git ls-files -z` immediately after the production add
+  and before commit. It proves literal handling for `:name`, a `:(glob)`-like
+  name, wildcard characters, spaces, tabs, newlines, leading/trailing
+  whitespace, a leading dash, deletion, and rename source/destination paths.
+  The final commit tree is exactly the staged tree and the decoys remain
+  untracked. Autonomous archive staging has a separate real-Git exact-set
+  test, while the existing real-Git failed-commit test exercises restored-task
+  restaging.
+- Verification passed: focused `internal/commit`,
+  `internal/autonomousarchive`, and `internal/runonce` tests; `go test -count=1
+  ./...`; `go vet ./...`; a repeated full `go test -race -count=1 ./...`; CLI
+  help/config/status smokes; formatting; and `git diff --check`. The first
+  full race attempt hit the existing ledger busy-reader test's 250 ms deadline
+  under repository-wide race load; that test then passed ten race-enabled
+  repetitions in isolation and the complete race suite passed on rerun.
+- Remaining audit work: AUD-10 through AUD-16. Blockers: none.
+
+## AUD-10 Completion (2026-07-13)
+
+- Selected task: AUD-10 — preserve notification transition errors during
+  cancellation. AUD-11 runtime-path hardening was not started.
+- Notification transitions now retain the prior valid journal on every
+  pre-history failure. When immutable history was published before a later
+  file, checkpoint-replacement, or directory-sync failure, the transition
+  rereads the store and returns the valid history-derived newer journal with
+  the persistence error. No failed transition replaces known journal evidence
+  with a zero value.
+- Immutable history publication removes and directory-syncs an incomplete
+  final history file after write, file-sync, or close failure. Once a complete
+  history file reaches the directory-sync boundary it remains restart
+  authority, preserving the established history-before-checkpoint order.
+  Journal checkpoint failures likewise reconcile from immutable history, and
+  temporary checkpoint files are removed before reconciliation.
+- Every cancellation exit now joins the original cancellation with transition
+  persistence failure: cancellation before lookup, cancellation after lookup
+  but before dispatch, hook cancellation during terminal attempt persistence,
+  and cancellation during retry delay. A successful persistence path returns
+  the original cancellation sentinel unchanged, preserving operator-visible
+  behavior.
+- Deterministic fault injection covers history writes, history and journal
+  file syncs, both history and journal directory syncs, and journal replacement
+  across pre-dispatch, in-delivery terminal, and retry-delay cancellation.
+  Each case asserts the returned result, raw checkpoint sequence, immutable
+  history sequence, reopened store authority, absence of checkpoint temporary
+  files, joined error identities, and successful delivery from a clean
+  restart. Separate timing coverage proves ordinary cancellation remains
+  resumable in every branch.
+- Verification passed: repeated and race-enabled focused
+  `internal/autonomousnotification` tests; focused `internal/app` integration
+  tests; Go 1.22 focused tests; `go test -count=1 ./...`; `go test -race
+  -count=1 ./...`; `go vet ./...`; formatting; and `git diff --check`.
+- Remaining audit work: AUD-11 through AUD-16. Blockers: none.
+
+## AUD-11 Completion (2026-07-13)
+
+- Selected task: AUD-11 — harden runtime persistence against symlinked paths.
+  AUD-12 configuration parsing was not started.
+- A small `internal/runtimepath` safety helper now owns the shared trust
+  contract below a canonical repository root. It creates directories one
+  component at a time and uses `Lstat` to reject symlinks, non-directory
+  ancestors, and group/world-writable directory modes while naming the unsafe
+  repository-relative component without following it.
+- Protected final files must be regular, not group/world writable, and have
+  exactly one hard link. Sensitive opens also prove that descriptor metadata
+  is safe and `os.SameFile` matches the named final component before use. The
+  same checks run again after lock acquisition and around checkpoint rename
+  boundaries to narrow path-substitution windows within the existing
+  path-based filesystem architecture.
+- Task-run inspection, immutable history creation/readback, mutable checkpoint
+  creation/rename/readback, and `operation.lock` now use the contract. The
+  outer `autonomous-execution.lock` uses it for every ancestor and the final
+  lease before and after `flock`. Existing roots may still be named through a
+  repository-root symlink because root authority is canonicalized once; no
+  symlink is allowed below that boundary.
+- Checkpoint temporary cleanup first validates the still-named temp file. If
+  the operation directory was replaced before rename, cleanup leaves the
+  original temp in the displaced harness directory rather than following the
+  substituted parent and unlinking an outside bait file. Final and parent
+  components are revalidated immediately before rename and the checkpoint and
+  directory are revalidated again afterward.
+- Table-driven tests substitute symlinks at every task-run state ancestor,
+  task-run lock ancestor, outer-lease ancestor, and all three final file
+  families. Additional cases cover a regular file where a directory is
+  expected, directory where a file is expected, FIFO, unexpected hard links,
+  unsafe file and directory modes, final replacement before rename, and whole
+  operation-directory replacement before cleanup. Every case compares an
+  outside sentinel's entries, bytes, mode, and link count before and after.
+- Existing task-run exact replay, immutable-history crash recovery, queue
+  crash consistency, lock contention/reacquisition, archive, and application
+  integrations remain green. The queue store was not changed or weakened.
+- Verification passed: ten race-enabled repetitions of `internal/runtimepath`,
+  `internal/autonomoustaskrun`, and `internal/autonomousexec`; focused queue,
+  archive, and application integrations; Go 1.22 affected-package tests; `go
+  test -count=1 ./...`; `go test -race -count=1 ./...`; `go vet ./...`;
+  formatting; and `git diff --check`.
+- Remaining audit work: AUD-12 through AUD-16. Blockers: none.
+
+## AUD-12 Completion (2026-07-13)
+
+- Selected task: AUD-12 — reject ambiguous YAML and invalid configuration
+  numbers. AUD-13 ledger query work was not started.
+- Config loading now validates the YAML stream before typed decoding: exactly
+  one document is required, an empty or structured second document is rejected,
+  and only legal trailing whitespace/comments may follow. The existing
+  `KnownFields` decode remains authoritative for the one admitted document.
+- All Codex, Git, verification-command, commit, and output numeric overrides
+  now preserve omission separately from explicit values. Explicit YAML nulls
+  and empty numeric values are rejected rather than collapsing to omission.
+  Decoder type/range failures are annotated with their exact dotted/indexed
+  YAML field path.
+- Positive-only timeouts, output caps, attempt/worker bounds, and retention
+  operation caps reject zero and negative values. Intentional nonnegative
+  retention ages/counts/sizes and notification retry delay continue to accept
+  zero but reject negatives. Existing notification and queue upper bounds are
+  reported against their exact config fields.
+- Every seconds field decodes as `int64` and is checked against the largest
+  whole-second value representable by `time.Duration` before multiplication.
+  Notification domain limits remain unchanged and are applied after the
+  conversion-safety bound.
+- Table-driven tests exercise loader and `config check` errors for every
+  affected flat/tiered field with zero, negative, string, null, integer decode
+  overflow, maximum valid duration, and first duration overflow values. They
+  also cover omissions, an empty second document, a structured second
+  document, legal document markers/comments, and stable effective behavior and
+  hashing for valid configuration.
+- Verification passed: `go test ./internal/app`; `go test ./...`; `go test
+  -race ./internal/app`; `go run ./cmd/revolvr config check` with the existing
+  effective SHA-256 unchanged at
+  `87b4ec3dfa23880d41065622c6c2509c1d9ad93e4b810e71c2039f869652a613`;
+  formatting; and `git diff --check`.
+- Remaining audit work: AUD-13 through AUD-16. Blockers: none.
+
+## AUD-13 Completion (2026-07-13)
+
+- Selected task: AUD-13 — remove the ledger snapshot N+1 query pattern.
+  AUD-14 lock-wait work was not started.
+- `ReadSnapshot` now loads ordered runs and all joined events with at most two
+  SELECT statements inside the same read transaction. The task-filtered recent
+  history reader uses the same two-query shape: its second statement repeats
+  the exact task/order/limit selection as a bounded derived table and joins
+  events through it, avoiding both per-run queries and an ID placeholder list.
+- Run rows are materialized directly in their public order. One run-ID-to-index
+  map is used only for lookup while query-ordered event rows append directly to
+  each returned run; map iteration never determines output. No second event
+  collection duplicates the returned payloads in memory.
+- Snapshot events retain ascending global IDs within each run, exact malformed
+  `event_data` bytes, nil payloads, and nil event slices for runs without
+  events. `MaxEventID` is still the maximum joined event ID. Empty selections
+  skip the unnecessary second statement while remaining O(1).
+- An instrumented wrapper around the existing SQLite driver proves exactly two
+  SELECT calls for one and 1,105 selected runs and for task-history limits of
+  1, 1,001, and 2,000. The 1,105-run fixture crosses SQLite's traditional
+  variable limit and proves that no placeholder expansion is involved.
+- Exact and large fixtures cover tied run ordering, interleaved event IDs,
+  missing events, malformed payloads, maximum event identity, repeat
+  determinism, limit boundaries, and cancellation during the second query
+  without a partial result. The AUD-04 live-reader test now also reads full
+  snapshots while a writer advances 120 atomic versions in both DELETE and WAL
+  modes, proving compatible transactional visibility.
+- `BenchmarkReadSnapshot` covers 10 and 2,000 runs with three events per run
+  and reports allocations as well as time. Its one-iteration verification
+  completed both sizes successfully.
+- Verification passed: five repetitions of `go test ./internal/ledger`;
+  focused race and concurrency repetitions; `go test ./...`; `go test -race
+  ./internal/ledger`; `go vet ./internal/ledger`; the small/large benchmark
+  smoke with `-benchtime=1x -benchmem`; formatting; and `git diff --check`.
+- Remaining audit work: AUD-14 through AUD-16. Blockers: none.
+
+## AUD-14 Completion (2026-07-13)
+
+- Selected task: AUD-14 — replace flock busy spinning with cancellable
+  backoff. The conditional AUD-15 persistence-consolidation analysis was not
+  started.
+- The one shared `flockContext` path still performs an immediate nonblocking
+  exclusive OS `flock`, so every uncontended autonomous-state transition has
+  no timer or scheduling overhead. A busy result now waits on a deterministic
+  exponential timer sequence of 1, 2, 4, 8, 16, then at most 20 milliseconds
+  between attempts instead of calling `runtime.Gosched` in a tight loop.
+- Caller cancellation is checked before each flock syscall and selected while
+  every retry timer is live. The cancellation branch stops and, when needed,
+  drains its timer before returning the exact context error; no timer survives
+  the call. Non-contention flock errors still return unchanged.
+- Real-file tests prove exclusive cross-open-file authority, refusal before
+  release, acquisition within the bounded retry interval after release, prompt
+  cancellation, reuse of the same waiter file after cancellation, and exact
+  `EBADF` propagation from a closed descriptor.
+- A sustained 400-millisecond contention test pins one scheduler processor and
+  compares process CPU time to wall time with a broad CI tolerance that the
+  former spin loop exceeds. A 24-waiter real-flock test releases one holder,
+  observes every waiter acquire and unlock before its deadline, and collects
+  every goroutine result.
+- `BenchmarkFlockContext` covers both paths. The verification run measured the
+  uncontended path at zero allocations and approximately 241 ns/op, while the
+  contended-deadline path waited approximately 2.12 ms/op rather than consuming
+  that interval as CPU. These measurements are diagnostic, not runtime policy.
+- Verification passed: five repetitions of `go test
+  ./internal/autonomousstate`; the focused contention/CPU suite; `go test -race
+  ./internal/autonomousstate`; `go test ./...`; `go vet
+  ./internal/autonomousstate`; the benchmark with `-benchtime=100x -benchmem`;
+  formatting; and `git diff --check`.
+- Remaining audit work: AUD-15 and AUD-16. Blockers: none.
+
+## AUD-15 Completion (2026-07-13)
+
+- Selected task: AUD-15 — conditionally consolidate proven persistence
+  primitives. AUD-16 dead/no-op-code cleanup was not started.
+- The inventory found one exact shared contract: planning, attempt, audit,
+  block, finalization, input, optional-role, and workspace commits all replace
+  the same canonical autonomous state with a same-directory temporary, file
+  sync, locked CAS recheck, atomic rename, directory sync, and strict readback.
+  Existing helpers already own safe paths/directories, protected lock opening,
+  and immutable exact writes.
+- `Store.replaceState` now owns only that atomic replacement sequence and its
+  generic fault points. Every owner still performs its own lifecycle
+  validation, history ordering and identity construction, transition-specific
+  readback predicate, disposition, and recovery decisions at the call site.
+- The inventory deliberately excluded autonomous queue and task-run storage.
+  They have different history/checkpoint authority, recovery and injection
+  ordering, and task-run additionally carries AUD-11 protected-path
+  revalidation and cleanup. No generic repository or state-machine framework
+  and no dependency were added.
+- Focused shared-primitive coverage exercises every temporary-write, file-sync,
+  pre-rename, rename, post-rename, directory-sync, and readback fault boundary;
+  verifies the authoritative pre/post-rename state, cleanup and retry; and
+  simulates mutation between the temporary write and locked CAS recheck. The
+  previously missing generic rename/directory-sync/readback injection coverage
+  is therefore uniform across all eight owners.
+- Production `internal/autonomousstate` Go code decreased from 4,346 to 3,937
+  physical lines, a net reduction of 409. The eight owner call sites are each
+  one explicit replacement call followed by their original lifecycle-specific
+  readback checks.
+- Verification passed: the focused shared fault/crash tests; uncached tests for
+  every `internal/autonomous...` package; `go test ./... -count=1`; `go test
+  -race ./... -count=1`; formatting; LOC comparison; production-diff
+  inspection; and `git diff --check`.
+- One preceding full race attempt hit the unrelated ledger cancellation test's
+  timing branch: it returned the deadline without the expected SQLite busy
+  wrapper. Five focused race repetitions passed, as did the subsequent clean
+  repository-wide race run; no ledger code was changed in AUD-15.
+- Remaining audit work: AUD-16. Blockers: none.
+
+## AUD-16 Completion (2026-07-13)
+
+- Selected task: AUD-16 — remove only demonstrably dead or no-op code. No
+  unrelated cleanup or new backlog item was started.
+- The safety preflight's `validationCopy` block was wholly behavior-neutral:
+  the copy was never observed and its only condition tested the nonempty schema
+  literal assigned in the same function. The block and its misleading comment
+  were removed without replacing them with another abstraction.
+- `fmt` in artifact compression and `encoding/json` in artifact apply were
+  imported only through blank package references. Both imports and anchors
+  were removed. Autonomous queue's private `classifyEmpty` had one caller and
+  never read its `outcomes` parameter, so the parameter and argument were
+  removed directly.
+- The finalization task and metrics map-key tail assignments were dead after
+  their values had already served their real work. The redundant audit-root
+  blank assignment was removed while retaining the later root-dependent
+  artifact read. Notification `Inspect` still validates intent, payload, and
+  journal identity before projecting a summary, but its unused intent return is
+  now discarded at binding. Planning-result apply still executes and its error
+  remains authoritative while the unused result is discarded at binding.
+- No public API, persistence order, validation call, state mutation, dependency,
+  or TUI behavior changed. Production Go code under `internal` decreased from
+  59,976 to 59,956 physical lines, a net reduction of 20.
+- Verification passed: focused uncached tests for `internal/autonomoussafety`,
+  `internal/artifactretention`, `internal/autonomousqueue`,
+  `internal/autonomousfinalization`, `internal/autonomousnotification`,
+  `internal/autonomousmetrics`, `internal/autonomousauditapply`, and
+  `internal/app`; `go test ./... -count=1`; `go vet ./...`; `go test -race
+  ./... -count=1`; formatting; candidate search; LOC comparison; and `git diff
+  --check`.
+- AUD-01 through AUD-16 are complete, all queue-exit checks pass, no directly
+  discovered correctness regression needs a follow-up, and no audit work
+  remains. Blockers: none.
 
 ## Final Publication (2026-07-12)
 

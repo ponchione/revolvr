@@ -207,8 +207,7 @@ func Project(snapshot ledger.Snapshot, source Source) (Projection, error) {
 			}
 		}
 	}
-	for key, resolution := range latestResolution {
-		_ = key
+	for _, resolution := range latestResolution {
 		if resolution.Status != autonomous.FindingResolutionStatusOpen {
 			resolutionCounts[string(resolution.Status)]++
 		}

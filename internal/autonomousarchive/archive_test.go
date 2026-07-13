@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -20,10 +23,37 @@ import (
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/ledger"
 	"revolvr/internal/redact"
+	"revolvr/internal/runner"
 	"revolvr/internal/taskfile"
 )
 
 var archiveTestTime = time.Date(2026, 7, 12, 23, 59, 59, 0, time.UTC)
+
+func TestGitStageUsesLiteralPathspecs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows filesystems do not support every legal Git filename exercised here")
+	}
+
+	root := t.TempDir()
+	runGitTest(t, root, "init", "-q")
+	paths := []string{":(glob)archive*.txt", "archive*.txt", " archive path ", "archive\npath.txt", "-archive.txt"}
+	for _, path := range append(append([]string(nil), paths...), "archive-unintended.txt") {
+		if err := os.WriteFile(filepath.Join(root, path), []byte(path), 0o644); err != nil {
+			t.Fatalf("write path %q: %v", path, err)
+		}
+	}
+
+	g := gitConfig{root: root, executable: "git", timeout: time.Minute, runner: runner.Run}
+	if err := g.stage(context.Background(), paths); err != nil {
+		t.Fatalf("stage exact archive paths: %v", err)
+	}
+	got := archiveTestNULPaths(runGitTest(t, root, "diff", "--cached", "--name-only", "-z"))
+	want := append([]string(nil), paths...)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("staged paths = %#v, want %#v", got, want)
+	}
+}
 
 func TestArchiveRefusesWhileQueueCoordinatorLeaseIsActive(t *testing.T) {
 	root := t.TempDir()
@@ -35,6 +65,46 @@ func TestArchiveRefusesWhileQueueCoordinatorLeaseIsActive(t *testing.T) {
 	_, err = Archive(context.Background(), Config{RepositoryRoot: root}, ArchiveRequest{TaskID: "terminal-task", OperationID: "archive-race", Authority: authority(DispositionCancelled), ArchivedAt: archiveTestTime})
 	if !errors.Is(err, autonomousexec.ErrActive) {
 		t.Fatalf("archive contention err=%v", err)
+	}
+}
+
+func TestArchiveRefusesTruncatedStatusBeforeGitMutation(t *testing.T) {
+	root, store := terminalRepo(t, DispositionCancelled)
+	defer store.Close()
+	headBefore := strings.TrimSpace(runGitTest(t, root, "rev-parse", "HEAD"))
+	mutationAttempted := false
+	commandRunner := func(ctx context.Context, command runner.Command) runner.Result {
+		if len(command.Args) > 0 && command.Args[0] == "status" {
+			return runner.Result{ExitCode: 0, Stdout: "?? partial-path\x00", StdoutTruncatedBytes: 128}
+		}
+		if subcommand := archiveTestGitSubcommand(command.Args); subcommand == "add" || subcommand == "commit" {
+			mutationAttempted = true
+		}
+		return runner.Run(ctx, command)
+	}
+
+	_, err := Archive(context.Background(), Config{
+		RepositoryRoot: root,
+		Ledger:         store,
+		CommandRunner:  commandRunner,
+	}, ArchiveRequest{
+		TaskID:       "terminal-task",
+		OperationID:  "archive-truncated-status",
+		ArchiveRunID: "archive-run-truncated-status",
+		Authority:    authority(DispositionCancelled),
+		ArchivedAt:   archiveTestTime,
+	})
+	if err == nil || !strings.Contains(err.Error(), "output truncated") {
+		t.Fatalf("archive error = %v, want truncation refusal", err)
+	}
+	if mutationAttempted {
+		t.Fatal("archive attempted git add or commit after truncated status")
+	}
+	if got := strings.TrimSpace(runGitTest(t, root, "rev-parse", "HEAD")); got != headBefore {
+		t.Fatalf("HEAD advanced from %s to %s", headBefore, got)
+	}
+	if _, found, findErr := taskfile.FindByID(root, "terminal-task"); findErr != nil || !found {
+		t.Fatalf("active task changed: found=%t error=%v", found, findErr)
 	}
 }
 
@@ -419,4 +489,24 @@ func runGitTest(t *testing.T, root string, args ...string) string {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 	return string(out)
+}
+
+func archiveTestGitSubcommand(args []string) string {
+	if len(args) > 1 && args[0] == "--literal-pathspecs" {
+		return args[1]
+	}
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
+func archiveTestNULPaths(output string) []string {
+	output = strings.TrimSuffix(output, "\x00")
+	if output == "" {
+		return nil
+	}
+	paths := strings.Split(output, "\x00")
+	sort.Strings(paths)
+	return paths
 }

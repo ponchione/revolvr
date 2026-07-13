@@ -442,7 +442,8 @@ func captureSource(ctx context.Context, c autonomouscycle.Config) (gitstate.Sour
 	if fn == nil {
 		fn = gitstate.CaptureSourceSnapshot
 	}
-	return fn(ctx, gitstate.SourceSnapshotConfig{WorkingDir: cycleSourceRoot(c), GitExecutable: c.GitExecutable, Timeout: c.GitTimeout, StdoutCap: c.GitStdoutCap, StderrCap: c.GitStderrCap, CommandRunner: gitstate.CommandRunner(c.CommandRunner)})
+	root := cycleSourceRoot(c)
+	return fn(ctx, gitstate.SourceSnapshotConfig{WorkingDir: root, GitExecutable: c.GitExecutable, Timeout: c.GitTimeout, StdoutCap: c.GitStdoutCap, StderrCap: c.GitStderrCap, AllowHarnessRuntime: root == c.RepositoryRoot, CommandRunner: gitstate.CommandRunner(c.CommandRunner)})
 }
 func captureDirty(ctx context.Context, c autonomouscycle.Config) (gitstate.Capture, error) {
 	fn := c.DirtyCapture

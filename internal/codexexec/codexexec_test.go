@@ -1,6 +1,8 @@
 package codexexec
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"revolvr/internal/jsonl"
 	"revolvr/internal/ledger"
 	"revolvr/internal/receipt"
 	"revolvr/internal/redact"
@@ -21,6 +24,7 @@ import (
 func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()
+	canonicalLastMessage := filepath.Join(workDir, ".revolvr/runs/run-1/last-message.txt")
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	store, err := ledger.OpenWithClock(ctx, filepath.Join(workDir, "ledger.sqlite"), func() time.Time { return now })
 	if err != nil {
@@ -52,13 +56,22 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 		}
 		gotPrompt = string(prompt)
 		for _, line := range stdoutLines {
-			command.OnStdoutLine(line)
+			if err := writeCommandStdout(command, line+"\n"); err != nil {
+				t.Fatalf("write fake stdout: %v", err)
+			}
 		}
 		command.OnStderrLine("codex progress")
 		lastMessagePath := argAfter(command.Args, "--output-last-message")
 		if lastMessagePath == "" {
 			t.Fatal("missing --output-last-message argument")
 		}
+		if lastMessagePath != lastMessageRawPath(canonicalLastMessage) {
+			t.Fatalf("last-message argument = %q, want raw temporary %q", lastMessagePath, lastMessageRawPath(canonicalLastMessage))
+		}
+		if _, err := os.Stat(canonicalLastMessage); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("canonical last-message exists while child is running: %v", err)
+		}
+		assertFileMode(t, lastMessagePath, 0o600)
 		if err := os.WriteFile(lastMessagePath, []byte("final from file\n"), 0o644); err != nil {
 			t.Fatalf("write fake last message: %v", err)
 		}
@@ -104,7 +117,7 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 		"--ephemeral",
 		"--sandbox", "workspace-write",
 		"--cd", workDir,
-		"--output-last-message", filepath.Join(workDir, ".revolvr/runs/run-1/last-message.txt"),
+		"--output-last-message", lastMessageRawPath(canonicalLastMessage),
 		"-",
 	}
 	if gotCommand.Name != "codex-test" {
@@ -153,6 +166,10 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 
 	assertFile(t, result.Artifacts.StdoutJSONL, strings.Join(stdoutLines, "\n")+"\n")
 	assertFile(t, result.Artifacts.Stderr, "codex progress\n")
+	assertFile(t, canonicalLastMessage, "final from file\n")
+	assertFileMode(t, canonicalLastMessage, 0o644)
+	assertPathAbsent(t, lastMessageRawPath(canonicalLastMessage))
+	assertPathAbsent(t, lastMessageRedactedPath(canonicalLastMessage))
 
 	history, ok, err := store.GetRunWithEvents(ctx, run.ID)
 	if err != nil {
@@ -195,6 +212,7 @@ func TestRunInvokesCodexExecAndCapturesArtifactsAndLedger(t *testing.T) {
 func TestRunRedactsPersistentAndReturnedCodexOutput(t *testing.T) {
 	workDir := t.TempDir()
 	secret := "token-super-secret"
+	canonicalLastMessage := filepath.Join(workDir, "run/final.json")
 	redactor, _, err := redact.New(redact.Policy{SchemaVersion: redact.PolicySchemaVersion, EnvironmentVariables: []string{"TOKEN"}}, func(name string) (string, bool) { return secret, name == "TOKEN" })
 	if err != nil {
 		t.Fatal(err)
@@ -203,8 +221,16 @@ func TestRunRedactsPersistentAndReturnedCodexOutput(t *testing.T) {
 		WorkingDir: workDir, Prompt: "safe prompt", Redactor: redactor,
 		Artifacts: ArtifactPaths{StdoutJSONL: "run/codex.jsonl", Stderr: "run/codex.stderr", LastMessage: "run/final.json"},
 		CommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			rawLastMessage := argAfter(command.Args, "--output-last-message")
+			if rawLastMessage != lastMessageRawPath(canonicalLastMessage) {
+				t.Fatalf("last-message argument = %q, want %q", rawLastMessage, lastMessageRawPath(canonicalLastMessage))
+			}
+			assertPathAbsent(t, canonicalLastMessage)
+			assertFileMode(t, rawLastMessage, 0o600)
 			line := `{"type":"turn.completed","final_message":"` + secret + `"}`
-			command.OnStdoutLine(line)
+			if err := writeCommandStdout(command, line+"\n"); err != nil {
+				t.Fatal(err)
+			}
 			command.OnStderrLine("stderr " + secret)
 			if err := os.WriteFile(argAfter(command.Args, "--output-last-message"), []byte(`{"value":"`+secret+`"}`), 0o644); err != nil {
 				t.Fatal(err)
@@ -228,6 +254,12 @@ func TestRunRedactsPersistentAndReturnedCodexOutput(t *testing.T) {
 		if strings.Contains(string(raw), secret) {
 			t.Fatalf("artifact %s leaked secret", path)
 		}
+	}
+	assertFileMode(t, canonicalLastMessage, 0o644)
+	assertPathAbsent(t, lastMessageRawPath(canonicalLastMessage))
+	assertPathAbsent(t, lastMessageRedactedPath(canonicalLastMessage))
+	if result.LastMessageRedaction.MatchCount != 1 {
+		t.Fatalf("last-message redaction facts = %#v, want one match", result.LastMessageRedaction)
 	}
 }
 
@@ -404,8 +436,9 @@ func TestRunReportsInvalidJSONAndProcessState(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()
 	fakeRunner := func(_ context.Context, command runner.Command) runner.Result {
-		command.OnStdoutLine(`{"type":"thread.started"}`)
-		command.OnStdoutLine(`not-json`)
+		if err := writeCommandStdout(command, "{\"type\":\"thread.started\"}\nnot-json\n"); err != nil {
+			t.Fatal(err)
+		}
 		command.OnStderrLine("still running")
 		return runner.Result{
 			ExitCode: -1,
@@ -445,6 +478,183 @@ func TestRunReportsInvalidJSONAndProcessState(t *testing.T) {
 	if result.Artifacts.Stderr != "" {
 		t.Fatalf("stderr artifact path = %q, want empty", result.Artifacts.Stderr)
 	}
+}
+
+func TestRunPreservesLargeJSONLRecordsAcrossArbitraryChunks(t *testing.T) {
+	workDir := t.TempDir()
+	secret := "token-super-secret"
+	redactor, _, err := redact.New(redact.Policy{SchemaVersion: redact.PolicySchemaVersion, EnvironmentVariables: []string{"TOKEN"}}, func(name string) (string, bool) {
+		return secret, name == "TOKEN"
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	below := sizedJSONRecord(t, 64*1024-1, "below")
+	above := sizedJSONRecord(t, 64*1024+1, secret)
+	large := sizedJSONRecord(t, 80*1024, "café")
+	stream := below + "\n" + above + "\n" + large
+	streamBytes := []byte(stream)
+	firstNewline := bytes.IndexByte(streamBytes, '\n')
+	secretStart := bytes.Index(streamBytes, []byte(secret))
+	secondNewline := bytes.IndexByte(streamBytes[firstNewline+1:], '\n') + firstNewline + 1
+	runeStart := bytes.Index(streamBytes, []byte("é"))
+	cuts := []int{1, 17, firstNewline, firstNewline + 1, secretStart + 2, secretStart + len(secret) - 1, secondNewline, secondNewline + 1, runeStart + 1}
+
+	result, err := Run(context.Background(), Config{
+		WorkingDir: workDir,
+		Prompt:     "safe prompt",
+		Redactor:   redactor,
+		StdoutCap:  32,
+		Artifacts:  ArtifactPaths{StdoutJSONL: "run/codex.jsonl"},
+		CommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			start := 0
+			for _, cut := range cuts {
+				if err := writeCommandStdout(command, string(streamBytes[start:cut])); err != nil {
+					t.Fatalf("write stdout chunk ending at %d: %v", cut, err)
+				}
+				start = cut
+			}
+			if err := writeCommandStdout(command, string(streamBytes[start:])); err != nil {
+				t.Fatalf("write final stdout chunk: %v", err)
+			}
+			return runner.Result{
+				ExitCode:             0,
+				Stdout:               stream[:32],
+				StdoutTruncatedBytes: int64(len(stream) - 32),
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Err != nil || result.ArtifactError != nil || len(result.JSONParseErrors) != 0 {
+		t.Fatalf("unexpected result errors: err=%v artifact=%v parse=%#v", result.Err, result.ArtifactError, result.JSONParseErrors)
+	}
+	if result.JSONEvents != 3 {
+		t.Fatalf("JSON events = %d, want 3", result.JSONEvents)
+	}
+	if len(result.Stdout.Content) != 32 || result.Stdout.TruncatedBytes != int64(len(stream)-32) {
+		t.Fatalf("capped stdout = %d bytes, truncated = %d", len(result.Stdout.Content), result.Stdout.TruncatedBytes)
+	}
+
+	artifact, err := os.Open(result.Artifacts.StdoutJSONL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer artifact.Close()
+	scanner := bufio.NewScanner(artifact)
+	scanner.Buffer(make([]byte, 1024), jsonl.MaxRecordBytes+1)
+	var payloads []string
+	for scanner.Scan() {
+		var event map[string]any
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			t.Fatalf("artifact record %d is invalid JSON: %v", len(payloads)+1, err)
+		}
+		payloads = append(payloads, event["payload"].(string))
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(payloads) != 3 {
+		t.Fatalf("artifact records = %d, want 3", len(payloads))
+	}
+	if len(payloads[0])+len(`{"type":"item.completed","payload":""}`) != 64*1024-1 {
+		t.Fatalf("below-limit record payload size = %d", len(payloads[0]))
+	}
+	if strings.Contains(payloads[1], secret) || !strings.HasSuffix(payloads[1], redact.Replacement) {
+		t.Fatalf("split secret was not redacted: suffix %q", payloads[1][len(payloads[1])-len(redact.Replacement):])
+	}
+	if !strings.HasSuffix(payloads[2], "café") {
+		t.Fatalf("split UTF-8 payload suffix = %q", payloads[2][len(payloads[2])-8:])
+	}
+}
+
+func TestRunRejectsOversizedJSONLRecordWithoutPersistingPartialJSON(t *testing.T) {
+	workDir := t.TempDir()
+	valid := `{"type":"thread.started"}`
+	oversized := `{"payload":"` + strings.Repeat("x", jsonl.MaxRecordBytes) + `"}`
+	result, err := Run(context.Background(), Config{
+		WorkingDir: workDir,
+		Prompt:     "safe prompt",
+		Artifacts:  ArtifactPaths{StdoutJSONL: "run/codex.jsonl"},
+		CommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			writeErr := writeCommandStdout(command, valid+"\n", oversized)
+			return runner.Result{ExitCode: -1, Err: writeErr}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(result.Err, jsonl.ErrRecordTooLarge) {
+		t.Fatalf("result error = %v, want ErrRecordTooLarge", result.Err)
+	}
+	if !errors.Is(result.ArtifactError, jsonl.ErrRecordTooLarge) {
+		t.Fatalf("artifact error = %v, want ErrRecordTooLarge", result.ArtifactError)
+	}
+	var sizeErr *jsonl.RecordTooLargeError
+	if !errors.As(result.Err, &sizeErr) || sizeErr.Record != 2 || sizeErr.Limit != jsonl.MaxRecordBytes {
+		t.Fatalf("record size error = %#v", result.Err)
+	}
+	assertFile(t, result.Artifacts.StdoutJSONL, valid+"\n")
+	if result.JSONEvents != 1 {
+		t.Fatalf("JSON events = %d, want 1", result.JSONEvents)
+	}
+}
+
+func TestRunClassifiesUnreadableMetricsSourceAsArtifactFailure(t *testing.T) {
+	workDir := t.TempDir()
+	artifactPath := filepath.Join(workDir, "run", "codex.jsonl")
+	result, err := Run(context.Background(), Config{
+		WorkingDir: workDir,
+		Prompt:     "safe prompt",
+		Artifacts:  ArtifactPaths{StdoutJSONL: "run/codex.jsonl"},
+		CommandRunner: func(_ context.Context, _ runner.Command) runner.Result {
+			if err := os.Remove(artifactPath); err != nil {
+				t.Fatalf("remove open artifact name: %v", err)
+			}
+			if err := os.Mkdir(artifactPath, 0o755); err != nil {
+				t.Fatalf("replace artifact with unreadable directory: %v", err)
+			}
+			return runner.Result{ExitCode: 0}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ParseError != nil {
+		t.Fatalf("parse error = %v, want source failure kept separate", result.ParseError)
+	}
+	if !errors.Is(result.ArtifactError, receipt.ErrCodexJSONLSource) {
+		t.Fatalf("artifact error = %v, want Codex JSONL source failure", result.ArtifactError)
+	}
+}
+
+func TestRunClassifiesCanceledMetricsParsingWithoutCorruptingArtifact(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	workDir := t.TempDir()
+	line := `{"type":"turn.completed","usage":{"input_tokens":1}}`
+	result, err := Run(ctx, Config{
+		WorkingDir: workDir,
+		Prompt:     "safe prompt",
+		Artifacts:  ArtifactPaths{StdoutJSONL: "run/codex.jsonl"},
+		CommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			if err := writeCommandStdout(command, line+"\n"); err != nil {
+				t.Fatal(err)
+			}
+			cancel()
+			return runner.Result{ExitCode: 0, Stdout: line + "\n"}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(result.ParseError, context.Canceled) {
+		t.Fatalf("parse error = %v, want context cancellation", result.ParseError)
+	}
+	if result.ArtifactError != nil || result.UsageFound {
+		t.Fatalf("artifact error/usage = %v/%t", result.ArtifactError, result.UsageFound)
+	}
+	assertFile(t, result.Artifacts.StdoutJSONL, line+"\n")
 }
 
 func TestRunValidatesRequiredConfig(t *testing.T) {
@@ -502,6 +712,37 @@ func TestRunRejectsEscapingArtifactPaths(t *testing.T) {
 	}
 }
 
+func writeCommandStdout(command runner.Command, chunks ...string) error {
+	if command.StdoutWriter == nil {
+		return errors.New("runner command has no authoritative stdout writer")
+	}
+	for _, chunk := range chunks {
+		written, err := io.WriteString(command.StdoutWriter, chunk)
+		if err != nil {
+			return err
+		}
+		if written != len(chunk) {
+			return io.ErrShortWrite
+		}
+	}
+	return nil
+}
+
+func sizedJSONRecord(t *testing.T, size int, payloadSuffix string) string {
+	t.Helper()
+	prefix := `{"type":"item.completed","payload":"`
+	suffix := `"}`
+	fillerBytes := size - len(prefix) - len(payloadSuffix) - len(suffix)
+	if fillerBytes < 0 {
+		t.Fatalf("JSONL record size %d is too small", size)
+	}
+	record := prefix + strings.Repeat("x", fillerBytes) + payloadSuffix + suffix
+	if len(record) != size {
+		t.Fatalf("JSONL record size = %d, want %d", len(record), size)
+	}
+	return record
+}
+
 func assertFile(t *testing.T, path string, want string) {
 	t.Helper()
 	got, err := os.ReadFile(path)
@@ -510,6 +751,27 @@ func assertFile(t *testing.T, path string, want string) {
 	}
 	if string(got) != want {
 		t.Fatalf("%s = %q, want %q", path, string(got), want)
+	}
+}
+
+func assertFileMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("inspect %s: %v", path, err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("%s mode = %s, want regular non-symlink file", path, info.Mode())
+	}
+	if got := info.Mode().Perm(); got != want {
+		t.Fatalf("%s mode = %04o, want %04o", path, got, want)
+	}
+}
+
+func assertPathAbsent(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("path %s exists or cannot be inspected: %v", path, err)
 	}
 }
 

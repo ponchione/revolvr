@@ -212,7 +212,7 @@ func TestCheckRunConfigRetentionPolicyAndFingerprint(t *testing.T) {
 }
 
 func TestCheckRunConfigRejectsInvalidRetention(t *testing.T) {
-	for _, test := range []struct{ name, content, want string }{{"negative", "retention:\n  compress_after_seconds: -1\n", "cannot be negative"}, {"contradictory", "retention:\n  compress_after_seconds: 20\n  prune_after_seconds: 10\n", "cannot exceed"}, {"unsafe prune", "retention:\n  prune_compressed_streams: true\n  require_verified_export: false\n", "requires a verified"}, {"unknown", "retention:\n  delete_everything: true\n", "field delete_everything not found"}} {
+	for _, test := range []struct{ name, content, want string }{{"negative", "retention:\n  compress_after_seconds: -1\n", "must be nonnegative"}, {"contradictory", "retention:\n  compress_after_seconds: 20\n  prune_after_seconds: 10\n", "cannot exceed"}, {"unsafe prune", "retention:\n  prune_compressed_streams: true\n  require_verified_export: false\n", "requires a verified"}, {"unknown", "retention:\n  delete_everything: true\n", "field delete_everything not found"}} {
 		t.Run(test.name, func(t *testing.T) {
 			workDir := t.TempDir()
 			writeConfigTestFile(t, workDir, test.content)

@@ -127,7 +127,7 @@ func PlanGC(ctx context.Context, in PlanInput) (Plan, error) {
 		return Plan{}, fmt.Errorf("artifact GC plan: ledger: %w", err)
 	}
 	ledgerRel, _ := filepath.Rel(root, ledgerPath)
-	store, err := ledger.OpenReadOnly(ctx, ledgerPath)
+	store, err := ledger.OpenLiveReadOnly(ctx, ledgerPath)
 	if err != nil {
 		return Plan{}, err
 	}

@@ -152,73 +152,12 @@ func (s *Store) CommitAttempt(ctx context.Context, request AttemptCommitRequest)
 		return AttemptCommitResult{}, err
 	}
 
-	statePath, err := s.safePath(task.AutonomousStatePath)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
 	if err != nil {
 		return AttemptCommitResult{}, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
-	if err != nil {
-		return AttemptCommitResult{}, fmt.Errorf("commit attempt transition: create state temporary file: %w", err)
-	}
-	tempPath := temp.Name()
-	closed := false
-	defer func() {
-		if !closed {
-			_ = temp.Close()
-		}
-		_ = os.Remove(tempPath)
-	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := s.fail(FailureDuringStateWrite); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if _, err := temp.Write(nextBytes); err != nil {
-		return AttemptCommitResult{}, fmt.Errorf("commit attempt transition: write state temporary file: %w", err)
-	}
-	if err := s.fail(FailureStateFileSync); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := temp.Sync(); err != nil {
-		return AttemptCommitResult{}, fmt.Errorf("commit attempt transition: sync state temporary file: %w", err)
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return AttemptCommitResult{}, err
-	}
-	closed = true
-	latest, latestFound, err := s.readCurrent(task)
-	if err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := compareExpected(request.Expected, latest, latestFound); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := s.fail(FailureBeforeStateRename); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := s.fail(FailureStateRename); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := os.Rename(tempPath, statePath); err != nil {
-		return AttemptCommitResult{}, fmt.Errorf("commit attempt transition: atomically replace state: %w", err)
-	}
-	if err := s.fail(FailureAfterStateRename); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := s.fail(FailureStateDirectorySync); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
-		return AttemptCommitResult{}, fmt.Errorf("commit attempt transition: sync state directory: %w", err)
-	}
-	if err := s.fail(FailureStateReadback); err != nil {
-		return AttemptCommitResult{}, err
-	}
-	readback, found, err := s.readCurrent(task)
-	if err != nil || !found {
-		return AttemptCommitResult{}, errors.Join(err, errors.New("commit attempt transition: state readback missing"))
+	if !found {
+		return AttemptCommitResult{}, errors.New("commit attempt transition: state readback missing")
 	}
 	if readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !reflectStateEqual(readback.State, request.NextState) {
 		return AttemptCommitResult{}, errors.New("commit attempt transition: state readback mismatch")

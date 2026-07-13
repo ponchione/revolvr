@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -48,7 +51,7 @@ func TestRunCommitsChangedFilesAndRecordsSHA(t *testing.T) {
 				return runner.Result{ExitCode: 0, Stdout: "parent123\n"}
 			}
 			return runner.Result{ExitCode: 0, Stdout: "abc123def456\n"}
-		case reflect.DeepEqual(command.Args, []string{"add", "--", "a.go", "b.go"}):
+		case reflect.DeepEqual(command.Args, []string{"--literal-pathspecs", "add", "--", "a.go", "b.go"}):
 			return runner.Result{ExitCode: 0}
 		case reflect.DeepEqual(command.Args, []string{"commit", "-m", "Add auto commit gate", "-m", "Run-ID: run-commit\nTask-ID: task-commit\nVerification: passed"}):
 			return runner.Result{ExitCode: 0, Stdout: "[main abc123] Add auto commit gate\n"}
@@ -159,7 +162,7 @@ func TestRunRecoversCreatedCommitAfterTransientHEADLookupFailure(t *testing.T) {
 			default:
 				return runner.Result{ExitCode: 0, Stdout: "created456\n"}
 			}
-		case len(command.Args) > 0 && command.Args[0] == "add":
+		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
 		case len(command.Args) > 0 && command.Args[0] == "commit":
 			return runner.Result{ExitCode: 0}
@@ -237,6 +240,129 @@ func TestRunReconcilesRealCommitAfterTransientHEADLookupFailure(t *testing.T) {
 	}
 }
 
+func TestRunStagesLiteralPathsAndCommitsExactTree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows filesystems do not support every legal Git filename exercised here")
+	}
+
+	ctx := context.Background()
+	workDir := t.TempDir()
+	runCommitTestGit(t, workDir, "init", "-q")
+	runCommitTestGit(t, workDir, "config", "user.name", "Revolvr Test")
+	runCommitTestGit(t, workDir, "config", "user.email", "revolvr-test@example.invalid")
+
+	deletedPath := "delete\nme.txt"
+	renameOldPath := "rename\told.txt"
+	for path, content := range map[string]string{
+		"keep.txt":     "keep\n",
+		deletedPath:    "delete\n",
+		renameOldPath:  "rename\n",
+		"modified.txt": "before\n",
+	} {
+		if err := os.WriteFile(filepath.Join(workDir, path), []byte(content), 0o644); err != nil {
+			t.Fatalf("write baseline path %q: %v", path, err)
+		}
+	}
+	runCommitTestGit(t, workDir, "add", "-A")
+	runCommitTestGit(t, workDir, "commit", "-q", "-m", "Initial commit")
+
+	renameNewPath := ":renamed [*]?.txt"
+	newPaths := []string{
+		":name",
+		":(glob)decoy*.txt",
+		" leading and trailing ",
+		"space name.txt",
+		"tab\tname.txt",
+		"line\nname.txt",
+		"wild*.txt",
+		"-leading.txt",
+	}
+	if err := os.Remove(filepath.Join(workDir, deletedPath)); err != nil {
+		t.Fatalf("delete path %q: %v", deletedPath, err)
+	}
+	if err := os.Rename(filepath.Join(workDir, renameOldPath), filepath.Join(workDir, renameNewPath)); err != nil {
+		t.Fatalf("rename %q to %q: %v", renameOldPath, renameNewPath, err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "modified.txt"), []byte("after\n"), 0o644); err != nil {
+		t.Fatalf("modify tracked path: %v", err)
+	}
+	for _, path := range newPaths {
+		if err := os.WriteFile(filepath.Join(workDir, path), []byte(path), 0o644); err != nil {
+			t.Fatalf("write changed path %q: %v", path, err)
+		}
+	}
+
+	capture, err := gitstate.CaptureChangedFiles(ctx, gitstate.Config{WorkingDir: workDir})
+	if err != nil {
+		t.Fatalf("capture changed files: %v", err)
+	}
+	expectedChanged := append([]string{deletedPath, renameOldPath, renameNewPath, "modified.txt"}, newPaths...)
+	sort.Strings(expectedChanged)
+	if !reflect.DeepEqual(capture.ChangedFiles, expectedChanged) {
+		t.Fatalf("captured changed files = %#v, want %#v", capture.ChangedFiles, expectedChanged)
+	}
+
+	// These files appear after the capture and match pathspec-looking filenames in
+	// expectedChanged. Literal staging must not pull either one into the index.
+	decoys := []string{"decoy-unintended.txt", "wild-unintended.txt"}
+	for _, path := range decoys {
+		if err := os.WriteFile(filepath.Join(workDir, path), []byte("unstaged\n"), 0o644); err != nil {
+			t.Fatalf("write decoy path %q: %v", path, err)
+		}
+	}
+
+	var addArgs, stagedChanges, stagedTree []string
+	commandRunner := func(ctx context.Context, command runner.Command) runner.Result {
+		result := runner.Run(ctx, command)
+		if commitTestGitSubcommand(command.Args) == "add" && result.Err == nil && !result.TimedOut && result.ExitCode == 0 {
+			addArgs = append([]string(nil), command.Args...)
+			stagedChanges = commitTestNULPaths(runCommitTestGit(t, workDir, "diff", "--cached", "--no-renames", "--name-only", "-z"))
+			stagedTree = commitTestNULPaths(runCommitTestGit(t, workDir, "ls-files", "-z"))
+		}
+		return result
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:         workDir,
+		RunID:              "run-literal-paths",
+		TaskID:             "task-literal-paths",
+		TaskSummary:        "Stage literal paths",
+		CodexResult:        &codexexec.Result{ExitCode: 0},
+		VerificationResult: passedVerification(),
+		PreRunDirty:        &gitstate.Capture{},
+		PostRunChanged:     &capture,
+		CommandRunner:      commandRunner,
+	})
+	if err != nil {
+		t.Fatalf("run auto-commit: %v", err)
+	}
+	if result.Status != StatusCommitted {
+		t.Fatalf("result = %+v, want committed", result)
+	}
+
+	wantAddArgs := append([]string{"--literal-pathspecs", "add", "--"}, expectedChanged...)
+	if !reflect.DeepEqual(addArgs, wantAddArgs) {
+		t.Fatalf("git add args = %#v, want %#v", addArgs, wantAddArgs)
+	}
+	if !reflect.DeepEqual(stagedChanges, expectedChanged) {
+		t.Fatalf("staged changes = %#v, want %#v", stagedChanges, expectedChanged)
+	}
+	expectedTree := append([]string{"keep.txt", "modified.txt", renameNewPath}, newPaths...)
+	sort.Strings(expectedTree)
+	if !reflect.DeepEqual(stagedTree, expectedTree) {
+		t.Fatalf("staged tree = %#v, want %#v", stagedTree, expectedTree)
+	}
+	committedTree := commitTestNULPaths(runCommitTestGit(t, workDir, "ls-tree", "-r", "--name-only", "-z", "HEAD"))
+	if !reflect.DeepEqual(committedTree, expectedTree) {
+		t.Fatalf("committed tree = %#v, want %#v", committedTree, expectedTree)
+	}
+	for _, path := range decoys {
+		if strings.Contains(string(runCommitTestGit(t, workDir, "ls-files", "-z")), path+"\x00") {
+			t.Fatalf("decoy path %q entered the index", path)
+		}
+	}
+}
+
 func TestRunRecordsCommitWhenCommandFailsButHEADAdvanced(t *testing.T) {
 	headCalls := 0
 	result, err := Run(context.Background(), baseConfig(t, func(_ context.Context, command runner.Command) runner.Result {
@@ -247,7 +373,7 @@ func TestRunRecordsCommitWhenCommandFailsButHEADAdvanced(t *testing.T) {
 				return runner.Result{ExitCode: 0, Stdout: "parent123\n"}
 			}
 			return runner.Result{ExitCode: 0, Stdout: "created456\n"}
-		case len(command.Args) > 0 && command.Args[0] == "add":
+		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
 		case len(command.Args) > 0 && command.Args[0] == "commit":
 			return runner.Result{ExitCode: 1, Stderr: "hook reported failure after creating commit"}
@@ -277,7 +403,7 @@ func TestRunReportsIndeterminateWhenPostCommitHEADCannotBeResolved(t *testing.T)
 				return runner.Result{ExitCode: 0, Stdout: "parent123\n"}
 			}
 			return runner.Result{ExitCode: 2, Err: errors.New("HEAD unavailable")}
-		case len(command.Args) > 0 && command.Args[0] == "add":
+		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
 		case len(command.Args) > 0 && command.Args[0] == "commit":
 			return runner.Result{ExitCode: 0}
@@ -310,7 +436,7 @@ func TestRunSupportsInitialCommitWithUnbornHEAD(t *testing.T) {
 				return runner.Result{ExitCode: 1}
 			}
 			return runner.Result{ExitCode: 0, Stdout: "initial123\n"}
-		case len(command.Args) > 0 && command.Args[0] == "add":
+		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
 		case len(command.Args) > 0 && command.Args[0] == "commit":
 			return runner.Result{ExitCode: 0}
@@ -369,6 +495,90 @@ func TestRunRefusesWhenNoChanges(t *testing.T) {
 	}
 	if calls != 0 {
 		t.Fatalf("git calls = %d, want 0", calls)
+	}
+}
+
+func TestRunRefusesTruncatedGitStateBeforeAnyGitMutation(t *testing.T) {
+	calls := 0
+	result, err := Run(context.Background(), baseConfig(t, func(context.Context, runner.Command) runner.Result {
+		calls++
+		return runner.Result{ExitCode: 0}
+	}, func(cfg *Config) {
+		cfg.PostRunChanged = &gitstate.Capture{
+			CaptureError:         "git status output was truncated (stdout=42 bytes, stderr=0 bytes)",
+			Paths:                []string{"partial.go"},
+			ChangedFiles:         []string{"partial.go"},
+			StdoutTruncatedBytes: 42,
+		}
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != StatusRefused || result.RefusalReason != ReasonGitStateCaptureFailed {
+		t.Fatalf("result = %+v, want Git-state refusal", result)
+	}
+	if calls != 0 || len(result.Commands) != 0 {
+		t.Fatalf("truncated capture ran Git commands: calls=%d commands=%+v", calls, result.Commands)
+	}
+	if len(result.ChangedFiles) != 0 {
+		t.Fatalf("refusal published partial changed paths: %#v", result.ChangedFiles)
+	}
+}
+
+func TestRunRefusesRealLargeTruncatedStatusWithoutStaging(t *testing.T) {
+	workDir := t.TempDir()
+	runCommitTestGit(t, workDir, "init", "-q")
+	runCommitTestGit(t, workDir, "config", "user.name", "Revolvr Test")
+	runCommitTestGit(t, workDir, "config", "user.email", "revolvr-test@example.invalid")
+	if err := os.WriteFile(filepath.Join(workDir, "baseline.txt"), []byte("baseline\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runCommitTestGit(t, workDir, "add", "--", "baseline.txt")
+	runCommitTestGit(t, workDir, "commit", "-q", "-m", "initial")
+	headBefore := strings.TrimSpace(runCommitTestGit(t, workDir, "rev-parse", "HEAD"))
+	if err := os.MkdirAll(filepath.Join(workDir, "bulk"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4000; i++ {
+		name := fmt.Sprintf("%05d-%s.txt", i, strings.Repeat("x", 64))
+		if err := os.WriteFile(filepath.Join(workDir, "bulk", name), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	capture, err := gitstate.CaptureChangedFiles(context.Background(), gitstate.Config{WorkingDir: workDir, StdoutCap: 256 * 1024})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if capture.StdoutTruncatedBytes == 0 || !strings.Contains(capture.CaptureError, "truncated") {
+		t.Fatalf("capture truncated=%d error=%q, want real truncation", capture.StdoutTruncatedBytes, capture.CaptureError)
+	}
+
+	gitCalls := 0
+	result, err := Run(context.Background(), Config{
+		WorkingDir:         workDir,
+		RunID:              "run-large-status",
+		TaskID:             "task-large-status",
+		TaskSummary:        "Refuse incomplete changed set",
+		CodexResult:        &codexexec.Result{ExitCode: 0},
+		VerificationResult: passedVerification(),
+		PreRunDirty:        &gitstate.Capture{},
+		PostRunChanged:     &capture,
+		CommandRunner: func(context.Context, runner.Command) runner.Result {
+			gitCalls++
+			return runner.Result{ExitCode: 0}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != StatusRefused || result.RefusalReason != ReasonGitStateCaptureFailed || gitCalls != 0 {
+		t.Fatalf("result=%+v git calls=%d, want refusal before Git", result, gitCalls)
+	}
+	if got := strings.TrimSpace(runCommitTestGit(t, workDir, "rev-parse", "HEAD")); got != headBefore {
+		t.Fatalf("HEAD advanced from %s to %s", headBefore, got)
+	}
+	if staged := strings.TrimSpace(runCommitTestGit(t, workDir, "diff", "--cached", "--name-only")); staged != "" {
+		t.Fatalf("paths were staged after incomplete status: %q", staged)
 	}
 }
 
@@ -488,4 +698,24 @@ func runCommitTestGit(t *testing.T, workDir string, args ...string) string {
 		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
 	}
 	return string(output)
+}
+
+func commitTestGitSubcommand(args []string) string {
+	if len(args) > 1 && args[0] == "--literal-pathspecs" {
+		return args[1]
+	}
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
+func commitTestNULPaths(output string) []string {
+	output = strings.TrimSuffix(output, "\x00")
+	if output == "" {
+		return nil
+	}
+	paths := strings.Split(output, "\x00")
+	sort.Strings(paths)
+	return paths
 }

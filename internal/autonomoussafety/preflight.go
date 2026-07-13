@@ -134,15 +134,6 @@ func Run(ctx context.Context, in Input) (Output, error) {
 	if rootsErr != nil || redactionErr != nil || commandErr != nil || hooksErr != nil || identityErr != nil {
 		result.Ready = false
 	}
-	if result.Ready {
-		validationCopy := policy
-		validationCopy.Acknowledgement = policy.Acknowledgement
-		// Validate hashes against the policy identity material that deliberately
-		// excludes the acknowledgement token itself.
-		if policy.SchemaVersion == "" {
-			result.Ready = false
-		}
-	}
 	return Output{Policy: policy, Preflight: result, Redactor: redactor, Redaction: redactionFacts}, nil
 }
 

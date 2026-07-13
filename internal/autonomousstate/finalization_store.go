@@ -116,70 +116,12 @@ func (s *Store) CommitFinalization(ctx context.Context, request FinalizationComm
 	if err := s.fail(FailureAfterHistoryWrite); err != nil {
 		return FinalizationCommitResult{}, err
 	}
-	statePath, err := s.safePath(task.AutonomousStatePath)
+	readback, ok, err := s.replaceState(task, request.Expected, nextRaw)
 	if err != nil {
 		return FinalizationCommitResult{}, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
-	if err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	tempPath := temp.Name()
-	closed := false
-	defer func() {
-		if !closed {
-			_ = temp.Close()
-		}
-		_ = os.Remove(tempPath)
-	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := s.fail(FailureDuringStateWrite); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if _, err := temp.Write(nextRaw); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := s.fail(FailureStateFileSync); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := temp.Sync(); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return FinalizationCommitResult{}, err
-	}
-	closed = true
-	latest, found, err := s.readCurrent(task)
-	if err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := compareExpected(request.Expected, latest, found); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := s.fail(FailureBeforeStateRename); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := s.fail(FailureStateRename); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := os.Rename(tempPath, statePath); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := s.fail(FailureAfterStateRename); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	if err := s.fail(FailureStateReadback); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	readback, ok, err := s.readCurrent(task)
-	if err != nil || !ok || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize {
-		return FinalizationCommitResult{}, errors.Join(err, errors.New("commit finalization transition: state readback mismatch"))
+	if !ok || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize {
+		return FinalizationCommitResult{}, errors.New("commit finalization transition: state readback mismatch")
 	}
 	return FinalizationCommitResult{Disposition: CommitUpdated, Previous: previousIdentity, Current: readback, History: history}, nil
 }

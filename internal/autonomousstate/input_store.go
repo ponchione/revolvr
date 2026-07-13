@@ -132,73 +132,12 @@ func (s *Store) CommitInput(ctx context.Context, request InputCommitRequest) (In
 	if err := s.fail(FailureAfterHistoryWrite); err != nil {
 		return InputCommitResult{}, err
 	}
-	statePath, err := s.safePath(task.AutonomousStatePath)
+	readback, found, err := s.replaceState(task, request.Expected, nextRaw)
 	if err != nil {
 		return InputCommitResult{}, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
-	if err != nil {
-		return InputCommitResult{}, err
-	}
-	tempPath := temp.Name()
-	closed := false
-	defer func() {
-		if !closed {
-			_ = temp.Close()
-		}
-		_ = os.Remove(tempPath)
-	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := s.fail(FailureDuringStateWrite); err != nil {
-		return InputCommitResult{}, err
-	}
-	if _, err := temp.Write(nextRaw); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := s.fail(FailureStateFileSync); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := temp.Sync(); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return InputCommitResult{}, err
-	}
-	closed = true
-	latest, found, err := s.readCurrent(task)
-	if err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := compareExpected(request.Expected, latest, found); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := s.fail(FailureBeforeStateRename); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := s.fail(FailureStateRename); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := os.Rename(tempPath, statePath); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := s.fail(FailureAfterStateRename); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := s.fail(FailureStateDirectorySync); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
-		return InputCommitResult{}, err
-	}
-	if err := s.fail(FailureStateReadback); err != nil {
-		return InputCommitResult{}, err
-	}
-	readback, found, err := s.readCurrent(task)
-	if err != nil || !found || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !inputTransitionApplied(readback.State, request.History) {
-		return InputCommitResult{}, errors.Join(err, errors.New("commit input transition: state readback mismatch"))
+	if !found || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !inputTransitionApplied(readback.State, request.History) {
+		return InputCommitResult{}, errors.New("commit input transition: state readback mismatch")
 	}
 	return InputCommitResult{Disposition: CommitUpdated, Previous: previousIdentity, Current: readback, History: history}, nil
 }

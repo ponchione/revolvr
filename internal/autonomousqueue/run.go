@@ -177,7 +177,7 @@ func RunUntilExhausted(ctx context.Context, cfg Config) (Result, error) {
 		op.Exclusions = liveExclusions(op.Exclusions, snapshot.Nodes)
 		ready, waiting := eligible(snapshot.Nodes, op.Exclusions)
 		if len(ready) == 0 {
-			reason := classifyEmpty(snapshot.Nodes, op.Outcomes)
+			reason := classifyEmpty(snapshot.Nodes)
 			return terminate(n, op, reason, stopDetail(reason), waiting)
 		}
 		if op.Statistics.TasksRun >= n.MaxTasks {
@@ -474,7 +474,7 @@ func liveExclusions(exclusions []Exclusion, nodes []autonomousscheduler.Node) []
 	return result
 }
 
-func classifyEmpty(nodes []autonomousscheduler.Node, outcomes []TaskOutcome) StopReason {
+func classifyEmpty(nodes []autonomousscheduler.Node) StopReason {
 	var pending, input, blocked bool
 	for _, node := range nodes {
 		if node.Task.Workflow != taskfile.WorkflowAutonomousV1 {

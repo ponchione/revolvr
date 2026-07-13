@@ -199,7 +199,6 @@ func ApplyFindingResolution(ctx context.Context, cfg ResolutionConfig) (Result, 
 	if err != nil {
 		return reject(result, "configuration", err)
 	}
-	_ = root
 	result.StatePath = task.AutonomousStatePath
 	currentAudit, found, err := store.LoadCurrentAudit(ctx, cfg.TaskID)
 	if err != nil {

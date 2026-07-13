@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 
 	"revolvr/internal/id"
 )
@@ -20,11 +20,15 @@ import (
 const (
 	driverName         = "sqlite"
 	defaultRecentLimit = 20
+	liveBusySlice      = 25 * time.Millisecond
+	liveBusyLimit      = 5 * time.Second
 
 	StatusRunning   = "running"
 	StatusCompleted = "completed"
 	StatusFailed    = "failed"
 )
+
+var ErrReadOnly = errors.New("ledger store is read-only")
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS runs (
@@ -57,8 +61,9 @@ CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
 `
 
 type Store struct {
-	db    *sql.DB
-	clock func() time.Time
+	db           *sql.DB
+	clock        func() time.Time
+	liveReadOnly bool
 }
 
 type RunSpec struct {
@@ -144,10 +149,12 @@ func OpenWithClock(ctx context.Context, path string, clk func() time.Time) (*Sto
 	return store, nil
 }
 
-// OpenReadOnly opens an existing ledger without creating parent directories,
-// initializing schema, or applying migrations. The immutable SQLite option
-// prevents journal or shared-memory writes during evidence assembly.
-func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
+// OpenLiveReadOnly opens a live ledger without creating parent directories,
+// initializing schema, or applying migrations. It uses ordinary SQLite
+// locking and change detection; immutable mode is unsafe for a live database.
+// Short driver-level busy waits are retried up to the existing five-second
+// bound so caller cancellation remains prompt.
+func OpenLiveReadOnly(ctx context.Context, path string) (*Store, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, errors.New("open ledger read-only: path is required")
 	}
@@ -166,7 +173,8 @@ func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
 	dsnURL := &url.URL{Scheme: "file", Path: filepath.ToSlash(absPath)}
 	query := dsnURL.Query()
 	query.Set("mode", "ro")
-	query.Set("immutable", "1")
+	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", liveBusySlice.Milliseconds()))
+	query.Add("_pragma", "query_only(1)")
 	dsnURL.RawQuery = query.Encode()
 	db, err := sql.Open(driverName, dsnURL.String())
 	if err != nil {
@@ -177,7 +185,7 @@ func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("open ledger read-only: %w", err)
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, liveReadOnly: true}, nil
 }
 
 func NewStore(ctx context.Context, db *sql.DB) (*Store, error) {
@@ -207,7 +215,7 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) CreateRun(ctx context.Context, spec RunSpec) (Run, error) {
-	if err := s.ready(); err != nil {
+	if err := s.writable(); err != nil {
 		return Run{}, err
 	}
 	run, err := s.normalizeRunSpec(spec)
@@ -248,7 +256,7 @@ INSERT INTO runs (
 }
 
 func (s *Store) CompleteRun(ctx context.Context, runID string, completion RunCompletion) (Run, bool, error) {
-	if err := s.ready(); err != nil {
+	if err := s.writable(); err != nil {
 		return Run{}, false, err
 	}
 	runID = strings.TrimSpace(runID)
@@ -317,7 +325,7 @@ WHERE id = ?`,
 }
 
 func (s *Store) AppendEvent(ctx context.Context, runID string, eventType EventType, payload any) (Event, error) {
-	if err := s.ready(); err != nil {
+	if err := s.writable(); err != nil {
 		return Event{}, err
 	}
 	if strings.TrimSpace(runID) == "" {
@@ -356,7 +364,7 @@ VALUES (?, ?, ?, ?)`,
 }
 
 func (s *Store) RecordCommitSHA(ctx context.Context, runID string, commitSHA string) error {
-	if err := s.ready(); err != nil {
+	if err := s.writable(); err != nil {
 		return err
 	}
 	runID = strings.TrimSpace(runID)
@@ -392,7 +400,12 @@ func (s *Store) ListRecentRuns(ctx context.Context, limit int) ([]Run, error) {
 	if limit <= 0 {
 		limit = defaultRecentLimit
 	}
+	return retryLiveRead(ctx, s.liveReadOnly, func() ([]Run, error) {
+		return s.listRecentRunsOnce(ctx, limit)
+	})
+}
 
+func (s *Store) listRecentRunsOnce(ctx context.Context, limit int) ([]Run, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT
 	id,
@@ -445,8 +458,19 @@ func (s *Store) ListRecentRunsForTaskWithEvents(ctx context.Context, taskID stri
 	if limit == 0 {
 		return nil, nil
 	}
+	return retryLiveRead(ctx, s.liveReadOnly, func() ([]RunWithEvents, error) {
+		return s.listRecentRunsForTaskWithEventsOnce(ctx, taskID, limit)
+	})
+}
 
-	rows, err := s.db.QueryContext(ctx, `
+func (s *Store) listRecentRunsForTaskWithEventsOnce(ctx context.Context, taskID string, limit int) ([]RunWithEvents, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("list recent task runs: begin snapshot: %w", err)
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, `
 SELECT
 	id,
 	task_id,
@@ -476,17 +500,33 @@ LIMIT ?`, taskID, limit)
 		}
 		runs = append(runs, run)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("list recent task runs: close runs: %w", err)
+	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list recent task runs: %w", err)
 	}
 
 	history := make([]RunWithEvents, 0, len(runs))
 	for _, run := range runs {
-		events, err := s.listEventsForEvidence(ctx, run.ID)
-		if err != nil {
-			return nil, fmt.Errorf("list recent task runs: run %q: %w", run.ID, err)
-		}
-		history = append(history, RunWithEvents{Run: run, Events: events})
+		history = append(history, RunWithEvents{Run: run})
+	}
+	_, err = appendEvidenceEvents(ctx, tx, history, `
+SELECT events.id, events.run_id, events.event_type, events.event_data, events.created_at
+FROM events
+JOIN (
+	SELECT id, started_at
+	FROM runs
+	WHERE task_id = ?
+	ORDER BY started_at DESC, id ASC
+	LIMIT ?
+) AS selected_runs ON selected_runs.id = events.run_id
+ORDER BY selected_runs.started_at DESC, selected_runs.id ASC, events.id ASC`, taskID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list recent task runs: events: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("list recent task runs: commit snapshot: %w", err)
 	}
 	return history, nil
 }
@@ -499,7 +539,26 @@ func (s *Store) GetRun(ctx context.Context, runID string) (Run, bool, error) {
 		return Run{}, false, errors.New("get run: run id is required")
 	}
 
-	run, err := scanRun(s.db.QueryRowContext(ctx, `
+	result, err := retryLiveRead(ctx, s.liveReadOnly, func() (runLookup, error) {
+		run, queryErr := getRun(ctx, s.db, runID)
+		if errors.Is(queryErr, sql.ErrNoRows) {
+			return runLookup{}, nil
+		}
+		return runLookup{run: run, found: queryErr == nil}, queryErr
+	})
+	if err != nil {
+		return Run{}, false, fmt.Errorf("get run: %w", err)
+	}
+	return result.run, result.found, nil
+}
+
+type runLookup struct {
+	run   Run
+	found bool
+}
+
+func getRun(ctx context.Context, q queryer, runID string) (Run, error) {
+	return scanRun(q.QueryRowContext(ctx, `
 SELECT
 	id,
 	task_id,
@@ -514,26 +573,52 @@ SELECT
 	commit_sha
 FROM runs
 WHERE id = ?`, runID))
-	if errors.Is(err, sql.ErrNoRows) {
-		return Run{}, false, nil
-	}
-	if err != nil {
-		return Run{}, false, fmt.Errorf("get run: %w", err)
-	}
-	return run, true, nil
 }
 
 func (s *Store) GetRunWithEvents(ctx context.Context, runID string) (RunWithEvents, bool, error) {
-	run, ok, err := s.GetRun(ctx, runID)
-	if err != nil || !ok {
-		return RunWithEvents{}, ok, err
+	if err := s.ready(); err != nil {
+		return RunWithEvents{}, false, err
 	}
-
-	events, err := s.listEvents(ctx, runID)
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return RunWithEvents{}, false, errors.New("get run: run id is required")
+	}
+	result, err := retryLiveRead(ctx, s.liveReadOnly, func() (runWithEventsLookup, error) {
+		return s.getRunWithEventsOnce(ctx, runID)
+	})
 	if err != nil {
 		return RunWithEvents{}, false, err
 	}
-	return RunWithEvents{Run: run, Events: events}, true, nil
+	return result.history, result.found, nil
+}
+
+type runWithEventsLookup struct {
+	history RunWithEvents
+	found   bool
+}
+
+func (s *Store) getRunWithEventsOnce(ctx context.Context, runID string) (runWithEventsLookup, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return runWithEventsLookup{}, fmt.Errorf("get run with events: begin snapshot: %w", err)
+	}
+	defer tx.Rollback()
+	run, err := getRun(ctx, tx, runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return runWithEventsLookup{}, nil
+	}
+	if err != nil {
+		return runWithEventsLookup{}, fmt.Errorf("get run with events: get run: %w", err)
+	}
+
+	events, err := listEvents(ctx, tx, runID)
+	if err != nil {
+		return runWithEventsLookup{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return runWithEventsLookup{}, fmt.Errorf("get run with events: commit snapshot: %w", err)
+	}
+	return runWithEventsLookup{history: RunWithEvents{Run: run, Events: events}, found: true}, nil
 }
 
 // ReadSnapshot reads all runs and their raw event payloads from one SQLite
@@ -542,6 +627,12 @@ func (s *Store) ReadSnapshot(ctx context.Context) (Snapshot, error) {
 	if err := s.ready(); err != nil {
 		return Snapshot{}, err
 	}
+	return retryLiveRead(ctx, s.liveReadOnly, func() (Snapshot, error) {
+		return s.readSnapshotOnce(ctx)
+	})
+}
+
+func (s *Store) readSnapshotOnce(ctx context.Context) (Snapshot, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("read ledger snapshot: begin: %w", err)
@@ -554,14 +645,14 @@ FROM runs ORDER BY started_at ASC, id ASC`)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("read ledger snapshot: runs: %w", err)
 	}
-	var runs []Run
+	history := make([]RunWithEvents, 0)
 	for rows.Next() {
 		run, scanErr := scanRun(rows)
 		if scanErr != nil {
 			rows.Close()
 			return Snapshot{}, fmt.Errorf("read ledger snapshot: run: %w", scanErr)
 		}
-		runs = append(runs, run)
+		history = append(history, RunWithEvents{Run: run})
 	}
 	if err := rows.Close(); err != nil {
 		return Snapshot{}, fmt.Errorf("read ledger snapshot: close runs: %w", err)
@@ -570,38 +661,60 @@ FROM runs ORDER BY started_at ASC, id ASC`)
 		return Snapshot{}, fmt.Errorf("read ledger snapshot: runs: %w", err)
 	}
 
-	out := Snapshot{Runs: make([]RunWithEvents, 0, len(runs))}
-	for _, run := range runs {
-		eventRows, queryErr := tx.QueryContext(ctx, `
-SELECT id, run_id, event_type, event_data, created_at
-FROM events WHERE run_id = ? ORDER BY id ASC`, run.ID)
-		if queryErr != nil {
-			return Snapshot{}, fmt.Errorf("read ledger snapshot: events for %q: %w", run.ID, queryErr)
-		}
-		var events []Event
-		for eventRows.Next() {
-			event, scanErr := scanEvidenceEvent(eventRows)
-			if scanErr != nil {
-				eventRows.Close()
-				return Snapshot{}, fmt.Errorf("read ledger snapshot: event for %q: %w", run.ID, scanErr)
-			}
-			events = append(events, event)
-			if event.ID > out.MaxEventID {
-				out.MaxEventID = event.ID
-			}
-		}
-		if err := eventRows.Close(); err != nil {
-			return Snapshot{}, fmt.Errorf("read ledger snapshot: close events: %w", err)
-		}
-		if err := eventRows.Err(); err != nil {
-			return Snapshot{}, fmt.Errorf("read ledger snapshot: events for %q: %w", run.ID, err)
-		}
-		out.Runs = append(out.Runs, RunWithEvents{Run: run, Events: events})
+	out := Snapshot{Runs: history}
+	out.MaxEventID, err = appendEvidenceEvents(ctx, tx, out.Runs, `
+SELECT events.id, events.run_id, events.event_type, events.event_data, events.created_at
+FROM events
+JOIN runs ON runs.id = events.run_id
+ORDER BY events.id ASC`)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("read ledger snapshot: events: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return Snapshot{}, fmt.Errorf("read ledger snapshot: commit read transaction: %w", err)
 	}
 	return out, nil
+}
+
+// appendEvidenceEvents preserves malformed JSON payload bytes while merging
+// query-ordered events directly into the already ordered run result.
+func appendEvidenceEvents(ctx context.Context, q queryer, history []RunWithEvents, query string, args ...any) (int64, error) {
+	if len(history) == 0 {
+		return 0, nil
+	}
+	runIndexes := make(map[string]int, len(history))
+	for i := range history {
+		runIndexes[history[i].Run.ID] = i
+	}
+
+	rows, err := q.QueryContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	var maxEventID int64
+	for rows.Next() {
+		event, scanErr := scanEvidenceEvent(rows)
+		if scanErr != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scan event: %w", scanErr)
+		}
+		runIndex, ok := runIndexes[event.RunID]
+		if !ok {
+			rows.Close()
+			return 0, fmt.Errorf("event %d references unselected run %q", event.ID, event.RunID)
+		}
+		history[runIndex].Events = append(history[runIndex].Events, event)
+		if event.ID > maxEventID {
+			maxEventID = event.ID
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, fmt.Errorf("close events: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	return maxEventID, nil
 }
 
 func (s *Store) init(ctx context.Context) error {
@@ -622,6 +735,61 @@ func (s *Store) ready() error {
 		return errors.New("ledger store is nil")
 	}
 	return nil
+}
+
+func (s *Store) writable() error {
+	if err := s.ready(); err != nil {
+		return err
+	}
+	if s.liveReadOnly {
+		return ErrReadOnly
+	}
+	return nil
+}
+
+func retryLiveRead[T any](ctx context.Context, enabled bool, operation func() (T, error)) (T, error) {
+	if !enabled {
+		return operation()
+	}
+	deadline := time.Now().Add(liveBusyLimit)
+	for {
+		value, err := operation()
+		if err == nil || !isSQLiteBusy(err) {
+			return value, err
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			var zero T
+			return zero, errors.Join(ctxErr, err)
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return value, err
+		}
+		pause := liveBusySlice
+		if remaining < pause {
+			pause = remaining
+		}
+		timer := time.NewTimer(pause)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			var zero T
+			return zero, errors.Join(ctx.Err(), err)
+		case <-timer.C:
+		}
+	}
+}
+
+func isSQLiteBusy(err error) bool {
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	const (
+		sqliteBusy   = 5
+		sqliteLocked = 6
+	)
+	return sqliteErr.Code()&0xff == sqliteBusy || sqliteErr.Code()&0xff == sqliteLocked
 }
 
 func (s *Store) normalizeRunSpec(spec RunSpec) (Run, error) {
@@ -677,8 +845,13 @@ func validStatus(status string) bool {
 	}
 }
 
-func (s *Store) listEvents(ctx context.Context, runID string) ([]Event, error) {
-	rows, err := s.db.QueryContext(ctx, `
+type queryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func listEvents(ctx context.Context, q queryer, runID string) ([]Event, error) {
+	rows, err := q.QueryContext(ctx, `
 SELECT id, run_id, event_type, event_data, created_at
 FROM events
 WHERE run_id = ?
@@ -698,34 +871,6 @@ ORDER BY id ASC`, runID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list events: %w", err)
-	}
-	return events, nil
-}
-
-// listEventsForEvidence preserves malformed JSON payload bytes so callers can
-// ignore irrelevant event detail while applying strict validation to payloads
-// that provide identity or provenance.
-func (s *Store) listEventsForEvidence(ctx context.Context, runID string) ([]Event, error) {
-	rows, err := s.db.QueryContext(ctx, `
-SELECT id, run_id, event_type, event_data, created_at
-FROM events
-WHERE run_id = ?
-ORDER BY id ASC`, runID)
-	if err != nil {
-		return nil, fmt.Errorf("list evidence events: %w", err)
-	}
-	defer rows.Close()
-
-	var events []Event
-	for rows.Next() {
-		event, err := scanEvidenceEvent(rows)
-		if err != nil {
-			return nil, fmt.Errorf("list evidence events: %w", err)
-		}
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list evidence events: %w", err)
 	}
 	return events, nil
 }

@@ -18,8 +18,9 @@ const SourceWriterRelPath = ".revolvr/locks/source-writer.lock"
 const defaultTimeout = 5 * time.Minute
 
 var (
-	ErrHeld     = errors.New("source-writer lock is held")
-	ErrNotOwner = errors.New("source-writer lock is held by another owner")
+	ErrHeld         = errors.New("source-writer lock is held")
+	ErrNotOwner     = errors.New("source-writer lock is held by another owner")
+	ErrLeaseExpired = errors.New("source-writer lease expired")
 )
 
 type Config struct {
@@ -56,6 +57,17 @@ type SourceWriter struct {
 type HeldError struct {
 	Metadata Metadata
 }
+
+type ExpiredError struct {
+	Metadata   Metadata
+	ObservedAt time.Time
+}
+
+func (e *ExpiredError) Error() string {
+	return fmt.Sprintf("source-writer lease for run %s expired at %s before ownership check at %s", e.Metadata.RunID, e.Metadata.ExpiresAt.Format(time.RFC3339Nano), e.ObservedAt.Format(time.RFC3339Nano))
+}
+
+func (e *ExpiredError) Unwrap() error { return ErrLeaseExpired }
 
 func (e *HeldError) Error() string {
 	return fmt.Sprintf(
@@ -206,6 +218,9 @@ func (l *SourceWriter) Heartbeat(ctx context.Context) error {
 	}
 
 	now := l.clock().UTC()
+	if !current.ExpiresAt.After(now) {
+		return &ExpiredError{Metadata: current, ObservedAt: now}
+	}
 	current.HeartbeatAt = now
 	current.ExpiresAt = now.Add(l.timeout)
 	return writeMetadata(file, current)
@@ -238,6 +253,10 @@ func (l *SourceWriter) Release(ctx context.Context) error {
 	}
 	if !l.owns(current) {
 		return &HeldError{Metadata: current}
+	}
+	now := l.clock().UTC()
+	if !current.ExpiresAt.After(now) {
+		return &ExpiredError{Metadata: current, ObservedAt: now}
 	}
 	if err := file.Truncate(0); err != nil {
 		return fmt.Errorf("release source-writer lock: %w", err)

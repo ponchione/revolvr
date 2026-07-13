@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestRunCapturesSuccessfulCommandOutput(t *testing.T) {
@@ -129,6 +131,92 @@ func TestRunCapsCapturedOutput(t *testing.T) {
 	}
 }
 
+func TestRunKeepsAuthoritativeStdoutIndependentOfBoundedPreview(t *testing.T) {
+	var authoritative bytes.Buffer
+	var previews []string
+	command := helperCommand("large-line")
+	command.StdoutLimit = 16
+	command.StdoutWriter = &authoritative
+	command.OnStdoutLine = func(line string) {
+		previews = append(previews, line)
+	}
+
+	result := Run(context.Background(), command)
+
+	if result.Err != nil {
+		t.Fatalf("run error: %v", result.Err)
+	}
+	want := strings.Repeat("x", maxLineEmitterPendingBytes+100) + "\nnext\n"
+	if authoritative.String() != want {
+		t.Fatalf("authoritative stdout size = %d, want %d", authoritative.Len(), len(want))
+	}
+	if len(result.Stdout) != 16 || result.StdoutTruncatedBytes != int64(len(want)-16) {
+		t.Fatalf("capped stdout = %d bytes, truncated = %d", len(result.Stdout), result.StdoutTruncatedBytes)
+	}
+	if len(previews) != 2 {
+		t.Fatalf("previews = %#v, want one truncated line and next line", previews)
+	}
+	if len(previews[0]) != maxLineEmitterPendingBytes || !strings.HasSuffix(previews[0], lineTruncationMarker) {
+		t.Fatalf("first preview size/suffix = %d/%q", len(previews[0]), previews[0][len(previews[0])-len(lineTruncationMarker):])
+	}
+	if previews[1] != "next" {
+		t.Fatalf("second preview = %q, want next", previews[1])
+	}
+}
+
+func TestRunPreservesAuthoritativeStdoutWriterErrorIdentity(t *testing.T) {
+	wantErr := errors.New("authoritative stdout rejected")
+	command := helperCommand("success")
+	command.StdoutWriter = errorWriter{err: wantErr}
+
+	result := Run(context.Background(), command)
+
+	if !errors.Is(result.Err, wantErr) {
+		t.Fatalf("run error = %v, want authoritative writer error", result.Err)
+	}
+}
+
+func TestLineEmitterTruncatesOnceAndResynchronizesAcrossChunks(t *testing.T) {
+	var lines []string
+	writer := &lineEmitter{onLine: func(line string) { lines = append(lines, line) }}
+	if _, err := writer.Write([]byte(strings.Repeat("a", maxLineEmitterPendingBytes))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write([]byte("tail")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write([]byte(" discarded\nnext\n")); err != nil {
+		t.Fatal(err)
+	}
+	writer.Flush()
+
+	if len(lines) != 2 {
+		t.Fatalf("lines = %#v, want truncated line and next line", lines)
+	}
+	if len(lines[0]) != maxLineEmitterPendingBytes || !strings.HasSuffix(lines[0], lineTruncationMarker) {
+		t.Fatalf("truncated preview size/suffix = %d/%q", len(lines[0]), lines[0][len(lines[0])-len(lineTruncationMarker):])
+	}
+	if lines[1] != "next" {
+		t.Fatalf("resynchronized line = %q, want next", lines[1])
+	}
+}
+
+func TestLineEmitterDoesNotSplitUTF8InTruncatedPreview(t *testing.T) {
+	var preview string
+	writer := &lineEmitter{onLine: func(line string) { preview = line }}
+	prefixBytes := maxLineEmitterPendingBytes - len(lineTruncationMarker)
+	line := strings.Repeat("a", prefixBytes-1) + "é" + strings.Repeat("b", len(lineTruncationMarker)+10) + "\n"
+	if _, err := writer.Write([]byte(line)); err != nil {
+		t.Fatal(err)
+	}
+	if !utf8.ValidString(preview) || !strings.HasSuffix(preview, lineTruncationMarker) {
+		t.Fatalf("preview is not valid visibly truncated UTF-8: %q", preview[len(preview)-len(lineTruncationMarker):])
+	}
+	if len(preview) > maxLineEmitterPendingBytes {
+		t.Fatalf("preview size = %d, want at most %d", len(preview), maxLineEmitterPendingBytes)
+	}
+}
+
 func helperCommand(mode string) Command {
 	return Command{
 		Name: os.Args[0],
@@ -138,6 +226,14 @@ func helperCommand(mode string) Command {
 			"RUNNER_HELPER_MODE=" + mode,
 		},
 	}
+}
+
+type errorWriter struct {
+	err error
+}
+
+func (w errorWriter) Write([]byte) (int, error) {
+	return 0, w.err
 }
 
 func TestHelperProcess(t *testing.T) {
@@ -163,6 +259,9 @@ func TestHelperProcess(t *testing.T) {
 	case "truncate":
 		fmt.Fprint(os.Stdout, strings.Repeat("x", 10))
 		fmt.Fprint(os.Stderr, strings.Repeat("y", 9))
+		os.Exit(0)
+	case "large-line":
+		fmt.Fprint(os.Stdout, strings.Repeat("x", maxLineEmitterPendingBytes+100)+"\nnext\n")
 		os.Exit(0)
 	case "environment":
 		fmt.Fprintf(os.Stdout, "allowed=%s ambient=%s\n", os.Getenv("ONLY_ALLOWED"), os.Getenv("HOME"))

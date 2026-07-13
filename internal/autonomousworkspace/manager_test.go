@@ -248,6 +248,31 @@ func TestReconcileCommitAndAdvanceCheckpoint(t *testing.T) {
 	}
 }
 
+func TestAdvanceCheckpointRefusesIgnoredVerificationInput(t *testing.T) {
+	repo, baseline := testRepository(t)
+	prepared, err := Prepare(context.Background(), testConfig(repo, "task-ignored-checkpoint", "prepare-checkpoint", baseline))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(prepared.Workspace.ExecutionRoot, "tracked.txt"), "verified change\n")
+	runGit(t, prepared.Workspace.ExecutionRoot, "add", "tracked.txt")
+	runGit(t, prepared.Workspace.ExecutionRoot, "commit", "-q", "-m", "verified")
+	commit := runGit(t, prepared.Workspace.ExecutionRoot, "rev-parse", "HEAD")
+	reconciled, err := ReconcileCommit(context.Background(), testConfig(repo, "task-ignored-checkpoint", "reconcile-checkpoint", baseline), prepared.Workspace, commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(prepared.Workspace.ExecutionRoot, "ignored.tmp"), "verification-only input\n")
+
+	advanced, err := AdvanceCheckpoint(context.Background(), testConfig(repo, "task-ignored-checkpoint", "advance-checkpoint", baseline), reconciled.Workspace, "final verification passed")
+	if err == nil || !strings.Contains(err.Error(), "ignored.tmp") || !strings.Contains(err.Error(), "classification=policy_relevant") {
+		t.Fatalf("AdvanceCheckpoint = %+v, %v, want ignored-input refusal", advanced, err)
+	}
+	if advanced.Workspace.Checkpoint.Sequence > reconciled.Workspace.Checkpoint.Sequence {
+		t.Fatalf("checkpoint advanced despite ignored input: %+v", advanced.Workspace.Checkpoint)
+	}
+}
+
 func TestReopenRetainsUnreconciledAdvancedHead(t *testing.T) {
 	repo, baseline := testRepository(t)
 	prepared, err := Prepare(context.Background(), testConfig(repo, "task-ambiguous", "prepare-ambiguous", baseline))

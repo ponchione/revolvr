@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -311,5 +310,3 @@ func writeAtomic(path string, raw []byte, mode os.FileMode) error {
 	}
 	return syncDir(filepath.Dir(path))
 }
-
-var _ = fmt.Sprintf

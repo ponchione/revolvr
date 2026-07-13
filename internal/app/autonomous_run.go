@@ -398,7 +398,7 @@ func verifiedSchedulingArchives(ctx context.Context, root string, cfg runonce.Co
 	if err != nil {
 		return nil, err
 	}
-	store, err := ledger.OpenReadOnly(ctx, paths.LedgerDBPath)
+	store, err := ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
 	if err != nil {
 		return nil, err
 	}
@@ -441,7 +441,7 @@ func prepareTaskWorkspace(ctx context.Context, root, taskID, operationID string,
 		}
 		return *snap.State.Workspace, store, nil
 	}
-	source, err := gitstate.CaptureSourceSnapshot(ctx, gitstate.SourceSnapshotConfig{WorkingDir: root, GitExecutable: cfg.GitExecutable, Timeout: cfg.GitTimeout, StdoutCap: cfg.GitStdoutCap, StderrCap: cfg.GitStderrCap, CommandRunner: gitstate.CommandRunner(commandRunner(cfg))})
+	source, err := gitstate.CaptureSourceSnapshot(ctx, gitstate.SourceSnapshotConfig{WorkingDir: root, GitExecutable: cfg.GitExecutable, Timeout: cfg.GitTimeout, StdoutCap: cfg.GitStdoutCap, StderrCap: cfg.GitStderrCap, AllowHarnessRuntime: true, CommandRunner: gitstate.CommandRunner(commandRunner(cfg))})
 	if err != nil {
 		return autonomous.TaskWorkspace{}, nil, err
 	}
@@ -571,11 +571,10 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 		switch cycle.Outcome {
 		case autonomouscycle.OutcomeReadOnlyCompleted:
 			if cycle.Route.Action == autonomous.ActionPlan {
-				applied, applyErr := autonomousplanapply.ApplyPlanningResult(context.WithoutCancel(ctx), autonomousplanapply.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-plan-" + id.New(), Expected: snapshot.Expected(), Cycle: cycle, CreatedAt: p.clock().UTC(), Store: p.stateStore})
+				_, applyErr := autonomousplanapply.ApplyPlanningResult(context.WithoutCancel(ctx), autonomousplanapply.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-plan-" + id.New(), Expected: snapshot.Expected(), Cycle: cycle, CreatedAt: p.clock().UTC(), Store: p.stateStore})
 				if applyErr != nil {
 					return step, applyErr
 				}
-				_ = applied
 			}
 			if cycle.Route.Action == autonomous.ActionAudit {
 				if step.Verification == nil {

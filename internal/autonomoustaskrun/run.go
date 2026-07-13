@@ -15,6 +15,7 @@ import (
 	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/ledger"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
@@ -258,11 +259,7 @@ type normalized struct {
 }
 
 func normalize(cfg Config) (normalized, error) {
-	root, err := filepath.Abs(strings.TrimSpace(cfg.RepositoryRoot))
-	if err != nil {
-		return normalized{}, err
-	}
-	root, err = filepath.EvalSymlinks(root)
+	root, err := runtimepath.CanonicalRoot(strings.TrimSpace(cfg.RepositoryRoot))
 	if err != nil {
 		return normalized{}, err
 	}
@@ -454,16 +451,29 @@ func emit(progress Progress, op Operation) {
 	}
 }
 func lockOperation(ctx context.Context, root, id string) (func(), error) {
-	dir := filepath.Join(root, ".revolvr", "autonomous", "task-runs", id)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	dir := operationDir(root, id)
+	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "operation.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	path := filepath.Join(dir, "operation.lock")
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
+		return nil, err
+	}
+	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 	for {
 		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
+			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				_ = f.Close()
+				return nil, err
+			}
 			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
 		}
 		select {

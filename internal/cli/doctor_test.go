@@ -92,7 +92,7 @@ verification:
 				return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
 			case "config\x00--get\x00user.email":
 				return runner.Result{ExitCode: 0, Stdout: "doctor@example.invalid\n"}
-			case "status\x00--short\x00--untracked-files=all":
+			case "status\x00--porcelain=v1\x00-z\x00--untracked-files=all":
 				return runner.Result{ExitCode: 0}
 			case "check-ignore\x00--quiet\x00.revolvr/":
 				return runner.Result{ExitCode: 0}
@@ -197,7 +197,7 @@ func TestDoctorFailsWhenCodexVersionDiscoveryFails(t *testing.T) {
 				return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
 			case "config\x00--get\x00user.email":
 				return runner.Result{ExitCode: 0, Stdout: "doctor@example.invalid\n"}
-			case "status\x00--short\x00--untracked-files=all", "check-ignore\x00--quiet\x00.revolvr/":
+			case "status\x00--porcelain=v1\x00-z\x00--untracked-files=all", "check-ignore\x00--quiet\x00.revolvr/":
 				return runner.Result{ExitCode: 0}
 			default:
 				t.Fatalf("unexpected doctor command: %s %v", command.Name, command.Args)

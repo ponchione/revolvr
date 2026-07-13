@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"revolvr/internal/jsonl"
 	"revolvr/internal/ledger"
 	"revolvr/internal/pathguard"
 	"revolvr/internal/receipt"
@@ -40,27 +41,28 @@ type ProgressEvent struct {
 }
 
 type Config struct {
-	Executable                string
-	WorkingDir                string
-	ArtifactRoot              string
-	Prompt                    string
-	Model                     string
-	ReasoningEffort           string
-	Ephemeral                 *bool
-	Timeout                   time.Duration
-	StdoutCap                 int
-	StderrCap                 int
-	Sandbox                   string
-	ApprovalPolicy            string
-	BypassApprovalsAndSandbox bool
-	Artifacts                 ArtifactPaths
-	OutputSchema              string
-	RunID                     string
-	Ledger                    Ledger
-	CommandRunner             CommandRunner
-	OnProgress                func(ProgressEvent)
-	Provenance                InvocationProvenance
-	Redactor                  *redact.Redactor
+	Executable                 string
+	WorkingDir                 string
+	ArtifactRoot               string
+	Prompt                     string
+	Model                      string
+	ReasoningEffort            string
+	Ephemeral                  *bool
+	Timeout                    time.Duration
+	StdoutCap                  int
+	StderrCap                  int
+	Sandbox                    string
+	ApprovalPolicy             string
+	BypassApprovalsAndSandbox  bool
+	Artifacts                  ArtifactPaths
+	OutputSchema               string
+	RunID                      string
+	Ledger                     Ledger
+	CommandRunner              CommandRunner
+	OnProgress                 func(ProgressEvent)
+	Provenance                 InvocationProvenance
+	Redactor                   *redact.Redactor
+	LastMessageFailureInjector LastMessageFailureInjector
 }
 
 type CappedOutput struct {
@@ -137,20 +139,15 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			return Result{}, err
 		}
 	}
+	var lastMessageStage *lastMessageStage
 	if artifacts.LastMessage != "" {
-		if err := ensureParent(artifacts.LastMessage); err != nil {
+		lastMessageStage, err = prepareLastMessageStage(artifacts.LastMessage, cfg.LastMessageFailureInjector)
+		if err != nil {
 			_ = stdoutFile.Close()
 			if stderrFile != nil {
 				_ = stderrFile.Close()
 			}
 			return Result{}, err
-		}
-		if err := os.Remove(artifacts.LastMessage); err != nil && !errors.Is(err, os.ErrNotExist) {
-			_ = stdoutFile.Close()
-			if stderrFile != nil {
-				_ = stderrFile.Close()
-			}
-			return Result{}, fmt.Errorf("prepare last-message artifact: %w", err)
 		}
 	}
 
@@ -172,35 +169,38 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		"artifacts":   artifacts,
 		"provenance":  provenance,
 	})
+	stdoutRecords := jsonl.NewRecordWriter(func(lineNumber int, record []byte) error {
+		line := redactString(cfg.Redactor, string(record))
+		if _, err := fmt.Fprintln(stdoutFile, line); err != nil {
+			err = fmt.Errorf("write stdout JSONL artifact: %w", err)
+			state.setArtifactError(err)
+			return err
+		}
+		event, ok := state.recordJSONLine(lineNumber, line)
+		if !ok {
+			return nil
+		}
+		if message := finalMessageFromEvent(event); message != "" {
+			state.setFinalMessage(message)
+		}
+		if cfg.OnProgress != nil {
+			if message := progressMessageFromEvent(event); message != "" {
+				cfg.OnProgress(ProgressEvent{Source: "codex", Message: message})
+			}
+		}
+		appendLedger(ledger.EventCodexJSONEvent, summarizeEvent(lineNumber, event))
+		return nil
+	})
 
 	runResult := cfg.CommandRunner(ctx, runner.Command{
-		Name:        cfg.Executable,
-		Args:        args,
-		Stdin:       strings.NewReader(cfg.Prompt),
-		Dir:         workDir,
-		Timeout:     cfg.Timeout,
-		StdoutLimit: cfg.StdoutCap,
-		StderrLimit: cfg.StderrCap,
-		OnStdoutLine: func(line string) {
-			line = redactString(cfg.Redactor, line)
-			lineNumber := state.nextStdoutLine()
-			if _, err := fmt.Fprintln(stdoutFile, line); err != nil {
-				state.setArtifactError(fmt.Errorf("write stdout JSONL artifact: %w", err))
-			}
-			event, ok := state.recordJSONLine(lineNumber, line)
-			if !ok {
-				return
-			}
-			if message := finalMessageFromEvent(event); message != "" {
-				state.setFinalMessage(message)
-			}
-			if cfg.OnProgress != nil {
-				if message := progressMessageFromEvent(event); message != "" {
-					cfg.OnProgress(ProgressEvent{Source: "codex", Message: message})
-				}
-			}
-			appendLedger(ledger.EventCodexJSONEvent, summarizeEvent(lineNumber, event))
-		},
+		Name:         cfg.Executable,
+		Args:         args,
+		Stdin:        strings.NewReader(cfg.Prompt),
+		Dir:          workDir,
+		Timeout:      cfg.Timeout,
+		StdoutLimit:  cfg.StdoutCap,
+		StderrLimit:  cfg.StderrCap,
+		StdoutWriter: stdoutRecords,
 		OnStderrLine: func(line string) {
 			line = redactString(cfg.Redactor, line)
 			if stderrFile == nil {
@@ -217,6 +217,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			}
 		},
 	})
+	if streamErr := stdoutRecords.Close(); streamErr != nil {
+		wrapped := fmt.Errorf("capture stdout JSONL: %w", streamErr)
+		state.setArtifactError(wrapped)
+		if !errors.Is(runResult.Err, streamErr) {
+			runResult.Err = errors.Join(runResult.Err, wrapped)
+		}
+	}
 
 	if err := stdoutFile.Close(); err != nil {
 		state.setArtifactError(fmt.Errorf("close stdout JSONL artifact: %w", err))
@@ -253,33 +260,26 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	result.Stderr.RedactedByteSize = len(result.Stderr.Content)
 	result.Err = redactError(cfg.Redactor, result.Err)
 
-	if artifacts.LastMessage != "" {
-		if message, err := readLastMessage(artifacts.LastMessage); err == nil && message != "" {
-			if cfg.Redactor != nil {
-				message, result.LastMessageRedaction = cfg.Redactor.Redact(message)
-			}
+	if lastMessageStage != nil {
+		message, redaction, publishErr := lastMessageStage.publish(cfg.Redactor)
+		if publishErr != nil {
+			state.setArtifactError(publishErr)
+		} else if message != "" {
+			result.LastMessageRedaction = redaction
 			state.setFinalMessage(message)
-			if cfg.Redactor != nil {
-				writeErr := os.WriteFile(artifacts.LastMessage, []byte(message+"\n"), 0o644)
-				if writeErr != nil {
-					state.setArtifactError(fmt.Errorf("rewrite redacted last-message artifact: %w", writeErr))
-				}
-			}
-		} else if err != nil {
-			state.setArtifactError(err)
 		}
 	}
 
-	if raw, err := os.ReadFile(artifacts.StdoutJSONL); err == nil {
-		usage, found, parseErr := receipt.ParseCodexUsageMetrics(raw)
-		if parseErr != nil {
-			result.ParseError = parseErr
+	usage, found, parseErr := receipt.ParseCodexUsageMetricsFile(ctx, artifacts.StdoutJSONL)
+	if parseErr != nil {
+		if errors.Is(parseErr, receipt.ErrCodexJSONLSource) {
+			state.setArtifactError(fmt.Errorf("read stdout JSONL artifact: %w", parseErr))
 		} else {
-			result.Usage = usage
-			result.UsageFound = found
+			result.ParseError = parseErr
 		}
 	} else {
-		state.setArtifactError(fmt.Errorf("read stdout JSONL artifact: %w", err))
+		result.Usage = usage
+		result.UsageFound = found
 	}
 
 	result.applyState(state)
@@ -314,10 +314,14 @@ func redactString(redactor *redact.Redactor, value string) string {
 }
 
 func redactError(redactor *redact.Redactor, err error) error {
-	if redactor == nil {
+	if redactor == nil || err == nil {
 		return err
 	}
-	return redactor.Error(err)
+	redacted := redactor.String(err.Error())
+	if redacted == err.Error() {
+		return err
+	}
+	return errors.New(redacted)
 }
 
 func normalizeConfig(cfg Config) (Config, string, error) {
@@ -460,32 +464,13 @@ func ensureParent(path string) error {
 	return nil
 }
 
-func readLastMessage(path string) (string, error) {
-	content, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", fmt.Errorf("read last-message artifact: %w", err)
-	}
-	return strings.TrimSpace(string(content)), nil
-}
-
 type executionState struct {
 	mu              sync.Mutex
-	stdoutLines     int
 	jsonEvents      int
 	jsonParseErrors []string
 	finalMessage    string
 	artifactError   error
 	ledgerError     error
-}
-
-func (s *executionState) nextStdoutLine() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.stdoutLines++
-	return s.stdoutLines
 }
 
 func (s *executionState) recordJSONLine(lineNumber int, line string) (map[string]any, bool) {
@@ -608,7 +593,7 @@ func progressMessageFromEvent(event map[string]any) string {
 	switch eventType {
 	case "thread.started":
 		if threadID := textFromValue(event["thread_id"]); threadID != "" {
-			return "thread started: " + threadID
+			return "thread started: " + truncateText(threadID, maxSummaryText)
 		}
 		return "thread started"
 	case "turn.started":

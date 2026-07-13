@@ -415,73 +415,12 @@ func (s *Store) CommitAudit(ctx context.Context, request AuditCommitRequest) (Au
 		return AuditCommitResult{}, err
 	}
 
-	statePath, err := s.safePath(task.AutonomousStatePath)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
 	if err != nil {
 		return AuditCommitResult{}, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
-	if err != nil {
-		return AuditCommitResult{}, err
-	}
-	tempPath := temp.Name()
-	closed := false
-	defer func() {
-		if !closed {
-			_ = temp.Close()
-		}
-		_ = os.Remove(tempPath)
-	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := s.fail(FailureDuringStateWrite); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if _, err := temp.Write(nextBytes); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := s.fail(FailureStateFileSync); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := temp.Sync(); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return AuditCommitResult{}, err
-	}
-	closed = true
-	latest, latestFound, err := s.readCurrent(task)
-	if err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := compareExpected(request.Expected, latest, latestFound); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := s.fail(FailureBeforeStateRename); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := s.fail(FailureStateRename); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := os.Rename(tempPath, statePath); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := s.fail(FailureAfterStateRename); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := s.fail(FailureStateDirectorySync); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
-		return AuditCommitResult{}, err
-	}
-	if err := s.fail(FailureStateReadback); err != nil {
-		return AuditCommitResult{}, err
-	}
-	readback, found, err := s.readCurrent(task)
-	if err != nil || !found {
-		return AuditCommitResult{}, errors.Join(err, errors.New("commit audit transition: state readback missing"))
+	if !found {
+		return AuditCommitResult{}, errors.New("commit audit transition: state readback missing")
 	}
 	if readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize {
 		return AuditCommitResult{}, errors.New("commit audit transition: state readback mismatch")

@@ -45,6 +45,7 @@ type normalizedConfig struct {
 	decisionID         string
 	safetyPolicySHA256 string
 	redactor           *redact.Redactor
+	sourceGuard        *lock.SourceGuard
 }
 
 // Run performs one deterministic supervisor decision and at most one worker
@@ -57,12 +58,12 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	return run(ctx, cfg)
 }
 
-func run(ctx context.Context, cfg Config) (Result, error) {
+func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	n, err := normalizeConfig(cfg)
 	if err != nil {
 		return failed(Result{TaskID: cfg.TaskID}, OutcomeInvalidConfiguration, "configuration", err)
 	}
-	result := Result{TaskID: n.TaskID}
+	result = Result{TaskID: n.TaskID}
 
 	task, found, err := n.TaskLoader(n.root, n.TaskID)
 	if err != nil {
@@ -232,12 +233,19 @@ func run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return failed(result, OutcomeSourceChanged, "worker_lock", fmt.Errorf("acquire worker source-writer lock: %w", err))
 	}
-	stopHeartbeat := startHeartbeat(ctx, sourceLock, n.SourceWriterLockHeartbeatInterval)
+	sourceGuard := lock.MonitorSourceLease(ctx, sourceLock, n.SourceWriterLockHeartbeatInterval)
+	n.sourceGuard = sourceGuard
+	ctx = sourceGuard.Context()
 	defer func() {
-		stopHeartbeat()
 		releaseCtx, cancel := context.WithTimeout(context.Background(), defaultReleaseTimeout)
 		defer cancel()
-		_ = sourceLock.Release(releaseCtx)
+		if lockErr := sourceGuard.Close(releaseCtx); lockErr != nil {
+			if runErr == nil {
+				result.Outcome = OutcomeSourceChanged
+				result.Failure = &Failure{Stage: "worker_lock", Reason: lockErr.Error()}
+			}
+			runErr = errors.Join(runErr, lockErr)
+		}
 	}()
 
 	admission, err := captureSource(ctx, n)
@@ -255,6 +263,9 @@ func run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	if err := ensureOptionalFileUnchanged(n.root, task.AutonomousStatePath, durableStateBefore); err != nil {
 		return failed(result, OutcomeSourceChanged, "worker_admission_state", err)
+	}
+	if err := sourceOwnershipError(ctx, n); err != nil {
+		return failed(result, OutcomeSourceChanged, "worker_lock_admission", err)
 	}
 
 	policyInput := autonomouspolicy.Input{
@@ -282,21 +293,33 @@ func run(ctx context.Context, cfg Config) (Result, error) {
 
 	switch route.Kind {
 	case autonomouspolicy.RouteKindComplete:
+		if err := sourceOwnershipError(ctx, n); err != nil {
+			return failed(result, OutcomeSourceChanged, "worker_lock_final", err)
+		}
 		result.Source.Final = &admission
 		result.Source.FinalRevision = result.Source.AdmissionRevision
 		result.Outcome = OutcomeCompleteAuthorized
 		return result, nil
 	case autonomouspolicy.RouteKindBlock:
+		if err := sourceOwnershipError(ctx, n); err != nil {
+			return failed(result, OutcomeSourceChanged, "worker_lock_final", err)
+		}
 		result.Source.Final = &admission
 		result.Source.FinalRevision = result.Source.AdmissionRevision
 		result.Outcome = OutcomeBlockAuthorized
 		return result, nil
 	case autonomouspolicy.RouteKindNeedsInput:
+		if err := sourceOwnershipError(ctx, n); err != nil {
+			return failed(result, OutcomeSourceChanged, "worker_lock_final", err)
+		}
 		result.Source.Final = &admission
 		result.Source.FinalRevision = result.Source.AdmissionRevision
 		result.Outcome = OutcomeNeedsInputAuthorized
 		return result, nil
 	case autonomouspolicy.RouteKindWorker:
+		if err := sourceOwnershipError(ctx, n); err != nil {
+			return failed(result, OutcomeSourceChanged, "worker_lock_before_worker", err)
+		}
 		if n.BeforeWorker != nil {
 			if err := n.BeforeWorker(ctx, WorkerAdmissionInput{
 				TaskID: n.TaskID, State: n.state,
@@ -674,12 +697,13 @@ func validateRoute(route autonomouspolicy.Route, input autonomouspolicy.Input) e
 
 func captureSource(ctx context.Context, n normalizedConfig) (gitstate.SourceSnapshot, error) {
 	snapshot, err := n.SourceSnapshotter(ctx, gitstate.SourceSnapshotConfig{
-		WorkingDir:    n.executionRoot,
-		GitExecutable: n.GitExecutable,
-		Timeout:       n.GitTimeout,
-		StdoutCap:     n.GitStdoutCap,
-		StderrCap:     n.GitStderrCap,
-		CommandRunner: gitstate.CommandRunner(n.CommandRunner),
+		WorkingDir:          n.executionRoot,
+		GitExecutable:       n.GitExecutable,
+		Timeout:             n.GitTimeout,
+		StdoutCap:           n.GitStdoutCap,
+		StderrCap:           n.GitStderrCap,
+		AllowHarnessRuntime: n.executionRoot == n.root,
+		CommandRunner:       gitstate.CommandRunner(n.CommandRunner),
 	})
 	if err != nil {
 		return gitstate.SourceSnapshot{}, err
@@ -702,6 +726,21 @@ func sourceChangedError(message string, difference gitstate.SourceDifference) er
 		paths = append(paths, change.Path)
 	}
 	return fmt.Errorf("%s: before=%q current=%q head_changed=%t index_changed=%t worktree_changed=%t paths=%q", message, difference.BeforeSHA256, difference.AfterSHA256, difference.HeadChanged, difference.IndexChanged, difference.WorktreeChanged, paths)
+}
+
+func sourceOwnershipError(ctx context.Context, n normalizedConfig) error {
+	if n.sourceGuard == nil {
+		return nil
+	}
+	if failure := n.sourceGuard.Failure(); failure != nil {
+		return failure
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return nil
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, defaultReleaseTimeout)
+	defer cancel()
+	return n.sourceGuard.Check(checkCtx)
 }
 
 func workspaceID(workspace *autonomous.TaskWorkspace) string {
@@ -881,26 +920,4 @@ func validDecisionID(value string) bool {
 func validSHA256(value string) bool {
 	decoded, err := hex.DecodeString(strings.TrimSpace(value))
 	return err == nil && len(decoded) == sha256.Size && value == strings.ToLower(value)
-}
-
-func startHeartbeat(ctx context.Context, sourceLock SourceLock, interval time.Duration) func() {
-	heartbeatCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				return
-			case <-ticker.C:
-				_ = sourceLock.Heartbeat(heartbeatCtx)
-			}
-		}
-	}()
-	return func() {
-		cancel()
-		<-done
-	}
 }

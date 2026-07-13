@@ -13,10 +13,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/pathguard"
@@ -345,74 +345,9 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 		return CommitResult{}, err
 	}
 
-	statePath, err := s.safePath(task.AutonomousStatePath)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
 	if err != nil {
 		return CommitResult{}, err
-	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
-	if err != nil {
-		return CommitResult{}, fmt.Errorf("commit planning transition: create state temporary file: %w", err)
-	}
-	tempPath := temp.Name()
-	closed := false
-	defer func() {
-		if !closed {
-			_ = temp.Close()
-		}
-		_ = os.Remove(tempPath)
-	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return CommitResult{}, fmt.Errorf("commit planning transition: chmod state temporary file: %w", err)
-	}
-	if err := s.fail(FailureDuringStateWrite); err != nil {
-		return CommitResult{}, err
-	}
-	if _, err := temp.Write(nextBytes); err != nil {
-		return CommitResult{}, fmt.Errorf("commit planning transition: write state temporary file: %w", err)
-	}
-	if err := s.fail(FailureStateFileSync); err != nil {
-		return CommitResult{}, err
-	}
-	if err := temp.Sync(); err != nil {
-		return CommitResult{}, fmt.Errorf("commit planning transition: sync state temporary file: %w", err)
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return CommitResult{}, fmt.Errorf("commit planning transition: close state temporary file: %w", err)
-	}
-	closed = true
-
-	latest, latestFound, err := s.readCurrent(task)
-	if err != nil {
-		return CommitResult{}, err
-	}
-	if err := compareExpected(request.Expected, latest, latestFound); err != nil {
-		return CommitResult{}, err
-	}
-	if err := s.fail(FailureBeforeStateRename); err != nil {
-		return CommitResult{}, err
-	}
-	if err := s.fail(FailureStateRename); err != nil {
-		return CommitResult{}, err
-	}
-	if err := os.Rename(tempPath, statePath); err != nil {
-		return CommitResult{}, fmt.Errorf("commit planning transition: atomically replace state: %w", err)
-	}
-	if err := s.fail(FailureAfterStateRename); err != nil {
-		return CommitResult{}, err
-	}
-	if err := s.fail(FailureStateDirectorySync); err != nil {
-		return CommitResult{}, err
-	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
-		return CommitResult{}, fmt.Errorf("commit planning transition: sync state directory: %w", err)
-	}
-	if err := s.fail(FailureStateReadback); err != nil {
-		return CommitResult{}, err
-	}
-	readback, found, err := s.readCurrent(task)
-	if err != nil {
-		return CommitResult{}, fmt.Errorf("commit planning transition: reopen committed state: %w", err)
 	}
 	if !found || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !reflectStateEqual(readback.State, request.NextState) {
 		return CommitResult{}, errors.New("commit planning transition: reopened state does not match committed state")
@@ -618,6 +553,77 @@ func (s *Store) writeImmutable(rel string, content []byte, label string, point F
 	return true, nil
 }
 
+// replaceState owns the persistence mechanics common to every canonical state
+// transition. Callers retain lifecycle validation and exact readback policy.
+func (s *Store) replaceState(task taskfile.Task, expected ExpectedState, content []byte) (Snapshot, bool, error) {
+	statePath, err := s.safePath(task.AutonomousStatePath)
+	if err != nil {
+		return Snapshot{}, false, err
+	}
+	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
+	if err != nil {
+		return Snapshot{}, false, fmt.Errorf("replace autonomous state: create temporary file: %w", err)
+	}
+	tempPath := temp.Name()
+	closed := false
+	defer func() {
+		if !closed {
+			_ = temp.Close()
+		}
+		_ = os.Remove(tempPath)
+	}()
+	if err := temp.Chmod(0o644); err != nil {
+		return Snapshot{}, false, fmt.Errorf("replace autonomous state: chmod temporary file: %w", err)
+	}
+	if err := s.fail(FailureDuringStateWrite); err != nil {
+		return Snapshot{}, false, err
+	}
+	if _, err := temp.Write(content); err != nil {
+		return Snapshot{}, false, fmt.Errorf("replace autonomous state: write temporary file: %w", err)
+	}
+	if err := s.fail(FailureStateFileSync); err != nil {
+		return Snapshot{}, false, err
+	}
+	if err := temp.Sync(); err != nil {
+		return Snapshot{}, false, fmt.Errorf("replace autonomous state: sync temporary file: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		closed = true
+		return Snapshot{}, false, fmt.Errorf("replace autonomous state: close temporary file: %w", err)
+	}
+	closed = true
+
+	latest, found, err := s.readCurrent(task)
+	if err != nil {
+		return Snapshot{}, false, err
+	}
+	if err := compareExpected(expected, latest, found); err != nil {
+		return Snapshot{}, false, err
+	}
+	if err := s.fail(FailureBeforeStateRename); err != nil {
+		return Snapshot{}, false, err
+	}
+	if err := s.fail(FailureStateRename); err != nil {
+		return Snapshot{}, false, err
+	}
+	if err := os.Rename(tempPath, statePath); err != nil {
+		return Snapshot{}, false, fmt.Errorf("replace autonomous state: rename temporary file: %w", err)
+	}
+	if err := s.fail(FailureAfterStateRename); err != nil {
+		return Snapshot{}, false, err
+	}
+	if err := s.fail(FailureStateDirectorySync); err != nil {
+		return Snapshot{}, false, err
+	}
+	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
+		return Snapshot{}, false, fmt.Errorf("replace autonomous state: sync state directory: %w", err)
+	}
+	if err := s.fail(FailureStateReadback); err != nil {
+		return Snapshot{}, false, err
+	}
+	return s.readCurrent(task)
+}
+
 func (s *Store) verifyArtifact(identity ArtifactIdentity) error {
 	if err := identity.Validate(); err != nil {
 		return err
@@ -752,7 +758,15 @@ func decodeStrict(raw []byte, target any) error {
 }
 
 func flockContext(ctx context.Context, file *os.File) error {
+	const (
+		initialRetryDelay = time.Millisecond
+		maximumRetryDelay = 20 * time.Millisecond
+	)
+	retryDelay := initialRetryDelay
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if err == nil {
 			return nil
@@ -760,11 +774,23 @@ func flockContext(ctx context.Context, file *os.File) error {
 		if err != syscall.EWOULDBLOCK && err != syscall.EAGAIN {
 			return err
 		}
+		timer := time.NewTimer(retryDelay)
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return ctx.Err()
-		default:
-			runtime.Gosched()
+		case <-timer.C:
+		}
+		if retryDelay < maximumRetryDelay {
+			retryDelay *= 2
+			if retryDelay > maximumRetryDelay {
+				retryDelay = maximumRetryDelay
+			}
 		}
 	}
 }

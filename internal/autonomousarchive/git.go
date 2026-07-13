@@ -21,19 +21,31 @@ type gitConfig struct {
 }
 
 type gitResult struct {
-	stdout string
-	stderr string
-	exit   int
-	err    error
-	timed  bool
+	stdout          string
+	stderr          string
+	exit            int
+	err             error
+	timed           bool
+	stdoutTruncated int64
+	stderrTruncated int64
 }
 
 func (g gitConfig) run(ctx context.Context, args ...string) gitResult {
 	result := g.runner(ctx, runner.Command{Name: g.executable, Args: append([]string(nil), args...), Dir: g.root, Timeout: g.timeout, StdoutLimit: 4 << 20, StderrLimit: 1 << 20})
-	return gitResult{stdout: result.Stdout, stderr: result.Stderr, exit: result.ExitCode, err: result.Err, timed: result.TimedOut}
+	return gitResult{
+		stdout:          result.Stdout,
+		stderr:          result.Stderr,
+		exit:            result.ExitCode,
+		err:             result.Err,
+		timed:           result.TimedOut,
+		stdoutTruncated: result.StdoutTruncatedBytes,
+		stderrTruncated: result.StderrTruncatedBytes,
+	}
 }
 
-func (r gitResult) passed() bool { return r.err == nil && !r.timed && r.exit == 0 }
+func (r gitResult) passed() bool {
+	return r.err == nil && !r.timed && r.exit == 0 && r.stdoutTruncated == 0 && r.stderrTruncated == 0
+}
 
 func (g gitConfig) head(ctx context.Context) (string, bool, error) {
 	result := g.run(ctx, "rev-parse", "--verify", "--quiet", "HEAD")
@@ -44,7 +56,7 @@ func (g gitConfig) head(ctx context.Context) (string, bool, error) {
 		}
 		return sha, true, nil
 	}
-	if result.err == nil && !result.timed && result.exit == 1 && strings.TrimSpace(result.stdout) == "" {
+	if result.err == nil && !result.timed && result.exit == 1 && result.stdoutTruncated == 0 && result.stderrTruncated == 0 && strings.TrimSpace(result.stdout) == "" {
 		return "", false, nil
 	}
 	return "", false, fmt.Errorf("archive git: resolve HEAD: %s", gitFailure(result))
@@ -101,7 +113,7 @@ func validateOperationStatus(entries []statusEntry, allowed []string, allowStage
 }
 
 func (g gitConfig) stage(ctx context.Context, paths []string) error {
-	args := append([]string{"add", "--"}, paths...)
+	args := append([]string{"--literal-pathspecs", "add", "--"}, paths...)
 	if result := g.run(ctx, args...); !result.passed() {
 		return fmt.Errorf("archive git: stage exact paths: %s", gitFailure(result))
 	}
@@ -145,7 +157,7 @@ func (g gitConfig) fileAt(ctx context.Context, sha, path string) ([]byte, bool, 
 	if result.passed() {
 		return []byte(result.stdout), true, nil
 	}
-	if result.err == nil && !result.timed && result.exit != 0 {
+	if result.err == nil && !result.timed && result.exit != 0 && result.stdoutTruncated == 0 && result.stderrTruncated == 0 {
 		return nil, false, nil
 	}
 	return nil, false, fmt.Errorf("archive git: inspect %s:%s: %s", sha, path, gitFailure(result))
@@ -233,6 +245,9 @@ func gitFailure(result gitResult) string {
 	}
 	if result.exit != 0 {
 		parts = append(parts, fmt.Sprintf("exit %d", result.exit))
+	}
+	if result.stdoutTruncated != 0 || result.stderrTruncated != 0 {
+		parts = append(parts, fmt.Sprintf("output truncated (stdout=%d bytes, stderr=%d bytes)", result.stdoutTruncated, result.stderrTruncated))
 	}
 	if detail := strings.TrimSpace(result.stderr); detail != "" {
 		parts = append(parts, detail)

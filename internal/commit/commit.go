@@ -143,7 +143,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	result.PreCommitSHA = preCommitHEAD.SHA
 
-	stageResult := runGit(ctx, cfg, workDir, append([]string{"add", "--"}, result.ChangedFiles...))
+	stageResult := runGit(ctx, cfg, workDir, append([]string{"--literal-pathspecs", "add", "--"}, result.ChangedFiles...))
 	result.Commands = append(result.Commands, stageResult)
 	if !commandPassed(stageResult) {
 		result.Status = StatusFailed
@@ -366,7 +366,7 @@ func commitMessageParts(taskSummary, runID, taskID string) (string, string) {
 }
 
 func dirtyFiles(capture *gitstate.Capture) []string {
-	if capture == nil {
+	if capture == nil || capture.CaptureError != "" {
 		return nil
 	}
 	if len(capture.DirtyFiles) > 0 {
@@ -376,7 +376,7 @@ func dirtyFiles(capture *gitstate.Capture) []string {
 }
 
 func changedFiles(capture *gitstate.Capture) []string {
-	if capture == nil {
+	if capture == nil || capture.CaptureError != "" {
 		return nil
 	}
 	if len(capture.ChangedFiles) > 0 {
@@ -389,7 +389,6 @@ func compactSortedStrings(values []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
 		if value == "" {
 			continue
 		}

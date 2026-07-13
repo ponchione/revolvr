@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -177,6 +179,131 @@ func TestWorkerAdmissionRunsAfterPolicyBeforeWorker(t *testing.T) {
 	}
 	if result.Worker.Started || result.Outcome != OutcomePolicyRejected || result.Failure == nil || result.Failure.Stage != "attempt_admission" {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestRunHeartbeatFailureCancelsWorkerAndPreventsVerification(t *testing.T) {
+	fixture := newCycleFixture(t, autonomous.ActionImplement)
+	heartbeatErr := errors.New("injected autonomous heartbeat failure")
+	fixture.lock.heartbeatErrAt = 3
+	fixture.lock.heartbeatErr = heartbeatErr
+	fixture.cfg.SourceWriterLockHeartbeatInterval = 100 * time.Millisecond
+	fixture.cfg.CodexRunner = func(ctx context.Context, _ codexexec.Config) (codexexec.Result, error) {
+		fixture.codexCalls++
+		<-ctx.Done()
+		return codexexec.Result{ExitCode: -1, Err: context.Cause(ctx)}, context.Cause(ctx)
+	}
+
+	result, err := Run(context.Background(), fixture.cfg)
+	if !errors.Is(err, lock.ErrOwnershipLost) || !errors.Is(err, heartbeatErr) {
+		t.Fatalf("Run error = %v, want ownership and heartbeat failures", err)
+	}
+	if result.Outcome != OutcomeWorkerFailed || result.Failure == nil || fixture.verificationCalls != 0 || fixture.commitCalls != 0 {
+		t.Fatalf("result=%+v verification=%d commit=%d", result, fixture.verificationCalls, fixture.commitCalls)
+	}
+	if !fixture.lock.released {
+		t.Fatal("failed lease was not released")
+	}
+}
+
+func TestRunOwnershipReplacementBeforeCommitFailsClosed(t *testing.T) {
+	fixture := newCycleFixture(t, autonomous.ActionImplement)
+	fixture.withChangedWorker()
+	fixture.cfg.SourceWriterLockHeartbeatInterval = time.Hour
+	fixture.lock.heartbeatErrAt = 6
+	fixture.lock.heartbeatErr = lock.ErrHeld
+
+	result, err := Run(context.Background(), fixture.cfg)
+	if !errors.Is(err, lock.ErrOwnershipLost) || !errors.Is(err, lock.ErrHeld) {
+		t.Fatalf("Run error = %v, want replacement-owner failure", err)
+	}
+	if result.Outcome != OutcomeCommitFailed || result.Failure == nil || result.Failure.Stage != "source_lock_before_commit" {
+		t.Fatalf("result = %+v", result)
+	}
+	if fixture.verificationCalls != 1 || fixture.commitCalls != 0 {
+		t.Fatalf("verification/commit calls = %d/%d, want 1/0", fixture.verificationCalls, fixture.commitCalls)
+	}
+}
+
+func TestRunReleaseFailurePreventsSuccessfulTerminalReturn(t *testing.T) {
+	fixture := newCycleFixture(t, autonomous.ActionPlan)
+	releaseErr := errors.New("injected autonomous release failure")
+	fixture.lock.releaseErr = releaseErr
+	result, err := Run(context.Background(), fixture.cfg)
+	if !errors.Is(err, releaseErr) {
+		t.Fatalf("Run error = %v, want release failure", err)
+	}
+	if result.Outcome != OutcomeSourceChanged || result.Failure == nil || result.Failure.Stage != "worker_lock" {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestRunRejectsIgnoredStateAtEveryExecutionBoundary(t *testing.T) {
+	tests := []struct {
+		name             string
+		prepare          func(*cycleFixture)
+		wantOutcome      Outcome
+		wantStage        string
+		wantCodex        int
+		wantVerification int
+	}{
+		{
+			name: "pre-existing input",
+			prepare: func(f *cycleFixture) {
+				writeFixtureFile(f.t, filepath.Join(f.cfg.Workspace.ExecutionRoot, "preexisting.env"), []byte("admission secret\n"))
+			},
+			wantOutcome: OutcomeDossierFailed, wantStage: "dossier_source_before",
+		},
+		{
+			name: "worker-created input",
+			prepare: func(f *cycleFixture) {
+				base := f.cfg.CodexRunner
+				f.cfg.CodexRunner = func(ctx context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+					result, err := base(ctx, cfg)
+					writeFixtureFile(f.t, filepath.Join(cfg.WorkingDir, "worker.env"), []byte("worker secret\n"))
+					return result, err
+				}
+			},
+			wantOutcome: OutcomeWorkerFailed, wantStage: "worker_source_after", wantCodex: 1,
+		},
+		{
+			name: "verification-created input",
+			prepare: func(f *cycleFixture) {
+				f.receiptChangedFiles = []string{"tracked.txt"}
+				f.receiptVerification = []receipt.VerificationEntry{{Command: "fake-verify", ExitCode: 0, Status: "passed"}}
+				baseCodex := f.cfg.CodexRunner
+				f.cfg.CodexRunner = func(ctx context.Context, cfg codexexec.Config) (codexexec.Result, error) {
+					result, err := baseCodex(ctx, cfg)
+					writeFixtureFile(f.t, filepath.Join(cfg.WorkingDir, "tracked.txt"), []byte("worker change\n"))
+					return result, err
+				}
+				baseVerification := f.cfg.VerificationRunner
+				f.cfg.VerificationRunner = func(ctx context.Context, cfg verification.Config) (verification.Result, error) {
+					result, err := baseVerification(ctx, cfg)
+					writeFixtureFile(f.t, filepath.Join(cfg.WorkingDir, "verification.env"), []byte("verification secret\n"))
+					return result, err
+				}
+			},
+			wantOutcome: OutcomeVerificationFailed, wantStage: "verification_source_after", wantCodex: 1, wantVerification: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixture := newCycleFixture(t, autonomous.ActionImplement)
+			fixture.useRealSourceRepository()
+			tt.prepare(fixture)
+
+			result, err := Run(context.Background(), fixture.cfg)
+			if err == nil || result.Outcome != tt.wantOutcome || result.Failure == nil || result.Failure.Stage != tt.wantStage {
+				t.Fatalf("result=%+v error=%v, want %q/%q", result, err, tt.wantOutcome, tt.wantStage)
+			}
+			if !strings.Contains(err.Error(), "classification=policy_relevant") || strings.Contains(err.Error(), " secret") {
+				t.Fatalf("ignored-state diagnostic is unsafe or incomplete: %v", err)
+			}
+			if fixture.codexCalls != tt.wantCodex || fixture.verificationCalls != tt.wantVerification || fixture.commitCalls != 0 {
+				t.Fatalf("calls codex/verification/commit=%d/%d/%d, want %d/%d/0", fixture.codexCalls, fixture.verificationCalls, fixture.commitCalls, tt.wantCodex, tt.wantVerification)
+			}
+		})
 	}
 }
 
@@ -859,7 +986,7 @@ func TestRunWorkerArtifactsRemainReadableAfterLedgerReopen(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := ledger.OpenReadOnly(context.Background(), ledgerPath)
+	reopened, err := ledger.OpenLiveReadOnly(context.Background(), ledgerPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1161,6 +1288,58 @@ func (f *cycleFixture) withChangedWorker() {
 	f.receiptVerification = []receipt.VerificationEntry{{Command: "fake-verify", ExitCode: 0, Status: "passed"}}
 }
 
+func (f *cycleFixture) useRealSourceRepository() {
+	f.t.Helper()
+	executionRoot := f.cfg.Workspace.ExecutionRoot
+	runCycleGit(f.t, executionRoot, "init", "-q")
+	runCycleGit(f.t, executionRoot, "config", "user.email", "cycle@example.test")
+	runCycleGit(f.t, executionRoot, "config", "user.name", "Cycle Test")
+	writeFixtureFile(f.t, filepath.Join(executionRoot, ".gitignore"), []byte("*.env\ncache/\n.revolvr/\n"))
+	writeFixtureFile(f.t, filepath.Join(executionRoot, "tracked.txt"), []byte("baseline\n"))
+	runCycleGit(f.t, executionRoot, "add", ".gitignore", "tracked.txt")
+	runCycleGit(f.t, executionRoot, "commit", "-qm", "baseline")
+
+	snapshot, err := gitstate.CaptureSourceSnapshot(context.Background(), gitstate.SourceSnapshotConfig{WorkingDir: executionRoot})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	revision, err := gitstate.PolicySourceRevision(snapshot)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	workspace := *f.cfg.Workspace
+	workspace.GitCommonDir = filepath.Join(executionRoot, ".git")
+	workspace.BaselineSHA = snapshot.Head
+	workspace.HeadSHA = snapshot.Head
+	workspace.TreeSHA = runCycleGit(f.t, executionRoot, "rev-parse", "HEAD^{tree}")
+	workspace.SourceRevision = revision
+	workspace.Checkpoint.CommitSHA = workspace.HeadSHA
+	workspace.Checkpoint.TreeSHA = workspace.TreeSHA
+	workspace.Checkpoint.SourceRevision = revision
+	f.state.Workspace = &workspace
+	f.cfg.State = f.state
+	f.cfg.Workspace = &workspace
+	f.baseline = snapshot
+	f.supervisorSource = snapshot
+	f.cfg.GitExecutable = "git"
+	f.cfg.SourceSnapshotter = gitstate.CaptureSourceSnapshot
+	f.cfg.DirtyCapture = gitstate.CaptureDirtyWorktree
+	f.cfg.ChangedCapture = gitstate.CaptureChangedFiles
+	f.cfg.CommandRunner = runner.Run
+	f.applyActionEvidence()
+}
+
+func runCycleGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func (f *cycleFixture) nextID() string {
 	if f.idIndex >= len(f.ids) {
 		f.t.Fatalf("unexpected ID request %d", f.idIndex)
@@ -1349,13 +1528,30 @@ func (f *cycleFixture) acquireLock(context.Context, lock.Config) (SourceLock, er
 }
 
 type fakeSourceLock struct {
-	acquired   bool
-	released   bool
-	heartbeats int
+	mu             sync.Mutex
+	acquired       bool
+	released       bool
+	heartbeats     int
+	heartbeatErrAt int
+	heartbeatErr   error
+	releaseErr     error
 }
 
-func (l *fakeSourceLock) Heartbeat(context.Context) error { l.heartbeats++; return nil }
-func (l *fakeSourceLock) Release(context.Context) error   { l.released = true; return nil }
+func (l *fakeSourceLock) Heartbeat(context.Context) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.heartbeats++
+	if l.heartbeatErrAt > 0 && l.heartbeats >= l.heartbeatErrAt {
+		return l.heartbeatErr
+	}
+	return nil
+}
+func (l *fakeSourceLock) Release(context.Context) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.released = true
+	return l.releaseErr
+}
 
 type memoryLedger struct {
 	now       time.Time

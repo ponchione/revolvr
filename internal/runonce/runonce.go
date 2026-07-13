@@ -59,6 +59,7 @@ type DirtyCapture func(context.Context, gitstate.Config) (gitstate.Capture, erro
 type ChangedCapture func(context.Context, gitstate.Config) (gitstate.Capture, error)
 type VerificationRunner func(context.Context, verification.Config) (verification.Result, error)
 type CommitRunner func(context.Context, commit.Config) (commit.Result, error)
+type SourceLockAcquirer func(context.Context, lock.Config) (lock.SourceLease, error)
 
 type Config struct {
 	WorkingDir         string
@@ -110,8 +111,11 @@ type Config struct {
 	ChangedCapture         ChangedCapture
 	VerificationRunner     VerificationRunner
 	CommitRunner           CommitRunner
+	SourceLockAcquirer     SourceLockAcquirer
 	Clock                  func() time.Time
 	CodexProgress          func(codexexec.ProgressEvent)
+
+	sourceGuard *lock.SourceGuard
 }
 
 type Result struct {
@@ -141,7 +145,7 @@ type Result struct {
 	changedCaptureError    string
 }
 
-func Run(ctx context.Context, cfg Config) (Result, error) {
+func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	cfg, workDir, err := normalizeConfig(cfg)
 	if err != nil {
 		return Result{}, err
@@ -153,10 +157,10 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	result := Result{WorkingDir: workDir}
+	result = Result{WorkingDir: workDir}
 	runID := id.New()
 
-	sourceLock, err := lock.AcquireSourceWriter(ctx, lock.Config{
+	sourceLease, err := cfg.SourceLockAcquirer(ctx, lock.Config{
 		WorkingDir: workDir,
 		RunID:      runID,
 		PID:        cfg.SourceWriterLockPID,
@@ -167,12 +171,23 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		result.Message = "source-writer lock unavailable: " + err.Error()
 		return result, err
 	}
-	stopHeartbeat := startLockHeartbeat(ctx, sourceLock, cfg.SourceWriterLockHeartbeatInterval)
+	sourceGuard := lock.MonitorSourceLease(ctx, sourceLease, cfg.SourceWriterLockHeartbeatInterval)
+	cfg.sourceGuard = sourceGuard
+	ctx = sourceGuard.Context()
 	defer func() {
-		stopHeartbeat()
 		releaseCtx, cancel := context.WithTimeout(context.Background(), defaultLockReleaseTimeout)
 		defer cancel()
-		_ = sourceLock.Release(releaseCtx)
+		if lockErr := sourceGuard.Close(releaseCtx); lockErr != nil {
+			runErr = errors.Join(runErr, lockErr)
+			if result.Outcome == "" {
+				result.Outcome = OutcomeBlocked
+			}
+			if result.Message == "" {
+				result.Message = lockErr.Error()
+			} else if !strings.Contains(result.Message, lockErr.Error()) {
+				result.Message += "; " + lockErr.Error()
+			}
+		}
 	}()
 
 	ledgerStore, closeLedger, err := openLedgerStore(ctx, cfg, workDir)
@@ -393,6 +408,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		codexResult.Err = err
 	}
 	result.Codex = codexResult
+	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+		return finishSourceOwnership(cfg, ledgerStore, &result, errors.Join(err, codexResult.Err, ownershipErr))
+	}
 
 	captureAndRecordChangedFiles(ctx, cfg, ledgerStore, &result, workDir)
 
@@ -409,6 +427,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		}
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
+	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+		return finishSourceOwnership(cfg, ledgerStore, &result, ownershipErr)
+	}
 
 	verificationResult, err := cfg.VerificationRunner(ctx, verification.Config{
 		WorkingDir:            workDir,
@@ -421,11 +442,14 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		Ledger:                ledgerStore,
 		CommandRunner:         verificationCommandRunner(cfg.CommandRunner),
 	})
+	result.Verification = verificationResult
+	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+		return finishSourceOwnership(cfg, ledgerStore, &result, errors.Join(err, ownershipErr))
+	}
 	if err != nil {
 		result.Message = "verification runner failed: " + err.Error()
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeVerificationFailed, receipt.VerdictVerificationFailed, "failed", "")
 	}
-	result.Verification = verificationResult
 	if verificationResult.LedgerError != nil {
 		setLedgerError(&result, verificationResult.LedgerError)
 	}
@@ -457,6 +481,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		result.Message = result.Commit.Message
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeNoChanges, receipt.VerdictNoChanges, verificationStatus, "")
 	}
+	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+		return finishSourceOwnership(cfg, ledgerStore, &result, ownershipErr)
+	}
 
 	updatedFileTask, err := applyPolicyTransition(workDir, result.selectedFileTask, policy)
 	if err != nil {
@@ -471,6 +498,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		result.Commit = gitStateCaptureRefusal(result.PostRunChanged.CaptureError)
 		result.Message = result.Commit.Message
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
+	}
+	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+		return finishSourceOwnership(cfg, ledgerStore, &result, ownershipErr)
 	}
 
 	commitResult, err := cfg.CommitRunner(ctx, commit.Config{
@@ -492,6 +522,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		CommandRunner:            commitCommandRunner(cfg.CommandRunner),
 	})
 	result.Commit = commitResult
+	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+		return finishSourceOwnership(cfg, ledgerStore, &result, errors.Join(err, ownershipErr))
+	}
 	if err != nil {
 		result.Message = "auto-commit gate failed: " + err.Error()
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeCommitFailed, receipt.VerdictBlocked, verificationStatus, "")
@@ -663,6 +696,11 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.CommitRunner == nil {
 		cfg.CommitRunner = commit.Run
 	}
+	if cfg.SourceLockAcquirer == nil {
+		cfg.SourceLockAcquirer = func(ctx context.Context, cfg lock.Config) (lock.SourceLease, error) {
+			return lock.AcquireSourceWriter(ctx, cfg)
+		}
+	}
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
 	}
@@ -689,36 +727,6 @@ func defaultHeartbeatInterval(timeout time.Duration) time.Duration {
 		interval = time.Nanosecond
 	}
 	return interval
-}
-
-func startLockHeartbeat(ctx context.Context, sourceLock *lock.SourceWriter, interval time.Duration) func() {
-	if sourceLock == nil {
-		return func() {}
-	}
-	if interval <= 0 {
-		interval = time.Second
-	}
-
-	heartbeatCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				return
-			case <-ticker.C:
-				_ = sourceLock.Heartbeat(heartbeatCtx)
-			}
-		}
-	}()
-
-	return func() {
-		cancel()
-		<-done
-	}
 }
 
 func openLedgerStore(ctx context.Context, cfg Config, workDir string) (*ledger.Store, func(), error) {
@@ -811,6 +819,9 @@ func applyPolicyTransition(repositoryRoot string, task taskfile.Task, policy pas
 }
 
 func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, outcome Outcome, verdict receipt.Verdict, verificationStatus string, commitSHA string) (Result, error) {
+	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+		return finishSourceOwnership(cfg, runs, result, ownershipErr)
+	}
 	result.Outcome = outcome
 	if strings.TrimSpace(result.Message) == "" {
 		result.Message = string(outcome)
@@ -933,6 +944,50 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 	return *result, finishErr
 }
 
+func sourceOwnershipError(ctx context.Context, cfg Config) error {
+	if cfg.sourceGuard == nil {
+		return nil
+	}
+	if failure := cfg.sourceGuard.Failure(); failure != nil {
+		return failure
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return nil
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, defaultLockReleaseTimeout)
+	defer cancel()
+	return cfg.sourceGuard.Check(checkCtx)
+}
+
+func finishSourceOwnership(cfg Config, runs *ledger.Store, result *Result, cause error) (Result, error) {
+	result.Outcome = OutcomeBlocked
+	result.Message = "source-writer ownership failure: " + cause.Error()
+	if runs == nil || result.Run.ID == "" {
+		return *result, cause
+	}
+	evidenceCtx, cancel := context.WithTimeout(context.Background(), defaultLockReleaseTimeout)
+	defer cancel()
+	completedAt := cfg.Clock()
+	exitCode := result.Codex.ExitCode
+	updated, ok, completionErr := runs.CompleteRun(evidenceCtx, result.Run.ID, ledger.RunCompletion{
+		Status: ledger.StatusFailed, Summary: result.Message, CompletedAt: completedAt,
+		CodexExitCode: &exitCode, VerificationStatus: "not_run",
+	})
+	if completionErr != nil {
+		setLedgerError(result, completionErr)
+	} else if !ok {
+		setLedgerError(result, fmt.Errorf("complete source-lock-failed run %q: not found", result.Run.ID))
+	} else {
+		result.Run = updated
+	}
+	appendEvent(evidenceCtx, result, runs, result.Run.ID, ledger.EventRunFailed, map[string]any{
+		"outcome": OutcomeBlocked,
+		"stage":   "source_lock",
+		"message": result.Message,
+	})
+	return *result, errors.Join(cause, result.LedgerError)
+}
+
 func blockTaskAfterFailedRun(repositoryRoot string, result *Result) (taskfile.Task, error) {
 	snapshot := result.selectedFileTask
 	if result.Commit.Status == commit.StatusIndeterminate && result.phaseTransitionApplied {
@@ -945,7 +1000,7 @@ func blockTaskAfterFailedRun(repositoryRoot string, result *Result) (taskfile.Ta
 
 func commitStagedChanges(result commit.Result) bool {
 	for _, command := range result.Commands {
-		if len(command.Args) == 0 || command.Args[0] != "add" {
+		if gitSubcommand(command.Args) != "add" {
 			continue
 		}
 		return command.Error == "" && !command.TimedOut && command.ExitCode == 0
@@ -968,7 +1023,7 @@ func stageRestoredTask(ctx context.Context, cfg Config, sourcePath string) error
 	}
 	result := commandRunner(ctx, runner.Command{
 		Name:        executable,
-		Args:        []string{"add", "--", sourcePath},
+		Args:        []string{"--literal-pathspecs", "add", "--", sourcePath},
 		Dir:         cfg.WorkingDir,
 		Timeout:     timeout,
 		StdoutLimit: cfg.GitStdoutCap,
@@ -990,12 +1045,25 @@ func stageRestoredTask(ctx context.Context, cfg Config, sourcePath string) error
 	return nil
 }
 
+func gitSubcommand(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	if args[0] == "--literal-pathspecs" {
+		if len(args) == 1 {
+			return ""
+		}
+		return args[1]
+	}
+	return args[0]
+}
+
 func ensureRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string) {
 	if result.ReceiptPath == "" {
 		return
 	}
 	if !result.ReceiptSynthesized {
-		parsed, parseErr := parseReceiptFile(result.ReceiptPath, result.Codex.Artifacts.StdoutJSONL)
+		parsed, parseErr := parseReceiptFile(ctx, result.ReceiptPath, result.Codex.Artifacts.StdoutJSONL)
 		if parseErr == nil && receiptMatches(parsed, result.Run.ID, result.Task.ID) {
 			result.Receipt = parsed
 			appendEvent(ctx, result, runs, result.Run.ID, ledger.EventReceiptParsed, map[string]any{
@@ -1087,7 +1155,7 @@ func writeFallbackReceipt(ctx context.Context, runs *ledger.Store, result *Resul
 	})
 }
 
-func parseReceiptFile(path string, codexJSONLPath string) (receipt.Receipt, error) {
+func parseReceiptFile(ctx context.Context, path string, codexJSONLPath string) (receipt.Receipt, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return receipt.Receipt{}, err
@@ -1099,11 +1167,7 @@ func parseReceiptFile(path string, codexJSONLPath string) (receipt.Receipt, erro
 	if strings.TrimSpace(codexJSONLPath) == "" {
 		return parsed, nil
 	}
-	jsonl, err := os.ReadFile(codexJSONLPath)
-	if err != nil {
-		return parsed, nil
-	}
-	updated, reparsed, changed, err := receipt.RewriteMetricsFromCodexJSONL(content, jsonl)
+	updated, reparsed, changed, err := receipt.RewriteMetricsFromCodexJSONLFile(ctx, content, codexJSONLPath)
 	if err != nil {
 		return parsed, nil
 	}

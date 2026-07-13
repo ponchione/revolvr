@@ -101,16 +101,17 @@ type LookupEnv func(string) (string, bool)
 type Wait func(context.Context, time.Duration) error
 
 type DeliveryConfig struct {
-	RepositoryRoot string
-	Payload        Payload
-	PayloadBytes   []byte
-	Policy         Policy
-	RedactionNames []string
-	Clock          func() time.Time
-	Runner         CommandRunner
-	LookPath       LookPath
-	LookupEnv      LookupEnv
-	Wait           Wait
+	RepositoryRoot   string
+	Payload          Payload
+	PayloadBytes     []byte
+	Policy           Policy
+	RedactionNames   []string
+	Clock            func() time.Time
+	Runner           CommandRunner
+	LookPath         LookPath
+	LookupEnv        LookupEnv
+	Wait             Wait
+	persistenceFault persistenceFault
 }
 
 func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
@@ -163,7 +164,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	defer unlock()
 	policyID, _ := policy.Identity(cfg.RedactionNames)
 	intent := Intent{SchemaVersion: IntentSchemaVersion, DeliveryID: cfg.Payload.DeliveryID, EventID: cfg.Payload.EventID, Event: cfg.Payload.Event, PayloadSHA256: hash(cfg.PayloadBytes), PayloadSize: len(cfg.PayloadBytes), Policy: policy, PolicySHA256: policyID, ConfigSchema: cfg.Payload.EffectiveConfigSchema, ConfigSHA256: cfg.Payload.EffectiveConfigSHA256, AdmittedAt: cfg.Payload.OccurredAt}
-	journal, replayed, err := admit(dir, intent, cfg.PayloadBytes, cfg.Clock().UTC())
+	journal, replayed, err := admitWithFault(dir, intent, cfg.PayloadBytes, cfg.Clock().UTC(), cfg.persistenceFault)
 	if err != nil {
 		return Result{}, err
 	}
@@ -174,13 +175,13 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 		return resultFrom(cfg.Payload.Event, journal, true), errors.New(journal.Detail)
 	}
 	if err := ctx.Err(); err != nil {
-		journal, _ = transition(dir, journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC())
-		return resultFrom(cfg.Payload.Event, journal, replayed), err
+		journal, persistErr := transitionWithFault(dir, journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC(), cfg.persistenceFault)
+		return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(err, persistErr)
 	}
 	resolved, err := cfg.LookPath(policy.Executable)
 	if err != nil {
 		detail := redactor.String(fmt.Sprintf("notification executable %q unavailable: %v", policy.Executable, err))
-		journal, persistErr := transition(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC())
+		journal, persistErr := transitionWithFault(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC(), cfg.persistenceFault)
 		return resultFrom(cfg.Payload.Event, journal, replayed), errors.Join(errors.New(detail), persistErr)
 	}
 	if resolved, err = filepath.Abs(resolved); err != nil {
@@ -189,7 +190,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	info, err := os.Stat(resolved)
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
 		detail := redactor.String("notification executable is not an executable regular file")
-		journal, persistErr := transition(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC())
+		journal, persistErr := transitionWithFault(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC(), cfg.persistenceFault)
 		return resultFrom(cfg.Payload.Event, journal, replayed), errors.Join(errors.New(detail), err, persistErr)
 	}
 	env := make([]string, 0, len(policy.EnvironmentNames))
@@ -197,7 +198,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 		value, ok := cfg.LookupEnv(name)
 		if !ok || value == "" {
 			detail := fmt.Sprintf("notification environment variable %q is missing or empty", name)
-			journal, persistErr := transition(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC())
+			journal, persistErr := transitionWithFault(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC(), cfg.persistenceFault)
 			return resultFrom(cfg.Payload.Event, journal, replayed), errors.Join(errors.New(detail), persistErr)
 		}
 		env = append(env, name+"="+value)
@@ -209,9 +210,9 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 		if number >= policy.MaximumAttempts {
 			stage, detail = StageFailed, "interrupted hook attempt exhausted delivery attempts"
 		}
-		journal, err = transition(dir, journal, stage, detail, &recovered, recovered.CompletedAt)
+		journal, err = transitionWithFault(dir, journal, stage, detail, &recovered, recovered.CompletedAt, cfg.persistenceFault)
 		if err != nil {
-			return Result{}, err
+			return resultFrom(cfg.Payload.Event, journal, replayed), err
 		}
 		if stage == StageFailed {
 			return resultFrom(cfg.Payload.Event, journal, replayed), errors.New(detail)
@@ -219,14 +220,14 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	}
 	for len(journal.Attempts) < policy.MaximumAttempts {
 		if err := ctx.Err(); err != nil {
-			journal, _ = transition(dir, journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC())
-			return resultFrom(cfg.Payload.Event, journal, replayed), err
+			journal, persistErr := transitionWithFault(dir, journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC(), cfg.persistenceFault)
+			return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(err, persistErr)
 		}
 		number := len(journal.Attempts) + 1
 		started := cfg.Clock().UTC()
-		journal, err = transition(dir, journal, StageRunning, fmt.Sprintf("attempt %d running", number), nil, started)
+		journal, err = transitionWithFault(dir, journal, StageRunning, fmt.Sprintf("attempt %d running", number), nil, started, cfg.persistenceFault)
 		if err != nil {
-			return Result{}, err
+			return resultFrom(cfg.Payload.Event, journal, replayed), err
 		}
 		commandResult := cfg.Runner(ctx, runner.Command{Name: resolved, Args: append([]string(nil), policy.Args...), Stdin: bytes.NewReader(cfg.PayloadBytes), Dir: root, Env: append([]string(nil), env...), ReplaceEnv: true, Timeout: policy.Timeout, StdoutLimit: policy.StdoutCap, StderrLimit: policy.StderrCap})
 		completed := cfg.Clock().UTC()
@@ -249,25 +250,49 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 				stage, detail = StageFailed, "hook delivery failed"
 			}
 		}
-		journal, err = transition(dir, journal, stage, detail, &attempt, completed)
+		var cancelErr error
+		if stage == StageResumable {
+			cancelErr = deliveryCancellationError(ctx, commandResult.Err)
+		}
+		journal, err = transitionWithFault(dir, journal, stage, detail, &attempt, completed, cfg.persistenceFault)
 		if err != nil {
-			return Result{}, err
+			if stage == StageResumable {
+				return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(cancelErr, err)
+			}
+			return resultFrom(cfg.Payload.Event, journal, replayed), err
 		}
 		if success {
 			return resultFrom(cfg.Payload.Event, journal, replayed), nil
 		}
 		if stage == StageResumable {
-			return resultFrom(cfg.Payload.Event, journal, replayed), context.Canceled
+			return resultFrom(cfg.Payload.Event, journal, replayed), cancelErr
 		}
 		if stage == StageFailed {
 			return resultFrom(cfg.Payload.Event, journal, replayed), errors.New(detail)
 		}
 		if err := cfg.Wait(ctx, policy.RetryDelay); err != nil {
-			journal, _ = transition(dir, journal, StageResumable, "cancelled during retry delay", nil, cfg.Clock().UTC())
-			return resultFrom(cfg.Payload.Event, journal, replayed), err
+			journal, persistErr := transitionWithFault(dir, journal, StageResumable, "cancelled during retry delay", nil, cfg.Clock().UTC(), cfg.persistenceFault)
+			return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(err, persistErr)
 		}
 	}
 	return resultFrom(cfg.Payload.Event, journal, replayed), errors.New("notification delivery: attempts exhausted")
+}
+
+func deliveryCancellationError(ctx context.Context, commandErr error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if errors.Is(commandErr, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	return context.Canceled
+}
+
+func joinCancellationPersistence(cancelErr, persistErr error) error {
+	if persistErr == nil {
+		return cancelErr
+	}
+	return errors.Join(cancelErr, persistErr)
 }
 
 func resultFrom(event Event, journal Journal, replayed bool) Result {

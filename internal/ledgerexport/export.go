@@ -175,7 +175,7 @@ func Export(ctx context.Context, in ExportInput) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("ledger export: source ledger: %w", err)
 	}
-	store, err := ledger.OpenReadOnly(ctx, ledgerPath)
+	store, err := ledger.OpenLiveReadOnly(ctx, ledgerPath)
 	if err != nil {
 		return Result{}, err
 	}
@@ -436,7 +436,7 @@ func Verify(ctx context.Context, repositoryRoot, exportID string, secrets []stri
 	add("source_ledger_path", sourcePathErr)
 	if sourcePathErr == nil {
 		if _, statErr := os.Stat(ledgerAbs); statErr == nil {
-			store, openErr := ledger.OpenReadOnly(ctx, ledgerAbs)
+			store, openErr := ledger.OpenLiveReadOnly(ctx, ledgerAbs)
 			if openErr == nil {
 				snapshot, snapshotErr := store.ReadSnapshot(ctx)
 				_ = store.Close()

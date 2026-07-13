@@ -162,6 +162,69 @@ func TestHeartbeatRefreshesTimestampAndExpiry(t *testing.T) {
 	}
 }
 
+func TestHeartbeatCannotReviveExpiredLease(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
+	handle, err := AcquireSourceWriter(ctx, Config{WorkingDir: workDir, RunID: "expiring-run", PID: 123, Timeout: time.Minute, Clock: clock.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.value = clock.value.Add(time.Minute)
+	if err := handle.Heartbeat(ctx); !errors.Is(err, ErrLeaseExpired) {
+		t.Fatalf("Heartbeat error = %v, want ErrLeaseExpired", err)
+	}
+	if err := handle.Release(ctx); !errors.Is(err, ErrLeaseExpired) {
+		t.Fatalf("Release error = %v, want ErrLeaseExpired", err)
+	}
+	fresh, err := AcquireSourceWriter(ctx, Config{WorkingDir: workDir, RunID: "replacement-run", PID: 456, Timeout: time.Minute, Clock: clock.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Release(ctx)
+}
+
+func TestHeartbeatReportsLockPersistenceFailure(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	handle, err := AcquireSourceWriter(ctx, Config{WorkingDir: workDir, RunID: "io-failure-run", PID: 123, Timeout: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := handle.Path()
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Dir(path)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Dir(path), []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := handle.Heartbeat(ctx); err == nil || !strings.Contains(err.Error(), "source-writer lock directory") {
+		t.Fatalf("Heartbeat error = %v, want persistence failure", err)
+	}
+}
+
+func TestHeartbeatRefusesReplacementOwnerToken(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
+	stale, err := AcquireSourceWriter(ctx, Config{WorkingDir: workDir, RunID: "stale-run", PID: 111, Timeout: time.Minute, Clock: clock.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.value = clock.value.Add(2 * time.Minute)
+	fresh, err := AcquireSourceWriter(ctx, Config{WorkingDir: workDir, RunID: "fresh-run", PID: 222, Timeout: time.Minute, Clock: clock.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Release(ctx)
+	if err := stale.Heartbeat(ctx); !errors.Is(err, ErrHeld) {
+		t.Fatalf("stale Heartbeat error = %v, want replacement-owner evidence", err)
+	}
+}
+
 func TestReleaseDoesNotClearAnotherOwner(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()

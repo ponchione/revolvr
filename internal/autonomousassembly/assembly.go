@@ -451,7 +451,7 @@ func collectHistory(ctx context.Context, root string, in Input) ([]ledger.RunWit
 		} else if err != nil {
 			return nil, false, fmt.Errorf("ledger: inspect %s: %w", cleanPath, err)
 		}
-		store, err := ledger.OpenReadOnly(ctx, absPath)
+		store, err := ledger.OpenLiveReadOnly(ctx, absPath)
 		if err != nil {
 			return nil, false, fmt.Errorf("ledger: open %s: %w", cleanPath, err)
 		}

@@ -1,5 +1,428 @@
 # Agent Decisions
 
+## AUD-16 Proven Dead-Code Boundary (2026-07-13)
+
+- Cleanup is limited to values whose lack of effects was established from the
+  complete expression and its call sites. The safety no-op block, blank import
+  anchors, queue's unread private parameter, metrics' unused map key,
+  finalization's post-use task assignment, and audit's redundant root
+  assignment have no interface, validation, persistence, or documentation
+  role and are removed directly.
+- A discarded return value does not make its producing call dead. Notification
+  `Inspect` remains responsible for durable intent/payload/journal validation;
+  planning apply remains responsible for state persistence; and audit
+  resolution continues using its prepared root for canonical artifact
+  readback. Only unused returned components or redundant assignments are gone,
+  while calls and error authority remain explicit.
+- AUD-16 introduces no helper, public API, dependency, broad rename, or TUI
+  refactor. The admitted cleanup lowers production `internal` Go code from
+  59,976 to 59,956 physical lines, 20 fewer, with focused, full, vet, and race
+  verification.
+
+## AUD-15 Canonical-State Replacement Boundary (2026-07-13)
+
+- The only new persistence abstraction is package-local
+  `Store.replaceState`. It applies exclusively to the eight autonomous-state
+  owners whose canonical `state.json` replacement order is identical:
+  same-directory temporary creation and mode, exact write, file sync and close,
+  locked expected-state recheck, atomic rename, directory sync, and canonical
+  readback.
+- The helper owns the generic state fault-point vocabulary at those exact
+  boundaries. In particular, optional-role and finalization commits now expose
+  the generic boundaries they previously omitted; this standardizes injected
+  crash coverage without changing the production write order.
+- Owners retain lifecycle and request validation, immutable-history authority
+  and ordering, operation replay/conflict rules, state identities, transition-
+  specific readback predicates, and returned dispositions. The helper is not a
+  generic store or state-machine framework.
+- Autonomous queue and task-run persistence remain independent. Their
+  checkpoint/history recovery and failure ordering are not equivalent, and
+  task-run's AUD-11 ancestor/final-path revalidation and protected cleanup must
+  not be weakened to fit the canonical-state helper.
+- The refactor is admitted by the conditional LOC gate: production
+  `internal/autonomousstate` Go code falls from 4,346 to 3,937 physical lines,
+  409 fewer, with no dependency and with all eight call sites clearer.
+
+## AUD-14 Autonomous-State Flock Wait Contract (2026-07-13)
+
+- Autonomous-state serialization remains an OS advisory exclusive `flock` on
+  the existing per-task `state.lock`; no in-process mutex or notification
+  authority is introduced. All planning, audit, attempt, block, finalization,
+  input, optional-role, and workspace mutations continue through the one
+  shared acquisition helper.
+- Acquisition checks caller cancellation first, then attempts
+  `LOCK_EX|LOCK_NB` immediately. Success returns without constructing a timer.
+  Errors other than `EWOULDBLOCK`/`EAGAIN` retain their original identity and
+  return immediately.
+- Contention uses a deterministic exponential delay of 1, 2, 4, 8, and 16
+  milliseconds capped at 20 milliseconds for every later attempt. This bounds
+  syscall rate and release-detection latency without claiming strict fairness
+  or building a process-local waiter queue around a cross-process lock.
+- Each delay owns one timer. Receipt of the timer fully consumes it; caller
+  cancellation stops it and nonblockingly drains an already fired value before
+  returning `ctx.Err()`. Cancellation is checked again before the next syscall,
+  so it is prompt both before acquisition and throughout contention.
+- Tests use separate file descriptions of the same real lock file rather than
+  mocked mutexes. Process CPU-versus-wall-time coverage guards against
+  reintroducing a spin, many-waiter coverage proves eventual acquisition in the
+  admitted contention pattern, and benchmarks keep the uncontended zero-allocation
+  path and contended wait cost visible.
+
+## AUD-13 Constant-Query Ledger Snapshot Contract (2026-07-13)
+
+- A multi-run ledger read uses one read transaction and at most two SELECT
+  statements: one establishes the exact ordered run set and one returns events
+  belonging to that set. A task/limit selection is repeated as a derived table
+  in the event statement, so the SQL shape remains constant beyond SQLite
+  variable limits and cannot diverge from the first selection inside the same
+  transaction snapshot.
+- The full snapshot event statement joins `events` to `runs`; task history
+  joins the limited task-derived table and orders by that run order followed by
+  event ID. The public run slice remains in the first query's authoritative
+  order, and each run's events remain ascending by global event ID.
+- A run-ID map may be used only to find the already ordered destination index.
+  Output is never assembled by iterating that map. Event rows append directly
+  to the returned slices, which avoids a duplicate all-events buffer; the only
+  additional size-dependent structure is one integer index entry per returned
+  run.
+- Evidence reads deliberately use `scanEvidenceEvent`, preserving malformed
+  JSON bytes for downstream provenance decisions. Nil database payloads, runs
+  without events, and `MaxEventID` retain their prior exact semantics.
+- Any query, scan, close, context, or transaction-commit failure returns no
+  partial public snapshot. Live read-only retry remains outside the whole
+  two-query operation, so a busy retry starts a fresh transaction rather than
+  mixing versions. Successful queries continue to commit the read transaction
+  before publishing results.
+- `GetRunWithEvents` remains a naturally constant two-statement lookup and was
+  not merged into the multi-run helper. No schema, cache, invalidation policy,
+  or public pagination API is introduced by AUD-13.
+
+## AUD-12 Strict Configuration Decode Contract (2026-07-13)
+
+- A config file is one YAML stream containing exactly one document. A document
+  start/end marker is legal, as are trailing whitespace and comments, but any
+  second document is an error even when empty. Stream structure is inspected
+  first, then the admitted document is decoded independently with the existing
+  strict known-field schema.
+- Numeric omission is distinct from every explicit scalar. Pointer-backed
+  decoded fields retain ordinary omission, while the YAML node pass rejects
+  explicit null/empty numeric values before they can collapse to nil. Typed
+  decoder failures are correlated with node line metadata and reported with
+  exact dotted paths and sequence indexes.
+- Configured execution timeouts and output caps are positive-only. So are
+  notification attempts/caps, queue workers, and retention operation caps.
+  Retention ages, recent-run/minimum-size values, and notification retry delay
+  are deliberately nonnegative because zero already has a valid disabled/none
+  policy meaning. Omission alone retains the caller's existing/default value.
+- Seconds are decoded as `int64` and must not exceed the largest whole-second
+  value whose multiplication by `time.Second` fits in `time.Duration`.
+  Component-specific upper policy bounds, such as notification timeout and
+  retry limits, remain separate and unchanged.
+- Effective configuration fingerprints continue to derive only from normalized
+  effective behavior. YAML markers and comments cannot affect them; valid
+  pre-existing numeric values retain the same projection and hash. Only files
+  that relied on a formerly ignored invalid value change from success to a
+  field-specific failure.
+
+## AUD-11 Harness Runtime Path Trust Contract (2026-07-13)
+
+- The caller's repository root is resolved to one canonical directory before
+  runtime-path work begins. That root is the trust boundary. Every existing
+  component below it is examined with `Lstat`; harness-owned directories may
+  not be symlinks, non-directories, or group/world writable. Missing directory
+  components are created and revalidated one at a time rather than delegated
+  to a path-following recursive create.
+- A protected runtime file may be absent only at an explicit creation boundary.
+  If present, it must be a regular non-symlink file, not group/world writable,
+  and have exactly one hard link. After a sensitive open, both descriptor and
+  named-path metadata must satisfy that contract and `os.SameFile` must prove
+  they identify the same inode before any write or `flock` authority is used.
+- Task-run immutable history, the mutable task-run checkpoint, task-run
+  `operation.lock`, and the outer `autonomous-execution.lock` all use this
+  policy. Reads are protected as well as mutations so replay/recovery cannot
+  accept evidence through an unsafe path. The queue store retains its existing
+  independent hardened implementation; AUD-11 does not begin AUD-15 storage
+  lifecycle deduplication.
+- Checkpoint persistence validates the history final before exclusive create,
+  validates the opened history descriptor before writing, and validates the
+  completed history file afterward. It validates the existing checkpoint and
+  temp file immediately before rename, then validates the checkpoint and
+  operation directory after rename before directory sync.
+- Cleanup is also a path-sensitive mutation. A checkpoint temp is unlinked only
+  when its current repository-relative path still resolves to a valid protected
+  regular file. If an ancestor was substituted, cleanup deliberately leaves
+  inspectable harness-owned residue rather than risking an outside-root unlink.
+- Diagnostics identify the first unsafe repository-relative component and do
+  not resolve or disclose a symlink target. Deterministic tests must preserve
+  an outside sentinel's directory entries, contents, permissions, and hard-link
+  count across every rejected ancestor, final-file, and rename-boundary
+  substitution.
+
+## AUD-10 Notification Cancellation Persistence Contract (2026-07-13)
+
+- A transition returns journal authority even when it returns an error. Before
+  a new immutable history entry is valid, that authority is the caller's prior
+  journal. After the complete next history entry is visible, that entry is the
+  newer authority even if checkpoint replacement or a later sync reports an
+  error. A known-good journal may never be replaced by a zero value merely to
+  report persistence failure.
+- Immutable transition history remains ordered before the mutable
+  `journal.json` checkpoint. Write, file-sync, or close failure before a new
+  history file is complete removes that file and syncs the removal, leaving the
+  prior transition authoritative. Once complete history exists, reconciliation
+  derives the journal from history; a checkpoint that is absent or behind is a
+  recoverable cache, not authority to discard the transition.
+- Every delivery cancellation path attempts a bounded resumable transition
+  while still holding the delivery lock. Transition errors are joined with the
+  original cancellation so both remain inspectable. With no persistence error,
+  the original cancellation value is returned unchanged. Hook cancellation
+  preserves caller deadline cancellation when present and otherwise retains
+  the established `context.Canceled` behavior.
+- Persistence failures are reconciled synchronously under the same delivery
+  lock. The returned journal must equal either the exact prior journal or the
+  exact next journal reconstructed from immutable history; any other observed
+  sequence, identity, or stage is an additional reconciliation error rather
+  than inferred state.
+- Restart tests inspect immutable history and the raw mutable checkpoint
+  separately before invoking delivery again. A restart may therefore observe
+  the prior state or the complete transition according to the failed boundary,
+  but it may not invent a transition absent from history or lose an attempt
+  already present in history.
+
+## AUD-09 Literal Git Staging Contract (2026-07-13)
+
+- Repository paths supplied by machine evidence are opaque exact filenames,
+  not user-authored Git pathspecs. Every production staging command that
+  carries such a list uses the global `--literal-pathspecs` option before
+  `add`, followed by `--` before the paths. The contract covers the primary
+  commit gate, autonomous archive commits, and restored-task recovery staging.
+- `--` remains necessary to end option parsing but is not treated as protection
+  from colon magic or wildcard expansion. Conversely, pathless whole-tree
+  staging such as `git add -A` needs no literal-pathspec mode because there is
+  no generated path argument to interpret.
+- Exact path normalization may remove only the impossible empty Git filename
+  and exact duplicates, then sort bytewise for deterministic evidence. It may
+  not trim, normalize, reject, or encode legal whitespace, control-byte,
+  leading-dash, colon-leading, wildcard-looking, or non-UTF-8 names merely to
+  simplify staging.
+- Deletions are staged by passing the deleted path. Rename evidence carries
+  both the source and destination, and literal add stages both sides. Recovery
+  code that inspects recorded commands must account for the global option when
+  identifying the `add` subcommand.
+- Real-Git tests are authoritative for this boundary. They inspect the index
+  and cached changed-path set after the production add but before commit, then
+  compare the committed tree to that exact expected set. Matching files that
+  were not in the captured machine list must remain outside the index.
+
+## AUD-08 Complete Git-Status Evidence Contract (2026-07-13)
+
+- Every authoritative dirty/changed capture uses porcelain v1 with `-z` and
+  `--untracked-files=all`. Human short-status output is not parsed. Each record
+  is exactly two status bytes, one separator, and an arbitrary non-NUL path;
+  rename/copy records contain the destination followed by a separate NUL-
+  delimited source path, matching Git's reversed `-z` field order.
+- The parser accepts Git's documented v1 status alphabet, preserves filename
+  bytes in Go strings without UTF-8 normalization or whitespace trimming,
+  rejects malformed, empty, unterminated, or incomplete rename/copy fields,
+  and derives a unique byte-sorted set containing both sides of a rename/copy.
+- A status capture is authoritative only when the runner completed without
+  error, timeout, nonzero exit, stdout truncation, or stderr truncation and the
+  entire NUL stream parsed successfully. Otherwise `CaptureError` is required,
+  the bounded stdout/stderr previews and truncation counts are diagnostic only,
+  and no entry/path/dirty/changed collection may be populated.
+- Git output caps remain real integrity bounds, not values to bypass. A status
+  larger than the configured cap fails clearly and makes no mutation; callers
+  may configure a larger finite cap to obtain a complete set. Raising a cap
+  never converts a truncated prefix into evidence.
+- Preflight, direct runs, autonomous cycles/corrections, workspace operations,
+  and commit already gate on `CaptureError`; commit additionally suppresses
+  path lists from erroneous captures before any HEAD lookup or mutation.
+  Autonomous archive now treats truncation as command failure too, including
+  status admission and parsed HEAD/diff/show results. This closes alternate
+  staging, checkpoint, and completion paths around the canonical capture.
+- AUD-08 governs completeness and unambiguous status parsing. Literal Git
+  pathspec semantics for the complete machine-generated path set remain the
+  separate AUD-09 task.
+
+## AUD-07 Atomic Last-Message Publication Contract (2026-07-13)
+
+- The canonical last-message artifact is parent-owned. Codex receives only a
+  deterministic same-directory raw staging path, precreated as `0600`; public
+  artifact metadata continues to name the canonical path. `PrepareInvocation`
+  includes the staging path in argv so precomputed provenance remains exactly
+  equal to the command that actually runs.
+- The recognized per-canonical recovery set is the canonical file plus hidden
+  raw and redacted temporary siblings. Invocation preparation removes all
+  three, syncs the directory when anything was removed, and creates a new
+  empty raw staging file. Thus a restart cannot consume stale raw content or
+  publish an abandoned redacted temporary.
+- Publication accepts only a regular, non-symlink raw staging file with no
+  group/world permissions. Nonempty bytes are redacted as one complete value
+  before any canonical publication. The parent writes a new `0600` temporary,
+  changes it to the established `0644` artifact mode only after safe content
+  is present, syncs and closes it, and atomically renames it to canonical.
+- After rename, the raw staging file is removed, the canonical regular-file
+  type and exact mode are verified, and the parent directory is synced.
+  Handled failures clean both temporary siblings and sync their removal. A
+  directory-sync failure after rename may leave canonical output visible, but
+  those bytes have already passed redaction; unredacted canonical output is
+  prohibited at every boundary.
+- A missing or zero-byte child result is missing output and publishes no
+  canonical file. Returned parsing remains `TrimSpace`. With no configured
+  redactor, exact child bytes are preserved in the canonical artifact; with a
+  redactor, successful nonempty output retains the prior trimmed content plus
+  final newline. The restricted raw temporary may contain live secrets, which
+  is the explicit privileged-actor non-goal from AUD-07.
+
+## AUD-06 Streaming Codex Metrics Contract (2026-07-13)
+
+- The authoritative Codex JSONL artifact is parsed incrementally through
+  `jsonl.ReadRecords`; production metrics extraction may not load or cap the
+  total artifact. Reads use a fixed 32 KiB buffer and retain at most one record
+  under the shared 1 MiB `jsonl.MaxRecordBytes` contract.
+- `receipt.ParseCodexUsageMetricsReader` is the single metrics parser.
+  Byte-slice and owned-file entry points delegate to it, as do reader/file
+  receipt rewrite entry points. Codex execution, mixed-pass receipt parsing,
+  and autonomous worker receipt parsing use the owned-file path.
+- The owned-file path closes on every return. While parsing, cancellation also
+  closes the descriptor to interrupt a blocked read; context cancellation is
+  checked again before every delivered record so a large pipe chunk cannot
+  postpone cancellation across multiple records.
+- Malformed records are scanned through so diagnostics can report their count
+  and partial observed totals, but any malformed record makes metrics
+  incomplete. Callers may inspect those partial totals but must not publish or
+  rewrite receipt metrics from them. `MalformedCodexJSONLError` names the first
+  record/count without retaining record content.
+- Numeric conversion uses `json.Number` and checked integer conversion.
+  Individual values and aggregate additions that exceed native receipt integer
+  range fail with `CodexUsageOverflowError`, naming the record and field.
+  Silent float conversion or integer wraparound is prohibited.
+- A record beyond 1 MiB retains the AUD-05 `jsonl.ErrRecordTooLarge` identity.
+  File open/read/close failures are separately typed as
+  `ErrCodexJSONLSource`. In Codex results only source failures are artifact
+  failures; cancellation or invalid/incomplete optional metrics are parse
+  diagnostics. Neither category modifies the authoritative artifact.
+- Receipt rewrite is fail-preserving: if metrics are malformed, oversized,
+  overflowed, canceled, or unreadable, it returns the original receipt bytes
+  and parsed receipt with `changed=false` plus the diagnostic. It never writes
+  partial totals or requires truncating the audit stream.
+
+## AUD-05 Authoritative JSONL Record Contract (2026-07-13)
+
+- Runner stdout has three independent consumers: the bounded in-memory result,
+  an optional bounded line preview, and an optional authoritative byte writer.
+  A preview limit or capture cap never transforms bytes delivered to the
+  authoritative writer, and authoritative writer errors retain their identity
+  through the command result.
+- Human line previews are limited to 64 KiB including the literal
+  ` [line truncated]` marker. An oversized logical line produces exactly one
+  preview; bytes through its delimiter are discarded only from the preview,
+  after which preview processing resumes at the next logical line.
+- `internal/jsonl.MaxRecordBytes` is the shared hard machine-record limit:
+  1 MiB excluding the newline delimiter. Complete records at that limit are
+  accepted. An additional byte yields typed `ErrRecordTooLarge` and
+  `RecordTooLargeError` evidence naming only the record number and limit; the
+  incomplete record is never delivered to a persistence callback.
+- JSONL records are reconstructed from raw bytes before conversion to text.
+  Newlines delimit records regardless of pipe chunking, and a nonempty final
+  record without a newline is emitted on close. This preserves split UTF-8 and
+  gives AUD-06 one record-size contract to reuse for streaming metrics.
+- Codex artifacts redact each complete record before writing and parsing it.
+  Redaction therefore spans arbitrary read chunks, while malformed records are
+  retained whole and reported through the existing parse-error evidence.
+  Durable output uses a canonical trailing newline for every delivered record.
+- A record-limit or artifact-writer failure is both an invocation error and an
+  artifact error. Earlier complete records may remain as valid JSONL, but no
+  prefix of the rejected record may masquerade as a record.
+
+## AUD-04 Live Ledger Read Contract (2026-07-13)
+
+- A raw SQLite ledger path is live evidence and must be opened through
+  `OpenLiveReadOnly` with `mode=ro`, query-only enforcement, and ordinary
+  SQLite locking/change detection. `immutable=1` is never valid for that API.
+- Frozen immutable evidence is the verified ledger export and replay format.
+  No raw SQLite immutable mode is retained because the repository has no raw
+  database-copy boundary that proves database and sidecar stability for an
+  entire connection lifetime.
+- Any projection combining runs and events owns one read transaction. This
+  includes full snapshots, per-task dossier history, and one-run history; a
+  caller never combines rows from different committed database versions.
+- Live-reader contention retains a five-second maximum but divides it into
+  short driver busy intervals with context-aware retry. Cancellation returns
+  joined context and SQLite busy evidence instead of remaining inside one
+  uninterruptible busy handler.
+- Read-only store mutation methods fail at the abstraction boundary with
+  `ErrReadOnly`. They do not initialize schema, create directories or
+  sidecars, invoke a writer clock, or attempt SQL mutation.
+- In WAL mode, safe ordinary locking may update transient reader marks in an
+  already-existing in-process `-shm` index. Those coordination marks are not
+  durable ledger content. Live reads may not create, resize, replace, or chmod
+  that sidecar and may not modify the database or WAL bytes; disabling locks to
+  suppress shared-memory coordination is prohibited.
+
+## AUD-03 Process-Tree Lifecycle Boundary (2026-07-13)
+
+- Production commands execute inside a dedicated process group on supported
+  Unix platforms. The group ID is the launched process ID captured at start;
+  cancellation targets that group rather than a mutable ambient process
+  relationship.
+- Cancellation first sends `SIGTERM`, observes group liveness for the bounded
+  command grace period, and sends `SIGKILL` to the same group if any member
+  remains. Runner return joins the termination monitor, so descendants cannot
+  retain worktree mutation authority after cancellation is reported.
+- `exec.Cmd.WaitDelay` remains the pipe-draining bound. Cancellation and timeout
+  classification, nonzero process exits, bounded output, and graceful output
+  retain their existing caller-facing semantics.
+- Non-Unix platforms without an implemented tree primitive fail closed with
+  `ErrProcessTreeUnsupported` before starting a command. Direct-child killing
+  is not represented as equivalent process-tree ownership.
+- Process grouping is a lifecycle guarantee for ordinary descendants, not a
+  sandbox or defense against a hostile child deliberately escaping its process
+  group.
+
+## AUD-02 Source-Writer Ownership Guard (2026-07-13)
+
+- Source-writer ownership is an active operation invariant, not a best-effort
+  background refresh. A shared guard monitors the lease, serializes heartbeat
+  calls, retains the first ownership failure, and cancels the operation context
+  so model and verification work stop promptly.
+- Heartbeat failures and synchronous boundary-check failures are typed as
+  ownership loss while preserving the underlying expiry, replacement-token, or
+  persistence error. If cancellation, an operation failure, heartbeat failure,
+  and release failure coincide, joined errors retain every applicable cause.
+- Direct and autonomous execution synchronously recheck ownership before and
+  after sensitive verification, source-transition, commit, and terminal
+  publication boundaries. Autonomous ownership loss is unsafe for checkpoint
+  or completion advancement and therefore returns a source-changed result.
+- A lease whose recorded expiry has passed cannot be revived or released as
+  current ownership. Replacement requires a fresh acquisition under the
+  existing source-lock protocol.
+- Monitor shutdown stops and joins the heartbeat loop before release. Healthy
+  closure is silent, bounded, and releases exactly once.
+
+## AUD-01 Ignored Source Evidence Policy (2026-07-13)
+
+- Ignored repository state is denied by default because it cannot be replayed
+  from the verified commit. Source capture inventories ignored entries with
+  Git's NUL-delimited machine output, uses `Lstat` only for type
+  classification, and reports relative quoted paths/types without file bytes
+  or symlink targets.
+- Harness-owned ignored state requires explicit caller authority and is limited
+  to safe `.revolvr` directory/regular-file records in a control repository.
+  Per-task execution worktrees never receive that allowance. `.git` internals
+  remain Git-owned and outside ordinary source enumeration.
+- `.revolvr` is not excluded by pathname from tracked or nonignored source.
+  This distinction prevents user-controlled source from inheriting harness
+  classification merely by choosing a runtime-looking name.
+- Every autonomous source snapshot is an enforcement boundary. Admission,
+  worker completion, verification completion, post-commit capture, workspace
+  reopen/checkpoint, and final completion revalidation all refuse unexplained
+  ignored state using the same typed error.
+- Policy source identity normalizes regular-file mode to executable bits so a
+  clean checkout with a different umask reproduces the same verified content
+  identity. Full snapshot comparison retains the complete observed mode for
+  race and mutation detection.
+
 ## AW-31 Bounded Parallel Queue Workers (2026-07-12)
 
 - Queue concurrency policy is strict `autonomous-queue-policy-v1`, included in

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +35,7 @@ const (
 	KindRenamed   ChangeKind = "renamed"
 	KindCopied    ChangeKind = "copied"
 	KindUntracked ChangeKind = "untracked"
+	KindIgnored   ChangeKind = "ignored"
 	KindOther     ChangeKind = "other"
 )
 
@@ -88,15 +88,45 @@ func CaptureChangedFiles(ctx context.Context, cfg Config) (Capture, error) {
 	return capture, nil
 }
 
-func ParseShortStatus(status string) []Entry {
-	entries := []Entry{}
-	for _, line := range strings.Split(status, "\n") {
-		entry, ok := parseShortStatusLine(line)
-		if ok {
-			entries = append(entries, entry)
-		}
+// ParsePorcelainV1Z parses `git status --porcelain=v1 -z` output. Paths are
+// retained as arbitrary non-NUL byte strings; in rename/copy records Git emits
+// the destination first and the source in the following NUL-delimited field.
+func ParsePorcelainV1Z(status string) ([]Entry, error) {
+	if status == "" {
+		return nil, nil
 	}
-	return entries
+	entries := make([]Entry, 0, strings.Count(status, "\x00"))
+	for offset := 0; offset < len(status); {
+		record, next, err := nextStatusField(status, offset)
+		if err != nil {
+			return nil, err
+		}
+		offset = next
+		if len(record) < 4 || record[2] != ' ' {
+			return nil, errors.New("git status porcelain v1 -z: malformed status record")
+		}
+		statusCode := record[:2]
+		if !validStatusCode(statusCode) {
+			return nil, fmt.Errorf("git status porcelain v1 -z: invalid status code %q", statusCode)
+		}
+		entry := Entry{Status: statusCode, Kind: classifyStatus(statusCode), Path: record[3:]}
+		if entry.Path == "" {
+			return nil, errors.New("git status porcelain v1 -z: empty path")
+		}
+		if entry.Kind == KindRenamed || entry.Kind == KindCopied {
+			oldPath, renameNext, err := nextStatusField(status, offset)
+			if err != nil {
+				return nil, errors.New("git status porcelain v1 -z: incomplete rename/copy record")
+			}
+			if oldPath == "" {
+				return nil, errors.New("git status porcelain v1 -z: empty rename/copy source path")
+			}
+			entry.OldPath = oldPath
+			offset = renameNext
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }
 
 func PathsFromEntries(entries []Entry) []string {
@@ -131,18 +161,15 @@ func captureStatus(ctx context.Context, cfg Config, kind CaptureKind) (Capture, 
 
 	result := cfg.CommandRunner(ctx, runner.Command{
 		Name:        cfg.GitExecutable,
-		Args:        []string{"status", "--short", "--untracked-files=all"},
+		Args:        []string{"status", "--porcelain=v1", "-z", "--untracked-files=all"},
 		Dir:         workDir,
 		Timeout:     cfg.Timeout,
 		StdoutLimit: cfg.StdoutCap,
 		StderrLimit: cfg.StderrCap,
 	})
 
-	entries := ParseShortStatus(result.Stdout)
 	capture := Capture{
 		Kind:                 kind,
-		Paths:                PathsFromEntries(entries),
-		Entries:              entries,
 		RawStatus:            result.Stdout,
 		ExitCode:             result.ExitCode,
 		TimedOut:             result.TimedOut,
@@ -151,6 +178,16 @@ func captureStatus(ctx context.Context, cfg Config, kind CaptureKind) (Capture, 
 		StderrTruncatedBytes: result.StderrTruncatedBytes,
 	}
 	capture.CaptureError = captureError(result)
+	if capture.CaptureError != "" {
+		return capture, nil
+	}
+	entries, err := ParsePorcelainV1Z(result.Stdout)
+	if err != nil {
+		capture.CaptureError = err.Error()
+		return capture, nil
+	}
+	capture.Entries = entries
+	capture.Paths = PathsFromEntries(entries)
 	return capture, nil
 }
 
@@ -178,55 +215,59 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 }
 
 func captureError(result runner.Result) string {
+	parts := make([]string, 0, 4)
 	if result.Err != nil {
-		if result.ExitCode != 0 {
-			return fmt.Sprintf("%v (exit code %d)", result.Err, result.ExitCode)
-		}
-		return result.Err.Error()
+		parts = append(parts, result.Err.Error())
+	}
+	if result.TimedOut {
+		parts = append(parts, "git status timed out")
 	}
 	if result.ExitCode != 0 {
-		return fmt.Sprintf("git status exited with code %d", result.ExitCode)
+		parts = append(parts, fmt.Sprintf("git status exited with code %d", result.ExitCode))
 	}
-	return ""
+	if result.StdoutTruncatedBytes != 0 || result.StderrTruncatedBytes != 0 {
+		parts = append(parts, fmt.Sprintf(
+			"git status output was truncated (stdout=%d bytes, stderr=%d bytes)",
+			result.StdoutTruncatedBytes,
+			result.StderrTruncatedBytes,
+		))
+	}
+	return strings.Join(parts, "; ")
 }
 
-func parseShortStatusLine(line string) (Entry, bool) {
-	if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "## ") {
-		return Entry{}, false
+func nextStatusField(status string, offset int) (string, int, error) {
+	if offset >= len(status) {
+		return "", offset, errors.New("git status porcelain v1 -z: missing NUL-delimited field")
 	}
-	if len(line) < 3 {
-		return Entry{}, false
+	relative := strings.IndexByte(status[offset:], 0)
+	if relative < 0 {
+		return "", offset, errors.New("git status porcelain v1 -z: unterminated field")
 	}
+	end := offset + relative
+	return status[offset:end], end + 1, nil
+}
 
-	status := line[:2]
-	pathPart := strings.TrimSpace(line[2:])
-	if pathPart == "" {
-		return Entry{}, false
+func validStatusCode(status string) bool {
+	if len(status) != 2 || status == "  " {
+		return false
 	}
-
-	kind := classifyStatus(status)
-	entry := Entry{
-		Status: status,
-		Kind:   kind,
-	}
-
-	if kind == KindRenamed || kind == KindCopied {
-		oldPath, newPath, ok := splitRenamePaths(pathPart)
-		if ok {
-			entry.OldPath = parseStatusPath(oldPath)
-			entry.Path = parseStatusPath(newPath)
-			return entry, entry.OldPath != "" || entry.Path != ""
+	for _, code := range []byte(status) {
+		if !strings.ContainsRune(" MTADRCU?!", rune(code)) {
+			return false
 		}
 	}
-
-	entry.Path = parseStatusPath(pathPart)
-	return entry, entry.Path != ""
+	if strings.ContainsAny(status, "?!") {
+		return status == "??" || status == "!!"
+	}
+	return true
 }
 
 func classifyStatus(status string) ChangeKind {
 	switch {
 	case strings.Contains(status, "?"):
 		return KindUntracked
+	case strings.Contains(status, "!"):
+		return KindIgnored
 	case strings.Contains(status, "R"):
 		return KindRenamed
 	case strings.Contains(status, "C"):
@@ -240,44 +281,6 @@ func classifyStatus(status string) ChangeKind {
 	default:
 		return KindOther
 	}
-}
-
-func splitRenamePaths(pathPart string) (string, string, bool) {
-	inQuote := false
-	escaped := false
-	for i := 0; i < len(pathPart); i++ {
-		switch pathPart[i] {
-		case '\\':
-			if inQuote {
-				escaped = !escaped
-				continue
-			}
-		case '"':
-			if inQuote && escaped {
-				escaped = false
-				continue
-			}
-			inQuote = !inQuote
-		default:
-			escaped = false
-		}
-
-		if !inQuote && strings.HasPrefix(pathPart[i:], " -> ") {
-			return strings.TrimSpace(pathPart[:i]), strings.TrimSpace(pathPart[i+4:]), true
-		}
-	}
-	return "", "", false
-}
-
-func parseStatusPath(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	if unquoted, err := strconv.Unquote(raw); err == nil {
-		return unquoted
-	}
-	return raw
 }
 
 func cloneStrings(values []string) []string {

@@ -516,7 +516,7 @@ func TestSupervisorArtifactsRemainReadableAfterLedgerReopen(t *testing.T) {
 	}
 	ledgerPath := filepath.Join(fixture.root, ".revolvr", "ledger.sqlite")
 	fixture.close()
-	reopened, err := ledger.OpenReadOnly(context.Background(), ledgerPath)
+	reopened, err := ledger.OpenLiveReadOnly(context.Background(), ledgerPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -562,6 +562,7 @@ func newPassFixture(t *testing.T, runID string) passFixture {
 	runGit(t, root, "config", "user.email", "test@example.com")
 	runGit(t, root, "config", "user.name", "Test User")
 	mustWriteTestFile(t, filepath.Join(root, "tracked.txt"), []byte("baseline\n"))
+	mustWriteTestFile(t, filepath.Join(root, ".gitignore"), []byte(".revolvr/\n"))
 	mustWriteTestFile(t, filepath.Join(root, ".agent", "profiles", "supervisor.md"), []byte("Exact supervisor test profile.\nDecision only; do not edit source.\n"))
 	mustWriteTestFile(t, filepath.Join(root, ".agent", "tasks", "task-1.md"), []byte("---\nid: task-1\nstatus: pending\n---\n# Task one\n\nDo the work.\n"))
 	runGit(t, root, "add", ".")

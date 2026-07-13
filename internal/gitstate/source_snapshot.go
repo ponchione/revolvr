@@ -21,13 +21,22 @@ const (
 	PolicySourceRevisionSchemaVersion = "revolvr-policy-source-revision-v1"
 )
 
+var ErrPolicyRelevantIgnored = errors.New("policy-relevant ignored source or verification inputs are present")
+
 type SourceSnapshotConfig struct {
-	WorkingDir    string
-	GitExecutable string
-	Timeout       time.Duration
-	StdoutCap     int
-	StderrCap     int
-	CommandRunner CommandRunner
+	WorkingDir          string
+	GitExecutable       string
+	Timeout             time.Duration
+	StdoutCap           int
+	StderrCap           int
+	AllowHarnessRuntime bool
+	CommandRunner       CommandRunner
+}
+
+type ignoredSourceEntry struct {
+	Path           string
+	FileType       string
+	Classification string
 }
 
 type SourceEntry struct {
@@ -90,7 +99,7 @@ func PolicySourceRevision(snapshot SourceSnapshot) (string, error) {
 			continue
 		}
 		entries = append(entries, policySourceEntry{
-			Path: entry.Path, FileType: entry.FileType, Mode: entry.Mode,
+			Path: entry.Path, FileType: entry.FileType, Mode: policySourceMode(entry),
 			ByteSize: entry.ByteSize, SHA256: entry.SHA256,
 		})
 	}
@@ -105,9 +114,17 @@ func PolicySourceRevision(snapshot SourceSnapshot) (string, error) {
 	return fmt.Sprintf("%x", sum), nil
 }
 
+func policySourceMode(entry SourceEntry) uint32 {
+	if entry.FileType != "regular" {
+		return 0
+	}
+	return entry.Mode & 0o111
+}
+
 // CaptureSourceSnapshot captures content-sensitive repository evidence. It
-// excludes .revolvr runtime artifacts and includes every tracked path plus
-// every non-ignored untracked path.
+// includes every tracked path plus every non-ignored untracked path. Ignored
+// paths fail closed unless the caller explicitly identifies ignored .revolvr
+// state in the control repository as harness-owned runtime state.
 func CaptureSourceSnapshot(ctx context.Context, cfg SourceSnapshotConfig) (SourceSnapshot, error) {
 	cfg, workDir, err := normalizeSourceSnapshotConfig(cfg)
 	if err != nil {
@@ -140,15 +157,24 @@ func CaptureSourceSnapshot(ctx context.Context, cfg SourceSnapshotConfig) (Sourc
 	if err != nil {
 		return SourceSnapshot{}, err
 	}
+	ignoredRaw, err := runSnapshotGit(ctx, cfg, workDir, []string{"ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z", "--"})
+	if err != nil {
+		return SourceSnapshot{}, fmt.Errorf("capture source snapshot ignored paths: %w", err)
+	}
+	ignored, err := inventoryIgnoredSource(workDir, ignoredRaw, cfg.AllowHarnessRuntime)
+	if err != nil {
+		return SourceSnapshot{}, err
+	}
+	if err := rejectPolicyRelevantIgnored(ignored); err != nil {
+		return SourceSnapshot{}, err
+	}
 	for path := range index {
 		paths[path] = struct{}{}
 	}
 
 	ordered := make([]string, 0, len(paths))
 	for path := range paths {
-		if !isRuntimeArtifactPath(path) {
-			ordered = append(ordered, path)
-		}
+		ordered = append(ordered, path)
 	}
 	sort.Strings(ordered)
 
@@ -262,7 +288,7 @@ func (snapshot SourceSnapshot) Validate() error {
 	}
 	previousPath := ""
 	for i, entry := range snapshot.Entries {
-		if entry.Path == "" || isRuntimeArtifactPath(entry.Path) || filepath.IsAbs(entry.Path) || strings.HasPrefix(entry.Path, "../") {
+		if entry.Path == "" || filepath.IsAbs(entry.Path) || strings.HasPrefix(entry.Path, "../") {
 			return fmt.Errorf("validate source snapshot: entries[%d] has unsafe path %q", i, entry.Path)
 		}
 		if previousPath != "" && entry.Path <= previousPath {
@@ -384,9 +410,6 @@ func parseIndexRecords(raw string) (map[string]string, error) {
 			return nil, errors.New("capture source snapshot index: malformed git ls-files record")
 		}
 		path := record[tab+1:]
-		if isRuntimeArtifactPath(path) {
-			continue
-		}
 		if _, exists := result[path]; exists {
 			return nil, fmt.Errorf("capture source snapshot index: duplicate path %q", path)
 		}
@@ -398,7 +421,7 @@ func parseIndexRecords(raw string) (map[string]string, error) {
 func parseSnapshotPaths(raw string) (map[string]struct{}, error) {
 	result := make(map[string]struct{})
 	for _, path := range strings.Split(raw, "\x00") {
-		if path == "" || isRuntimeArtifactPath(path) {
+		if path == "" {
 			continue
 		}
 		if filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, "../") {
@@ -407,6 +430,63 @@ func parseSnapshotPaths(raw string) (map[string]struct{}, error) {
 		result[path] = struct{}{}
 	}
 	return result, nil
+}
+
+func inventoryIgnoredSource(workDir, raw string, allowHarnessRuntime bool) ([]ignoredSourceEntry, error) {
+	seen := make(map[string]struct{})
+	entries := make([]ignoredSourceEntry, 0)
+	for _, rawPath := range strings.Split(raw, "\x00") {
+		if rawPath == "" {
+			continue
+		}
+		path := filepath.ToSlash(strings.TrimSuffix(rawPath, "/"))
+		if path == "" || path == "." || filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, "../") {
+			return nil, fmt.Errorf("capture source snapshot ignored paths: unsafe path %q", rawPath)
+		}
+		if _, exists := seen[path]; exists {
+			continue
+		}
+		seen[path] = struct{}{}
+		info, err := os.Lstat(filepath.Join(workDir, filepath.FromSlash(path)))
+		if err != nil {
+			return nil, fmt.Errorf("capture source snapshot ignored path %q: %w", path, err)
+		}
+		fileType := sourceFileType(info.Mode())
+		classification := "policy_relevant"
+		if allowHarnessRuntime && isRuntimeArtifactPath(path) && fileType != "symlink" && fileType != "other" {
+			classification = "harness_runtime"
+		}
+		entries = append(entries, ignoredSourceEntry{Path: path, FileType: fileType, Classification: classification})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
+	return entries, nil
+}
+
+func rejectPolicyRelevantIgnored(entries []ignoredSourceEntry) error {
+	var descriptions []string
+	for _, entry := range entries {
+		if entry.Classification == "harness_runtime" {
+			continue
+		}
+		descriptions = append(descriptions, fmt.Sprintf("%q (%s, classification=%s)", entry.Path, entry.FileType, entry.Classification))
+	}
+	if len(descriptions) == 0 {
+		return nil
+	}
+	return fmt.Errorf("capture source snapshot: %w: %s", ErrPolicyRelevantIgnored, strings.Join(descriptions, ", "))
+}
+
+func sourceFileType(mode os.FileMode) string {
+	switch {
+	case mode.IsRegular():
+		return "regular"
+	case mode&os.ModeSymlink != 0:
+		return "symlink"
+	case mode.IsDir():
+		return "directory"
+	default:
+		return "other"
+	}
 }
 
 func captureSourceEntry(workDir, path, indexRecord string) (SourceEntry, error) {

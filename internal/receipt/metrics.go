@@ -1,22 +1,94 @@
 package receipt
 
 import (
-	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
+
+	"revolvr/internal/jsonl"
 )
 
+var (
+	ErrMalformedCodexJSONL = errors.New("receipt: malformed Codex JSONL")
+	ErrCodexUsageOverflow  = errors.New("receipt: Codex usage metrics overflow")
+	ErrCodexJSONLSource    = errors.New("receipt: Codex JSONL source failure")
+)
+
+type MalformedCodexJSONLError struct {
+	FirstRecord int
+	Count       int
+	Cause       error
+}
+
+func (e *MalformedCodexJSONLError) Error() string {
+	return fmt.Sprintf("receipt: parse Codex JSONL record %d (%d malformed record(s)): %v", e.FirstRecord, e.Count, e.Cause)
+}
+
+func (e *MalformedCodexJSONLError) Unwrap() []error {
+	return []error{ErrMalformedCodexJSONL, e.Cause}
+}
+
+type CodexUsageOverflowError struct {
+	Record int
+	Field  string
+}
+
+func (e *CodexUsageOverflowError) Error() string {
+	return fmt.Sprintf("receipt: Codex usage metrics overflow at record %d field %s", e.Record, e.Field)
+}
+
+func (e *CodexUsageOverflowError) Unwrap() error {
+	return ErrCodexUsageOverflow
+}
+
+type CodexJSONLSourceError struct {
+	Operation string
+	Path      string
+	Cause     error
+}
+
+func (e *CodexJSONLSourceError) Error() string {
+	if e.Path == "" {
+		return fmt.Sprintf("receipt: %s Codex JSONL metrics source: %v", e.Operation, e.Cause)
+	}
+	return fmt.Sprintf("receipt: %s Codex JSONL metrics source %s: %v", e.Operation, e.Path, e.Cause)
+}
+
+func (e *CodexJSONLSourceError) Unwrap() []error {
+	return []error{ErrCodexJSONLSource, e.Cause}
+}
+
 func RewriteMetricsFromCodexJSONL(content []byte, jsonl []byte) ([]byte, Receipt, bool, error) {
-	metrics, found, err := ParseCodexUsageMetrics(jsonl)
-	if err != nil {
-		return nil, Receipt{}, false, err
+	return RewriteMetricsFromCodexJSONLReader(context.Background(), content, bytes.NewReader(jsonl))
+}
+
+func RewriteMetricsFromCodexJSONLReader(ctx context.Context, content []byte, reader io.Reader) ([]byte, Receipt, bool, error) {
+	metrics, found, err := ParseCodexUsageMetricsReader(ctx, reader)
+	return rewriteMetricsFromCodexUsage(content, metrics, found, err)
+}
+
+func RewriteMetricsFromCodexJSONLFile(ctx context.Context, content []byte, path string) ([]byte, Receipt, bool, error) {
+	metrics, found, err := ParseCodexUsageMetricsFile(ctx, path)
+	return rewriteMetricsFromCodexUsage(content, metrics, found, err)
+}
+
+func rewriteMetricsFromCodexUsage(content []byte, metrics Metrics, found bool, metricsErr error) ([]byte, Receipt, bool, error) {
+	if metricsErr != nil {
+		parsed, parseErr := Parse(content)
+		if parseErr != nil {
+			return nil, Receipt{}, false, errors.Join(metricsErr, parseErr)
+		}
+		return append([]byte(nil), content...), parsed, false, metricsErr
 	}
 	if !found {
 		parsed, parseErr := Parse(content)
@@ -26,6 +98,28 @@ func RewriteMetricsFromCodexJSONL(content []byte, jsonl []byte) ([]byte, Receipt
 		return append([]byte(nil), content...), parsed, false, nil
 	}
 	return RewriteMetrics(content, metrics)
+}
+
+func ParseCodexUsageMetrics(jsonl []byte) (Metrics, bool, error) {
+	return ParseCodexUsageMetricsReader(context.Background(), bytes.NewReader(jsonl))
+}
+
+func ParseCodexUsageMetricsFile(ctx context.Context, path string) (Metrics, bool, error) {
+	if ctx == nil {
+		return Metrics{}, false, errors.New("receipt: parse Codex usage metrics: context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return Metrics{}, false, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return Metrics{}, false, &CodexJSONLSourceError{Operation: "open", Path: path, Cause: err}
+	}
+	metrics, found, parseErr := parseCodexUsageMetricsReadCloser(ctx, file)
+	if parseErr == nil || isCodexMetricsDiagnostic(parseErr) {
+		return metrics, found, parseErr
+	}
+	return Metrics{}, false, &CodexJSONLSourceError{Operation: "read", Path: path, Cause: parseErr}
 }
 
 func RewriteMetrics(content []byte, metrics Metrics) ([]byte, Receipt, bool, error) {
@@ -90,52 +184,132 @@ func RewriteMetrics(content []byte, metrics Metrics) ([]byte, Receipt, bool, err
 	return updated.Bytes(), reparsed, true, nil
 }
 
-func ParseCodexUsageMetrics(jsonl []byte) (Metrics, bool, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(jsonl))
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-
+func ParseCodexUsageMetricsReader(ctx context.Context, reader io.Reader) (Metrics, bool, error) {
 	total := Metrics{}
 	found := false
-	var firstParseErr error
-	lineNumber := 0
-	for scanner.Scan() {
-		lineNumber++
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+	malformedCount := 0
+	firstMalformedRecord := 0
+	var firstMalformedCause error
+	err := jsonl.ReadRecords(ctx, reader, func(recordNumber int, record []byte) error {
+		record = bytes.TrimSpace(record)
+		if len(record) == 0 {
+			return nil
 		}
 		var event map[string]any
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			if firstParseErr == nil {
-				firstParseErr = fmt.Errorf("receipt: parse codex jsonl line %d: %w", lineNumber, err)
+		decoder := json.NewDecoder(bytes.NewReader(record))
+		decoder.UseNumber()
+		if err := decoder.Decode(&event); err != nil {
+			malformedCount++
+			if firstMalformedCause == nil {
+				firstMalformedRecord = recordNumber
+				firstMalformedCause = err
 			}
-			continue
+			return nil
+		}
+		if err := requireJSONDecoderEOF(decoder); err != nil {
+			malformedCount++
+			if firstMalformedCause == nil {
+				firstMalformedRecord = recordNumber
+				firstMalformedCause = err
+			}
+			return nil
 		}
 		usage, ok := usageMap(event)
 		if !ok {
-			continue
+			return nil
 		}
-		metrics, metricsFound := metricsFromMap(usage)
+		metrics, metricsFound, err := metricsFromMap(usage)
+		if err != nil {
+			return codexUsageOverflow(recordNumber, err)
+		}
 		if !metricsFound {
-			continue
+			return nil
 		}
 		if metrics.DurationSeconds == 0 {
-			if duration, ok := durationSeconds(event); ok {
+			duration, ok, err := durationSeconds(event)
+			if err != nil {
+				return codexUsageOverflow(recordNumber, err)
+			}
+			if ok {
 				metrics.DurationSeconds = duration
 			}
 		}
-		total.InputTokens += metrics.InputTokens
-		total.OutputTokens += metrics.OutputTokens
-		total.DurationSeconds += metrics.DurationSeconds
+		if total.InputTokens, ok = addMetricValue(total.InputTokens, metrics.InputTokens); !ok {
+			return &CodexUsageOverflowError{Record: recordNumber, Field: "input_tokens"}
+		}
+		if total.OutputTokens, ok = addMetricValue(total.OutputTokens, metrics.OutputTokens); !ok {
+			return &CodexUsageOverflowError{Record: recordNumber, Field: "output_tokens"}
+		}
+		if total.DurationSeconds, ok = addMetricValue(total.DurationSeconds, metrics.DurationSeconds); !ok {
+			return &CodexUsageOverflowError{Record: recordNumber, Field: "duration_seconds"}
+		}
 		found = true
+		return nil
+	})
+	if err != nil {
+		return Metrics{}, false, fmt.Errorf("receipt: parse Codex JSONL metrics: %w", err)
 	}
-	if err := scanner.Err(); err != nil && err != io.EOF {
-		return Metrics{}, false, fmt.Errorf("receipt: read codex jsonl: %w", err)
-	}
-	if !found && firstParseErr != nil {
-		return Metrics{}, false, firstParseErr
+	if malformedCount > 0 {
+		return total, found, &MalformedCodexJSONLError{FirstRecord: firstMalformedRecord, Count: malformedCount, Cause: firstMalformedCause}
 	}
 	return total, found, nil
+}
+
+func parseCodexUsageMetricsReadCloser(ctx context.Context, reader io.ReadCloser) (Metrics, bool, error) {
+	var closeOnce sync.Once
+	var closeErr error
+	closeReader := func() {
+		closeOnce.Do(func() {
+			closeErr = reader.Close()
+		})
+	}
+
+	stopWatcher := make(chan struct{})
+	watcherDone := make(chan struct{})
+	if ctx.Done() == nil {
+		close(watcherDone)
+	} else {
+		go func() {
+			defer close(watcherDone)
+			select {
+			case <-ctx.Done():
+				closeReader()
+			case <-stopWatcher:
+			}
+		}()
+	}
+
+	metrics, found, parseErr := ParseCodexUsageMetricsReader(ctx, reader)
+	close(stopWatcher)
+	closeReader()
+	<-watcherDone
+	if parseErr != nil {
+		return metrics, found, parseErr
+	}
+	if closeErr != nil {
+		return Metrics{}, false, closeErr
+	}
+	return metrics, found, nil
+}
+
+func isCodexMetricsDiagnostic(err error) bool {
+	return errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, ErrMalformedCodexJSONL) ||
+		errors.Is(err, ErrCodexUsageOverflow) ||
+		errors.Is(err, jsonl.ErrRecordTooLarge)
+}
+
+func requireJSONDecoderEOF(decoder *json.Decoder) error {
+	var extra any
+	err := decoder.Decode(&extra)
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	if err == nil {
+		return errors.New("multiple JSON values in one record")
+	}
+	return err
 }
 
 func setYAMLInt(mapping *yaml.Node, key string, value int) {
@@ -208,75 +382,258 @@ func isUsageKey(key string) bool {
 	return false
 }
 
-func metricsFromMap(values map[string]any) (Metrics, bool) {
-	input, inputOK := firstInt(values, "input_tokens", "prompt_tokens", "total_input_tokens")
-	output, outputOK := firstInt(values, "output_tokens", "completion_tokens", "total_output_tokens")
-	duration, durationOK := durationSeconds(values)
+func metricsFromMap(values map[string]any) (Metrics, bool, error) {
+	input, inputOK, err := firstInt(values, "input_tokens", "prompt_tokens", "total_input_tokens")
+	if err != nil {
+		return Metrics{}, false, err
+	}
+	output, outputOK, err := firstInt(values, "output_tokens", "completion_tokens", "total_output_tokens")
+	if err != nil {
+		return Metrics{}, false, err
+	}
+	duration, durationOK, err := durationSeconds(values)
+	if err != nil {
+		return Metrics{}, false, err
+	}
 	return Metrics{
 		InputTokens:     input,
 		OutputTokens:    output,
 		DurationSeconds: duration,
-	}, inputOK || outputOK || durationOK
+	}, inputOK || outputOK || durationOK, nil
 }
 
 func hasUsageFields(values map[string]any) bool {
-	_, inputOK := firstInt(values, "input_tokens", "prompt_tokens", "total_input_tokens")
-	_, outputOK := firstInt(values, "output_tokens", "completion_tokens", "total_output_tokens")
-	_, durationOK := durationSeconds(values)
-	return inputOK || outputOK || durationOK
+	for _, key := range []string{
+		"input_tokens", "prompt_tokens", "total_input_tokens",
+		"output_tokens", "completion_tokens", "total_output_tokens",
+		"duration_seconds", "duration_secs", "elapsed_seconds",
+		"duration_ms", "elapsed_ms",
+	} {
+		if _, ok := values[key]; ok {
+			return true
+		}
+	}
+	return false
 }
 
-func firstInt(values map[string]any, keys ...string) (int, bool) {
+func firstInt(values map[string]any, keys ...string) (int, bool, error) {
 	for _, key := range keys {
 		if value, ok := values[key]; ok {
-			parsed, ok := numberAsFloat(value)
-			if ok {
-				return int(parsed), true
+			parsed, found, err := numberAsInt(value)
+			if err != nil {
+				return 0, false, &usageValueOverflowError{field: key}
+			}
+			if found {
+				return parsed, true, nil
 			}
 		}
 	}
-	return 0, false
+	return 0, false, nil
 }
 
-func durationSeconds(values map[string]any) (int, bool) {
+func durationSeconds(values map[string]any) (int, bool, error) {
 	for _, key := range []string{"duration_seconds", "duration_secs", "elapsed_seconds"} {
 		if value, ok := values[key]; ok {
-			seconds, ok := numberAsFloat(value)
-			if ok {
-				return int(math.Round(seconds)), true
+			seconds, found, err := numberAsRoundedInt(value, 1)
+			if err != nil {
+				return 0, false, &usageValueOverflowError{field: key}
+			}
+			if found {
+				return seconds, true, nil
 			}
 		}
 	}
 	for _, key := range []string{"duration_ms", "elapsed_ms"} {
 		if value, ok := values[key]; ok {
-			milliseconds, ok := numberAsFloat(value)
-			if ok {
-				return int(math.Round(milliseconds / 1000)), true
+			seconds, found, err := numberAsRoundedInt(value, 1000)
+			if err != nil {
+				return 0, false, &usageValueOverflowError{field: key}
+			}
+			if found {
+				return seconds, true, nil
 			}
 		}
 	}
-	return 0, false
+	return 0, false, nil
 }
 
-func numberAsFloat(value any) (float64, bool) {
+type usageValueOverflowError struct {
+	field string
+}
+
+func (e *usageValueOverflowError) Error() string {
+	return "usage field " + e.field + " exceeds integer range"
+}
+
+func codexUsageOverflow(recordNumber int, err error) error {
+	var valueErr *usageValueOverflowError
+	if errors.As(err, &valueErr) {
+		return &CodexUsageOverflowError{Record: recordNumber, Field: valueErr.field}
+	}
+	return &CodexUsageOverflowError{Record: recordNumber, Field: "unknown"}
+}
+
+func numberAsInt(value any) (int, bool, error) {
 	switch typed := value.(type) {
 	case float64:
-		return typed, true
+		return truncateFloatToInt(typed)
 	case float32:
-		return float64(typed), true
+		return truncateFloatToInt(float64(typed))
 	case int:
-		return float64(typed), true
+		return typed, true, nil
 	case int64:
-		return float64(typed), true
+		return int64ToInt(typed)
 	case json.Number:
-		parsed, err := typed.Float64()
-		return parsed, err == nil
+		return parseIntCompatibleNumber(string(typed))
 	case string:
-		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
-		return parsed, err == nil
+		return parseIntCompatibleNumber(strings.TrimSpace(typed))
 	default:
+		return 0, false, nil
+	}
+}
+
+func numberAsRoundedInt(value any, divisor float64) (int, bool, error) {
+	if divisor == 1 {
+		if text, ok := numericText(value); ok && integerSyntax(text) {
+			return parseIntCompatibleNumber(text)
+		}
+	}
+	number, found, err := numberAsFloat(value)
+	if err != nil || !found {
+		return 0, found, err
+	}
+	return roundedFloatToInt(number / divisor)
+}
+
+func numberAsFloat(value any) (float64, bool, error) {
+	switch typed := value.(type) {
+	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) {
+			return 0, false, ErrCodexUsageOverflow
+		}
+		return typed, true, nil
+	case float32:
+		return float64(typed), true, nil
+	case int:
+		return float64(typed), true, nil
+	case int64:
+		return float64(typed), true, nil
+	case json.Number:
+		return parseFloatNumber(string(typed))
+	case string:
+		return parseFloatNumber(strings.TrimSpace(typed))
+	default:
+		return 0, false, nil
+	}
+}
+
+func parseIntCompatibleNumber(value string) (int, bool, error) {
+	if value == "" {
+		return 0, false, nil
+	}
+	if integerSyntax(value) {
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			if errors.Is(err, strconv.ErrRange) {
+				return 0, false, ErrCodexUsageOverflow
+			}
+			return 0, false, nil
+		}
+		return int64ToInt(parsed)
+	}
+	parsed, found, err := parseFloatNumber(value)
+	if err != nil || !found {
+		return 0, found, err
+	}
+	return truncateFloatToInt(parsed)
+}
+
+func parseFloatNumber(value string) (float64, bool, error) {
+	if value == "" {
+		return 0, false, nil
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		if errors.Is(err, strconv.ErrRange) {
+			return 0, false, ErrCodexUsageOverflow
+		}
+		return 0, false, nil
+	}
+	if math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return 0, false, ErrCodexUsageOverflow
+	}
+	return parsed, true, nil
+}
+
+func truncateFloatToInt(value float64) (int, bool, error) {
+	return checkedFloatToInt(math.Trunc(value))
+}
+
+func roundedFloatToInt(value float64) (int, bool, error) {
+	return checkedFloatToInt(math.Round(value))
+}
+
+func checkedFloatToInt(value float64) (int, bool, error) {
+	limit := math.Ldexp(1, strconv.IntSize-1)
+	if math.IsNaN(value) || math.IsInf(value, 0) || value >= limit || value < -limit {
+		return 0, false, ErrCodexUsageOverflow
+	}
+	return int(value), true, nil
+}
+
+func int64ToInt(value int64) (int, bool, error) {
+	if strconv.IntSize == 32 && (value > int64(maxIntValue()) || value < int64(minIntValue())) {
+		return 0, false, ErrCodexUsageOverflow
+	}
+	return int(value), true, nil
+}
+
+func numericText(value any) (string, bool) {
+	switch typed := value.(type) {
+	case json.Number:
+		return string(typed), true
+	case string:
+		return strings.TrimSpace(typed), true
+	default:
+		return "", false
+	}
+}
+
+func integerSyntax(value string) bool {
+	if value == "" {
+		return false
+	}
+	start := 0
+	if value[0] == '+' || value[0] == '-' {
+		start = 1
+	}
+	if start == len(value) {
+		return false
+	}
+	for i := start; i < len(value); i++ {
+		if value[i] < '0' || value[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func addMetricValue(current, delta int) (int, bool) {
+	if delta > 0 && current > maxIntValue()-delta {
 		return 0, false
 	}
+	if delta < 0 && current < minIntValue()-delta {
+		return 0, false
+	}
+	return current + delta, true
+}
+
+func maxIntValue() int {
+	return int(^uint(0) >> 1)
+}
+
+func minIntValue() int {
+	return -maxIntValue() - 1
 }
 
 func asMap(value any) (map[string]any, bool) {

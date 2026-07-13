@@ -137,7 +137,6 @@ func Finalize(ctx context.Context, cfg Config) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
-		_ = task
 	} else {
 		d := current.State.Finalization
 		if d.OperationID != e.OperationID || d.RunID != e.FinalizationRunID || d.FrozenEvidence != frozenIdentity || d.OriginalTaskSHA256 != e.Task.SHA256 {

@@ -96,7 +96,11 @@ func PrepareInvocation(cfg InvocationConfig) (InvocationProvenance, ArtifactPath
 		ApprovalPolicy:            strings.TrimSpace(cfg.ApprovalPolicy),
 		BypassApprovalsAndSandbox: cfg.BypassApprovalsSandbox,
 	}
-	argv := buildArgs(workDir, normalized, artifacts, outputSchema)
+	invocationArtifacts := artifacts
+	if invocationArtifacts.LastMessage != "" {
+		invocationArtifacts.LastMessage = lastMessageRawPath(invocationArtifacts.LastMessage)
+	}
+	argv := buildArgs(workDir, normalized, invocationArtifacts, outputSchema)
 	return InvocationProvenance{
 		Executable:            executable,
 		Version:               strings.TrimSpace(cfg.CodexVersion),

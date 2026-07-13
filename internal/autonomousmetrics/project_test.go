@@ -148,11 +148,18 @@ func TestLiveAndVerifiedExportProjectionBytesEqualAndCorruptionRefused(t *testin
 	if _, _, err = store.CompleteRun(context.Background(), "task-run", ledger.RunCompletion{Status: ledger.StatusCompleted, Summary: "done", CompletedAt: fixed.Add(time.Second)}); err != nil {
 		t.Fatal(err)
 	}
-	live, err := store.ReadSnapshot(context.Background())
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	liveStore, err := ledger.OpenLiveReadOnly(context.Background(), filepath.Join(repo, ".revolvr", "ledger.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = store.Close(); err != nil {
+	live, err := liveStore.ReadSnapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = liveStore.Close(); err != nil {
 		t.Fatal(err)
 	}
 	exported, err := ledgerexport.Export(context.Background(), ledgerexport.ExportInput{RepositoryRoot: repo, OperationID: "export-one", ExportedAt: fixed.Add(time.Hour)})

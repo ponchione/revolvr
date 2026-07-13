@@ -330,6 +330,9 @@ func Restore(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace,
 func Cleanup(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace) (Result, error) {
 	result, err := Reopen(ctx, cfg, expected)
 	if err != nil {
+		if errors.Is(err, gitstate.ErrPolicyRelevantIgnored) {
+			return result, errors.Join(ErrCleanupRefused, err)
+		}
 		return result, err
 	}
 	n, _ := normalize(ctx, cfg)
@@ -575,14 +578,18 @@ func captureDirty(ctx context.Context, n *normalized, dir string) ([]string, err
 }
 
 func ignoredPaths(ctx context.Context, n *normalized) ([]string, error) {
-	raw, err := n.git(ctx, n.execution, "status", "--porcelain", "--ignored", "--untracked-files=all")
+	raw, err := n.git(ctx, n.execution, "status", "--porcelain=v1", "-z", "--ignored", "--untracked-files=all")
 	if err != nil {
 		return nil, err
 	}
-	var paths []string
-	for _, line := range strings.Split(raw, "\n") {
-		if strings.HasPrefix(line, "!! ") {
-			paths = append(paths, strings.TrimSpace(strings.TrimPrefix(line, "!! ")))
+	entries, err := gitstate.ParsePorcelainV1Z(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse ignored worktree status: %w", err)
+	}
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Kind == gitstate.KindIgnored {
+			paths = append(paths, entry.Path)
 		}
 	}
 	return paths, nil

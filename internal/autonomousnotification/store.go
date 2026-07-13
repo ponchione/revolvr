@@ -15,11 +15,26 @@ import (
 	"time"
 )
 
+type persistencePoint string
+
+const (
+	persistenceHistoryWrite   persistencePoint = "history_write"
+	persistenceJournalReplace persistencePoint = "journal_replace"
+	persistenceFileSync       persistencePoint = "file_sync"
+	persistenceDirectorySync  persistencePoint = "directory_sync"
+)
+
+type persistenceFault func(persistencePoint, string) error
+
 func deliveryDir(root, id string) string {
 	return filepath.Join(root, ".revolvr", "autonomous", "notifications", id)
 }
 
 func admit(dir string, intent Intent, payload []byte, now time.Time) (Journal, bool, error) {
+	return admitWithFault(dir, intent, payload, now, nil)
+}
+
+func admitWithFault(dir string, intent Intent, payload []byte, now time.Time, fault persistenceFault) (Journal, bool, error) {
 	intentRaw, _ := canonical(intent)
 	if err := publishExact(filepath.Join(dir, "intent.json"), intentRaw); err != nil {
 		return Journal{}, false, err
@@ -38,11 +53,15 @@ func admit(dir string, intent Intent, payload []byte, now time.Time) (Journal, b
 		return journal, true, nil
 	}
 	journal = Journal{SchemaVersion: JournalSchemaVersion, DeliveryID: intent.DeliveryID, Sequence: 1, Stage: StageAdmitted, Detail: "intent admitted", UpdatedAt: now}
-	journal, err = persistTransition(dir, Journal{}, journal, nil)
+	journal, err = persistTransitionWithFault(dir, Journal{}, journal, nil, fault)
 	return journal, false, err
 }
 
 func transition(dir string, current Journal, stage Stage, detail string, attempt *Attempt, now time.Time) (Journal, error) {
+	return transitionWithFault(dir, current, stage, detail, attempt, now, nil)
+}
+
+func transitionWithFault(dir string, current Journal, stage Stage, detail string, attempt *Attempt, now time.Time, fault persistenceFault) (Journal, error) {
 	next := current
 	next.Sequence++
 	next.Stage = stage
@@ -51,12 +70,16 @@ func transition(dir string, current Journal, stage Stage, detail string, attempt
 	if attempt != nil {
 		next.Attempts = append(append([]Attempt(nil), current.Attempts...), *attempt)
 	}
-	return persistTransition(dir, current, next, attempt)
+	return persistTransitionWithFault(dir, current, next, attempt, fault)
 }
 
 func persistTransition(dir string, prior, next Journal, attempt *Attempt) (Journal, error) {
+	return persistTransitionWithFault(dir, prior, next, attempt, nil)
+}
+
+func persistTransitionWithFault(dir string, prior, next Journal, attempt *Attempt, fault persistenceFault) (Journal, error) {
 	if err := validateJournal(next); err != nil {
-		return Journal{}, err
+		return prior, err
 	}
 	history := Transition{SchemaVersion: HistorySchemaVersion, DeliveryID: next.DeliveryID, Sequence: next.Sequence, Stage: next.Stage, Detail: next.Detail, CreatedAt: next.UpdatedAt}
 	if attempt != nil {
@@ -66,21 +89,36 @@ func persistTransition(dir string, prior, next Journal, attempt *Attempt) (Journ
 	historyRaw, _ := canonical(history)
 	historyDir := filepath.Join(dir, "history")
 	if err := os.MkdirAll(historyDir, 0o700); err != nil {
-		return Journal{}, err
+		return prior, err
 	}
 	historyPath := filepath.Join(historyDir, fmt.Sprintf("%020d-%s.json", next.Sequence, next.Stage))
-	if err := publishExact(historyPath, historyRaw); err != nil {
-		return Journal{}, err
+	if err := publishExactWithFault(historyPath, historyRaw, fault); err != nil {
+		return reconcileTransitionFailure(dir, prior, next, err)
 	}
 	journalRaw, _ := canonical(next)
-	if err := replaceFile(filepath.Join(dir, "journal.json"), journalRaw); err != nil {
-		return Journal{}, err
+	if err := replaceFileWithFault(filepath.Join(dir, "journal.json"), journalRaw, fault); err != nil {
+		return reconcileTransitionFailure(dir, prior, next, err)
 	}
 	observed, found, err := inspectDir(dir)
 	if err != nil || !found || observed.Sequence != next.Sequence || observed.Stage != next.Stage {
-		return Journal{}, errors.Join(err, errors.New("notification delivery: strict journal readback failed"))
+		return reconcileTransitionFailure(dir, prior, next, errors.Join(err, errors.New("notification delivery: strict journal readback failed")))
 	}
 	return observed, nil
+}
+
+func reconcileTransitionFailure(dir string, prior, next Journal, persistErr error) (Journal, error) {
+	observed, found, inspectErr := inspectDir(dir)
+	if inspectErr == nil && found {
+		switch {
+		case prior.Sequence > 0 && reflect.DeepEqual(observed, prior):
+			return observed, persistErr
+		case observed.DeliveryID == next.DeliveryID && observed.Sequence == next.Sequence && observed.Stage == next.Stage:
+			return observed, persistErr
+		default:
+			inspectErr = errors.New("notification delivery: transition failure reconciliation found unexpected authority")
+		}
+	}
+	return prior, errors.Join(persistErr, inspectErr)
 }
 
 func Inspect(repositoryRoot, deliveryID string) (Intent, Payload, Journal, bool, error) {
@@ -150,8 +188,7 @@ func List(repositoryRoot string) ([]Summary, error) {
 		if !entry.IsDir() || !safeID(entry.Name()) {
 			return nil, errors.New("notification delivery: foreign notification entry")
 		}
-		intent, payload, journal, found, readErr := Inspect(root, entry.Name())
-		_ = intent
+		_, payload, journal, found, readErr := Inspect(root, entry.Name())
 		if readErr != nil || !found {
 			return nil, readErr
 		}
@@ -287,6 +324,10 @@ func readRegular(path string, limit int64) ([]byte, error) {
 }
 
 func publishExact(path string, raw []byte) error {
+	return publishExactWithFault(path, raw, nil)
+}
+
+func publishExactWithFault(path string, raw []byte, fault persistenceFault) error {
 	if prior, err := os.ReadFile(path); err == nil {
 		if bytes.Equal(prior, raw) {
 			return nil
@@ -299,20 +340,33 @@ func publishExact(path string, raw []byte) error {
 	if err != nil {
 		return err
 	}
-	if _, err = file.Write(raw); err == nil {
+	if err = injectPersistenceFault(fault, persistenceHistoryWrite, path); err == nil {
+		_, err = file.Write(raw)
+	}
+	if err == nil {
+		err = injectPersistenceFault(fault, persistenceFileSync, path)
+	}
+	if err == nil {
 		err = file.Sync()
 	}
 	closeErr := file.Close()
-	if err == nil {
-		err = closeErr
+	err = errors.Join(err, closeErr)
+	if err != nil {
+		removeErr := os.Remove(path)
+		syncErr := syncDir(filepath.Dir(path))
+		return errors.Join(err, removeErr, syncErr)
 	}
-	if err == nil {
+	if err = injectPersistenceFault(fault, persistenceDirectorySync, filepath.Dir(path)); err == nil {
 		err = syncDir(filepath.Dir(path))
 	}
 	return err
 }
 
 func replaceFile(path string, raw []byte) error {
+	return replaceFileWithFault(path, raw, nil)
+}
+
+func replaceFileWithFault(path string, raw []byte, fault persistenceFault) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".journal-*")
 	if err != nil {
 		return err
@@ -323,19 +377,33 @@ func replaceFile(path string, raw []byte) error {
 		_, err = tmp.Write(raw)
 	}
 	if err == nil {
+		err = injectPersistenceFault(fault, persistenceFileSync, path)
+	}
+	if err == nil {
 		err = tmp.Sync()
 	}
 	closeErr := tmp.Close()
+	err = errors.Join(err, closeErr)
 	if err == nil {
-		err = closeErr
+		err = injectPersistenceFault(fault, persistenceJournalReplace, path)
 	}
 	if err == nil {
 		err = os.Rename(name, path)
 	}
 	if err == nil {
+		err = injectPersistenceFault(fault, persistenceDirectorySync, filepath.Dir(path))
+	}
+	if err == nil {
 		err = syncDir(filepath.Dir(path))
 	}
 	return err
+}
+
+func injectPersistenceFault(fault persistenceFault, point persistencePoint, path string) error {
+	if fault == nil {
+		return nil
+	}
+	return fault(point, path)
 }
 func syncDir(path string) error {
 	dir, err := os.Open(path)

@@ -15,6 +15,7 @@ import (
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousplanning"
+	"revolvr/internal/taskfile"
 )
 
 func TestLoadMissingValidMalformedWrongTaskAndUnknownFields(t *testing.T) {
@@ -270,6 +271,116 @@ func TestCommitPlanningCrashPointsLeaveRecoverableAuthoritativeState(t *testing.
 				}
 			}
 		})
+	}
+}
+
+func TestReplaceStateFaultBoundariesAndCASRecheck(t *testing.T) {
+	points := []FailurePoint{
+		FailureDuringStateWrite,
+		FailureStateFileSync,
+		FailureBeforeStateRename,
+		FailureStateRename,
+		FailureAfterStateRename,
+		FailureStateDirectorySync,
+		FailureStateReadback,
+	}
+	for _, point := range points {
+		t.Run(string(point), func(t *testing.T) {
+			repo, taskRaw := stateTestRepository(t, "task-1")
+			fired := false
+			store := openStateTestStore(t, repo, func(got FailurePoint) error {
+				if !fired && got == point {
+					fired = true
+					return errors.New("crash")
+				}
+				return nil
+			})
+			task, previous, nextRaw := prepareReplaceStateTest(t, store, repo, taskRaw)
+			if _, _, err := store.replaceState(task, previous.Expected(), nextRaw); err == nil || !fired {
+				t.Fatalf("replaceState() error=%v fired=%t", err, fired)
+			}
+
+			committedPoint := point == FailureAfterStateRename || point == FailureStateDirectorySync || point == FailureStateReadback
+			reopened := openStateTestStore(t, repo, nil)
+			current, found, err := reopened.readCurrent(task)
+			if err != nil || !found {
+				t.Fatalf("readCurrent() = %+v, %t, %v", current, found, err)
+			}
+			if gotCommitted := current.SHA256 == hashBytes(nextRaw); gotCommitted != committedPoint {
+				t.Fatalf("committed=%t at %s, want %t", gotCommitted, point, committedPoint)
+			}
+			assertNoStateTemporaryFiles(t, repo)
+
+			readback, found, err := reopened.replaceState(task, current.Expected(), nextRaw)
+			if err != nil || !found || readback.SHA256 != hashBytes(nextRaw) || readback.ByteSize != len(nextRaw) {
+				t.Fatalf("retry replaceState() = %+v, %t, %v", readback, found, err)
+			}
+		})
+	}
+
+	t.Run("locked CAS recheck", func(t *testing.T) {
+		repo, taskRaw := stateTestRepository(t, "task-1")
+		store := openStateTestStore(t, repo, nil)
+		task, previous, nextRaw := prepareReplaceStateTest(t, store, repo, taskRaw)
+		statePath := filepath.Join(repo, filepath.FromSlash(task.AutonomousStatePath))
+		mutated := false
+		store.inject = func(point FailurePoint) error {
+			if point == FailureStateFileSync && !mutated {
+				mutated = true
+				if err := os.WriteFile(statePath, nextRaw, 0o644); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if _, _, err := store.replaceState(task, previous.Expected(), nextRaw); !errors.Is(err, ErrStaleWrite) || !mutated {
+			t.Fatalf("replaceState() error=%v mutated=%t", err, mutated)
+		}
+		current, found, err := store.readCurrent(task)
+		if err != nil || !found || current.SHA256 != hashBytes(nextRaw) {
+			t.Fatalf("readCurrent() = %+v, %t, %v", current, found, err)
+		}
+		assertNoStateTemporaryFiles(t, repo)
+	})
+}
+
+func prepareReplaceStateTest(t *testing.T, store *Store, repo string, taskRaw []byte) (taskfile.Task, Snapshot, []byte) {
+	t.Helper()
+	task, err := store.canonicalTask("task-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ensureDirectory(filepath.ToSlash(filepath.Dir(task.AutonomousStatePath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	previousRaw, err := MarshalState(stateTestPendingState("task-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, filepath.FromSlash(task.AutonomousStatePath)), previousRaw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	previous, found, err := store.readCurrent(task)
+	if err != nil || !found {
+		t.Fatalf("readCurrent() = %+v, %t, %v", previous, found, err)
+	}
+	nextRaw, err := MarshalState(stateTestRequest(t, repo, taskRaw, "operation-one", "plan-one").NextState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return task, previous, nextRaw
+}
+
+func assertNoStateTemporaryFiles(t *testing.T, repo string) {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(repo, ".revolvr", "autonomous", "tasks", "task-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".tmp-") {
+			t.Fatalf("temporary file survived: %s", entry.Name())
+		}
 	}
 }
 

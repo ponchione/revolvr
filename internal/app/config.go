@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,12 +143,12 @@ type codexConfig struct {
 	ApprovalPolicy                       string  `yaml:"approval_policy"`
 	DangerouslyBypassApprovalsAndSandbox *bool   `yaml:"dangerously_bypass_approvals_and_sandbox"`
 	Yolo                                 *bool   `yaml:"yolo"`
-	TimeoutSeconds                       int     `yaml:"timeout_seconds"`
+	TimeoutSeconds                       *int64  `yaml:"timeout_seconds"`
 }
 
 type gitConfig struct {
 	Executable     string `yaml:"executable"`
-	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	TimeoutSeconds *int64 `yaml:"timeout_seconds"`
 }
 
 type verificationConfig struct {
@@ -160,10 +161,10 @@ type verificationItem struct {
 	Name           string   `yaml:"name"`
 	Args           []string `yaml:"args"`
 	Dir            string   `yaml:"dir"`
-	TimeoutSeconds int      `yaml:"timeout_seconds"`
+	TimeoutSeconds *int64   `yaml:"timeout_seconds"`
 	Env            []string `yaml:"env"`
-	StdoutCapBytes int      `yaml:"stdout_cap_bytes"`
-	StderrCapBytes int      `yaml:"stderr_cap_bytes"`
+	StdoutCapBytes *int     `yaml:"stdout_cap_bytes"`
+	StderrCapBytes *int     `yaml:"stderr_cap_bytes"`
 }
 
 type verificationTier struct {
@@ -177,20 +178,20 @@ type verificationTier struct {
 }
 
 type commitConfig struct {
-	AllowPreExistingDirty    *bool `yaml:"allow_pre_existing_dirty"`
-	AllowMissingVerification *bool `yaml:"allow_missing_verification"`
-	TimeoutSeconds           int   `yaml:"timeout_seconds"`
+	AllowPreExistingDirty    *bool  `yaml:"allow_pre_existing_dirty"`
+	AllowMissingVerification *bool  `yaml:"allow_missing_verification"`
+	TimeoutSeconds           *int64 `yaml:"timeout_seconds"`
 }
 
 type outputConfig struct {
-	CodexStdoutCapBytes        int `yaml:"codex_stdout_cap_bytes"`
-	CodexStderrCapBytes        int `yaml:"codex_stderr_cap_bytes"`
-	GitStdoutCapBytes          int `yaml:"git_stdout_cap_bytes"`
-	GitStderrCapBytes          int `yaml:"git_stderr_cap_bytes"`
-	VerificationStdoutCapBytes int `yaml:"verification_stdout_cap_bytes"`
-	VerificationStderrCapBytes int `yaml:"verification_stderr_cap_bytes"`
-	CommitStdoutCapBytes       int `yaml:"commit_stdout_cap_bytes"`
-	CommitStderrCapBytes       int `yaml:"commit_stderr_cap_bytes"`
+	CodexStdoutCapBytes        *int `yaml:"codex_stdout_cap_bytes"`
+	CodexStderrCapBytes        *int `yaml:"codex_stderr_cap_bytes"`
+	GitStdoutCapBytes          *int `yaml:"git_stdout_cap_bytes"`
+	GitStderrCapBytes          *int `yaml:"git_stderr_cap_bytes"`
+	VerificationStdoutCapBytes *int `yaml:"verification_stdout_cap_bytes"`
+	VerificationStderrCapBytes *int `yaml:"verification_stderr_cap_bytes"`
+	CommitStdoutCapBytes       *int `yaml:"commit_stdout_cap_bytes"`
+	CommitStderrCapBytes       *int `yaml:"commit_stderr_cap_bytes"`
 }
 
 func CheckRunConfig(workDir string) (RunConfigCheckResult, error) {
@@ -265,13 +266,130 @@ func LoadRunOnceConfig(workDir string, base runonce.Config) (runonce.Config, err
 }
 
 func parseFileConfig(content []byte) (fileConfig, error) {
-	var cfg fileConfig
 	decoder := yaml.NewDecoder(bytes.NewReader(content))
+	var document yaml.Node
+	if err := decoder.Decode(&document); err != nil {
+		return fileConfig{}, fmt.Errorf("decode YAML: %w", err)
+	}
+	var trailing yaml.Node
+	if err := decoder.Decode(&trailing); err == nil {
+		return fileConfig{}, errors.New("decode YAML: exactly one document is required")
+	} else if !errors.Is(err, io.EOF) {
+		return fileConfig{}, fmt.Errorf("decode trailing YAML: %w", err)
+	}
+	if field := nullNumericField(&document, ""); field != "" {
+		return fileConfig{}, fmt.Errorf("decode YAML field %s: null is not an integer", field)
+	}
+
+	var cfg fileConfig
+	decoder = yaml.NewDecoder(bytes.NewReader(content))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {
+		if field := yamlErrorField(document, err); field != "" {
+			return fileConfig{}, fmt.Errorf("decode YAML field %s: %w", field, err)
+		}
 		return fileConfig{}, fmt.Errorf("decode YAML: %w", err)
 	}
 	return cfg, nil
+}
+
+func nullNumericField(node *yaml.Node, prefix string) string {
+	if node == nil {
+		return ""
+	}
+	switch node.Kind {
+	case yaml.DocumentNode:
+		for _, child := range node.Content {
+			if field := nullNumericField(child, prefix); field != "" {
+				return field
+			}
+		}
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key, value := node.Content[i], node.Content[i+1]
+			field := key.Value
+			if prefix != "" {
+				field = prefix + "." + field
+			}
+			if value.Kind == yaml.ScalarNode && value.Tag == "!!null" && isNumericConfigName(key.Value) {
+				return field
+			}
+			if nested := nullNumericField(value, field); nested != "" {
+				return nested
+			}
+		}
+	case yaml.SequenceNode:
+		for i, child := range node.Content {
+			if field := nullNumericField(child, fmt.Sprintf("%s[%d]", prefix, i)); field != "" {
+				return field
+			}
+		}
+	}
+	return ""
+}
+
+func isNumericConfigName(name string) bool {
+	switch name {
+	case "maximum_workers",
+		"timeout_seconds", "stdout_cap_bytes", "stderr_cap_bytes", "maximum_attempts", "retry_delay_seconds",
+		"recent_run_count", "compress_after_seconds", "prune_after_seconds", "minimum_compress_bytes",
+		"max_files_per_operation", "max_bytes_per_operation", "decompression_cap_bytes",
+		"codex_stdout_cap_bytes", "codex_stderr_cap_bytes", "git_stdout_cap_bytes", "git_stderr_cap_bytes",
+		"verification_stdout_cap_bytes", "verification_stderr_cap_bytes", "commit_stdout_cap_bytes", "commit_stderr_cap_bytes":
+		return true
+	default:
+		return false
+	}
+}
+
+func yamlErrorField(document yaml.Node, err error) string {
+	var typeError *yaml.TypeError
+	if !errors.As(err, &typeError) || len(typeError.Errors) == 0 {
+		return ""
+	}
+	var line int
+	if _, scanErr := fmt.Sscanf(typeError.Errors[0], "line %d:", &line); scanErr != nil {
+		return ""
+	}
+	return yamlFieldAtLine(&document, line, "")
+}
+
+func yamlFieldAtLine(node *yaml.Node, line int, prefix string) string {
+	if node == nil {
+		return ""
+	}
+	best := ""
+	if node.Line == line {
+		best = prefix
+	}
+	choose := func(candidate string) {
+		if len(candidate) > len(best) {
+			best = candidate
+		}
+	}
+	switch node.Kind {
+	case yaml.DocumentNode:
+		for _, child := range node.Content {
+			choose(yamlFieldAtLine(child, line, prefix))
+		}
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key, value := node.Content[i], node.Content[i+1]
+			field := key.Value
+			if prefix != "" {
+				field = prefix + "." + field
+			}
+			if key.Line == line {
+				choose(field)
+			}
+			choose(yamlFieldAtLine(value, line, field))
+		}
+	case yaml.SequenceNode:
+		for i, child := range node.Content {
+			choose(yamlFieldAtLine(child, line, fmt.Sprintf("%s[%d]", prefix, i)))
+		}
+	}
+	return best
 }
 
 func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
@@ -341,15 +459,15 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	if cfg.Codex.Yolo != nil {
 		base.CodexBypassApprovalsAndSandbox = *cfg.Codex.Yolo
 	}
-	if cfg.Codex.TimeoutSeconds > 0 {
-		base.CodexTimeout = seconds(cfg.Codex.TimeoutSeconds)
+	if err := applyPositiveDuration("codex.timeout_seconds", &base.CodexTimeout, cfg.Codex.TimeoutSeconds); err != nil {
+		return runonce.Config{}, err
 	}
 
 	if value := strings.TrimSpace(cfg.Git.Executable); value != "" {
 		base.GitExecutable = value
 	}
-	if cfg.Git.TimeoutSeconds > 0 {
-		base.GitTimeout = seconds(cfg.Git.TimeoutSeconds)
+	if err := applyPositiveDuration("git.timeout_seconds", &base.GitTimeout, cfg.Git.TimeoutSeconds); err != nil {
+		return runonce.Config{}, err
 	}
 
 	if value := strings.TrimSpace(cfg.Verification.MissingPolicy); value != "" {
@@ -367,20 +485,9 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	if cfg.Verification.Commands != nil && len(*cfg.Verification.Commands) > 0 {
 		commands := make([]verification.Command, 0, len(*cfg.Verification.Commands))
 		for i, command := range *cfg.Verification.Commands {
-			name := strings.TrimSpace(command.Name)
-			if name == "" {
-				return runonce.Config{}, fmt.Errorf("verification.commands[%d].name is required", i)
-			}
-			item := verification.Command{
-				Name:      name,
-				Args:      append([]string(nil), command.Args...),
-				Dir:       strings.TrimSpace(command.Dir),
-				Env:       append([]string(nil), command.Env...),
-				StdoutCap: command.StdoutCapBytes,
-				StderrCap: command.StderrCapBytes,
-			}
-			if command.TimeoutSeconds > 0 {
-				item.Timeout = seconds(command.TimeoutSeconds)
+			item, err := command.apply(fmt.Sprintf("verification.commands[%d]", i))
+			if err != nil {
+				return runonce.Config{}, err
 			}
 			commands = append(commands, item)
 		}
@@ -391,13 +498,9 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 		for i, configured := range *cfg.Verification.Tiers {
 			commands := make([]verification.Command, 0, len(configured.Commands))
 			for j, command := range configured.Commands {
-				name := strings.TrimSpace(command.Name)
-				if name == "" {
-					return runonce.Config{}, fmt.Errorf("verification.tiers[%d].commands[%d].name is required", i, j)
-				}
-				item := verification.Command{Name: name, Args: append([]string(nil), command.Args...), Dir: strings.TrimSpace(command.Dir), Env: append([]string(nil), command.Env...), StdoutCap: command.StdoutCapBytes, StderrCap: command.StderrCapBytes}
-				if command.TimeoutSeconds > 0 {
-					item.Timeout = seconds(command.TimeoutSeconds)
+				item, err := command.apply(fmt.Sprintf("verification.tiers[%d].commands[%d]", i, j))
+				if err != nil {
+					return runonce.Config{}, err
 				}
 				commands = append(commands, item)
 			}
@@ -421,20 +524,53 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	if cfg.Commit.AllowMissingVerification != nil {
 		base.AllowMissingVerification = *cfg.Commit.AllowMissingVerification
 	}
-	if cfg.Commit.TimeoutSeconds > 0 {
-		base.CommitTimeout = seconds(cfg.Commit.TimeoutSeconds)
+	if err := applyPositiveDuration("commit.timeout_seconds", &base.CommitTimeout, cfg.Commit.TimeoutSeconds); err != nil {
+		return runonce.Config{}, err
 	}
 
-	applyPositiveInt(&base.CodexStdoutCap, cfg.Output.CodexStdoutCapBytes)
-	applyPositiveInt(&base.CodexStderrCap, cfg.Output.CodexStderrCapBytes)
-	applyPositiveInt(&base.GitStdoutCap, cfg.Output.GitStdoutCapBytes)
-	applyPositiveInt(&base.GitStderrCap, cfg.Output.GitStderrCapBytes)
-	applyPositiveInt(&base.VerificationStdoutCap, cfg.Output.VerificationStdoutCapBytes)
-	applyPositiveInt(&base.VerificationStderrCap, cfg.Output.VerificationStderrCapBytes)
-	applyPositiveInt(&base.CommitStdoutCap, cfg.Output.CommitStdoutCapBytes)
-	applyPositiveInt(&base.CommitStderrCap, cfg.Output.CommitStderrCapBytes)
+	for _, configured := range []struct {
+		field  string
+		target *int
+		value  *int
+	}{
+		{"output.codex_stdout_cap_bytes", &base.CodexStdoutCap, cfg.Output.CodexStdoutCapBytes},
+		{"output.codex_stderr_cap_bytes", &base.CodexStderrCap, cfg.Output.CodexStderrCapBytes},
+		{"output.git_stdout_cap_bytes", &base.GitStdoutCap, cfg.Output.GitStdoutCapBytes},
+		{"output.git_stderr_cap_bytes", &base.GitStderrCap, cfg.Output.GitStderrCapBytes},
+		{"output.verification_stdout_cap_bytes", &base.VerificationStdoutCap, cfg.Output.VerificationStdoutCapBytes},
+		{"output.verification_stderr_cap_bytes", &base.VerificationStderrCap, cfg.Output.VerificationStderrCapBytes},
+		{"output.commit_stdout_cap_bytes", &base.CommitStdoutCap, cfg.Output.CommitStdoutCapBytes},
+		{"output.commit_stderr_cap_bytes", &base.CommitStderrCap, cfg.Output.CommitStderrCapBytes},
+	} {
+		if err := applyPositiveInt(configured.field, configured.target, configured.value); err != nil {
+			return runonce.Config{}, err
+		}
+	}
 
 	return base, nil
+}
+
+func (command verificationItem) apply(field string) (verification.Command, error) {
+	name := strings.TrimSpace(command.Name)
+	if name == "" {
+		return verification.Command{}, fmt.Errorf("%s.name is required", field)
+	}
+	item := verification.Command{
+		Name: name,
+		Args: append([]string(nil), command.Args...),
+		Dir:  strings.TrimSpace(command.Dir),
+		Env:  append([]string(nil), command.Env...),
+	}
+	if err := applyPositiveDuration(field+".timeout_seconds", &item.Timeout, command.TimeoutSeconds); err != nil {
+		return verification.Command{}, err
+	}
+	if err := applyPositiveInt(field+".stdout_cap_bytes", &item.StdoutCap, command.StdoutCapBytes); err != nil {
+		return verification.Command{}, err
+	}
+	if err := applyPositiveInt(field+".stderr_cap_bytes", &item.StderrCap, command.StderrCapBytes); err != nil {
+		return verification.Command{}, err
+	}
+	return item, nil
 }
 
 func (cfg queueConfig) apply(base autonomousqueue.Policy) (autonomousqueue.Policy, error) {
@@ -445,6 +581,9 @@ func (cfg queueConfig) apply(base autonomousqueue.Policy) (autonomousqueue.Polic
 		base.SchemaVersion = value
 	}
 	if cfg.MaximumWorkers != nil {
+		if *cfg.MaximumWorkers <= 0 || *cfg.MaximumWorkers > autonomousqueue.MaximumWorkerLimit {
+			return autonomousqueue.Policy{}, fmt.Errorf("queue.maximum_workers must be between 1 and %d", autonomousqueue.MaximumWorkerLimit)
+		}
 		base.MaximumWorkers = *cfg.MaximumWorkers
 	}
 	if err := base.Validate(); err != nil {
@@ -481,26 +620,35 @@ func (cfg notificationConfig) apply(base autonomousnotification.Policy, redactio
 	if cfg.EnvironmentNames != nil {
 		base.EnvironmentNames = append([]string(nil), cfg.EnvironmentNames...)
 	}
-	if cfg.TimeoutSeconds != nil {
-		if *cfg.TimeoutSeconds > int64((time.Duration(1<<63-1))/time.Second) {
-			return autonomousnotification.Policy{}, errors.New("notification timeout_seconds overflows duration")
-		}
-		base.Timeout = time.Duration(*cfg.TimeoutSeconds) * time.Second
+	if err := applyPositiveDuration("notifications.timeout_seconds", &base.Timeout, cfg.TimeoutSeconds); err != nil {
+		return autonomousnotification.Policy{}, err
+	}
+	if cfg.TimeoutSeconds != nil && base.Timeout > autonomousnotification.MaxTimeout {
+		return autonomousnotification.Policy{}, fmt.Errorf("notifications.timeout_seconds must be at most %d", int64(autonomousnotification.MaxTimeout/time.Second))
 	}
 	if cfg.StdoutCapBytes != nil {
+		if *cfg.StdoutCapBytes <= 0 || *cfg.StdoutCapBytes > autonomousnotification.MaxOutputCap {
+			return autonomousnotification.Policy{}, fmt.Errorf("notifications.stdout_cap_bytes must be between 1 and %d", autonomousnotification.MaxOutputCap)
+		}
 		base.StdoutCap = *cfg.StdoutCapBytes
 	}
 	if cfg.StderrCapBytes != nil {
+		if *cfg.StderrCapBytes <= 0 || *cfg.StderrCapBytes > autonomousnotification.MaxOutputCap {
+			return autonomousnotification.Policy{}, fmt.Errorf("notifications.stderr_cap_bytes must be between 1 and %d", autonomousnotification.MaxOutputCap)
+		}
 		base.StderrCap = *cfg.StderrCapBytes
 	}
 	if cfg.MaximumAttempts != nil {
+		if *cfg.MaximumAttempts <= 0 || *cfg.MaximumAttempts > autonomousnotification.MaxAttempts {
+			return autonomousnotification.Policy{}, fmt.Errorf("notifications.maximum_attempts must be between 1 and %d", autonomousnotification.MaxAttempts)
+		}
 		base.MaximumAttempts = *cfg.MaximumAttempts
 	}
-	if cfg.RetryDelaySeconds != nil {
-		if *cfg.RetryDelaySeconds > int64((time.Duration(1<<63-1))/time.Second) {
-			return autonomousnotification.Policy{}, errors.New("notification retry_delay_seconds overflows duration")
-		}
-		base.RetryDelay = time.Duration(*cfg.RetryDelaySeconds) * time.Second
+	if err := applyNonNegativeDuration("notifications.retry_delay_seconds", &base.RetryDelay, cfg.RetryDelaySeconds); err != nil {
+		return autonomousnotification.Policy{}, err
+	}
+	if cfg.RetryDelaySeconds != nil && base.RetryDelay > autonomousnotification.MaxRetryDelay {
+		return autonomousnotification.Policy{}, fmt.Errorf("notifications.retry_delay_seconds must be at most %d", int64(autonomousnotification.MaxRetryDelay/time.Second))
 	}
 	return base.Normalize(redactionNames)
 }
@@ -516,27 +664,21 @@ func (cfg retentionConfig) apply(base artifactretention.Policy) (artifactretenti
 		base.MutationEnabled = *cfg.MutationEnabled
 	}
 	if cfg.RecentRunCount != nil {
+		if *cfg.RecentRunCount < 0 {
+			return artifactretention.Policy{}, errors.New("retention.recent_run_count must be nonnegative")
+		}
 		base.RecentRunCount = *cfg.RecentRunCount
 	}
-	if cfg.CompressAfterSeconds != nil {
-		if *cfg.CompressAfterSeconds < 0 {
-			return base, errors.New("retention compress_after_seconds cannot be negative")
-		}
-		if *cfg.CompressAfterSeconds > int64((time.Duration(1<<63-1))/time.Second) {
-			return base, errors.New("retention compress_after_seconds overflows duration")
-		}
-		base.CompressAfter = time.Duration(*cfg.CompressAfterSeconds) * time.Second
+	if err := applyNonNegativeDuration("retention.compress_after_seconds", &base.CompressAfter, cfg.CompressAfterSeconds); err != nil {
+		return artifactretention.Policy{}, err
 	}
-	if cfg.PruneAfterSeconds != nil {
-		if *cfg.PruneAfterSeconds < 0 {
-			return base, errors.New("retention prune_after_seconds cannot be negative")
-		}
-		if *cfg.PruneAfterSeconds > int64((time.Duration(1<<63-1))/time.Second) {
-			return base, errors.New("retention prune_after_seconds overflows duration")
-		}
-		base.PruneAfter = time.Duration(*cfg.PruneAfterSeconds) * time.Second
+	if err := applyNonNegativeDuration("retention.prune_after_seconds", &base.PruneAfter, cfg.PruneAfterSeconds); err != nil {
+		return artifactretention.Policy{}, err
 	}
 	if cfg.MinimumCompressBytes != nil {
+		if *cfg.MinimumCompressBytes < 0 {
+			return artifactretention.Policy{}, errors.New("retention.minimum_compress_bytes must be nonnegative")
+		}
 		base.MinimumCompressBytes = *cfg.MinimumCompressBytes
 	}
 	if cfg.CompressCodexJSONL != nil {
@@ -552,12 +694,21 @@ func (cfg retentionConfig) apply(base artifactretention.Policy) (artifactretenti
 		base.RequireVerifiedExport = *cfg.RequireVerifiedExport
 	}
 	if cfg.MaxFilesPerOperation != nil {
+		if *cfg.MaxFilesPerOperation <= 0 {
+			return artifactretention.Policy{}, errors.New("retention.max_files_per_operation must be positive")
+		}
 		base.MaxFilesPerOperation = *cfg.MaxFilesPerOperation
 	}
 	if cfg.MaxBytesPerOperation != nil {
+		if *cfg.MaxBytesPerOperation <= 0 {
+			return artifactretention.Policy{}, errors.New("retention.max_bytes_per_operation must be positive")
+		}
 		base.MaxBytesPerOperation = *cfg.MaxBytesPerOperation
 	}
 	if cfg.DecompressionCapBytes != nil {
+		if *cfg.DecompressionCapBytes <= 0 {
+			return artifactretention.Policy{}, errors.New("retention.decompression_cap_bytes must be positive")
+		}
 		base.DecompressionCapBytes = *cfg.DecompressionCapBytes
 	}
 	if err := base.Validate(); err != nil {
@@ -631,12 +782,43 @@ func convertAttestation(value *attestationConfig) *autonomoussafety.Attestation 
 	return &autonomoussafety.Attestation{Authority: strings.TrimSpace(value.Authority), Evidence: strings.TrimSpace(value.Evidence), SHA256: strings.TrimSpace(value.SHA256)}
 }
 
-func seconds(value int) time.Duration {
-	return time.Duration(value) * time.Second
+const maximumDurationSeconds int64 = int64((1<<63 - 1) / time.Second)
+
+func applyPositiveDuration(field string, target *time.Duration, value *int64) error {
+	if value == nil {
+		return nil
+	}
+	if *value <= 0 {
+		return fmt.Errorf("%s must be positive", field)
+	}
+	if *value > maximumDurationSeconds {
+		return fmt.Errorf("%s overflows time.Duration", field)
+	}
+	*target = time.Duration(*value) * time.Second
+	return nil
 }
 
-func applyPositiveInt(target *int, value int) {
-	if value > 0 {
-		*target = value
+func applyNonNegativeDuration(field string, target *time.Duration, value *int64) error {
+	if value == nil {
+		return nil
 	}
+	if *value < 0 {
+		return fmt.Errorf("%s must be nonnegative", field)
+	}
+	if *value > maximumDurationSeconds {
+		return fmt.Errorf("%s overflows time.Duration", field)
+	}
+	*target = time.Duration(*value) * time.Second
+	return nil
+}
+
+func applyPositiveInt(field string, target *int, value *int) error {
+	if value == nil {
+		return nil
+	}
+	if *value <= 0 {
+		return fmt.Errorf("%s must be positive", field)
+	}
+	*target = *value
+	return nil
 }

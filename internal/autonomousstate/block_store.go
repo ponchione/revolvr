@@ -138,73 +138,12 @@ func (s *Store) CommitBlock(ctx context.Context, request BlockCommitRequest) (Bl
 	if err := s.fail(FailureAfterHistoryWrite); err != nil {
 		return BlockCommitResult{}, err
 	}
-	statePath, err := s.safePath(task.AutonomousStatePath)
+	readback, found, err := s.replaceState(task, request.Expected, nextRaw)
 	if err != nil {
 		return BlockCommitResult{}, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
-	if err != nil {
-		return BlockCommitResult{}, err
-	}
-	tempPath := temp.Name()
-	closed := false
-	defer func() {
-		if !closed {
-			_ = temp.Close()
-		}
-		_ = os.Remove(tempPath)
-	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := s.fail(FailureDuringStateWrite); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if _, err := temp.Write(nextRaw); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := s.fail(FailureStateFileSync); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := temp.Sync(); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return BlockCommitResult{}, err
-	}
-	closed = true
-	latest, found, err := s.readCurrent(task)
-	if err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := compareExpected(request.Expected, latest, found); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := s.fail(FailureBeforeStateRename); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := s.fail(FailureStateRename); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := os.Rename(tempPath, statePath); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := s.fail(FailureAfterStateRename); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := s.fail(FailureStateDirectorySync); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
-		return BlockCommitResult{}, err
-	}
-	if err := s.fail(FailureStateReadback); err != nil {
-		return BlockCommitResult{}, err
-	}
-	readback, found, err := s.readCurrent(task)
-	if err != nil || !found || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !blockTransitionApplied(readback.State, request.History) {
-		return BlockCommitResult{}, errors.Join(err, errors.New("commit block transition: state readback mismatch"))
+	if !found || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !blockTransitionApplied(readback.State, request.History) {
+		return BlockCommitResult{}, errors.New("commit block transition: state readback mismatch")
 	}
 	return BlockCommitResult{Disposition: CommitUpdated, Previous: previousIdentity, Current: readback, History: history}, nil
 }

@@ -252,6 +252,91 @@
   Acceptance: users can run multiple passes without leaving the TUI; the TUI honors the same stop reasons and guardrails as `run --max-passes`; cancellation reports a clear terminal state and refreshes state.
   Verification: add fake-runner TUI tests for max-pass completion, no-task stop, failure guardrail, blocked stop, and cancellation; run `go test ./internal/tui ./internal/app ./internal/cli` and `go test ./...`.
 
+### Wide-Sweep Audit Follow-up (2026-07-13)
+
+Completion and verification evidence for every item below is preserved in
+`.agent/STATE.md` and `.agent/DECISIONS.md`.
+
+- [x] AUD-01 — Close ignored-file gaps in source and verification evidence.
+  Scope: detect and classify policy-relevant ignored state at admission, after worker execution, and after verification; prevent unexplained ignored inputs from entering checkpoints or verified revision claims.
+  Acceptance: non-allowlisted ignored inputs fail closed or carry explicit safe identity evidence, while harness-owned ignored state remains deterministic and secret contents are never logged.
+  Verification: use real Git repositories with nested ignores, worker/verification-created ignored files, symlinks, allowlisted runtime paths, and clean-checkout replay; run focused tests, `go test ./...`, and relevant race tests.
+
+- [x] AUD-02 — Fail closed on source-lock heartbeat failure.
+  Scope: propagate source-writer heartbeat/ownership errors into direct and autonomous runs, cancel active work, guard sensitive final boundaries, and retain release errors.
+  Acceptance: lease loss prevents later commit, checkpoint, or completion and returns inspectable ownership plus persistence/cancellation evidence without goroutine leaks.
+  Verification: add deterministic expiry, token-replacement, I/O, cancellation-race, and release-failure tests; run focused tests, `go test ./...`, and `go test -race ./...`.
+
+- [x] AUD-03 — Terminate complete spawned process trees on cancellation.
+  Scope: give commands a supported-platform process boundary, signal descendants gracefully, force-kill after the grace period, and preserve output/result semantics.
+  Acceptance: child and grandchild processes cannot survive runner cancellation or mutate the worktree after return; normal and graceful-exit commands remain compatible.
+  Verification: add helper-process tests with nested and signal-ignoring descendants plus sentinel writes; run focused tests, `go test ./...`, and `go test -race ./...`.
+
+- [x] AUD-04 — Use safe read semantics for the live SQLite ledger.
+  Scope: remove immutable-mode assumptions from live ledger readers, reserve them only for proven frozen copies, and keep dossier, metrics, and export reads transactionally coherent.
+  Acceptance: concurrent readers/writers observe consistent snapshots without read APIs creating or mutating ledger files; frozen reads validate their immutability boundary.
+  Verification: cover WAL/rollback modes, concurrent commits, reopen, busy/cancellation, sidecar files, and logical export equality; run focused tests and `go test -race ./...`.
+
+- [x] AUD-05 — Preserve long Codex JSONL records without silent corruption.
+  Scope: separate bounded previews from authoritative records, preserve complete redacted events up to an explicit record limit, and fail clearly above it.
+  Acceptance: valid records larger than 64 KiB stay valid in the artifact, preview truncation is visible, and chunk/UTF-8/secret boundaries are deterministic.
+  Verification: test large records, arbitrary chunks, missing newlines, invalid JSON, UTF-8, and redaction; run focused tests and `go test ./...`.
+
+- [x] AUD-06 — Stream and bound Codex JSONL metrics parsing.
+  Scope: after AUD-05, replace whole-file usage parsing with one consistent incremental record parser whose memory is bounded by record size.
+  Acceptance: large artifacts parse with bounded memory, malformed/oversized records have explicit semantics, cancellation is prompt, and valid receipt totals remain compatible.
+  Verification: add large-stream, allocation/benchmark, malformed-record, overflow, cancellation, and unreadable-file tests; run focused tests and `go test ./...`.
+
+- [x] AUD-07 — Atomically publish redacted last-message artifacts.
+  Scope: have Codex write to a restricted temporary path, redact into a second safe temporary file, then flush and atomically publish the canonical artifact with recovery cleanup.
+  Acceptance: the canonical path never contains unredacted bytes, including at every injected crash/failure boundary, and successful output remains compatible.
+  Verification: inject failures around child exit, read, redact, write, sync, rename, and directory sync; inspect canonical/temp paths after failure and restart; run `go test ./...`.
+
+- [x] AUD-08 — Make Git status truncation fail closed.
+  Scope: treat truncated machine output as incomplete evidence, use unambiguous NUL-delimited status parsing, and prohibit staging/checkpoint/completion from partial path sets.
+  Acceptance: injected or real large-output truncation errors before `git add`; large and hostile-filename repositories either yield a complete set or no mutation.
+  Verification: replace fail-open coverage and add real-Git large-status, rename, delete, untracked, newline, and non-UTF-8 cases; run focused tests and `go test ./...`.
+
+- [x] AUD-09 — Stage repository paths with literal Git pathspec semantics.
+  Scope: disable pathspec magic for every machine-generated staging path while preserving rename and deletion behavior.
+  Acceptance: colon-leading, wildcard-looking, whitespace, newline, and leading-dash filenames stage literally and only the intended tree enters the index.
+  Verification: add real-Git staging/tree assertions for hostile filenames, renames, and deletes; run focused tests and `go test ./...`.
+
+- [x] AUD-10 — Preserve notification transition errors during cancellation.
+  Scope: retain the last valid journal, join cancellation with persistence failures, and keep history/checkpoint restart authority intact in every cancellation branch.
+  Acceptance: no durable failure is discarded or replaced by a zero journal, and restart yields the prior or fully persisted state rather than an inferred transition.
+  Verification: inject history, journal, file-sync, directory-sync, and cancellation-timing failures, reopen each store, and run focused tests plus `go test ./...`.
+
+- [x] AUD-11 — Harden runtime persistence against symlinked paths.
+  Scope: apply a consistent protected-ancestor/final-path contract to task-run state, task-run locks, and the outer execution lease without beginning broad store deduplication.
+  Acceptance: symlinks, wrong file types, unexpected hard links, and unsafe modes are rejected before any outside-root effect; ordinary reopen/recovery stays compatible.
+  Verification: test every ancestor/final substitution and assert an outside sentinel remains untouched; run focused tests, `go test ./...`, and relevant race tests.
+
+- [x] AUD-12 — Reject ambiguous YAML and invalid configuration numbers.
+  Scope: require one YAML document, preserve numeric field presence, reject zero/negative positive-only values, and prevent seconds-to-duration overflow across all affected fields.
+  Acceptance: omissions retain defaults while explicit invalid/trailing values return field-specific errors; valid configurations keep their effective behavior/hash.
+  Verification: table-test every affected field and boundary plus second documents and comments; run focused tests, `go test ./...`, `config check`, and `git diff --check`.
+
+- [x] AUD-13 — Remove the ledger snapshot N+1 query pattern.
+  Scope: fetch selected runs and ordered events with O(1) SQL statements in one read transaction, without unbounded placeholder lists.
+  Acceptance: ordering, `MaxEventID`, malformed payload bytes, cancellation, and returned snapshots remain compatible while query count no longer grows per run.
+  Verification: add query-count coverage and large-history benchmarks/fixtures; cover empty events, limits, cancellation, and concurrent visibility; run focused tests and `go test ./...`.
+
+- [x] AUD-14 — Replace flock busy spinning with cancellable backoff.
+  Scope: replace repeated `runtime.Gosched` polling with a simple timer/bounded backoff while preserving OS-lock authority and prompt context cancellation.
+  Acceptance: sustained contention consumes negligible CPU, cancellation is bounded, and waiters acquire after release without leaks or material uncontended regression.
+  Verification: add contention, cancellation, many-waiter, error, and benchmark coverage; run focused tests, `go test ./...`, and relevant race tests.
+
+- [x] AUD-15 — Conditionally consolidate proven persistence primitives.
+  Scope: after AUD-11, inventory identical low-level storage mechanics and share only safe-path, locking, immutable-write, atomic-replace/sync, and readback primitives; keep lifecycle state machines separate.
+  Acceptance: proceed only with lower net production LOC and equivalent fault/crash semantics; otherwise document the analysis and make no refactor.
+  Verification: run every migrated store's fault/crash tests, `go test ./...`, `go test -race ./...`, LOC comparison, and `git diff --check`.
+
+- [x] AUD-16 — Remove only demonstrably dead or no-op code.
+  Scope: prove and remove the listed no-op helper, blank import references, unused parameter, and discarded values only when they have no side effect or contract role.
+  Acceptance: production LOC decreases with no behavior change; intentional validation/evaluation remains explicit; no cosmetic TUI or API refactor is introduced.
+  Verification: run focused touched-package tests, `go test ./...`, `go vet ./...`, and `git diff --check`; make no code change if safety cannot be proven.
+
 ## Completed History
 
 The previous harness, app-boundary, and TUI operator-console tasks were completed on 2026-07-08. Details are preserved in `.agent/STATE.md` and the Git history.

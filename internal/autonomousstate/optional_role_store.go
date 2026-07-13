@@ -140,64 +140,12 @@ func (s *Store) CommitOptionalRole(ctx context.Context, request OptionalRoleComm
 		return OptionalRoleCommitResult{}, err
 	}
 
-	statePath, err := s.safePath(task.AutonomousStatePath)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
 	if err != nil {
 		return OptionalRoleCommitResult{}, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
-	if err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	tempPath := temp.Name()
-	closed := false
-	defer func() {
-		if !closed {
-			_ = temp.Close()
-		}
-		_ = os.Remove(tempPath)
-	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := s.fail(FailureDuringStateWrite); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if _, err := temp.Write(nextBytes); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := s.fail(FailureStateFileSync); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := temp.Sync(); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return OptionalRoleCommitResult{}, err
-	}
-	closed = true
-	latest, latestFound, err := s.readCurrent(task)
-	if err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := compareExpected(request.Expected, latest, latestFound); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := s.fail(FailureBeforeStateRename); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := os.Rename(tempPath, statePath); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := s.fail(FailureAfterStateRename); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
-		return OptionalRoleCommitResult{}, err
-	}
-	readback, found, err := s.readCurrent(task)
-	if err != nil || !found || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !optionalRoleOccurrenceApplied(readback.State, request.History.Occurrence) {
-		return OptionalRoleCommitResult{}, errors.Join(err, errors.New("commit optional-role transition: state readback mismatch"))
+	if !found || readback.SHA256 != resultingIdentity.SHA256 || readback.ByteSize != resultingIdentity.ByteSize || !optionalRoleOccurrenceApplied(readback.State, request.History.Occurrence) {
+		return OptionalRoleCommitResult{}, errors.New("commit optional-role transition: state readback mismatch")
 	}
 	return OptionalRoleCommitResult{Disposition: CommitUpdated, Previous: previousIdentity, Current: readback, History: history}, nil
 }

@@ -17,6 +17,7 @@ import (
 	"revolvr/internal/commit"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
+	"revolvr/internal/lock"
 	"revolvr/internal/receipt"
 	"revolvr/internal/supervisor"
 	"revolvr/internal/taskfile"
@@ -277,6 +278,9 @@ func runWorker(
 		codexResult.Err = codexErr
 	}
 	result.Worker.Codex = codexResult
+	if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "source_lock_after_worker", errors.Join(codexErr, codexResult.Err, ownershipErr), receipt.VerdictSafetyLimit, "not_run", "")
+	}
 	if codexResult.LedgerError != nil {
 		setWorkerLedgerError(&result, codexResult.LedgerError)
 	}
@@ -342,6 +346,9 @@ func runWorker(
 	if err := validateChangedCapture(changedCapture, result.Source.ChangedFiles); err != nil {
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeChangedCaptureFailed, "changed_files_capture", err, receipt.VerdictSafetyLimit, "not_run", "")
 	}
+	if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "source_lock_before_verification", ownershipErr, receipt.VerdictSafetyLimit, "not_run", "")
+	}
 
 	occurrenceID := strings.TrimSpace(n.IDGenerator())
 	if occurrenceID == "" || strings.ContainsAny(occurrenceID, "\r\n") {
@@ -386,6 +393,9 @@ func runWorker(
 	if verificationResult.LedgerError != nil {
 		setWorkerLedgerError(&result, verificationResult.LedgerError)
 	}
+	if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeVerificationFailed, "source_lock_after_verification", errors.Join(verificationErr, ownershipErr), receipt.VerdictSafetyLimit, "failed", "")
+	}
 	verificationAfter, afterVerificationErr := captureSource(ctx, n)
 	if afterVerificationErr == nil {
 		result.Source.VerificationAfter = &verificationAfter
@@ -402,6 +412,9 @@ func runWorker(
 	}
 	if verificationResult.MissingCommands || !verificationResult.Passed || verificationResult.Status != verification.StatusPassed {
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeVerificationFailed, "verification", verificationFailure(verificationResult), receipt.VerdictVerificationFailed, verificationStatus(verificationResult), "")
+	}
+	if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeCommitFailed, "source_lock_before_commit", ownershipErr, receipt.VerdictSafetyLimit, "passed", "")
 	}
 
 	workerChanges := captureForWorkerChanges(changedCapture, result.Source.ChangedFiles)
@@ -425,6 +438,9 @@ func runWorker(
 		CommandRunner:            commit.CommandRunner(n.CommandRunner),
 	})
 	result.Worker.Commit = commitResult
+	if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeCommitFailed, "source_lock_after_commit", errors.Join(commitErr, ownershipErr), receipt.VerdictSafetyLimit, "passed", commitResult.CommitSHA)
+	}
 	if commitResult.LedgerError != nil {
 		setWorkerLedgerError(&result, commitResult.LedgerError)
 	}
@@ -449,6 +465,25 @@ func runWorker(
 }
 
 func finishWorker(ctx context.Context, n normalizedConfig, task taskfile.Task, route autonomouspolicy.Route, preRunDirty gitstate.Capture, result *Result, outcome Outcome, stage string, cause error, verdict receipt.Verdict, verificationStatus string, commitSHA string) (Result, error) {
+	if failure := n.sourceGuard.Failure(); failure != nil {
+		cause = errors.Join(cause, failure)
+		if stage == "" {
+			stage = "source_lock"
+			outcome = OutcomeWorkerFailed
+			verdict = receipt.VerdictSafetyLimit
+		}
+	}
+	if cause == nil {
+		if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
+			cause = ownershipErr
+			stage = "source_lock_final"
+			outcome = OutcomeWorkerFailed
+			verdict = receipt.VerdictSafetyLimit
+		}
+	}
+	if errors.Is(cause, lock.ErrOwnershipLost) {
+		ctx = context.WithoutCancel(ctx)
+	}
 	if result.Source.Final == nil {
 		if result.Source.VerificationAfter != nil {
 			final := *result.Source.VerificationAfter

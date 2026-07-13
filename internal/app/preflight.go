@@ -196,15 +196,24 @@ func addGitIdentityCheck(ctx context.Context, addCheck func(PreflightCheckStatus
 }
 
 func addWorktreeCheck(ctx context.Context, addCheck func(PreflightCheckStatus, string, string), commandRunner PreflightCommandRunner, workDir string, gitExecutable string, timeout time.Duration, stdoutCap int, stderrCap int) {
-	result := runPreflightGit(ctx, commandRunner, workDir, gitExecutable, []string{"status", "--short", "--untracked-files=all"}, timeout, stdoutCap, stderrCap)
-	if !preflightCommandPassed(result) {
-		addCheck(PreflightFail, "worktree clean", preflightCommandFailure(result))
+	capture, err := gitstate.CaptureDirtyWorktree(ctx, gitstate.Config{
+		WorkingDir:    workDir,
+		GitExecutable: gitExecutable,
+		Timeout:       timeout,
+		StdoutCap:     stdoutCap,
+		StderrCap:     stderrCap,
+		CommandRunner: gitstate.CommandRunner(commandRunner),
+	})
+	if err != nil {
+		addCheck(PreflightFail, "worktree clean", err.Error())
 		return
 	}
-	entries := gitstate.ParseShortStatus(result.Stdout)
-	paths := gitstate.PathsFromEntries(entries)
-	if len(paths) > 0 {
-		addCheck(PreflightFail, "worktree clean", "dirty files: "+strings.Join(paths, ", "))
+	if capture.CaptureError != "" {
+		addCheck(PreflightFail, "worktree clean", capture.CaptureError)
+		return
+	}
+	if len(capture.Paths) > 0 {
+		addCheck(PreflightFail, "worktree clean", "dirty files: "+strings.Join(capture.Paths, ", "))
 		return
 	}
 	addCheck(PreflightOK, "worktree clean", "no changes")

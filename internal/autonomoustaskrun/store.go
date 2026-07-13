@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"revolvr/internal/runtimepath"
 )
 
 type FailurePoint string
@@ -31,25 +33,28 @@ func Inspect(repositoryRoot, operationID string) (Operation, bool, error) {
 	if !safeID(operationID) {
 		return Operation{}, false, errors.New("task run: safe operation ID is required")
 	}
-	root, err := filepath.Abs(repositoryRoot)
-	if err != nil {
-		return Operation{}, false, err
-	}
-	root, err = filepath.EvalSymlinks(root)
+	root, err := runtimepath.CanonicalRoot(repositoryRoot)
 	if err != nil {
 		return Operation{}, false, err
 	}
 	return loadOperation(root, operationID)
 }
 func loadOperation(root, id string) (Operation, bool, error) {
+	dir := operationDir(root, id)
+	if err := runtimepath.CheckDir(root, dir, true); err != nil {
+		return Operation{}, false, err
+	}
 	var candidates []Operation
-	checkpoint := filepath.Join(operationDir(root, id), "operation.json")
-	if op, found, err := readOperationFile(checkpoint, id); err != nil {
+	checkpoint := filepath.Join(dir, "operation.json")
+	if op, found, err := readOperationFile(root, checkpoint, id); err != nil {
 		return Operation{}, false, err
 	} else if found {
 		candidates = append(candidates, op)
 	}
-	historyDir := filepath.Join(operationDir(root, id), "history")
+	historyDir := filepath.Join(dir, "history")
+	if err := runtimepath.CheckDir(root, historyDir, true); err != nil {
+		return Operation{}, false, err
+	}
 	entries, err := os.ReadDir(historyDir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Operation{}, false, err
@@ -58,7 +63,7 @@ func loadOperation(root, id string) (Operation, bool, error) {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		op, found, err := readOperationFile(filepath.Join(historyDir, entry.Name()), id)
+		op, found, err := readOperationFile(root, filepath.Join(historyDir, entry.Name()), id)
 		if err != nil {
 			return Operation{}, false, err
 		}
@@ -77,7 +82,10 @@ func loadOperation(root, id string) (Operation, bool, error) {
 	})
 	return candidates[0], true, nil
 }
-func readOperationFile(path, operationID string) (Operation, bool, error) {
+func readOperationFile(root, path, operationID string) (Operation, bool, error) {
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return Operation{}, false, err
+	}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return Operation{}, false, nil
@@ -117,7 +125,7 @@ func persist(root string, previous, next Operation, injectors ...FailureInjector
 	}
 	dir := operationDir(root, next.OperationID)
 	history := filepath.Join(dir, "history")
-	if err := os.MkdirAll(history, 0700); err != nil {
+	if err := runtimepath.EnsureDir(root, history, 0o700); err != nil {
 		return err
 	}
 	raw, err := canonical(next)
@@ -128,16 +136,23 @@ func persist(root string, previous, next Operation, injectors ...FailureInjector
 	if err := injectFailure(injectors, FailureBeforeOperationHistory); err != nil {
 		return err
 	}
+	if err := runtimepath.CheckFile(root, historyPath, true); err != nil {
+		return err
+	}
 	if prior, err := os.ReadFile(historyPath); err == nil {
 		if string(prior) != string(raw) {
 			return errors.New("task run: immutable history conflict")
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
-	} else if err := writeExclusive(historyPath, raw); err != nil {
+	} else if err := writeExclusive(root, historyPath, raw); err != nil {
 		return err
 	}
 	if err := injectFailure(injectors, FailureAfterOperationHistory); err != nil {
+		return err
+	}
+	checkpoint := filepath.Join(dir, "operation.json")
+	if err := runtimepath.CheckFile(root, checkpoint, true); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, ".operation-*.tmp")
@@ -145,8 +160,12 @@ func persist(root string, previous, next Operation, injectors ...FailureInjector
 		return err
 	}
 	name := tmp.Name()
-	defer os.Remove(name)
+	defer removeProtectedTemp(root, name)
 	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := runtimepath.CheckOpenedFile(root, name, tmp); err != nil {
 		tmp.Close()
 		return err
 	}
@@ -164,10 +183,25 @@ func persist(root string, previous, next Operation, injectors ...FailureInjector
 	if err := injectFailure(injectors, FailureBeforeOperationRename); err != nil {
 		return err
 	}
-	if err := os.Rename(name, filepath.Join(dir, "operation.json")); err != nil {
+	if err := runtimepath.CheckFile(root, checkpoint, true); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, name, false); err != nil {
+		return err
+	}
+	if err := os.Rename(name, checkpoint); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, checkpoint, false); err != nil {
 		return err
 	}
 	if err := injectFailure(injectors, FailureAfterOperationRename); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, checkpoint, false); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckDir(root, dir, false); err != nil {
 		return err
 	}
 	return syncDir(dir)
@@ -179,9 +213,16 @@ func injectFailure(injectors []FailureInjector, point FailurePoint) error {
 	}
 	return injectors[0](point)
 }
-func writeExclusive(path string, raw []byte) error {
+func writeExclusive(root, path string, raw []byte) error {
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return err
+	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
+		return err
+	}
+	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+		f.Close()
 		return err
 	}
 	if _, err := f.Write(raw); err != nil {
@@ -195,8 +236,18 @@ func writeExclusive(path string, raw []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
+	if err := runtimepath.CheckFile(root, path, false); err != nil {
+		return err
+	}
 	return syncDir(filepath.Dir(path))
 }
+
+func removeProtectedTemp(root, path string) {
+	if err := runtimepath.CheckFile(root, path, false); err == nil {
+		_ = os.Remove(path)
+	}
+}
+
 func syncDir(path string) error {
 	f, err := os.Open(path)
 	if err != nil {

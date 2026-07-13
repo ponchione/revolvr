@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"revolvr/internal/runtimepath"
 )
 
 var ErrActive = errors.New("autonomous execution: another coordinator is active")
@@ -25,28 +27,33 @@ func TryAcquire(repositoryRoot string) (func(), error) {
 }
 
 func acquire(ctx context.Context, repositoryRoot string, wait bool) (func(), error) {
-	root, err := filepath.Abs(repositoryRoot)
-	if err != nil {
-		return nil, err
-	}
-	root, err = filepath.EvalSymlinks(root)
+	root, err := runtimepath.CanonicalRoot(repositoryRoot)
 	if err != nil {
 		return nil, err
 	}
 	dir := filepath.Join(root, ".revolvr", "locks")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, "autonomous-execution.lock")
-	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
-		return nil, errors.New("autonomous execution: symlinked lease path")
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return nil, err
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
+	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
 	for {
 		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
+			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				_ = f.Close()
+				return nil, err
+			}
 			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
 		}
 		if !wait {

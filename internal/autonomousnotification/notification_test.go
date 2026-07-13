@@ -186,6 +186,194 @@ func TestDeliveryTimeoutExhaustionCancellationAndRestart(t *testing.T) {
 	}
 }
 
+func TestDeliveryCancellationPersistenceFaultsPreserveDurableAuthority(t *testing.T) {
+	type faultCase struct {
+		name              string
+		timing            string
+		point             persistencePoint
+		pathMatches       func(string, string) bool
+		wantStage         Stage
+		wantSequence      int64
+		wantAttempts      int
+		wantCheckpointSeq int64
+	}
+	cases := []faultCase{
+		{
+			name: "history write before dispatch", timing: "before_dispatch", point: persistenceHistoryWrite,
+			pathMatches: func(_ string, path string) bool { return filepath.Base(path) == "00000000000000000002-resumable.json" },
+			wantStage:   StageAdmitted, wantSequence: 1, wantCheckpointSeq: 1,
+		},
+		{
+			name: "history file sync before dispatch", timing: "before_dispatch", point: persistenceFileSync,
+			pathMatches: func(_ string, path string) bool { return filepath.Base(path) == "00000000000000000002-resumable.json" },
+			wantStage:   StageAdmitted, wantSequence: 1, wantCheckpointSeq: 1,
+		},
+		{
+			name: "history directory sync before dispatch", timing: "before_dispatch", point: persistenceDirectorySync,
+			pathMatches: func(dir, path string) bool { return path == filepath.Join(dir, "history") },
+			wantStage:   StageResumable, wantSequence: 2, wantCheckpointSeq: 1,
+		},
+		{
+			name: "journal replacement during terminal transition", timing: "during_delivery", point: persistenceJournalReplace,
+			pathMatches: func(_ string, path string) bool { return filepath.Base(path) == "journal.json" },
+			wantStage:   StageResumable, wantSequence: 3, wantAttempts: 1, wantCheckpointSeq: 2,
+		},
+		{
+			name: "journal file sync during terminal transition", timing: "during_delivery", point: persistenceFileSync,
+			pathMatches: func(_ string, path string) bool { return filepath.Base(path) == "journal.json" },
+			wantStage:   StageResumable, wantSequence: 3, wantAttempts: 1, wantCheckpointSeq: 2,
+		},
+		{
+			name: "journal directory sync during terminal transition", timing: "during_delivery", point: persistenceDirectorySync,
+			pathMatches: func(dir, path string) bool { return path == dir },
+			wantStage:   StageResumable, wantSequence: 3, wantAttempts: 1, wantCheckpointSeq: 3,
+		},
+		{
+			name: "history write during retry cancellation", timing: "retry_delay", point: persistenceHistoryWrite,
+			pathMatches: func(_ string, path string) bool { return filepath.Base(path) == "00000000000000000004-resumable.json" },
+			wantStage:   StageRetryable, wantSequence: 3, wantAttempts: 1, wantCheckpointSeq: 3,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			root, payload, cfg, admitted := admittedDeliveryFixture(t, EventQueueDrained)
+			if admitted.Sequence != 1 || admitted.Stage != StageAdmitted {
+				t.Fatalf("admitted journal = %+v", admitted)
+			}
+			dir := deliveryDir(root, payload.DeliveryID)
+			injected := errors.New("injected " + test.name)
+			armed := test.timing == "before_dispatch"
+			injections := 0
+			cfg.persistenceFault = func(point persistencePoint, path string) error {
+				if armed && injections == 0 && point == test.point && test.pathMatches(dir, path) {
+					injections++
+					return injected
+				}
+				return nil
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			switch test.timing {
+			case "before_dispatch":
+				cancel()
+			case "during_delivery":
+				cfg.Runner = func(context.Context, runner.Command) runner.Result {
+					armed = true
+					cancel()
+					return runner.Result{ExitCode: -1, Err: context.Canceled}
+				}
+			case "retry_delay":
+				cfg.Runner = func(context.Context, runner.Command) runner.Result {
+					return runner.Result{ExitCode: 7}
+				}
+				cfg.Wait = func(context.Context, time.Duration) error {
+					armed = true
+					cancel()
+					return context.Canceled
+				}
+			default:
+				t.Fatalf("unknown timing %q", test.timing)
+			}
+
+			result, err := Deliver(ctx, cfg)
+			if !errors.Is(err, context.Canceled) || !errors.Is(err, injected) {
+				t.Fatalf("delivery error = %v, want cancellation joined with %v", err, injected)
+			}
+			if injections != 1 {
+				t.Fatalf("fault injections = %d, want 1", injections)
+			}
+			if result.DeliveryID != payload.DeliveryID || result.Stage != test.wantStage || result.Attempts != test.wantAttempts {
+				t.Fatalf("result = %+v, want delivery %q stage %q attempts %d", result, payload.DeliveryID, test.wantStage, test.wantAttempts)
+			}
+
+			_, _, reopened, found, reopenErr := Inspect(root, payload.DeliveryID)
+			if reopenErr != nil || !found {
+				t.Fatalf("reopen found=%t error=%v", found, reopenErr)
+			}
+			if reopened.Sequence != test.wantSequence || reopened.Stage != test.wantStage || len(reopened.Attempts) != test.wantAttempts {
+				t.Fatalf("reopened journal = %+v, want sequence %d stage %q attempts %d", reopened, test.wantSequence, test.wantStage, test.wantAttempts)
+			}
+			checkpoint := readNotificationTestJournal(t, filepath.Join(dir, "journal.json"))
+			if checkpoint.Sequence != test.wantCheckpointSeq {
+				t.Fatalf("checkpoint = %+v, want sequence %d", checkpoint, test.wantCheckpointSeq)
+			}
+			history, readErr := os.ReadDir(filepath.Join(dir, "history"))
+			if readErr != nil || len(history) != int(test.wantSequence) {
+				t.Fatalf("history entries = %d, want %d; error=%v", len(history), test.wantSequence, readErr)
+			}
+			entries, readErr := os.ReadDir(dir)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			for _, entry := range entries {
+				if strings.HasPrefix(entry.Name(), ".journal-") {
+					t.Fatalf("temporary checkpoint survived failure: %s", entry.Name())
+				}
+			}
+
+			restart := cfg
+			restart.persistenceFault = nil
+			restart.Runner = func(context.Context, runner.Command) runner.Result { return runner.Result{ExitCode: 0} }
+			restart.Wait = func(context.Context, time.Duration) error { return nil }
+			restarted, restartErr := Deliver(context.Background(), restart)
+			if restartErr != nil || restarted.Stage != StageSucceeded {
+				t.Fatalf("restart result = %+v error=%v", restarted, restartErr)
+			}
+		})
+	}
+}
+
+func TestDeliveryCancellationTimingsRemainResumable(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		timing       string
+		wantAttempts int
+	}{
+		{name: "before dispatch", timing: "before_dispatch"},
+		{name: "after executable lookup", timing: "after_lookup"},
+		{name: "during delivery", timing: "during_delivery", wantAttempts: 1},
+		{name: "during retry delay", timing: "retry_delay", wantAttempts: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root, payload, cfg, _ := admittedDeliveryFixture(t, EventSafetyStop)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			switch test.timing {
+			case "before_dispatch":
+				cancel()
+			case "after_lookup":
+				lookPath := cfg.LookPath
+				cfg.LookPath = func(name string) (string, error) {
+					resolved, err := lookPath(name)
+					cancel()
+					return resolved, err
+				}
+			case "during_delivery":
+				cfg.Runner = func(context.Context, runner.Command) runner.Result {
+					cancel()
+					return runner.Result{ExitCode: -1, Err: context.Canceled}
+				}
+			case "retry_delay":
+				cfg.Runner = func(context.Context, runner.Command) runner.Result { return runner.Result{ExitCode: 7} }
+				cfg.Wait = func(context.Context, time.Duration) error {
+					cancel()
+					return context.Canceled
+				}
+			}
+			result, err := Deliver(ctx, cfg)
+			if err != context.Canceled || result.Stage != StageResumable || result.Attempts != test.wantAttempts {
+				t.Fatalf("result = %+v error=%v", result, err)
+			}
+			_, _, reopened, found, reopenErr := Inspect(root, payload.DeliveryID)
+			if reopenErr != nil || !found || reopened.Stage != StageResumable || len(reopened.Attempts) != test.wantAttempts {
+				t.Fatalf("reopened = %+v found=%t error=%v", reopened, found, reopenErr)
+			}
+		})
+	}
+}
+
 func TestDisabledDeliveryStartsNoWorkOrWrites(t *testing.T) {
 	root := t.TempDir()
 	policy := DefaultPolicy()
@@ -259,4 +447,58 @@ func TestDeliveryRestartRecoversRunningAttemptAndHistoryAhead(t *testing.T) {
 	if err != nil || !found || len(recovered.Attempts) != 2 || !recovered.Attempts[0].RunnerError || !recovered.Attempts[0].Retryable {
 		t.Fatalf("journal=%+v found=%v err=%v", recovered, found, err)
 	}
+}
+
+func admittedDeliveryFixture(t *testing.T, event Event) (string, Payload, DeliveryConfig, Journal) {
+	t.Helper()
+	root := t.TempDir()
+	executable := filepath.Join(root, "hook")
+	if err := os.WriteFile(executable, []byte("x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	policy := enabledPolicy(executable)
+	payload, raw, err := BuildPayload(payloadInput(event, policy), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := deliveryDir(root, payload.DeliveryID)
+	if err := ensureSafeDirectory(root, dir); err != nil {
+		t.Fatal(err)
+	}
+	policyID, err := policy.Identity([]string{"HOOK_SECRET"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := Intent{SchemaVersion: IntentSchemaVersion, DeliveryID: payload.DeliveryID, EventID: payload.EventID, Event: payload.Event, PayloadSHA256: hash(raw), PayloadSize: len(raw), Policy: policy, PolicySHA256: policyID, ConfigSchema: payload.EffectiveConfigSchema, ConfigSHA256: payload.EffectiveConfigSHA256, AdmittedAt: payload.OccurredAt}
+	journal, _, err := admit(dir, intent, raw, fixedTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := fixedTime
+	cfg := DeliveryConfig{
+		RepositoryRoot: root,
+		Payload:        payload,
+		PayloadBytes:   raw,
+		Policy:         policy,
+		RedactionNames: []string{"HOOK_SECRET"},
+		Clock:          func() time.Time { now = now.Add(time.Second); return now },
+		Runner:         func(context.Context, runner.Command) runner.Result { return runner.Result{ExitCode: 0} },
+		LookPath:       func(string) (string, error) { return executable, nil },
+		LookupEnv:      func(string) (string, bool) { return "secret-value", true },
+		Wait:           func(context.Context, time.Duration) error { return nil },
+	}
+	return root, payload, cfg, journal
+}
+
+func readNotificationTestJournal(t *testing.T, path string) Journal {
+	t.Helper()
+	raw, err := readRegular(path, 4<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var journal Journal
+	if err := decodeCanonical(raw, &journal); err != nil {
+		t.Fatal(err)
+	}
+	return journal
 }

@@ -38,10 +38,10 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		t:                 t,
 		workDir:           env.workDir,
 		writeReceipt:      true,
-		postStatus:        " M internal/feature.go\n",
+		postStatus:        " M internal/feature.go\x00",
 		verificationExit:  0,
 		commitSHA:         "abc123def456",
-		expectedCommitAdd: []string{"add", "--", "internal/feature.go"},
+		expectedCommitAdd: []string{"--literal-pathspecs", "add", "--", "internal/feature.go"},
 	}
 
 	result, err := Run(ctx, Config{
@@ -114,11 +114,11 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		t.Fatalf("codex args include resume: %#v", state.codexArgs)
 	}
 	if got, want := state.gitCommands, [][]string{
-		{"status", "--short", "--untracked-files=all"},
-		{"status", "--short", "--untracked-files=all"},
-		{"status", "--short", "--untracked-files=all"},
+		{"status", "--porcelain=v1", "-z", "--untracked-files=all"},
+		{"status", "--porcelain=v1", "-z", "--untracked-files=all"},
+		{"status", "--porcelain=v1", "-z", "--untracked-files=all"},
 		{"rev-parse", "--verify", "--quiet", "HEAD"},
-		{"add", "--", "internal/feature.go"},
+		{"--literal-pathspecs", "add", "--", "internal/feature.go"},
 		{"commit", "-m", "Implement selected task", "-m", "Run-ID: " + result.Run.ID + "\nTask-ID: task-1\nVerification: passed"},
 		{"rev-parse", "--verify", "--quiet", "HEAD"},
 	}; !reflect.DeepEqual(got, want) {
@@ -559,7 +559,7 @@ func TestRunIndeterminateCommitBlocksTransitionedPhaseForInspection(t *testing.T
 				PreCommitSHA:      "parent123",
 				HEADLookupRetried: true,
 				Commands: []commit.GitCommandResult{
-					{Args: []string{"add", "--", selected.SourcePath}, ExitCode: 0},
+					{Args: []string{"--literal-pathspecs", "add", "--", selected.SourcePath}, ExitCode: 0},
 				},
 			}, nil
 		},
@@ -1099,10 +1099,10 @@ func TestRunSecondPassAfterCompletionReturnsNoTask(t *testing.T) {
 		t:                 t,
 		workDir:           env.workDir,
 		writeReceipt:      true,
-		postStatus:        " M internal/feature.go\n",
+		postStatus:        " M internal/feature.go\x00",
 		verificationExit:  0,
 		commitSHA:         "abc123def456",
-		expectedCommitAdd: []string{"add", "--", "internal/feature.go"},
+		expectedCommitAdd: []string{"--literal-pathspecs", "add", "--", "internal/feature.go"},
 	}
 	first, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
@@ -1667,10 +1667,10 @@ func TestRunRecordsChangedFilesReceiptWarningWithoutBlockingCommit(t *testing.T)
 		receiptContent: func(runID, taskID, task string) string {
 			return receiptContent(runID, taskID, task, receiptOptions{ChangedFiles: []string{"internal/claimed.go"}})
 		},
-		postStatus:        " M internal/actual.go\n",
+		postStatus:        " M internal/actual.go\x00",
 		verificationExit:  0,
 		commitSHA:         "abc123def456",
-		expectedCommitAdd: []string{"add", "--", "internal/actual.go"},
+		expectedCommitAdd: []string{"--literal-pathspecs", "add", "--", "internal/actual.go"},
 	}
 
 	result, err := Run(ctx, Config{
@@ -1742,7 +1742,7 @@ func TestRunRecordsVerificationReceiptWarningWithoutBlockingCommit(t *testing.T)
 				}},
 			})
 		},
-		postStatus:       " M internal/feature.go\n",
+		postStatus:       " M internal/feature.go\x00",
 		verificationExit: 0,
 		commitSHA:        "abc123def456",
 	}
@@ -1804,7 +1804,7 @@ func TestRunReceiptWarningsDoNotChangeFailedOutcome(t *testing.T) {
 				}},
 			})
 		},
-		postStatus:       " M internal/feature.go\n",
+		postStatus:       " M internal/feature.go\x00",
 		verificationExit: 1,
 	}
 
@@ -1855,7 +1855,7 @@ func TestRunDoesNotWarnWhenReceiptFactsMatchHarness(t *testing.T) {
 				}},
 			})
 		},
-		postStatus:       " M internal/feature.go\n",
+		postStatus:       " M internal/feature.go\x00",
 		verificationExit: 0,
 		commitSHA:        "abc123def456",
 	}
@@ -1888,7 +1888,7 @@ func TestRunBlocksWhenVerificationFailsAndSkipsCommit(t *testing.T) {
 	state := &fakeCommandState{
 		t:                t,
 		workDir:          env.workDir,
-		postStatus:       " M internal/feature.go\n",
+		postStatus:       " M internal/feature.go\x00",
 		verificationExit: 1,
 	}
 
@@ -1993,7 +1993,7 @@ func TestRunBlocksWhenCodexFailsAndSkipsVerificationAndCommit(t *testing.T) {
 		t:          t,
 		workDir:    env.workDir,
 		codexExit:  2,
-		postStatus: " M internal/partial.go\n",
+		postStatus: " M internal/partial.go\x00",
 	}
 
 	result, err := Run(ctx, Config{
@@ -2277,7 +2277,7 @@ func TestRunUpdatesParsedReceiptWhenVerificationFails(t *testing.T) {
 		t:                t,
 		workDir:          env.workDir,
 		writeReceipt:     true,
-		postStatus:       " M internal/feature.go\n",
+		postStatus:       " M internal/feature.go\x00",
 		verificationExit: 1,
 	}
 
@@ -2511,6 +2511,154 @@ func TestRunRefreshesSourceWriterLockWhileCodexRuns(t *testing.T) {
 	}
 }
 
+func TestRunHeartbeatFailureCancelsCodexAndPreservesTask(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-heartbeat-failure", "Stop on lost ownership")
+	persistenceErr := fmt.Errorf("injected heartbeat write failure: %w", os.ErrPermission)
+	allowFailure := make(chan struct{})
+	lease := &scriptedSourceLease{heartbeatFunc: func(ctx context.Context) error {
+		select {
+		case <-allowFailure:
+			return persistenceErr
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}}
+	verificationCalled := false
+	commitCalled := false
+
+	result, err := Run(ctx, Config{
+		WorkingDir: env.workDir, LedgerStore: env.ledger, Clock: env.clock,
+		DirtyCapture: cleanDirtyCapture, ChangedCapture: emptyChangedCapture,
+		CodexVersionDiscoverer:            testCodexVersionDiscoverer,
+		SourceWriterLockHeartbeatInterval: time.Millisecond,
+		SourceLockAcquirer:                func(context.Context, lock.Config) (lock.SourceLease, error) { return lease, nil },
+		CodexRunner: func(ctx context.Context, _ codexexec.Config) (codexexec.Result, error) {
+			close(allowFailure)
+			<-ctx.Done()
+			return codexexec.Result{ExitCode: -1, Err: context.Cause(ctx)}, context.Cause(ctx)
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			verificationCalled = true
+			return verification.Result{}, nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{}, nil
+		},
+	})
+	if !errors.Is(err, lock.ErrOwnershipLost) || !errors.Is(err, persistenceErr) || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("Run error = %v, want ownership and persistence failures", err)
+	}
+	if result.Outcome != OutcomeBlocked || result.Run.Status != ledger.StatusFailed || verificationCalled || commitCalled {
+		t.Fatalf("result=%+v verification=%t commit=%t", result, verificationCalled, commitCalled)
+	}
+	if got := loadRunTask(t, env, selected.SourcePath).Status; got != taskfile.StatusPending {
+		t.Fatalf("task status = %q, want pending after ownership loss", got)
+	}
+	if lease.releasesCount() != 1 {
+		t.Fatalf("release count = %d, want 1", lease.releasesCount())
+	}
+}
+
+func TestRunSynchronousOwnershipCheckPreventsCommit(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-boundary-lock", "Do not commit without ownership")
+	state := &fakeCommandState{
+		t: t, workDir: env.workDir, writeReceipt: true,
+		postStatus: " M internal/feature.go\x00", verificationExit: 0, commitSHA: "must-not-commit",
+	}
+	ownerErr := lock.ErrHeld
+	lease := &scriptedSourceLease{heartbeatErrAt: 3, heartbeatErr: ownerErr}
+	result, err := Run(ctx, Config{
+		WorkingDir: env.workDir, LedgerStore: env.ledger,
+		CodexExecutable: "codex-test", GitExecutable: "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run, Clock: env.clock,
+		SourceWriterLockHeartbeatInterval: time.Hour,
+		SourceLockAcquirer:                func(context.Context, lock.Config) (lock.SourceLease, error) { return lease, nil },
+	})
+	if !errors.Is(err, lock.ErrOwnershipLost) || !errors.Is(err, ownerErr) {
+		t.Fatalf("Run error = %v, want replacement-owner failure", err)
+	}
+	if result.Outcome != OutcomeBlocked || result.Commit.Status == commit.StatusCommitted {
+		t.Fatalf("result = %+v", result)
+	}
+	for _, command := range state.gitCommands {
+		if len(command) > 0 && command[0] == "commit" {
+			t.Fatalf("commit command ran after ownership loss: %v", state.gitCommands)
+		}
+	}
+	if got := loadRunTask(t, env, selected.SourcePath); got.Status != taskfile.StatusPending || got.Phase != taskfile.PhaseImplement {
+		t.Fatalf("task status/phase = %s/%s, want pending/implement", got.Status, got.Phase)
+	}
+}
+
+func TestRunJoinsHeartbeatAndReleaseFailures(t *testing.T) {
+	env := newTestEnv(t)
+	writeRunTask(t, env, "task-lock-errors", "Retain both lock errors")
+	heartbeatErr := errors.New("heartbeat persistence failure")
+	releaseErr := errors.New("release persistence failure")
+	lease := &scriptedSourceLease{heartbeatErrAt: 1, heartbeatErr: heartbeatErr, releaseErr: releaseErr}
+	_, err := Run(context.Background(), Config{
+		WorkingDir: env.workDir, LedgerStore: env.ledger, Clock: env.clock,
+		DirtyCapture: cleanDirtyCapture, ChangedCapture: emptyChangedCapture,
+		CodexVersionDiscoverer:            testCodexVersionDiscoverer,
+		SourceWriterLockHeartbeatInterval: time.Millisecond,
+		SourceLockAcquirer:                func(context.Context, lock.Config) (lock.SourceLease, error) { return lease, nil },
+		CodexRunner: func(ctx context.Context, _ codexexec.Config) (codexexec.Result, error) {
+			<-ctx.Done()
+			return codexexec.Result{ExitCode: -1}, context.Cause(ctx)
+		},
+	})
+	for _, want := range []error{lock.ErrOwnershipLost, heartbeatErr, releaseErr} {
+		if !errors.Is(err, want) {
+			t.Fatalf("Run error = %v, missing %v", err, want)
+		}
+	}
+}
+
+func TestRunPreservesCancellationRacingWithHeartbeatFailure(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-cancel-lock-race", "Preserve cancellation and lock failure")
+	started := make(chan struct{})
+	var startedOnce sync.Once
+	persistenceErr := errors.New("heartbeat persistence failed during cancellation")
+	lease := &scriptedSourceLease{heartbeatFunc: func(ctx context.Context) error {
+		startedOnce.Do(func() { close(started) })
+		<-ctx.Done()
+		return errors.Join(ctx.Err(), persistenceErr)
+	}}
+	result, err := Run(parent, Config{
+		WorkingDir: env.workDir, LedgerStore: env.ledger, Clock: env.clock,
+		DirtyCapture: cleanDirtyCapture, ChangedCapture: emptyChangedCapture,
+		CodexVersionDiscoverer:            testCodexVersionDiscoverer,
+		SourceWriterLockHeartbeatInterval: time.Millisecond,
+		SourceLockAcquirer:                func(context.Context, lock.Config) (lock.SourceLease, error) { return lease, nil },
+		CodexRunner: func(ctx context.Context, _ codexexec.Config) (codexexec.Result, error) {
+			select {
+			case <-started:
+			case <-time.After(time.Second):
+				return codexexec.Result{}, errors.New("heartbeat did not start")
+			}
+			cancel()
+			<-ctx.Done()
+			return codexexec.Result{ExitCode: -1, Err: ctx.Err()}, ctx.Err()
+		},
+	})
+	for _, want := range []error{context.Canceled, lock.ErrOwnershipLost, persistenceErr} {
+		if !errors.Is(err, want) {
+			t.Fatalf("Run error = %v, missing %v", err, want)
+		}
+	}
+	if result.Outcome != OutcomeBlocked || loadRunTask(t, env, selected.SourcePath).Status != taskfile.StatusPending {
+		t.Fatalf("result=%+v task=%+v", result, loadRunTask(t, env, selected.SourcePath))
+	}
+}
+
 func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	env := newTestEnv(t)
@@ -2544,6 +2692,45 @@ func TestRunReleasesSourceWriterLockOnCancellation(t *testing.T) {
 	if _, found, readErr := lock.ReadSourceWriter(context.Background(), env.workDir); readErr != nil || found {
 		t.Fatalf("lock after cancellation found=%v err=%v, want released", found, readErr)
 	}
+}
+
+type scriptedSourceLease struct {
+	mu             sync.Mutex
+	heartbeats     int
+	releases       int
+	heartbeatErrAt int
+	heartbeatErr   error
+	heartbeatFunc  func(context.Context) error
+	releaseErr     error
+}
+
+func (l *scriptedSourceLease) Heartbeat(ctx context.Context) error {
+	l.mu.Lock()
+	l.heartbeats++
+	fn := l.heartbeatFunc
+	if l.heartbeatErrAt > 0 && l.heartbeats >= l.heartbeatErrAt {
+		err := l.heartbeatErr
+		l.mu.Unlock()
+		return err
+	}
+	l.mu.Unlock()
+	if fn != nil {
+		return fn(ctx)
+	}
+	return nil
+}
+
+func (l *scriptedSourceLease) Release(context.Context) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.releases++
+	return l.releaseErr
+}
+
+func (l *scriptedSourceLease) releasesCount() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.releases
 }
 
 func TestRunPassesCodexBypassApprovalsAndSandbox(t *testing.T) {
@@ -2824,8 +3011,10 @@ func (s *fakeCommandState) runCodex(command runner.Command) runner.Result {
 		}
 	}
 	line := `{"type":"turn.completed","final_message":"done","usage":{"input_tokens":7,"output_tokens":3,"duration_seconds":1}}`
-	if command.OnStdoutLine != nil {
-		command.OnStdoutLine(line)
+	if command.StdoutWriter != nil {
+		if _, err := io.WriteString(command.StdoutWriter, line+"\n"); err != nil {
+			s.t.Fatalf("write Codex stdout: %v", err)
+		}
 	}
 	exitCode := s.codexExit
 	return runner.Result{ExitCode: exitCode, Stdout: line + "\n"}
@@ -2833,20 +3022,21 @@ func (s *fakeCommandState) runCodex(command runner.Command) runner.Result {
 
 func (s *fakeCommandState) runGit(command runner.Command) runner.Result {
 	s.gitCommands = append(s.gitCommands, append([]string(nil), command.Args...))
-	if reflect.DeepEqual(command.Args, []string{"status", "--short", "--untracked-files=all"}) {
+	if reflect.DeepEqual(command.Args, []string{"status", "--porcelain=v1", "-z", "--untracked-files=all"}) {
 		s.gitStatusCalls++
 		if s.gitStatusCalls == 1 {
 			return runner.Result{ExitCode: 0}
 		}
 		return runner.Result{ExitCode: 0, Stdout: s.postStatus}
 	}
-	if len(command.Args) > 0 && (command.Args[0] == "add" || command.Args[0] == "commit") {
+	subcommand := gitSubcommand(command.Args)
+	if subcommand == "add" || subcommand == "commit" {
 		s.gitAddOrCommitCalls++
 	}
-	if len(s.expectedCommitAdd) > 0 && command.Args[0] == "add" && !reflect.DeepEqual(command.Args, s.expectedCommitAdd) {
+	if len(s.expectedCommitAdd) > 0 && subcommand == "add" && !reflect.DeepEqual(command.Args, s.expectedCommitAdd) {
 		s.t.Fatalf("git add args = %#v, want %#v", command.Args, s.expectedCommitAdd)
 	}
-	switch command.Args[0] {
+	switch subcommand {
 	case "add", "commit":
 		return runner.Result{ExitCode: 0}
 	case "rev-parse":

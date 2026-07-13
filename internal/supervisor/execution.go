@@ -362,12 +362,13 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 
 	snapshotCfg := gitstate.SourceSnapshotConfig{
-		WorkingDir:    normalized.executionRoot,
-		GitExecutable: normalized.GitExecutable,
-		Timeout:       normalized.GitTimeout,
-		StdoutCap:     normalized.GitStdoutCap,
-		StderrCap:     normalized.GitStderrCap,
-		CommandRunner: normalized.GitCommandRunner,
+		WorkingDir:          normalized.executionRoot,
+		GitExecutable:       normalized.GitExecutable,
+		Timeout:             normalized.GitTimeout,
+		StdoutCap:           normalized.GitStdoutCap,
+		StderrCap:           normalized.GitStderrCap,
+		AllowHarnessRuntime: normalized.executionRoot == normalized.root,
+		CommandRunner:       normalized.GitCommandRunner,
 	}
 	baseline, baselineErr := normalized.SourceSnapshotter(ctx, snapshotCfg)
 	if baselineErr == nil {

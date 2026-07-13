@@ -554,6 +554,28 @@ verification:
 	}
 }
 
+func TestPreflightWorktreeCheckFailsClosedOnTruncatedStatus(t *testing.T) {
+	var checks []PreflightCheck
+	addCheck := func(status PreflightCheckStatus, name, detail string) {
+		checks = append(checks, PreflightCheck{Status: status, Name: name, Detail: detail})
+	}
+	addWorktreeCheck(
+		context.Background(),
+		addCheck,
+		func(context.Context, runner.Command) runner.Result {
+			return runner.Result{ExitCode: 0, Stdout: " M partial.go\x00", StdoutTruncatedBytes: 5}
+		},
+		t.TempDir(),
+		"git-test",
+		time.Second,
+		1024,
+		1024,
+	)
+	if len(checks) != 1 || checks[0].Status != PreflightFail || checks[0].Name != "worktree clean" || !strings.Contains(checks[0].Detail, "truncated") {
+		t.Fatalf("worktree checks = %+v, want truncation failure", checks)
+	}
+}
+
 func TestPreflightDoesNotClaimFullyUnattendedReadinessWithoutTaskWorkspace(t *testing.T) {
 	workDir := t.TempDir()
 	createAppPreflightState(t, workDir)
@@ -1592,7 +1614,7 @@ func preflightCommandRunnerWithVersion(t *testing.T, version runner.Result) Pref
 			return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
 		case "config\x00--get\x00user.email":
 			return runner.Result{ExitCode: 0, Stdout: "doctor@example.invalid\n"}
-		case "status\x00--short\x00--untracked-files=all":
+		case "status\x00--porcelain=v1\x00-z\x00--untracked-files=all":
 			return runner.Result{ExitCode: 0}
 		case "check-ignore\x00--quiet\x00.revolvr/":
 			return runner.Result{ExitCode: 0}
@@ -1609,8 +1631,8 @@ func failedPreflightCommandRunner(t *testing.T) PreflightCommandRunner {
 		switch strings.Join(command.Args, "\x00") {
 		case "config\x00--get\x00user.name", "config\x00--get\x00user.email":
 			return runner.Result{ExitCode: 1}
-		case "status\x00--short\x00--untracked-files=all":
-			return runner.Result{ExitCode: 0, Stdout: " M internal/app/preflight.go\n?? scratch.txt\n"}
+		case "status\x00--porcelain=v1\x00-z\x00--untracked-files=all":
+			return runner.Result{ExitCode: 0, Stdout: " M internal/app/preflight.go\x00?? scratch.txt\x00"}
 		case "check-ignore\x00--quiet\x00.revolvr/":
 			return runner.Result{ExitCode: 1}
 		default:

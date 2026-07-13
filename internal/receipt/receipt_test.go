@@ -270,14 +270,18 @@ func TestParseCodexUsageMetricsRecoversAfterMalformedJSONLines(t *testing.T) {
 	}, "\n"))
 
 	metrics, found, err := ParseCodexUsageMetrics(jsonl)
-	if err != nil {
-		t.Fatalf("parse codex usage metrics: %v", err)
+	if !errors.Is(err, ErrMalformedCodexJSONL) {
+		t.Fatalf("parse codex usage metrics error = %v, want malformed-record diagnostic", err)
 	}
 	if !found {
 		t.Fatal("found = false, want true")
 	}
 	if got, want := metrics, (Metrics{InputTokens: 294455, OutputTokens: 5151, DurationSeconds: 0}); got != want {
 		t.Fatalf("metrics = %#v, want %#v", got, want)
+	}
+	var malformed *MalformedCodexJSONLError
+	if !errors.As(err, &malformed) || malformed.FirstRecord != 1 || malformed.Count != 2 {
+		t.Fatalf("malformed diagnostic = %#v", err)
 	}
 }
 

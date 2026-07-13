@@ -11,8 +11,8 @@ import (
 	"revolvr/internal/ledgerexport"
 )
 
-// ShowMetrics loads either the immutable live ledger snapshot or one verified
-// export, then invokes the same pure logical projection.
+// ShowMetrics loads either one coherent live-ledger snapshot or one verified
+// immutable export, then invokes the same pure logical projection.
 func ShowMetrics(ctx context.Context, cfg Config, exportID string) (autonomousmetrics.Projection, error) {
 	paths, err := resolveStatePaths(cfg.WorkDir)
 	if err != nil {
@@ -27,7 +27,7 @@ func ShowMetrics(ctx context.Context, cfg Config, exportID string) (autonomousme
 	if exportID != "" {
 		snapshot, err = ledgerexport.ReplaySnapshot(ctx, paths.WorkDir, exportID, secrets)
 	} else {
-		store, openErr := ledger.OpenReadOnly(ctx, paths.LedgerDBPath)
+		store, openErr := ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
 		if openErr != nil {
 			return autonomousmetrics.Projection{}, openErr
 		}

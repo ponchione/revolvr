@@ -3,7 +3,6 @@ package artifactretention
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -179,7 +178,7 @@ func revalidateActionAuthority(ctx context.Context, root, ledgerPath string, pla
 	if hash(raw) != plan.Ledger.SHA256 || int64(len(raw)) != plan.Ledger.ByteSize {
 		return errors.New("artifact GC apply: ledger identity changed")
 	}
-	store, err := ledger.OpenReadOnly(ctx, ledgerPath)
+	store, err := ledger.OpenLiveReadOnly(ctx, ledgerPath)
 	if err != nil {
 		return err
 	}
@@ -518,5 +517,3 @@ func releaseFlock(f *os.File) {
 	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 	_ = f.Close()
 }
-
-var _ = json.Valid
