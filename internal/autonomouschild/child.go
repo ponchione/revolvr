@@ -19,22 +19,23 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomouschildpublication"
 	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/ledger"
 	"revolvr/internal/taskfile"
 )
 
-const JournalSchemaVersion = "autonomous-child-publication-v1"
-const HistorySchemaVersion = "autonomous-child-publication-transition-v1"
+const JournalSchemaVersion = autonomouschildpublication.JournalSchemaVersion
+const HistorySchemaVersion = autonomouschildpublication.HistorySchemaVersion
 
-type Stage string
+type Stage = autonomouschildpublication.Stage
 
 const (
-	StageAdmitted        Stage = "admitted"
-	StageStatesPublished Stage = "states_published"
-	StageTasksPublished  Stage = "tasks_published"
-	StageCompleted       Stage = "completed"
+	StageAdmitted        = autonomouschildpublication.StageAdmitted
+	StageStatesPublished = autonomouschildpublication.StageStatesPublished
+	StageTasksPublished  = autonomouschildpublication.StageTasksPublished
+	StageCompleted       = autonomouschildpublication.StageCompleted
 )
 
 type FailurePoint string
@@ -73,32 +74,9 @@ type ledgerEvent struct {
 	Children      []ChildRecord `json:"children"`
 }
 
-type ChildRecord struct {
-	TaskID      string `json:"task_id"`
-	ProposalKey string `json:"proposal_key"`
-	TaskPath    string `json:"task_path"`
-	TaskSHA256  string `json:"task_sha256"`
-	StatePath   string `json:"state_path"`
-	StateSHA256 string `json:"state_sha256"`
-}
-
-type Journal struct {
-	SchemaVersion  string        `json:"schema_version"`
-	OperationID    string        `json:"operation_id"`
-	ParentTaskID   string        `json:"parent_task_id"`
-	DecisionID     string        `json:"decision_id"`
-	ProposalID     string        `json:"proposal_id"`
-	MaterialSHA256 string        `json:"material_sha256"`
-	Stage          Stage         `json:"stage"`
-	Sequence       int64         `json:"sequence"`
-	Children       []ChildRecord `json:"children"`
-	CreatedAt      time.Time     `json:"created_at"`
-}
-
-type HistoryRecord struct {
-	SchemaVersion string  `json:"schema_version"`
-	Journal       Journal `json:"journal"`
-}
+type ChildRecord = autonomouschildpublication.ChildRecord
+type Journal = autonomouschildpublication.Journal
+type HistoryRecord = autonomouschildpublication.HistoryRecord
 
 type Result struct {
 	Children []taskfile.Task
@@ -170,17 +148,18 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	journalPath := filepath.Join(root, ".revolvr", "autonomous", "child-publications", input.OperationID+".json")
-	journal, exists, err := readJournal(journalPath)
+	expected := Journal{SchemaVersion: JournalSchemaVersion, OperationID: input.OperationID, ParentTaskID: parent.ID, DecisionID: input.Reference.DecisionID, ProposalID: input.Decision.ChildTasks.ProposalID, MaterialSHA256: material, Stage: StageAdmitted, Sequence: 1, Children: records, CreatedAt: input.CreatedAt.UTC()}
+	projection, exists, err := autonomouschildpublication.Load(root, input.OperationID)
 	if err != nil {
 		return Result{}, err
 	}
+	journal := projection.Journal
 	if exists {
-		if journal.MaterialSHA256 != material {
+		if !journal.SameAuthority(expected) {
 			return Result{}, errors.New("child publication: operation ID content conflict")
 		}
 		if journal.Stage == StageCompleted {
-			tasks, err := loadChildren(root, journal.Children)
+			tasks, err := loadChildren(root, projected, states, records)
 			return Result{Children: tasks, Replayed: true}, err
 		}
 	} else {
@@ -199,8 +178,8 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 		if _, buildErr := autonomousscheduler.BuildSnapshot(active, input.ArchiveEvidence); buildErr != nil {
 			return Result{}, fmt.Errorf("child publication: proposed graph: %w", buildErr)
 		}
-		journal = Journal{SchemaVersion: JournalSchemaVersion, OperationID: input.OperationID, ParentTaskID: parent.ID, DecisionID: input.Reference.DecisionID, ProposalID: input.Decision.ChildTasks.ProposalID, MaterialSHA256: material, Stage: StageAdmitted, Sequence: 1, Children: records, CreatedAt: input.CreatedAt.UTC()}
-		if err := persist(root, journal); err != nil {
+		journal = expected
+		if err := persist(root, Journal{}, journal); err != nil {
 			return Result{}, err
 		}
 		if input.FailureInjector != nil {
@@ -215,8 +194,9 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 				return Result{}, err
 			}
 		}
+		prior := journal
 		journal.Stage, journal.Sequence = StageStatesPublished, journal.Sequence+1
-		if err := persist(root, journal); err != nil {
+		if err := persist(root, prior, journal); err != nil {
 			return Result{}, err
 		}
 		if input.FailureInjector != nil {
@@ -231,8 +211,9 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 				return Result{}, err
 			}
 		}
+		prior := journal
 		journal.Stage, journal.Sequence = StageTasksPublished, journal.Sequence+1
-		if err := persist(root, journal); err != nil {
+		if err := persist(root, prior, journal); err != nil {
 			return Result{}, err
 		}
 		if input.FailureInjector != nil {
@@ -242,6 +223,9 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 		}
 	}
 	if journal.Stage == StageTasksPublished {
+		if _, err := loadChildren(root, projected, states, records); err != nil {
+			return Result{}, err
+		}
 		if input.Ledger != nil {
 			for _, eventType := range []ledger.EventType{ledger.EventChildProposalAdmitted, ledger.EventChildrenPublished, ledger.EventChildPublicationCompleted} {
 				if err := ensureLedgerEvent(context.WithoutCancel(ctx), input.Ledger, input.Reference.RunID, eventType, journal); err != nil {
@@ -249,12 +233,13 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 				}
 			}
 		}
+		prior := journal
 		journal.Stage, journal.Sequence = StageCompleted, journal.Sequence+1
-		if err := persist(root, journal); err != nil {
+		if err := persist(root, prior, journal); err != nil {
 			return Result{}, err
 		}
 	}
-	tasks, err := loadChildren(root, records)
+	tasks, err := loadChildren(root, projected, states, records)
 	return Result{Children: tasks}, err
 }
 
@@ -296,7 +281,7 @@ func project(root string, input Input) ([]taskfile.Task, []autonomous.ExecutionS
 	states := make([]autonomous.ExecutionState, 0, len(children))
 	records := make([]ChildRecord, 0, len(children))
 	for _, child := range children {
-		id := childID(input.Decision.TaskID, input.Reference.DecisionID, proposal.ProposalID, child.Key)
+		id := autonomouschildpublication.ChildTaskID(input.Decision.TaskID, input.Reference.DecisionID, proposal.ProposalID, child.Key)
 		evidenceTokens := make([]string, len(child.Evidence))
 		for i, e := range child.Evidence {
 			evidenceTokens[i] = string(e.Kind) + ":" + e.Reference
@@ -321,10 +306,6 @@ func project(root string, input Input) ([]taskfile.Task, []autonomous.ExecutionS
 	return tasks, states, records, nil
 }
 
-func childID(parent, decision, proposal, key string) string {
-	sum := sha256.Sum256([]byte(strings.Join([]string{parent, decision, proposal, key}, "\x00")))
-	return "child-" + hex.EncodeToString(sum[:12])
-}
 func hash(raw []byte) string { sum := sha256.Sum256(raw); return hex.EncodeToString(sum[:]) }
 func mustState(state autonomous.ExecutionState) []byte {
 	raw, err := autonomousstate.MarshalState(state)
@@ -344,37 +325,33 @@ func materialHash(input Input, children []ChildRecord) (string, error) {
 	return hash(raw), err
 }
 
-func persist(root string, journal Journal) error {
-	raw, _ := json.MarshalIndent(journal, "", "  ")
-	raw = append(raw, '\n')
-	history := HistoryRecord{SchemaVersion: HistorySchemaVersion, Journal: journal}
-	hraw, _ := json.MarshalIndent(history, "", "  ")
-	hraw = append(hraw, '\n')
+func persist(root string, prior, journal Journal) error {
+	if prior.Sequence == 0 {
+		if err := journal.Validate(); err != nil {
+			return err
+		}
+		if journal.Sequence != 1 || journal.Stage != StageAdmitted {
+			return errors.New("child publication: history must start with admission")
+		}
+	} else if err := autonomouschildpublication.ValidateTransition(prior, journal); err != nil {
+		return err
+	}
+	raw, err := autonomouschildpublication.MarshalJournal(journal)
+	if err != nil {
+		return err
+	}
+	hraw, err := autonomouschildpublication.MarshalHistory(journal)
+	if err != nil {
+		return err
+	}
 	base := filepath.Join(root, ".revolvr", "autonomous", "child-publications")
 	if err := os.MkdirAll(filepath.Join(base, "history"), 0o755); err != nil {
 		return err
 	}
-	if err := writeImmutable(root, filepath.ToSlash(filepath.Join(".revolvr", "autonomous", "child-publications", "history", fmt.Sprintf("%s-%06d.json", journal.OperationID, journal.Sequence))), hraw, hash(hraw)); err != nil {
+	if err := writeImmutable(root, filepath.ToSlash(filepath.Join(".revolvr", "autonomous", "child-publications", "history", autonomouschildpublication.HistoryFilename(journal.OperationID, journal.Sequence))), hraw, hash(hraw)); err != nil {
 		return err
 	}
 	return writeMutable(filepath.Join(base, journal.OperationID+".json"), raw)
-}
-func readJournal(path string) (Journal, bool, error) {
-	raw, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return Journal{}, false, nil
-	}
-	if err != nil {
-		return Journal{}, false, err
-	}
-	var j Journal
-	if err := json.Unmarshal(raw, &j); err != nil {
-		return Journal{}, false, err
-	}
-	if j.SchemaVersion != JournalSchemaVersion {
-		return Journal{}, false, errors.New("child publication: invalid journal schema")
-	}
-	return j, true, nil
 }
 func writeMutable(path string, raw []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -439,15 +416,25 @@ func writeImmutable(root, rel string, raw []byte, want string) error {
 	}
 	return err
 }
-func loadChildren(root string, records []ChildRecord) ([]taskfile.Task, error) {
+func loadChildren(root string, projected []taskfile.Task, states []autonomous.ExecutionState, records []ChildRecord) ([]taskfile.Task, error) {
+	if len(projected) != len(states) || len(states) != len(records) {
+		return nil, errors.New("child publication: projected child set is inconsistent")
+	}
 	result := make([]taskfile.Task, 0, len(records))
-	for _, record := range records {
+	for i, record := range records {
 		task, err := taskfile.Load(root, record.TaskPath)
 		if err != nil {
 			return nil, err
 		}
-		if task.SourceSHA256() != record.TaskSHA256 {
+		if task.SourceSHA256() != record.TaskSHA256 || !bytes.Equal(task.SourceBytes, projected[i].SourceBytes) {
 			return nil, errors.New("child publication: task readback identity mismatch")
+		}
+		stateRaw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(record.StatePath)))
+		if err != nil {
+			return nil, err
+		}
+		if hash(stateRaw) != record.StateSHA256 || !bytes.Equal(stateRaw, mustState(states[i])) {
+			return nil, errors.New("child publication: state readback identity mismatch")
 		}
 		result = append(result, task)
 	}

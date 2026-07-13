@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## R2-04 Shared Child-Publication Authority (2026-07-13)
+
+- Child publication has one shared read-only authority owner,
+  `internal/autonomouschildpublication`, so publisher recovery and scheduler
+  admission cannot interpret the same evidence differently. The mutation
+  coordinator remains `internal/autonomouschild`; the shared package publishes
+  nothing and therefore does not invert the existing child-to-scheduler graph
+  dependency.
+- A valid journal has exactly one nonempty child set, strictly ordered by
+  proposal key. Each task ID is rederived from parent, decision, proposal, and
+  key; task/state paths are canonical; every artifact identity is lowercase
+  SHA-256; creation time is UTC; and the only stage/sequence pairs are
+  admission/1, states-published/2, tasks-published/3, and completed/4.
+- Complete immutable snapshots remain the history format. Authority must be
+  identical across a contiguous sequence-one-through-latest chain. A missing
+  mutable checkpoint is recoverable and a stale checkpoint is valid only when
+  exactly backed by its history entry; ahead, conflicting, unbacked, malformed,
+  or gapped evidence is refused.
+- Publisher replay recomputes the full expected journal authority from the
+  validated decision/reference, parent task/state identities, explicit time,
+  and deterministic child task/state bytes. The material hash is not trusted
+  alone. Every authority field and exact child record must match before effects
+  may be skipped, and claimed task publication is read back before completion.
+- Scheduler admission consumes the same reconstructed projection. It requires
+  completed history, exact child membership and canonical paths, matching task
+  metadata and immutable execution-state lineage, and a child-record state
+  hash that rederives from that lineage. Current task/state bytes may evolve
+  through their separate validated lifecycle; `ChildOf` cannot change or
+  disappear under a legal execution-state transition.
+- Runtime-path identity, mode, hard-link, ancestor, and open/rename protections
+  remain R2-05. R2-04 changes semantic recovery authority without duplicating
+  that upcoming filesystem boundary.
+
 ## R2-03 Immutable GC Recovery Authority (2026-07-13)
 
 - The authoritative GC journal is the complete, contiguous series of

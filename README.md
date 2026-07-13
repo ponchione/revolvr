@@ -576,6 +576,11 @@ operation. A dependent child waits for its parent; explicitly independent work
 cannot answer or bypass the parent's blocker. Publication starts no worker,
 charges no attempt, and never changes the parent task or state. Incomplete
 publication journals fail scheduling closed until exact recovery finishes.
+Recovery reconstructs one contiguous immutable transition history and treats
+the mutable checkpoint only as a backed cache. Publisher replay and scheduler
+admission consume the same validated child-set projection, including exact
+operation, parent, decision, proposal, initial artifact identities, and
+immutable child lineage.
 
 `--operation-id <id>` supplies a
 stable restart identity; repeating the same operation reopens its durable

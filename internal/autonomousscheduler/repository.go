@@ -2,11 +2,9 @@ package autonomousscheduler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
+	"revolvr/internal/autonomouschildpublication"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/taskfile"
 )
@@ -34,9 +32,11 @@ func loadActive(ctx context.Context, repositoryRoot string, requireState bool) (
 		return nil, err
 	}
 	result := make([]ActiveTask, 0, len(tasks))
+	publications := make(map[string]autonomouschildpublication.Projection)
 	for _, task := range tasks {
 		item := ActiveTask{Task: task}
 		if task.Workflow == taskfile.WorkflowAutonomousV1 {
+			hasChildMetadata := task.ParentTaskID != "" || task.ChildProposalID != "" || task.ChildDecisionID != "" || task.ChildRunID != "" || len(task.ChildEvidence) != 0 || task.ParentBehavior != ""
 			snapshot, found, loadErr := store.Load(ctx, task.ID)
 			if loadErr != nil && loadErr != autonomousstate.ErrStateMissing {
 				return nil, fmt.Errorf("scheduler: load state for %q: %w", task.ID, loadErr)
@@ -46,21 +46,27 @@ func loadActive(ctx context.Context, repositoryRoot string, requireState bool) (
 				item.StateSHA256 = snapshot.SHA256
 				item.StateByteSize = snapshot.ByteSize
 				if snapshot.State.ChildOf != nil {
-					journalPath := filepath.Join(repositoryRoot, ".revolvr", "autonomous", "child-publications", snapshot.State.ChildOf.OperationID+".json")
-					raw, readErr := os.ReadFile(journalPath)
-					if readErr != nil {
-						return nil, fmt.Errorf("scheduler: child task %q publication authority is incomplete: %w", task.ID, readErr)
+					operationID := snapshot.State.ChildOf.OperationID
+					publication, loaded := publications[operationID]
+					if !loaded {
+						var publicationFound bool
+						var publicationErr error
+						publication, publicationFound, publicationErr = autonomouschildpublication.Load(repositoryRoot, operationID)
+						if publicationErr != nil {
+							return nil, fmt.Errorf("scheduler: child task %q publication authority is incomplete: %w", task.ID, publicationErr)
+						}
+						if !publicationFound {
+							return nil, fmt.Errorf("scheduler: child task %q publication authority is missing", task.ID)
+						}
+						publications[operationID] = publication
 					}
-					var journal struct {
-						SchemaVersion string `json:"schema_version"`
-						Stage         string `json:"stage"`
-						OperationID   string `json:"operation_id"`
+					if validationErr := publication.ValidateActiveChild(task, snapshot); validationErr != nil {
+						return nil, fmt.Errorf("scheduler: child task %q publication authority is incomplete or malformed: %w", task.ID, validationErr)
 					}
-					if decodeErr := json.Unmarshal(raw, &journal); decodeErr != nil || journal.SchemaVersion != "autonomous-child-publication-v1" || journal.OperationID != snapshot.State.ChildOf.OperationID || journal.Stage != "completed" {
-						return nil, fmt.Errorf("scheduler: child task %q publication authority is incomplete or malformed", task.ID)
-					}
+				} else if hasChildMetadata {
+					return nil, fmt.Errorf("scheduler: child task %q has no immutable child lineage", task.ID)
 				}
-			} else if requireState {
+			} else if requireState || hasChildMetadata {
 				return nil, fmt.Errorf("scheduler: autonomous task %q has no canonical state", task.ID)
 			}
 		}

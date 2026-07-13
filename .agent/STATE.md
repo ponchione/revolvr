@@ -3,11 +3,51 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 through R2-03 are complete; R2-04 is the next bounded
+`.agent/TASKS.md`. R2-01 through R2-04 are complete; R2-05 is the next bounded
 follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
 eleven items are complete. The prior AUD-01 through AUD-16 queue and the
 ordered AW-01 through AW-31 autonomous workflow program remain complete and
 published.
+
+## R2-04 Completion (2026-07-13)
+
+- Selected task: R2-04 — make child-publication recovery and scheduling use
+  one complete validated authority. No later R2 item was started.
+- New shared `internal/autonomouschildpublication` contracts validate every
+  journal and child-record field, deterministic child IDs and canonical paths,
+  nonempty strictly ordered child sets, exact stage/sequence pairs, UTC
+  creation time, and immutable transition authority. Canonical strict JSON and
+  full history wrappers are required.
+- Load reconstructs the latest state from a contiguous four-stage immutable
+  history. Missing checkpoints and exact backed stale checkpoints recover;
+  ahead, conflicting, unbacked, noncanonical, gapped, or authority-divergent
+  state fails closed. The mutable operation journal is only a cache.
+- Publisher replay recomputes the exact deterministic tasks, initial states,
+  records, and material hash from the current input. It compares every journal
+  authority field before replay or continuation and re-reads exact state/task
+  bytes before claiming task publication or completion. A completed checkpoint
+  can no longer substitute or erase children while retaining a material hash.
+- The scheduler no longer decodes three checkpoint fields. It consumes the
+  shared history-backed projection and binds each active child to exact
+  publication membership, task/state paths, parent/decision/proposal identity,
+  immutable `ChildOf` lineage, supervisor run/evidence/behavior metadata, and
+  the deterministic initial state identity. Missing lineage or incomplete
+  publication is never schedulable; evolved state remains supported because
+  lineage is transition-immutable.
+- Files changed: new `internal/autonomouschildpublication` package and tests;
+  `internal/autonomouschild/{child.go,child_test.go}`;
+  `internal/autonomousscheduler/repository.go`; `README.md`; and
+  `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: focused publication, child, scheduler, task-run, and app
+  tests; corruption/recovery tests repeated 10 times; affected-package race
+  tests; `go test -count=1 ./...`; `go vet ./...`; and `git diff --check`.
+  Coverage includes every journal/child field, immutable-field equality,
+  empty/substituted/duplicate/reordered children, missing/stale/ahead/
+  conflicting checkpoints, history gaps and divergence, noncanonical data,
+  partial publication, missing state, stripped lineage, and scheduler recovery
+  from missing or stale checkpoints.
+- What remains: R2-05 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## R2-03 Completion (2026-07-13)
 
