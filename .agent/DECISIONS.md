@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## R2-06 Queue History Authority (2026-07-13)
+
+- A queue operation begins with one pristine `admitted` record at sequence
+  zero. Canonically named immutable history records must then form one complete
+  sequence with nondecreasing timestamps. Foreign names, gaps, duplicate
+  sequences, malformed records, and isolated high-sequence records fail closed.
+- Immutable operation material is the operation ID, mode, configuration schema
+  and hash, safety identity, task bound, effective worker bound, start time,
+  sweep, and daemon-wake authority. It cannot change within a queue. The only
+  schema change is the existing one-way v1-to-v2 migration at the same stage;
+  its in-flight selection and accumulated evidence must be preserved exactly.
+- Legal v2 execution transitions are admission to selection or terminal;
+  selection to one task stop; and task stop to another task stop, a new
+  selection, or terminal. Repeated task-stop records are required for parallel
+  reconciliation and each must append exactly one outcome, advance statistics,
+  and convert exactly one admitted slot to matching terminal evidence.
+- `operation.json` is a mutable cache, never recovery authority. It may be
+  missing or be an exact older history entry. It may not exist without history,
+  lead history, or conflict at its claimed sequence. Persistence revalidates
+  the complete history and its current predecessor before appending exactly one
+  transition.
+
 ## R2-05 Queue and Child Runtime-Path Boundary (2026-07-13)
 
 - Autonomous queue and child-publication state is harness-owned runtime data

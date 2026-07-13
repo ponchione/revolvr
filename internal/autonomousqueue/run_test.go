@@ -224,8 +224,18 @@ func TestLegacySequentialTerminalOperationReplaysAndRejectsParallelChange(t *tes
 	clock := newClock()
 	started := clock().UTC()
 	done := clock().UTC()
-	op := Operation{SchemaVersion: LegacyOperationSchemaVersion, OperationID: "queue-legacy", Mode: ModeUntilExhausted, ConfigSchema: "config-v1", ConfigSHA256: strings.Repeat("a", 64), SafetyIdentity: strings.Repeat("b", 64), MaxTasks: 20, StartedAt: started, UpdatedAt: done, CompletedAt: &done, Sequence: 1, Sweep: 1, Stage: "terminal", StopReason: StopDrained, StopDetail: "legacy drained"}
+	op := Operation{SchemaVersion: LegacyOperationSchemaVersion, OperationID: "queue-legacy", Mode: ModeUntilExhausted, ConfigSchema: "config-v1", ConfigSHA256: strings.Repeat("a", 64), SafetyIdentity: strings.Repeat("b", 64), MaxTasks: 20, StartedAt: started, UpdatedAt: started, Sweep: 1, Stage: "admitted"}
 	if err := persist(root, Operation{}, op, nil); err != nil {
+		t.Fatal(err)
+	}
+	previous := op
+	op.Sequence = 1
+	op.Stage = "terminal"
+	op.UpdatedAt = done
+	op.CompletedAt = &done
+	op.StopReason = StopDrained
+	op.StopDetail = "legacy drained"
+	if err := persist(root, previous, op, nil); err != nil {
 		t.Fatal(err)
 	}
 	cfg := testConfig(root, "queue-legacy", clock, func(context.Context) (Snapshot, error) {

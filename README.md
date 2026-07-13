@@ -628,7 +628,10 @@ starving later work without rewriting priority or dependencies.
 Queue checkpoints and immutable history live under
 `.revolvr/autonomous/queues/<operation-id>/`. Replaying a nonterminal operation
 reopens only unresolved exact slots; replaying a terminal operation returns its
-ordered prior outcomes without starting work. Canonical outcomes remain in
+ordered prior outcomes without starting work. Recovery derives authority from
+one canonically named, contiguous, legal immutable-history chain. The mutable
+checkpoint may be missing or exactly behind that chain, but cannot lead or
+conflict with it. Canonical outcomes remain in
 selection order even when workers finish in another order. Caller cancellation
 cancels every active child, waits for cleanup, and reconciles all evidence
 before returning. A task-local safe stop does not cancel its peers. Stop reasons

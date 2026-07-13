@@ -3,11 +3,44 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 through R2-05 are complete; R2-06 is the next bounded
+`.agent/TASKS.md`. R2-01 through R2-06 are complete; R2-07 is the next bounded
 follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
 eleven items are complete. The prior AUD-01 through AUD-16 queue and the
 ordered AW-01 through AW-31 autonomous workflow program remain complete and
 published.
+
+## R2-06 Completion (2026-07-13)
+
+- Selected task: R2-06 — make queue recovery authority a contiguous legal
+  immutable-history chain. No R2-07 durability work or later audit item was
+  started.
+- Queue history is sorted and consumed only by exact canonical
+  `<sequence>-<stage>.json` names. It must begin with a pristine admission at
+  sequence zero and remain gap-free, duplicate-free, and free of foreign
+  entries.
+- Every adjacent record now validates exact sequence progression,
+  nondecreasing time, immutable operation/configuration material, legal queue
+  stage and evidence changes, terminal finality, and the one supported v1-to-v2
+  migration. Parallel batches retain their legal repeated `task_stopped`
+  transitions, each backed by exactly one newly reconciled slot and outcome.
+- Immutable history is the authority. A missing checkpoint and an exact stale
+  checkpoint recover to the latest history record; a lone, ahead, unbacked, or
+  conflicting checkpoint fails closed. Persistence validates the complete
+  existing chain and current predecessor before publishing the next record,
+  and equal-sequence transitions are rejected.
+- Files changed: `internal/autonomousqueue/{store.go,history_test.go,
+  path_safety_test.go,run_test.go}`; `README.md`; and
+  `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: focused queue tests; R2-06 corruption/recovery tests
+  repeated 10 times; `go test -race -count=1 ./internal/autonomousqueue`;
+  `go test -count=1 ./...`; `go vet ./...`; and `git diff --check`.
+- Coverage includes absent history, a lone terminal record, sequence gaps,
+  duplicate sequences, illegal stage jumps, changed immutable material,
+  foreign canonical JSON, filename/content mismatch, missing/equal/stale/ahead/
+  conflicting checkpoints, equal-sequence persistence, protected rename fault
+  tests, legacy replay/migration, and parallel crash recovery.
+- What remains: R2-07 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## R2-05 Completion (2026-07-13)
 

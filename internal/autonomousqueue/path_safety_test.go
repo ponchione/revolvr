@@ -125,7 +125,7 @@ func TestQueuePersistenceRevalidatesCheckpointBeforeRename(t *testing.T) {
 	checkpoint := filepath.Join(queueDir(root, op.OperationID), "operation.json")
 	before := queueOutsideSnapshot(t, outside)
 	fired := false
-	err := persist(root, op, op, func(point FailurePoint) error {
+	err := persist(root, op, queueTerminalOperation(op), func(point FailurePoint) error {
 		if point != FailureBeforeRename || fired {
 			return nil
 		}
@@ -151,7 +151,7 @@ func TestQueueTempCleanupDoesNotFollowSubstitutedParent(t *testing.T) {
 	dir, moved := queueDir(root, op.OperationID), queueDir(root, op.OperationID)+".moved"
 	var before string
 	fired := false
-	err := persist(root, op, op, func(point FailurePoint) error {
+	err := persist(root, op, queueTerminalOperation(op), func(point FailurePoint) error {
 		if point != FailureBeforeRename || fired {
 			return nil
 		}
@@ -309,6 +309,15 @@ func TestQueueInspectRejectsUnsafeCheckpointAndHistoryReads(t *testing.T) {
 func queuePathOperation(id string) Operation {
 	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
 	return Operation{SchemaVersion: OperationSchemaVersion, OperationID: id, Mode: ModeUntilExhausted, ConfigSchema: "config-v1", ConfigSHA256: strings.Repeat("a", 64), SafetyIdentity: strings.Repeat("b", 64), MaxTasks: 1, MaximumWorkers: 1, StartedAt: now, UpdatedAt: now, Sequence: 0, Sweep: 1, Stage: "admitted"}
+}
+
+func queueTerminalOperation(op Operation) Operation {
+	op.Sequence++
+	op.Stage = "terminal"
+	op.UpdatedAt = op.UpdatedAt.Add(time.Second)
+	op.CompletedAt = &op.UpdatedAt
+	op.StopReason = StopDrained
+	return op
 }
 
 func queueOutside(t *testing.T) string {
