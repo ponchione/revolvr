@@ -237,7 +237,10 @@ autonomy:
 ```
 
 For Go repositories, the effective default verification command is
-`go test ./...` when no verification commands are configured. CLI-initiated
+`go test ./...` when `verification.commands` is omitted or `null` and no tiered
+plan is configured. An explicit `commands: []` disables that synthesized
+default and is evaluated by the configured missing-verification and preflight
+policies. CLI-initiated
 runs default to Codex dangerous bypass/yolo mode for operator-controlled local harness
 passes; set `codex.dangerously_bypass_approvals_and_sandbox: false` or
 `codex.yolo: false` to disable that default. Every run starts a fresh

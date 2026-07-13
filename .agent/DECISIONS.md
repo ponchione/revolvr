@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## R2-09 Verification Command Presence (2026-07-13)
+
+- `verification.commands` has three semantic states. Omitted and YAML `null`
+  mean no sequence override and inherit the supplied base. A present sequence
+  is authoritative: nonempty replaces inherited commands, while `[]` replaces
+  them with a nonnil empty set.
+- Any authoritative flat-command sequence clears an inherited tiered plan.
+  Conversely, an explicit tiered plan continues to clear flat commands. A file
+  that specifies both remains invalid even when one sequence is empty.
+- `runonce` synthesizes the repository-sensitive default only when both flat
+  commands and the tier plan are nil. It must not collapse a nonnil empty slice
+  to nil. Missing-command verification, preflight, and commit policies then
+  decide whether the intentional empty set is acceptable.
+- Effective configuration fingerprints describe resulting behavior rather than
+  YAML spelling. Thus omitted and `null` hash identically when they inherit the
+  same base; explicit empty differs from an inherited Go default.
+
 ## R2-08 Ledger-Export Record Size Contract (2026-07-13)
 
 - One ledger-export record may contain at most 16 MiB of canonical JSON bytes;

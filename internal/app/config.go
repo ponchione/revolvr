@@ -482,7 +482,7 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	if cfg.Verification.Commands != nil && cfg.Verification.Tiers != nil {
 		return runonce.Config{}, errors.New("verification commands and tiers cannot both be set")
 	}
-	if cfg.Verification.Commands != nil && len(*cfg.Verification.Commands) > 0 {
+	if cfg.Verification.Commands != nil {
 		commands := make([]verification.Command, 0, len(*cfg.Verification.Commands))
 		for i, command := range *cfg.Verification.Commands {
 			item, err := command.apply(fmt.Sprintf("verification.commands[%d]", i))
@@ -492,6 +492,7 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 			commands = append(commands, item)
 		}
 		base.VerificationCommands = commands
+		base.VerificationPlan = nil
 	}
 	if cfg.Verification.Tiers != nil {
 		tiers := make([]autonomousverification.Tier, 0, len(*cfg.Verification.Tiers))

@@ -143,6 +143,9 @@ verification:
 func TestDoctorFailsWhenRequiredChecksAreNotReady(t *testing.T) {
 	workDir := newDoctorGitRepo(t)
 	missingCodex := filepath.Join(workDir, "missing-codex")
+	writeCLIFile(t, filepath.Join(workDir, "go.mod"), "module example.com/doctor-empty-verification\n")
+	runDoctorGitTestCommand(t, workDir, "add", "go.mod")
+	runDoctorGitTestCommand(t, workDir, "commit", "-q", "-m", "Add Go module")
 
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -153,6 +156,7 @@ codex:
   executable: `+strconv.Quote(missingCodex)+`
 verification:
   missing_policy: fail
+  commands: []
 `)
 
 	out, err := executeCLI(t, workDir, "doctor")

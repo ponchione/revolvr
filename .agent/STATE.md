@@ -3,11 +3,41 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 through R2-08 are complete; R2-09 is the next bounded
+`.agent/TASKS.md`. R2-01 through R2-09 are complete; R2-10 is the next bounded
 follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
 eleven items are complete. The prior AUD-01 through AUD-16 queue and the
 ordered AW-01 through AW-31 autonomous workflow program remain complete and
 published.
+
+## R2-09 Completion (2026-07-13)
+
+- Selected task: R2-09 — preserve explicit empty verification-command
+  configuration through merge and execution. No R2-10 CLI contract work or
+  later audit item was started.
+- YAML decoding already represented omitted or `null` commands as nil and an
+  explicit sequence as nonnil. Config application now replaces inherited flat
+  commands for every present sequence, including `[]`, and clears any inherited
+  tiered plan. Omitted and `null` commands continue to inherit the base.
+- A nonnil empty slice survives app run loading and `runonce` normalization, so
+  a Go repository no longer synthesizes `go test ./...` after an operator
+  explicitly selects no commands. The configured missing-command and preflight/
+  commit policies receive the intended empty set.
+- The effective projection/hash, `config check`, and doctor now reflect zero
+  commands for explicit empty configuration while omitted and `null` retain the
+  Go default. No effective-config schema change was needed because the existing
+  commands array already represents the resulting material state.
+- Tests cover omitted, `null`, empty, and nonempty input against nil, inherited
+  flat-command, and inherited tier-plan bases; default suppression and hash
+  identity; app run loading; config-check rendering; and doctor failure in a Go
+  repository with explicit empty commands.
+- Files changed: `internal/app/{config.go,
+  config_verification_presence_test.go}`; `internal/cli/{doctor_test.go,
+  root_test.go}`; `README.md`; and `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: focused app and CLI tests; complete app, CLI, and
+  runonce package tests; `go test -count=1 ./...`; `go vet ./...`; live
+  `go run ./cmd/revolvr config check`; and `git diff --check`.
+- What remains: R2-10 and R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## R2-08 Completion (2026-07-13)
 

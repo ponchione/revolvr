@@ -1484,6 +1484,23 @@ func TestConfigCheckMissingConfigPrintsDefaultVerificationCommand(t *testing.T) 
 	}
 }
 
+func TestConfigCheckExplicitEmptyVerificationCommandsSuppressesGoDefault(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLIFile(t, filepath.Join(workDir, "go.mod"), "module example.com/revolvrtest\n")
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), "verification:\n  commands: []\n")
+
+	out, err := executeCLI(t, workDir, "config", "check")
+	if err != nil {
+		t.Fatalf("execute config check: %v", err)
+	}
+	if !strings.Contains(out, "Config found: true\n") || !strings.Contains(out, "Verification command count: 0\n") {
+		t.Fatalf("explicit empty config output = %q", out)
+	}
+	if strings.Contains(out, "Verification command 0:") {
+		t.Fatalf("explicit empty config synthesized a command: %q", out)
+	}
+}
+
 func TestConfigCheckValidConfigPrintsEffectiveValuesAndDoesNotRunOnce(t *testing.T) {
 	workDir := t.TempDir()
 	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
