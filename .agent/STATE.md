@@ -3,11 +3,49 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 through R2-04 are complete; R2-05 is the next bounded
+`.agent/TASKS.md`. R2-01 through R2-05 are complete; R2-06 is the next bounded
 follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
 eleven items are complete. The prior AUD-01 through AUD-16 queue and the
 ordered AW-01 through AW-31 autonomous workflow program remain complete and
 published.
+
+## R2-05 Completion (2026-07-13)
+
+- Selected task: R2-05 — apply the established protected runtime-path contract
+  to autonomous queue and child-publication persistence. No R2-06 history-chain
+  semantics or later audit item was started.
+- `runtimepath` now provides identity-checked protected file reads, directory
+  enumeration, opened-directory checks, and directory sync. File/directory
+  descriptors must match their safe named component before and after use;
+  final symlink races use no-follow opens, and missing paths remain explicit.
+- Queue inspect, recovery, history creation/readback, checkpoint temp/rename,
+  directory sync, and operation locks now use canonical roots plus complete
+  ancestor, type, mode, link-count, named/opened identity, and final-file
+  checks. The local symlink-only walker and duplicate canonical-root helper are
+  removed. Checkpoints and immutable records are revalidated at every open and
+  rename boundary, and temp cleanup refuses a substituted parent.
+- Child publication uses the same contract for its global lock, publication
+  directories, immutable histories, mutable checkpoints, initial child states,
+  state readback, temp/link/rename operations, and directory sync. The shared
+  R2-04 authority loader uses protected checkpoint/history directory and file
+  handles, so scheduling cannot consume an unsafe alias.
+- Files changed: `internal/runtimepath/{runtimepath.go,runtimepath_test.go}`;
+  `internal/autonomousqueue/{run.go,store.go,path_safety_test.go}`;
+  `internal/autonomouschild/{child.go,child_test.go,path_safety_test.go}`;
+  `internal/autonomouschildpublication/publication.go`; `README.md`; and
+  `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: focused runtime-path, queue, child-publication, child,
+  scheduler, task-run, and app tests; path-substitution tests repeated 10 times;
+  affected-package race tests; `go test -count=1 ./...`; `go vet ./...`; and
+  `git diff --check`.
+- Coverage checks every queue/publication namespace ancestor; symlink, hard
+  link, directory, FIFO, wrong-type, and unsafe-mode final files; checkpoint
+  and immutable-history reads; opened lock replacement; checkpoint rename and
+  immutable link replacement; and parent substitution during temp cleanup.
+  Every case preserves exact outside sentinel bytes, mode, link count, and
+  directory contents.
+- What remains: R2-06 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## R2-04 Completion (2026-07-13)
 

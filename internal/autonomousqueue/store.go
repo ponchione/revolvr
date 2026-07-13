@@ -10,6 +10,8 @@ import (
 	"sort"
 	"syscall"
 	"time"
+
+	"revolvr/internal/runtimepath"
 )
 
 type FailurePoint string
@@ -19,12 +21,13 @@ const (
 	FailureAfterHistory  FailurePoint = "after_history"
 	FailureBeforeRename  FailurePoint = "before_rename"
 	FailureAfterRename   FailurePoint = "after_rename"
+	FailureAfterLockOpen FailurePoint = "after_lock_open"
 )
 
 type FailureInjector func(FailurePoint) error
 
 func Inspect(repositoryRoot, operationID string) (Operation, bool, error) {
-	root, err := canonicalRoot(repositoryRoot)
+	root, err := runtimepath.CanonicalRoot(repositoryRoot)
 	if err != nil {
 		return Operation{}, false, err
 	}
@@ -36,21 +39,25 @@ func Inspect(repositoryRoot, operationID string) (Operation, bool, error) {
 
 func load(root, operationID string) (Operation, bool, error) {
 	dir := queueDir(root, operationID)
+	if err := runtimepath.CheckDir(root, dir, true); err != nil {
+		return Operation{}, false, err
+	}
 	var candidates []Operation
-	if op, found, err := readOperation(filepath.Join(dir, "operation.json"), operationID); err != nil {
+	if op, found, err := readOperation(root, filepath.Join(dir, "operation.json"), operationID); err != nil {
 		return Operation{}, false, err
 	} else if found {
 		candidates = append(candidates, op)
 	}
-	entries, err := os.ReadDir(filepath.Join(dir, "history"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	historyDir := filepath.Join(dir, "history")
+	entries, _, err := runtimepath.ReadDir(root, historyDir, true)
+	if err != nil {
 		return Operation{}, false, err
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			return Operation{}, false, errors.New("autonomous queue: foreign history entry")
 		}
-		op, found, readErr := readOperation(filepath.Join(dir, "history", entry.Name()), operationID)
+		op, found, readErr := readOperation(root, filepath.Join(historyDir, entry.Name()), operationID)
 		if readErr != nil {
 			return Operation{}, false, readErr
 		}
@@ -70,13 +77,10 @@ func load(root, operationID string) (Operation, bool, error) {
 	return candidates[0], true, nil
 }
 
-func readOperation(path, operationID string) (Operation, bool, error) {
-	raw, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return Operation{}, false, nil
-	}
-	if err != nil {
-		return Operation{}, false, err
+func readOperation(root, path, operationID string) (Operation, bool, error) {
+	raw, found, err := runtimepath.ReadFile(root, path, true)
+	if err != nil || !found {
+		return Operation{}, found, err
 	}
 	var op Operation
 	if err := json.Unmarshal(raw, &op); err != nil {
@@ -95,10 +99,7 @@ func persist(root string, previous, next Operation, inject FailureInjector) erro
 	}
 	dir := queueDir(root, next.OperationID)
 	historyDir := filepath.Join(dir, "history")
-	if err := ensureNoSymlinkParents(root, historyDir); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(historyDir, 0o700); err != nil {
+	if err := runtimepath.EnsureDir(root, historyDir, 0o700); err != nil {
 		return err
 	}
 	raw, err := canonical(next)
@@ -109,16 +110,20 @@ func persist(root string, previous, next Operation, inject FailureInjector) erro
 	if err := injectAt(inject, FailureBeforeHistory); err != nil {
 		return err
 	}
-	if prior, readErr := os.ReadFile(historyPath); readErr == nil {
+	if prior, found, readErr := runtimepath.ReadFile(root, historyPath, true); readErr == nil && found {
 		if string(prior) != string(raw) {
 			return errors.New("autonomous queue: immutable history conflict")
 		}
-	} else if !errors.Is(readErr, os.ErrNotExist) {
+	} else if readErr != nil {
 		return readErr
-	} else if err := writeExclusive(historyPath, raw); err != nil {
+	} else if err := writeExclusive(root, historyPath, raw); err != nil {
 		return err
 	}
 	if err := injectAt(inject, FailureAfterHistory); err != nil {
+		return err
+	}
+	checkpoint := filepath.Join(dir, "operation.json")
+	if err := runtimepath.CheckFile(root, checkpoint, true); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, ".operation-*.tmp")
@@ -126,8 +131,12 @@ func persist(root string, previous, next Operation, inject FailureInjector) erro
 		return err
 	}
 	name := tmp.Name()
-	defer os.Remove(name)
+	defer removeProtectedTemp(root, name)
 	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := runtimepath.CheckOpenedFile(root, name, tmp); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -145,36 +154,61 @@ func persist(root string, previous, next Operation, inject FailureInjector) erro
 	if err := injectAt(inject, FailureBeforeRename); err != nil {
 		return err
 	}
-	if err := os.Rename(name, filepath.Join(dir, "operation.json")); err != nil {
+	if err := runtimepath.CheckFile(root, checkpoint, true); err != nil {
 		return err
 	}
-	if err := syncDir(dir); err != nil {
+	if err := runtimepath.CheckFile(root, name, false); err != nil {
+		return err
+	}
+	if err := os.Rename(name, checkpoint); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, checkpoint, false); err != nil {
+		return err
+	}
+	if err := runtimepath.SyncDir(root, dir); err != nil {
 		return err
 	}
 	if err := injectAt(inject, FailureAfterRename); err != nil {
 		return err
 	}
-	readback, found, err := readOperation(filepath.Join(dir, "operation.json"), next.OperationID)
+	readback, found, err := readOperation(root, checkpoint, next.OperationID)
 	if err != nil || !found || readback.Sequence != next.Sequence || readback.Stage != next.Stage {
 		return errors.Join(err, errors.New("autonomous queue: strict checkpoint readback failed"))
 	}
 	return nil
 }
 
-func lockOperation(ctx context.Context, root, operationID string) (func(), error) {
+func lockOperation(ctx context.Context, root, operationID string, injectors ...FailureInjector) (func(), error) {
 	dir := queueDir(root, operationID)
-	if err := ensureNoSymlinkParents(root, dir); err != nil {
+	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	path := filepath.Join(dir, "operation.lock")
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "operation.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
 	if err != nil {
+		return nil, err
+	}
+	if len(injectors) > 0 {
+		if err := injectAt(injectors[0], FailureAfterLockOpen); err != nil {
+			_ = f.Close()
+			return nil, err
+		}
+	}
+	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 	for {
 		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
+			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				_ = f.Close()
+				return nil, err
+			}
 			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
 		}
 		select {
@@ -186,53 +220,20 @@ func lockOperation(ctx context.Context, root, operationID string) (func(), error
 	}
 }
 
-func canonicalRoot(root string) (string, error) {
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return "", err
-	}
-	return filepath.EvalSymlinks(abs)
-}
-
 func queueDir(root, operationID string) string {
 	return filepath.Join(root, ".revolvr", "autonomous", "queues", operationID)
 }
 
-func ensureNoSymlinkParents(root, target string) error {
-	rel, err := filepath.Rel(root, target)
-	if err != nil || rel == ".." || filepath.IsAbs(rel) {
-		return errors.New("autonomous queue: unsafe runtime path")
+func writeExclusive(root, path string, raw []byte) error {
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return err
 	}
-	current := root
-	for _, part := range splitPath(rel) {
-		current = filepath.Join(current, part)
-		info, statErr := os.Lstat(current)
-		if errors.Is(statErr, os.ErrNotExist) {
-			continue
-		}
-		if statErr != nil {
-			return statErr
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return errors.New("autonomous queue: symlinked runtime namespace")
-		}
-	}
-	return nil
-}
-
-func splitPath(path string) []string {
-	var result []string
-	for path != "." && path != "" {
-		dir, base := filepath.Split(path)
-		result = append([]string{base}, result...)
-		path = filepath.Clean(dir)
-	}
-	return result
-}
-
-func writeExclusive(path string, raw []byte) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
 	if err != nil {
+		return err
+	}
+	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+		_ = f.Close()
 		return err
 	}
 	if _, err := f.Write(raw); err != nil {
@@ -246,16 +247,16 @@ func writeExclusive(path string, raw []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return syncDir(filepath.Dir(path))
-}
-
-func syncDir(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
+	if err := runtimepath.CheckFile(root, path, false); err != nil {
 		return err
 	}
-	defer f.Close()
-	return f.Sync()
+	return runtimepath.SyncDir(root, filepath.Dir(path))
+}
+
+func removeProtectedTemp(root, path string) {
+	if err := runtimepath.CheckFile(root, path, false); err == nil {
+		_ = os.Remove(path)
+	}
 }
 
 func injectAt(inject FailureInjector, point FailurePoint) error {

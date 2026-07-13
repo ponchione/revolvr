@@ -304,7 +304,7 @@ func TestApplyRejectsConfiguredSecretBeforePersistentPublication(t *testing.T) {
 func TestApplyWaitsAtPublicationAdmissionBeforeAnyMutation(t *testing.T) {
 	repo, parent, stateSHA := childFixture(t)
 	input := childInput(repo, parent, stateSHA)
-	release, err := lock(context.Background(), repo)
+	release, err := lock(context.Background(), repo, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

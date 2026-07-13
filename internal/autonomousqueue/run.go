@@ -12,6 +12,7 @@ import (
 	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/autonomoustaskrun"
 	"revolvr/internal/ledger"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
@@ -344,7 +345,7 @@ type normalized struct {
 }
 
 func normalize(cfg Config) (normalized, error) {
-	root, err := canonicalRoot(cfg.RepositoryRoot)
+	root, err := runtimepath.CanonicalRoot(cfg.RepositoryRoot)
 	if err != nil {
 		return normalized{}, err
 	}

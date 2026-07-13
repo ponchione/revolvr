@@ -346,7 +346,7 @@ Detailed evidence, failure scenarios, and test guidance are in
 - [x] R2-02 — Make artifact-retention exclusion race-free across every competing mutator.
 - [x] R2-03 — Reconstruct and validate GC recovery authority from immutable history and observed effects.
 - [x] R2-04 — Validate child-publication journals and consume one shared verified publication projection.
-- [ ] R2-05 — Apply the protected runtime-path contract to queue and child persistence.
+- [x] R2-05 — Apply the protected runtime-path contract to queue and child persistence.
 - [ ] R2-06 — Validate a contiguous legal queue transition history during recovery.
 - [ ] R2-07 — Durably synchronize both sides of retention quarantine renames and cleanup.
 - [ ] R2-08 — Unify ledger-export writer and reader record-size contracts.

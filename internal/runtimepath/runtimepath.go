@@ -5,6 +5,7 @@ package runtimepath
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,6 +117,123 @@ func CheckOpenedFile(root, path string, file *os.File) error {
 		return unsafe(root, path, "opened file does not match the named component")
 	}
 	return nil
+}
+
+// CheckOpenedDir proves that dir is the same protected directory named by
+// path. It closes the check/use gap for directory enumeration and sync.
+func CheckOpenedDir(root, path string, dir *os.File) error {
+	if err := CheckDir(root, path, false); err != nil {
+		return err
+	}
+	if dir == nil {
+		return unsafe(root, path, "opened directory identity is missing")
+	}
+	pathInfo, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	openInfo, err := dir.Stat()
+	if err != nil {
+		return err
+	}
+	if err := checkDirectory(root, path, openInfo); err != nil {
+		return err
+	}
+	if !os.SameFile(pathInfo, openInfo) {
+		return unsafe(root, path, "opened directory does not match the named component")
+	}
+	return nil
+}
+
+// ReadFile opens and reads one protected regular file only after the opened
+// descriptor is proven to match the named component. A substitution during
+// the read is detected by the second identity check.
+func ReadFile(root, path string, missingOK bool) ([]byte, bool, error) {
+	if err := CheckFile(root, path, missingOK); err != nil {
+		return nil, false, err
+	}
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if errors.Is(err, os.ErrNotExist) && missingOK {
+		return nil, false, nil
+	}
+	if errors.Is(err, syscall.ELOOP) {
+		return nil, false, unsafe(root, path, "became a symlink during open")
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	defer file.Close()
+	if err := CheckOpenedFile(root, path, file); err != nil {
+		return nil, false, err
+	}
+	raw, err := io.ReadAll(file)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := CheckOpenedFile(root, path, file); err != nil {
+		return nil, false, err
+	}
+	if err := file.Close(); err != nil {
+		return nil, false, err
+	}
+	return raw, true, nil
+}
+
+// ReadDir enumerates one protected directory through an identity-checked open
+// descriptor. Missing directories can be represented without following an
+// attacker-controlled replacement.
+func ReadDir(root, path string, missingOK bool) ([]os.DirEntry, bool, error) {
+	if err := CheckDir(root, path, missingOK); err != nil {
+		return nil, false, err
+	}
+	dir, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_DIRECTORY, 0)
+	if errors.Is(err, os.ErrNotExist) && missingOK {
+		return nil, false, nil
+	}
+	if errors.Is(err, syscall.ELOOP) {
+		return nil, false, unsafe(root, path, "became a symlink during open")
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	defer dir.Close()
+	if err := CheckOpenedDir(root, path, dir); err != nil {
+		return nil, false, err
+	}
+	entries, err := dir.ReadDir(-1)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := CheckOpenedDir(root, path, dir); err != nil {
+		return nil, false, err
+	}
+	if err := dir.Close(); err != nil {
+		return nil, false, err
+	}
+	return entries, true, nil
+}
+
+// SyncDir flushes one identity-checked protected directory and verifies that
+// its named component did not change across the sync boundary.
+func SyncDir(root, path string) error {
+	if err := CheckDir(root, path, false); err != nil {
+		return err
+	}
+	dir, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_DIRECTORY, 0)
+	if errors.Is(err, syscall.ELOOP) {
+		return unsafe(root, path, "became a symlink during open")
+	}
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	if err := CheckOpenedDir(root, path, dir); err != nil {
+		return err
+	}
+	if err := dir.Sync(); err != nil {
+		return err
+	}
+	return CheckOpenedDir(root, path, dir)
 }
 
 func protectedFileInfo(root, path string, missingOK bool) (os.FileInfo, bool, error) {

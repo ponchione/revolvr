@@ -182,6 +182,62 @@ func TestCheckOpenedFileRejectsFinalSubstitutionBeforeUse(t *testing.T) {
 	}
 }
 
+func TestCheckOpenedDirRejectsFinalSubstitutionBeforeUse(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	mustRuntimeParents(t, root)
+	mustRuntimeWrite(t, filepath.Join(outside, "sentinel"), []byte("outside-authority\n"), 0o600)
+	path := filepath.Join(root, ".revolvr", "protected")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dir, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dir.Close()
+	if err := os.Rename(path, path+".moved"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, path); err != nil {
+		t.Fatal(err)
+	}
+	before := runtimeTreeSnapshot(t, outside)
+	if err := CheckOpenedDir(root, path, dir); !errors.Is(err, ErrUnsafe) || !strings.Contains(err.Error(), ".revolvr/protected") {
+		t.Fatalf("error = %v, want substituted directory", err)
+	}
+	if after := runtimeTreeSnapshot(t, outside); !reflect.DeepEqual(after, before) {
+		t.Fatalf("outside tree changed\nbefore: %v\nafter:  %v", before, after)
+	}
+}
+
+func TestProtectedReadHelpersUseNamedOpenedIdentities(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".revolvr", "protected")
+	if err := EnsureDir(root, dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "state.json")
+	want := []byte("protected bytes\n")
+	mustRuntimeWrite(t, path, want, 0o600)
+	raw, found, err := ReadFile(root, path, false)
+	if err != nil || !found || !reflect.DeepEqual(raw, want) {
+		t.Fatalf("ReadFile = %q found=%t err=%v", raw, found, err)
+	}
+	entries, found, err := ReadDir(root, dir, false)
+	if err != nil || !found || len(entries) != 1 || entries[0].Name() != "state.json" {
+		t.Fatalf("ReadDir = %+v found=%t err=%v", entries, found, err)
+	}
+	if _, found, err := ReadFile(root, filepath.Join(dir, "missing"), true); err != nil || found {
+		t.Fatalf("missing ReadFile found=%t err=%v", found, err)
+	}
+	if _, found, err := ReadDir(root, filepath.Join(dir, "missing"), true); err != nil || found {
+		t.Fatalf("missing ReadDir found=%t err=%v", found, err)
+	}
+	if err := SyncDir(root, dir); err != nil {
+		t.Fatalf("SyncDir: %v", err)
+	}
+}
+
 func TestRuntimePathAllowsOrdinaryCreateAndReopen(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, ".revolvr", "autonomous", "task-runs", "run-one")

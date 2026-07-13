@@ -23,6 +23,7 @@ import (
 	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/ledger"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
@@ -44,6 +45,9 @@ const (
 	FailureAfterAdmission FailurePoint = "after_admission"
 	FailureAfterStates    FailurePoint = "after_states"
 	FailureAfterTasks     FailurePoint = "after_tasks"
+	FailureAfterLockOpen  FailurePoint = "after_lock_open"
+	FailureBeforeLink     FailurePoint = "before_immutable_link"
+	FailureBeforeRename   FailurePoint = "before_checkpoint_rename"
 )
 
 type Input struct {
@@ -84,11 +88,7 @@ type Result struct {
 }
 
 func Apply(ctx context.Context, input Input) (Result, error) {
-	root, err := filepath.Abs(strings.TrimSpace(input.RepositoryRoot))
-	if err != nil {
-		return Result{}, err
-	}
-	root, err = filepath.EvalSymlinks(root)
+	root, err := runtimepath.CanonicalRoot(strings.TrimSpace(input.RepositoryRoot))
 	if err != nil {
 		return Result{}, err
 	}
@@ -107,7 +107,7 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 	if input.Reference.TaskID != input.Decision.TaskID || input.Reference.DecisionID == "" || input.Reference.Action != input.Decision.Action {
 		return Result{}, errors.New("child publication: decision reference authority mismatch")
 	}
-	unlock, err := lock(ctx, root)
+	unlock, err := lock(ctx, root, input.FailureInjector)
 	if err != nil {
 		return Result{}, err
 	}
@@ -179,7 +179,7 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 			return Result{}, fmt.Errorf("child publication: proposed graph: %w", buildErr)
 		}
 		journal = expected
-		if err := persist(root, Journal{}, journal); err != nil {
+		if err := persist(root, Journal{}, journal, input.FailureInjector); err != nil {
 			return Result{}, err
 		}
 		if input.FailureInjector != nil {
@@ -190,13 +190,13 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 	}
 	if journal.Stage == StageAdmitted {
 		for i := range records {
-			if err := writeImmutable(root, records[i].StatePath, mustState(states[i]), records[i].StateSHA256); err != nil {
+			if err := writeImmutable(root, records[i].StatePath, mustState(states[i]), records[i].StateSHA256, input.FailureInjector); err != nil {
 				return Result{}, err
 			}
 		}
 		prior := journal
 		journal.Stage, journal.Sequence = StageStatesPublished, journal.Sequence+1
-		if err := persist(root, prior, journal); err != nil {
+		if err := persist(root, prior, journal, input.FailureInjector); err != nil {
 			return Result{}, err
 		}
 		if input.FailureInjector != nil {
@@ -213,7 +213,7 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 		}
 		prior := journal
 		journal.Stage, journal.Sequence = StageTasksPublished, journal.Sequence+1
-		if err := persist(root, prior, journal); err != nil {
+		if err := persist(root, prior, journal, input.FailureInjector); err != nil {
 			return Result{}, err
 		}
 		if input.FailureInjector != nil {
@@ -235,7 +235,7 @@ func Apply(ctx context.Context, input Input) (Result, error) {
 		}
 		prior := journal
 		journal.Stage, journal.Sequence = StageCompleted, journal.Sequence+1
-		if err := persist(root, prior, journal); err != nil {
+		if err := persist(root, prior, journal, input.FailureInjector); err != nil {
 			return Result{}, err
 		}
 	}
@@ -325,7 +325,7 @@ func materialHash(input Input, children []ChildRecord) (string, error) {
 	return hash(raw), err
 }
 
-func persist(root string, prior, journal Journal) error {
+func persist(root string, prior, journal Journal, inject func(FailurePoint) error) error {
 	if prior.Sequence == 0 {
 		if err := journal.Validate(); err != nil {
 			return err
@@ -345,76 +345,128 @@ func persist(root string, prior, journal Journal) error {
 		return err
 	}
 	base := filepath.Join(root, ".revolvr", "autonomous", "child-publications")
-	if err := os.MkdirAll(filepath.Join(base, "history"), 0o755); err != nil {
+	if err := runtimepath.EnsureDir(root, filepath.Join(base, "history"), 0o700); err != nil {
 		return err
 	}
-	if err := writeImmutable(root, filepath.ToSlash(filepath.Join(".revolvr", "autonomous", "child-publications", "history", autonomouschildpublication.HistoryFilename(journal.OperationID, journal.Sequence))), hraw, hash(hraw)); err != nil {
+	if err := writeImmutable(root, filepath.ToSlash(filepath.Join(".revolvr", "autonomous", "child-publications", "history", autonomouschildpublication.HistoryFilename(journal.OperationID, journal.Sequence))), hraw, hash(hraw), inject); err != nil {
 		return err
 	}
-	return writeMutable(filepath.Join(base, journal.OperationID+".json"), raw)
+	return writeMutable(root, filepath.Join(base, journal.OperationID+".json"), raw, inject)
 }
-func writeMutable(path string, raw []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func writeMutable(root, path string, raw []byte, inject func(FailurePoint) error) error {
+	dir := filepath.Dir(path)
+	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".child-journal-*")
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, ".child-journal-*")
 	if err != nil {
 		return err
 	}
 	name := f.Name()
-	defer os.Remove(name)
-	if err = f.Chmod(0o644); err == nil {
-		_, err = f.Write(raw)
+	defer removeProtectedTemp(root, name)
+	if err = f.Chmod(0o600); err != nil {
+		_ = f.Close()
+		return err
 	}
-	if err == nil {
-		err = f.Sync()
+	if err = runtimepath.CheckOpenedFile(root, name, f); err != nil {
+		_ = f.Close()
+		return err
 	}
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
+	if _, err = f.Write(raw); err != nil {
+		_ = f.Close()
+		return err
 	}
-	if err == nil {
-		err = os.Rename(name, path)
+	if err = f.Sync(); err != nil {
+		_ = f.Close()
+		return err
 	}
-	return err
+	if err = f.Close(); err != nil {
+		return err
+	}
+	if err := injectChild(inject, FailureBeforeRename); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, name, false); err != nil {
+		return err
+	}
+	if err := os.Rename(name, path); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, path, false); err != nil {
+		return err
+	}
+	return runtimepath.SyncDir(root, dir)
 }
-func writeImmutable(root, rel string, raw []byte, want string) error {
+func writeImmutable(root, rel string, raw []byte, want string, inject func(FailurePoint) error) error {
 	if hash(raw) != want {
 		return errors.New("child publication: immutable identity mismatch")
 	}
 	abs := filepath.Join(root, filepath.FromSlash(rel))
-	if !strings.HasPrefix(abs, root+string(filepath.Separator)) {
-		return errors.New("child publication: unsafe path")
+	dir := filepath.Dir(abs)
+	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
+		return err
 	}
-	if existing, err := os.ReadFile(abs); err == nil {
+	if existing, found, err := runtimepath.ReadFile(root, abs, true); err == nil && found {
 		if bytes.Equal(existing, raw) {
-			return nil
+			return runtimepath.SyncDir(root, dir)
 		}
 		return fmt.Errorf("child publication: path %s has different bytes", rel)
-	} else if !errors.Is(err, os.ErrNotExist) {
+	} else if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+	if err := runtimepath.CheckFile(root, abs, true); err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(abs), ".child-immutable-*")
+	f, err := os.CreateTemp(dir, ".child-immutable-*")
 	if err != nil {
 		return err
 	}
 	name := f.Name()
-	defer os.Remove(name)
-	if err = f.Chmod(0o644); err == nil {
-		_, err = f.Write(raw)
+	defer removeProtectedTemp(root, name)
+	if err = f.Chmod(0o600); err != nil {
+		_ = f.Close()
+		return err
 	}
-	if err == nil {
-		err = f.Sync()
+	if err = runtimepath.CheckOpenedFile(root, name, f); err != nil {
+		_ = f.Close()
+		return err
 	}
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
+	if _, err = f.Write(raw); err != nil {
+		_ = f.Close()
+		return err
 	}
-	if err == nil {
-		err = os.Link(name, abs)
+	if err = f.Sync(); err != nil {
+		_ = f.Close()
+		return err
 	}
-	return err
+	if err = f.Close(); err != nil {
+		return err
+	}
+	if err := injectChild(inject, FailureBeforeLink); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, abs, true); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, name, false); err != nil {
+		return err
+	}
+	if err := os.Link(name, abs); err != nil {
+		return err
+	}
+	if err := os.Remove(name); err != nil {
+		return err
+	}
+	if err := runtimepath.CheckFile(root, abs, false); err != nil {
+		return err
+	}
+	return runtimepath.SyncDir(root, dir)
 }
 func loadChildren(root string, projected []taskfile.Task, states []autonomous.ExecutionState, records []ChildRecord) ([]taskfile.Task, error) {
 	if len(projected) != len(states) || len(states) != len(records) {
@@ -429,8 +481,8 @@ func loadChildren(root string, projected []taskfile.Task, states []autonomous.Ex
 		if task.SourceSHA256() != record.TaskSHA256 || !bytes.Equal(task.SourceBytes, projected[i].SourceBytes) {
 			return nil, errors.New("child publication: task readback identity mismatch")
 		}
-		stateRaw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(record.StatePath)))
-		if err != nil {
+		stateRaw, found, err := runtimepath.ReadFile(root, filepath.Join(root, filepath.FromSlash(record.StatePath)), false)
+		if err != nil || !found {
 			return nil, err
 		}
 		if hash(stateRaw) != record.StateSHA256 || !bytes.Equal(stateRaw, mustState(states[i])) {
@@ -440,17 +492,33 @@ func loadChildren(root string, projected []taskfile.Task, states []autonomous.Ex
 	}
 	return result, nil
 }
-func lock(ctx context.Context, root string) (func(), error) {
+func lock(ctx context.Context, root string, inject func(FailurePoint) error) (func(), error) {
 	path := filepath.Join(root, ".revolvr", "locks", "child-publication.lock")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := runtimepath.EnsureDir(root, filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err := runtimepath.CheckFile(root, path, true); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
 	if err != nil {
+		return nil, err
+	}
+	if err := injectChild(inject, FailureAfterLockOpen); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 	for {
 		if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
+			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
+				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				_ = f.Close()
+				return nil, err
+			}
 			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
 		}
 		select {
@@ -461,6 +529,19 @@ func lock(ctx context.Context, root string) (func(), error) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+}
+
+func removeProtectedTemp(root, path string) {
+	if err := runtimepath.CheckFile(root, path, false); err == nil {
+		_ = os.Remove(path)
+	}
+}
+
+func injectChild(inject func(FailurePoint) error, point FailurePoint) error {
+	if inject == nil {
+		return nil
+	}
+	return inject(point)
 }
 func safeID(v string) bool {
 	if v == "" || v != strings.TrimSpace(v) {

@@ -638,6 +638,12 @@ admits only one direct run or queue coordinator; parallelism exists only among
 isolated task workspaces inside that coordinator. Archive mutation refuses
 while the coordinator is active, and retention keeps its existing refusal.
 
+Queue and child-publication runtime state uses the shared protected-path
+boundary: every ancestor, directory, lock, checkpoint, history entry, temporary
+file, and opened descriptor must remain the same safe harness-owned object.
+Symlinks, hard links, unsafe modes, wrong file types, or substitutions across
+open, link, rename, cleanup, read, and directory-sync boundaries fail closed.
+
 An optional foreground daemon runs the same bounded sweeps after a stable
 readiness-authority change:
 

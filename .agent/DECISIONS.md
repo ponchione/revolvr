@@ -1,5 +1,35 @@
 # Agent Decisions
 
+## R2-05 Queue and Child Runtime-Path Boundary (2026-07-13)
+
+- Autonomous queue and child-publication state is harness-owned runtime data
+  under the same `internal/runtimepath` trust boundary as task-run and outer
+  execution state. Canonical-root resolution happens once at entry. Every
+  existing or newly created ancestor must be a non-symlink directory without
+  group/world write permission; every protected final file must be regular,
+  non-symlink, non-group/world-writable, and single-linked.
+- Protected reads no longer check a path and then call `os.ReadFile` or
+  `os.ReadDir`. `runtimepath.ReadFile` and `ReadDir` use no-follow opened
+  descriptors, prove named/opened identity before consuming bytes or entries,
+  and prove it again afterward. `CheckOpenedDir` and `SyncDir` extend the same
+  identity rule through directory enumeration and durability boundaries.
+- Queue persistence uses `EnsureDir`, protected reads, exclusive opened-file
+  checks, temp identity checks, pre/post-rename checks, protected directory
+  sync, and safe temp cleanup. Its operation lock is checked before open,
+  immediately after open, and after successful flock. The former local
+  symlink-only ancestor walker and root resolver are removed. R2-06 remains
+  responsible for semantic transition-chain authority.
+- Child publication applies the same sequence to its publication lock,
+  immutable history and initial-state link publication, mutable checkpoint
+  rename, state readback, and directory sync. Immutable link targets and
+  mutable rename targets are rechecked immediately before mutation; temporary
+  cleanup removes only a still-protected named file and will not follow a
+  replaced parent into an outside tree.
+- Deterministic fault hooks exist at opened-lock, immutable-link, and mutable-
+  rename boundaries solely to verify the production rechecks. Outside-sentinel
+  tests require unchanged content, mode, hard-link count, and directory names
+  for every rejected ancestor/final-file or substitution scenario.
+
 ## R2-04 Shared Child-Publication Authority (2026-07-13)
 
 - Child publication has one shared read-only authority owner,

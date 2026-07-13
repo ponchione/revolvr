@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -21,6 +20,7 @@ import (
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousstate"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
@@ -119,7 +119,7 @@ type Projection struct {
 }
 
 func Load(repositoryRoot, operationID string) (Projection, bool, error) {
-	root, err := canonicalRoot(repositoryRoot)
+	root, err := runtimepath.CanonicalRoot(repositoryRoot)
 	if err != nil {
 		return Projection{}, false, err
 	}
@@ -127,11 +127,14 @@ func Load(repositoryRoot, operationID string) (Projection, bool, error) {
 		return Projection{}, false, errors.New("child publication authority: operation ID is malformed")
 	}
 	base := filepath.Join(root, ".revolvr", "autonomous", "child-publications")
-	checkpoint, checkpointFound, err := readJournal(filepath.Join(base, operationID+".json"), operationID)
+	if err := runtimepath.CheckDir(root, base, true); err != nil {
+		return Projection{}, false, err
+	}
+	checkpoint, checkpointFound, err := readJournal(root, filepath.Join(base, operationID+".json"), operationID)
 	if err != nil {
 		return Projection{}, false, fmt.Errorf("child publication authority: checkpoint: %w", err)
 	}
-	history, historyFound, err := readHistory(filepath.Join(base, "history"), operationID)
+	history, historyFound, err := readHistory(root, filepath.Join(base, "history"), operationID)
 	if err != nil {
 		return Projection{}, false, err
 	}
@@ -231,13 +234,10 @@ func HistoryFilename(operationID string, sequence int64) string {
 	return historyName(operationID, sequence)
 }
 
-func readJournal(filePath, operationID string) (Journal, bool, error) {
-	raw, err := os.ReadFile(filePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return Journal{}, false, nil
-	}
-	if err != nil {
-		return Journal{}, false, err
+func readJournal(root, filePath, operationID string) (Journal, bool, error) {
+	raw, found, err := runtimepath.ReadFile(root, filePath, true)
+	if err != nil || !found {
+		return Journal{}, found, err
 	}
 	var journal Journal
 	if err := strictCanonicalJSON(raw, &journal); err != nil {
@@ -252,13 +252,13 @@ func readJournal(filePath, operationID string) (Journal, bool, error) {
 	return journal, true, nil
 }
 
-func readHistory(dir, operationID string) ([]Journal, bool, error) {
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, false, nil
-	}
+func readHistory(root, dir, operationID string) ([]Journal, bool, error) {
+	entries, found, err := runtimepath.ReadDir(root, dir, true)
 	if err != nil {
 		return nil, false, err
+	}
+	if !found {
+		return nil, false, nil
 	}
 	type historyEntry struct {
 		name     string
@@ -288,8 +288,8 @@ func readHistory(dir, operationID string) ([]Journal, bool, error) {
 		if entry.sequence != sequence || entry.name != historyName(operationID, sequence) {
 			return nil, false, errors.New("child publication authority: immutable history is noncontiguous")
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, entry.name))
-		if err != nil {
+		raw, found, err := runtimepath.ReadFile(root, filepath.Join(dir, entry.name), false)
+		if err != nil || !found {
 			return nil, false, err
 		}
 		var record HistoryRecord
@@ -348,14 +348,6 @@ func stageForSequence(sequence int64) (Stage, bool) {
 	default:
 		return "", false
 	}
-}
-
-func canonicalRoot(root string) (string, error) {
-	abs, err := filepath.Abs(strings.TrimSpace(root))
-	if err != nil {
-		return "", err
-	}
-	return filepath.EvalSymlinks(abs)
 }
 
 func strictCanonicalJSON(raw []byte, target any) error {
