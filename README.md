@@ -340,7 +340,9 @@ original SHA-256, size, and mtime. Receipt validation and Codex-metric recovery
 read the admitted compressed form transparently and reject missing, corrupt,
 dual, or divergent representations. Pruning is opt-in and requires an exact
 immutable ledger export that passes verification and logical replay before any
-file enters the operation quarantine.
+file enters the operation quarantine. Prune renames are synchronized on both
+the source and complete destination-directory chain before journal completion;
+quarantine removal synchronizes its parent before the cleaned state is durable.
 
 Resume and inspection reconstruct the latest legal state from contiguous
 immutable journal history rather than trusting the mutable checkpoint. Every

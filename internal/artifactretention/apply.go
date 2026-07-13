@@ -31,17 +31,33 @@ type Journal struct {
 	Sequence       int       `json:"sequence"`
 }
 type ApplyInput struct {
-	RepositoryRoot string
-	LedgerPath     string
-	Plan           Plan
-	Secrets        []string
-	Clock          func() time.Time
+	RepositoryRoot  string
+	LedgerPath      string
+	Plan            Plan
+	Secrets         []string
+	Clock           func() time.Time
+	FailureInjector ApplyFailureInjector
 }
 type ApplyResult struct {
 	Journal   Journal
 	Replayed  bool
 	Resumable bool
 }
+
+type ApplyFailurePoint string
+
+const (
+	FailureAfterPruneRename          ApplyFailurePoint = "after_prune_rename"
+	FailureAfterPruneSourceSync      ApplyFailurePoint = "after_prune_source_sync"
+	FailureAfterPruneDestinationSync ApplyFailurePoint = "after_prune_destination_sync"
+	FailureAfterActionJournal        ApplyFailurePoint = "after_action_journal"
+	FailureAfterCompletedJournal     ApplyFailurePoint = "after_completed_journal"
+	FailureAfterQuarantineRemoval    ApplyFailurePoint = "after_quarantine_removal"
+	FailureAfterQuarantineParentSync ApplyFailurePoint = "after_quarantine_parent_sync"
+	FailureAfterCleanedJournal       ApplyFailurePoint = "after_cleaned_journal"
+)
+
+type ApplyFailureInjector func(ApplyFailurePoint, string) error
 
 func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	if err := ValidatePlan(in.Plan); err != nil {
@@ -142,7 +158,7 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 			if in.Plan.RequiredExport && !exportVerified {
 				err = errors.New("artifact GC apply: prune lacks verified export")
 			} else {
-				err = applyPrune(root, in.Plan.OperationID, action)
+				err = applyPrune(root, in.Plan.OperationID, action, in.FailureInjector)
 			}
 		}
 		if err != nil {
@@ -157,6 +173,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		if err := persistJournal(root, prior, &journal); err != nil {
 			return ApplyResult{}, err
 		}
+		if err := injectApplyFailure(in.FailureInjector, FailureAfterActionJournal, action.Path); err != nil {
+			return ApplyResult{Journal: journal, Resumable: true}, err
+		}
 	}
 	if journal.Stage != stageCompleted {
 		prior := cloneJournal(journal)
@@ -166,9 +185,22 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		if err := persistJournal(root, prior, &journal); err != nil {
 			return ApplyResult{}, err
 		}
+		if err := injectApplyFailure(in.FailureInjector, FailureAfterCompletedJournal, journal.OperationID); err != nil {
+			return ApplyResult{Journal: journal, Resumable: true}, err
+		}
 	}
-	quarantine := filepath.Join(root, ".revolvr", "retention", "gc", safeOperationDir(in.Plan.OperationID), "quarantine")
+	operationDir := filepath.Join(root, ".revolvr", "retention", "gc", safeOperationDir(in.Plan.OperationID))
+	quarantine := filepath.Join(operationDir, "quarantine")
 	if err := os.RemoveAll(quarantine); err != nil {
+		return ApplyResult{Journal: journal, Resumable: true}, err
+	}
+	if err := injectApplyFailure(in.FailureInjector, FailureAfterQuarantineRemoval, quarantine); err != nil {
+		return ApplyResult{Journal: journal, Resumable: true}, err
+	}
+	if err := syncDir(operationDir); err != nil {
+		return ApplyResult{Journal: journal, Resumable: true}, err
+	}
+	if err := injectApplyFailure(in.FailureInjector, FailureAfterQuarantineParentSync, operationDir); err != nil {
 		return ApplyResult{Journal: journal, Resumable: true}, err
 	}
 	prior := cloneJournal(journal)
@@ -176,6 +208,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	journal.UpdatedAt = in.Clock().UTC()
 	if err := persistJournal(root, prior, &journal); err != nil {
 		return ApplyResult{}, err
+	}
+	if err := injectApplyFailure(in.FailureInjector, FailureAfterCleanedJournal, journal.OperationID); err != nil {
+		return ApplyResult{Journal: journal, Resumable: true}, err
 	}
 	return ApplyResult{Journal: journal}, nil
 }
@@ -350,9 +385,10 @@ func applyCompression(ctx context.Context, root string, action Action) error {
 	return err
 }
 
-func applyPrune(root, operationID string, action Action) error {
+func applyPrune(root, operationID string, action Action, inject ApplyFailureInjector) error {
 	abs := filepath.Join(root, filepath.FromSlash(action.Path))
-	base := filepath.Join(root, ".revolvr", "retention", "gc", safeOperationDir(operationID), "quarantine", filepath.FromSlash(action.Path))
+	operationDir := filepath.Join(root, ".revolvr", "retention", "gc", safeOperationDir(operationID))
+	base := filepath.Join(operationDir, "quarantine", filepath.FromSlash(action.Path))
 	if err := os.MkdirAll(filepath.Dir(base), 0o700); err != nil {
 		return err
 	}
@@ -389,7 +425,7 @@ func applyPrune(root, operationID string, action Action) error {
 		}
 	}
 	paths := []struct{ src, dst string }{{abs, base}, {abs + ".gz", base + ".gz"}, {abs + ".gz.manifest.json", base + ".gz.manifest.json"}}
-	moved := false
+	quarantined := false
 	for _, p := range paths {
 		if _, err := os.Lstat(p.src); err == nil {
 			if _, err := os.Lstat(p.dst); err == nil {
@@ -398,20 +434,53 @@ func applyPrune(root, operationID string, action Action) error {
 			if err := os.Rename(p.src, p.dst); err != nil {
 				return err
 			}
-			moved = true
+			quarantined = true
+			if err := injectApplyFailure(inject, FailureAfterPruneRename, p.dst); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		} else if _, err := os.Lstat(p.dst); err == nil {
+			quarantined = true
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
-	if !moved {
-		for _, p := range paths {
-			if _, err := os.Lstat(p.dst); err == nil {
-				return nil
-			}
-		}
+	if !quarantined {
 		return errors.New("prune source and quarantine are missing")
 	}
-	return syncDir(filepath.Dir(abs))
+	if err := syncDir(filepath.Dir(abs)); err != nil {
+		return err
+	}
+	if err := injectApplyFailure(inject, FailureAfterPruneSourceSync, filepath.Dir(abs)); err != nil {
+		return err
+	}
+	return syncDestinationChain(filepath.Dir(base), operationDir, inject)
+}
+
+func syncDestinationChain(leaf, stop string, inject ApplyFailureInjector) error {
+	relative, err := filepath.Rel(stop, leaf)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return errors.Join(err, errors.New("prune destination escapes its operation directory"))
+	}
+	for dir := filepath.Clean(leaf); ; dir = filepath.Dir(dir) {
+		if err := syncDir(dir); err != nil {
+			return err
+		}
+		if err := injectApplyFailure(inject, FailureAfterPruneDestinationSync, dir); err != nil {
+			return err
+		}
+		if dir == stop {
+			return nil
+		}
+	}
+}
+
+func injectApplyFailure(inject ApplyFailureInjector, point ApplyFailurePoint, path string) error {
+	if inject == nil {
+		return nil
+	}
+	return inject(point, path)
 }
 
 func cancelJournal(root string, journal *Journal, clock func() time.Time, cause error) (ApplyResult, error) {

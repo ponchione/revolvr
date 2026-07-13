@@ -1,5 +1,24 @@
 # Agent Decisions
 
+## R2-07 Retention Rename Durability (2026-07-13)
+
+- A prune representation is not eligible for a completed-action journal until
+  its cross-directory rename is durable on both sides. GC syncs the source
+  directory, then the quarantine destination from the representation's leaf
+  directory upward through the operation directory. The upward chain makes
+  every directory entry created by `MkdirAll` durable as well as the moved
+  representation.
+- Filesystem-ahead recovery repeats those syncs even when no rename remains to
+  perform. Quarantine presence proves an effect may be reconciled; it does not
+  prove the prior process made either directory side durable.
+- Quarantine cleanup is durable before the terminal `cleaned` claim:
+  `RemoveAll` is followed by an operation-directory sync. The preceding
+  `completed` journal remains the recovery boundary if removal or that sync is
+  interrupted.
+- Apply failure injection is an explicit deterministic test boundary after
+  each rename, directory sync, journal publication, and cleanup mutation. It
+  does not alter production behavior when unset.
+
 ## R2-06 Queue History Authority (2026-07-13)
 
 - A queue operation begins with one pristine `admitted` record at sequence

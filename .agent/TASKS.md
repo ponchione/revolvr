@@ -348,7 +348,7 @@ Detailed evidence, failure scenarios, and test guidance are in
 - [x] R2-04 — Validate child-publication journals and consume one shared verified publication projection.
 - [x] R2-05 — Apply the protected runtime-path contract to queue and child persistence.
 - [x] R2-06 — Validate a contiguous legal queue transition history during recovery.
-- [ ] R2-07 — Durably synchronize both sides of retention quarantine renames and cleanup.
+- [x] R2-07 — Durably synchronize both sides of retention quarantine renames and cleanup.
 - [ ] R2-08 — Unify ledger-export writer and reader record-size contracts.
 - [ ] R2-09 — Preserve explicit empty verification-command configuration.
 - [ ] R2-10 — Give bare `revolvr run` a real non-placeholder contract.
