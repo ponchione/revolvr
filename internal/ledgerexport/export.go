@@ -3,7 +3,6 @@
 package ledgerexport
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -26,8 +25,9 @@ import (
 )
 
 const (
-	ManifestSchema = "revolvr-ledger-export-v1"
-	RecordSchema   = "revolvr-ledger-export-record-v1"
+	ManifestSchema     = "revolvr-ledger-export-v1"
+	RecordSchema       = "revolvr-ledger-export-record-v1"
+	MaximumRecordBytes = 16 * 1024 * 1024
 )
 
 type Artifact struct {
@@ -296,8 +296,7 @@ func encodeSnapshot(ctx context.Context, snapshot ledger.Snapshot, bounds Bounds
 		if err := ctx.Err(); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		r := history.Run
-		record := Record{SchemaVersion: RecordSchema, Kind: "run", Run: &RunRecord{ID: r.ID, TaskID: r.TaskID, Task: r.Task, Status: r.Status, Summary: r.Summary, StartedAt: r.StartedAt, CompletedAt: r.CompletedAt, DurationSeconds: r.DurationSeconds, CodexExitCode: r.CodexExitCode, VerificationStatus: r.VerificationStatus, CommitSHA: r.CommitSHA}}
+		record := runExportRecord(history.Run)
 		if err := appendRecord(&out, record); err != nil {
 			return nil, 0, 0, 0, err
 		}
@@ -412,8 +411,22 @@ func appendRecord(out *bytes.Buffer, record Record) error {
 	if err != nil {
 		return err
 	}
+	if err := validateRecordSize(len(raw)); err != nil {
+		return err
+	}
 	out.Write(raw)
 	out.WriteByte('\n')
+	return nil
+}
+
+func runExportRecord(run ledger.Run) Record {
+	return Record{SchemaVersion: RecordSchema, Kind: "run", Run: &RunRecord{ID: run.ID, TaskID: run.TaskID, Task: run.Task, Status: run.Status, Summary: run.Summary, StartedAt: run.StartedAt, CompletedAt: run.CompletedAt, DurationSeconds: run.DurationSeconds, CodexExitCode: run.CodexExitCode, VerificationStatus: run.VerificationStatus, CommitSHA: run.CommitSHA}}
+}
+
+func validateRecordSize(size int) error {
+	if size > MaximumRecordBytes {
+		return fmt.Errorf("ledger export: record is %d bytes; maximum is %d", size, MaximumRecordBytes)
+	}
 	return nil
 }
 
@@ -609,17 +622,25 @@ type replayHistory struct {
 }
 
 func parseRecords(ctx context.Context, raw []byte) ([]replayHistory, int, int, int, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(raw))
-	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	var histories []replayHistory
 	seenRuns := map[string]bool{}
 	lastEventID := map[string]int64{}
 	runs, events, legacy := 0, 0, 0
-	for scanner.Scan() {
+	remaining := raw
+	for len(remaining) > 0 {
 		if err := ctx.Err(); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		line := append([]byte(nil), scanner.Bytes()...)
+		line := remaining
+		if newline := bytes.IndexByte(remaining, '\n'); newline >= 0 {
+			line = remaining[:newline]
+			remaining = remaining[newline+1:]
+		} else {
+			remaining = nil
+		}
+		if err := validateRecordSize(len(line)); err != nil {
+			return nil, 0, 0, 0, err
+		}
 		var record Record
 		if err := strictJSON(line, &record); err != nil {
 			return nil, 0, 0, 0, err
@@ -665,9 +686,6 @@ func parseRecords(ctx context.Context, raw []byte) ([]replayHistory, int, int, i
 		default:
 			return nil, 0, 0, 0, errors.New("unknown ledger export record kind")
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, 0, 0, 0, err
 	}
 	return histories, runs, events, legacy, nil
 }

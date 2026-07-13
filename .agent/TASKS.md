@@ -349,7 +349,7 @@ Detailed evidence, failure scenarios, and test guidance are in
 - [x] R2-05 — Apply the protected runtime-path contract to queue and child persistence.
 - [x] R2-06 — Validate a contiguous legal queue transition history during recovery.
 - [x] R2-07 — Durably synchronize both sides of retention quarantine renames and cleanup.
-- [ ] R2-08 — Unify ledger-export writer and reader record-size contracts.
+- [x] R2-08 — Unify ledger-export writer and reader record-size contracts.
 - [ ] R2-09 — Preserve explicit empty verification-command configuration.
 - [ ] R2-10 — Give bare `revolvr run` a real non-placeholder contract.
 - [ ] R2-11 — Preserve both GC operation and result-rendering errors in the CLI.

@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## R2-08 Ledger-Export Record Size Contract (2026-07-13)
+
+- One ledger-export record may contain at most 16 MiB of canonical JSON bytes;
+  the JSONL newline delimiter is not part of that limit. Exact-limit records
+  are valid, while limit-plus-one records are not.
+- The writer owns admission. It must marshal and size-check every run and event
+  record before mutating the output stream, so an oversized ledger snapshot
+  fails before any immutable export artifact or runtime directory is created.
+- Verification, replay validation, and snapshot replay consume the same parser
+  and therefore the same limit. Explicit line extraction replaces Scanner's
+  separate maximum-token behavior and keeps writer/reader boundary semantics
+  byte-identical.
+- Ledger task text and event payloads remain valid live-ledger data above this
+  bound; they are not silently truncated or rewritten. Such a snapshot is
+  explicitly ineligible for this versioned export format until the source data
+  or a future format changes the contract.
+
 ## R2-07 Retention Rename Durability (2026-07-13)
 
 - A prune representation is not eligible for a completed-action journal until

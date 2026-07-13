@@ -353,7 +353,9 @@ skip work or report terminal success.
 Ledger export is also available independently. It preserves every run field,
 global event identity, exact payload bytes, event payload schema label, range,
 and a WAL-safe canonical logical source-ledger identity without deleting live
-SQLite rows:
+SQLite rows. Each canonical JSON record is limited to 16 MiB excluding its
+newline delimiter; exact-limit records verify and replay, while an oversized
+task or event stops export before any immutable artifact is published:
 
 ```bash
 go run ./cmd/revolvr ledger export \

@@ -3,11 +3,39 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 through R2-07 are complete; R2-08 is the next bounded
+`.agent/TASKS.md`. R2-01 through R2-08 are complete; R2-09 is the next bounded
 follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
 eleven items are complete. The prior AUD-01 through AUD-16 queue and the
 ordered AW-01 through AW-31 autonomous workflow program remain complete and
 published.
+
+## R2-08 Completion (2026-07-13)
+
+- Selected task: R2-08 — make ledger-export writers and readers enforce one
+  exact record-size contract. No R2-09 configuration work or later audit item
+  was started.
+- `MaximumRecordBytes` is now the shared 16 MiB limit for canonical JSON bytes
+  in one run or event record, excluding its newline delimiter. The writer
+  marshals and validates a complete record before appending any bytes.
+- Export snapshot encoding rejects an oversized run/task or base64 event record
+  before export paths are derived or any retention directory, records stream,
+  or manifest is published. The immutable-unusable retry loop is therefore
+  impossible for newly created exports.
+- Record parsing no longer relies on `bufio.Scanner`'s token-buffer semantics.
+  It identifies each JSONL line explicitly and applies the same byte limit
+  before strict decoding, canonicality, ordering, schema, or replay checks.
+- Tests prove exact-limit writer and reader acceptance, limit-plus-one writer
+  and reader rejection, a real exact-limit task export that passes both
+  `Verify` and `ReplayValidate`, a one-byte-larger task that publishes no new
+  export, and an oversized event that creates no retention state.
+- Files changed: `internal/ledgerexport/{export.go,record_size_test.go}`;
+  `README.md`; and `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: focused and complete ledger-export tests; boundary and
+  oversized cases repeated three times; `go test -race -count=1
+  ./internal/ledgerexport`; `go test -count=1 ./...`; `go vet ./...`; and
+  `git diff --check`.
+- What remains: R2-09 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## R2-07 Completion (2026-07-13)
 
