@@ -1,5 +1,19 @@
 # Agent Decisions
 
+## R2-11 Artifact-GC CLI Error Composition (2026-07-13)
+
+- Artifact-GC operation and result rendering are independent fallible effects.
+  Once both have been attempted, the CLI returns `errors.Join(operationErr,
+  writeErr)` so callers can inspect either cause and neither failure masks the
+  other.
+- Resume renders only when recovery returned a journal operation identity,
+  because that identity is the minimum resumable evidence. Apply passes every
+  returned result to the renderer; an empty journal remains intentionally
+  silent.
+- CLI retention-operation callbacks are nil-compatible test seams. Production
+  commands always default them to the app-owned plan, apply, and resume
+  functions; rendering and error composition remain CLI-owned.
+
 ## R2-10 Bare Run Contract (2026-07-13)
 
 - `revolvr run` with no mode flag means one selected harness pass. It is

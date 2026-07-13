@@ -3,11 +3,36 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 through R2-10 are complete; R2-11 is the next bounded
-follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
-eleven items are complete. The prior AUD-01 through AUD-16 queue and the
-ordered AW-01 through AW-31 autonomous workflow program remain complete and
-published.
+`.agent/TASKS.md`, and all eleven bounded follow-ups are complete. The detailed
+report remains `CODEBASE_AUDIT_2026-07-13.md` only until a fresh final pass
+audits every resolution, runs the closing verification matrix, and deletes the
+report. The prior AUD-01 through AUD-16 queue and the ordered AW-01 through
+AW-31 autonomous workflow program remain complete and published.
+
+## R2-11 Completion (2026-07-13)
+
+- Selected task: R2-11 — preserve both artifact-GC operation failures and
+  result-rendering failures. No final audit-report deletion work was started.
+- Apply and resume now join the independent operation and result-write errors,
+  so a broken stdout pipe cannot turn a successful resume into success or hide
+  a simultaneous mutation/recovery failure.
+- Resume retains its evidence boundary: it attempts to render only when the
+  operation returned a durable journal identity. Apply keeps rendering any
+  available result, and the existing renderer remains a no-op for an empty
+  journal.
+- Narrow CLI operation callbacks default to the production app functions and
+  let command tests reach the post-operation output boundary deterministically.
+- Tests cover a failing result writer after successful apply, failed apply,
+  successful resume, and failed resume. The failed-operation cases assert that
+  both errors remain discoverable with `errors.Is`.
+- Files changed: `internal/cli/{root.go,root_test.go}` and
+  `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: complete `internal/cli` tests; `go test -count=1 ./...`;
+  `go vet ./...`; live `go run ./cmd/revolvr artifact gc --help`, root help,
+  config-check, and status smokes; and `git diff --check`.
+- What remains: a fresh requirement-by-requirement completion audit, closing
+  verification matrix, and deletion of `CODEBASE_AUDIT_2026-07-13.md`.
+- Blockers: none.
 
 ## R2-10 Completion (2026-07-13)
 

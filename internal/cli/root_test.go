@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"revolvr/internal/app"
+	"revolvr/internal/artifactretention"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/gitstate"
@@ -1766,6 +1768,81 @@ func TestArtifactGCApplyRequiresExactPlan(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "exact --plan-id") {
 		t.Fatalf("apply error=%v", err)
 	}
+}
+
+func TestArtifactGCApplyAndResumePreserveOperationAndResultWriteErrors(t *testing.T) {
+	operationErr := errors.New("artifact GC operation failed")
+	writeErr := errors.New("artifact GC result write failed")
+	plan := artifactretention.Plan{OperationID: "operation-one", PlanID: "plan-one"}
+	result := artifactretention.ApplyResult{Journal: artifactretention.Journal{
+		OperationID:    plan.OperationID,
+		Stage:          "resumable",
+		CompletedPaths: []string{".revolvr/runs/run-one/codex.jsonl"},
+	}}
+
+	tests := []struct {
+		name         string
+		operation    string
+		operationErr error
+		args         []string
+	}{
+		{name: "successful apply", operation: "apply", args: []string{"artifact", "gc", "--operation-id", plan.OperationID, "--planned-at", "2026-07-12T12:00:00Z", "--apply", "--plan-id", plan.PlanID}},
+		{name: "failed apply", operation: "apply", operationErr: operationErr, args: []string{"artifact", "gc", "--operation-id", plan.OperationID, "--planned-at", "2026-07-12T12:00:00Z", "--apply", "--plan-id", plan.PlanID}},
+		{name: "successful resume", operation: "resume", args: []string{"artifact", "gc", "--operation-id", plan.OperationID, "--apply", "--resume"}},
+		{name: "failed resume", operation: "resume", operationErr: operationErr, args: []string{"artifact", "gc", "--operation-id", plan.OperationID, "--apply", "--resume"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out := &gcResultFailWriter{err: writeErr}
+			applyCalls, resumeCalls := 0, 0
+			root := NewRootCommand(Options{
+				Version: "test",
+				Out:     out,
+				WorkDir: t.TempDir(),
+				PlanArtifactGC: func(context.Context, app.Config, app.GCPlanInput) (artifactretention.Plan, error) {
+					return plan, nil
+				},
+				ApplyArtifactGC: func(context.Context, app.Config, app.GCApplyInput) (artifactretention.ApplyResult, error) {
+					applyCalls++
+					return result, tc.operationErr
+				},
+				ResumeArtifactGC: func(context.Context, app.Config, string) (artifactretention.ApplyResult, error) {
+					resumeCalls++
+					return result, tc.operationErr
+				},
+			})
+			root.SetArgs(tc.args)
+
+			err := root.Execute()
+			if !errors.Is(err, writeErr) {
+				t.Fatalf("execute error = %v, want result write error", err)
+			}
+			if tc.operationErr != nil && !errors.Is(err, operationErr) {
+				t.Fatalf("execute error = %v, want joined operation error", err)
+			}
+			if tc.operationErr == nil && errors.Is(err, operationErr) {
+				t.Fatalf("execute error = %v, unexpectedly contains operation error", err)
+			}
+			if tc.operation == "apply" && (applyCalls != 1 || resumeCalls != 0) {
+				t.Fatalf("operation calls: apply=%d resume=%d, want apply=1 resume=0", applyCalls, resumeCalls)
+			}
+			if tc.operation == "resume" && (applyCalls != 0 || resumeCalls != 1) {
+				t.Fatalf("operation calls: apply=%d resume=%d, want apply=0 resume=1", applyCalls, resumeCalls)
+			}
+		})
+	}
+}
+
+type gcResultFailWriter struct {
+	bytes.Buffer
+	err error
+}
+
+func (w *gcResultFailWriter) Write(p []byte) (int, error) {
+	if bytes.Contains(p, []byte("GC result:")) {
+		return 0, w.err
+	}
+	return w.Buffer.Write(p)
 }
 
 func TestConfigCheckInvalidMissingPolicyReturnsClearError(t *testing.T) {

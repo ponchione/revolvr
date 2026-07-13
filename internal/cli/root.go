@@ -47,11 +47,17 @@ type Options struct {
 	TUIRunner            TUIRunFunc
 	DoctorCommandRunner  DoctorCommandRunner
 	ExecutableLookPath   ExecutableLookPath
+	PlanArtifactGC       ArtifactGCPlanFunc
+	ApplyArtifactGC      ArtifactGCApplyFunc
+	ResumeArtifactGC     ArtifactGCResumeFunc
 }
 
 type TaskRunFunc func(context.Context, app.Config, app.TaskRunInput) (autonomoustaskrun.Result, error)
 type QueueRunFunc func(context.Context, app.Config, app.QueueInput) (autonomousqueue.Result, error)
 type DaemonRunFunc func(context.Context, app.Config, app.DaemonInput) (autonomousdaemon.Result, error)
+type ArtifactGCPlanFunc func(context.Context, app.Config, app.GCPlanInput) (artifactretention.Plan, error)
+type ArtifactGCApplyFunc func(context.Context, app.Config, app.GCApplyInput) (artifactretention.ApplyResult, error)
+type ArtifactGCResumeFunc func(context.Context, app.Config, string) (artifactretention.ApplyResult, error)
 
 type RunOnceFunc = app.RunOnceRunner
 type TUIRunFunc func(context.Context, app.StatusResult, tuiapp.RunOptions) error
@@ -217,6 +223,19 @@ func newArtifactCommand(opts Options) *cobra.Command {
 	return cmd
 }
 func newArtifactGCCommand(opts Options) *cobra.Command {
+	planArtifactGC := opts.PlanArtifactGC
+	if planArtifactGC == nil {
+		planArtifactGC = app.PlanArtifactGC
+	}
+	applyArtifactGC := opts.ApplyArtifactGC
+	if applyArtifactGC == nil {
+		applyArtifactGC = app.ApplyArtifactGC
+	}
+	resumeArtifactGC := opts.ResumeArtifactGC
+	if resumeArtifactGC == nil {
+		resumeArtifactGC = app.ResumeArtifactGC
+	}
+
 	var operationID, plannedAtRaw, planID string
 	var apply, resume bool
 	cmd := &cobra.Command{Use: "gc", Short: "Plan artifact GC by default; mutation requires explicit --apply", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
@@ -224,17 +243,18 @@ func newArtifactGCCommand(opts Options) *cobra.Command {
 			if !apply {
 				return errors.New("artifact gc: --resume requires --apply")
 			}
-			result, err := app.ResumeArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, operationID)
+			result, err := resumeArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, operationID)
+			var writeErr error
 			if result.Journal.OperationID != "" {
-				_ = writeGCResult(cmd.OutOrStdout(), result)
+				writeErr = writeGCResult(cmd.OutOrStdout(), result)
 			}
-			return err
+			return errors.Join(err, writeErr)
 		}
 		plannedAt, err := parseRetentionUTC("planned-at", plannedAtRaw)
 		if err != nil {
 			return err
 		}
-		plan, err := app.PlanArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.GCPlanInput{OperationID: operationID, FrozenAt: plannedAt})
+		plan, err := planArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.GCPlanInput{OperationID: operationID, FrozenAt: plannedAt})
 		if err != nil {
 			return err
 		}
@@ -247,11 +267,8 @@ func newArtifactGCCommand(opts Options) *cobra.Command {
 		if strings.TrimSpace(planID) == "" || planID != plan.PlanID {
 			return errors.New("artifact gc: --apply requires the exact --plan-id printed by dry-run")
 		}
-		result, err := app.ApplyArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.GCApplyInput{Plan: plan})
-		if writeErr := writeGCResult(cmd.OutOrStdout(), result); writeErr != nil {
-			return writeErr
-		}
-		return err
+		result, err := applyArtifactGC(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.GCApplyInput{Plan: plan})
+		return errors.Join(err, writeGCResult(cmd.OutOrStdout(), result))
 	}}
 	cmd.Flags().StringVar(&operationID, "operation-id", "", "stable GC operation identity")
 	cmd.Flags().StringVar(&plannedAtRaw, "planned-at", "", "frozen planning time in UTC RFC3339Nano")
