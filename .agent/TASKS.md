@@ -344,7 +344,7 @@ Detailed evidence, failure scenarios, and test guidance are in
 
 - [x] R2-01 — Replace raw SQLite main-file hashes with WAL-safe logical ledger authority.
 - [x] R2-02 — Make artifact-retention exclusion race-free across every competing mutator.
-- [ ] R2-03 — Reconstruct and validate GC recovery authority from immutable history and observed effects.
+- [x] R2-03 — Reconstruct and validate GC recovery authority from immutable history and observed effects.
 - [ ] R2-04 — Validate child-publication journals and consume one shared verified publication projection.
 - [ ] R2-05 — Apply the protected runtime-path contract to queue and child persistence.
 - [ ] R2-06 — Validate a contiguous legal queue transition history during recovery.

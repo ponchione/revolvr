@@ -69,11 +69,21 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	if err != nil {
 		return ApplyResult{}, err
 	}
+	exportVerified := false
 	if found {
 		if journal.Plan.PlanID != in.Plan.PlanID || journal.Plan.PlanSHA256 != in.Plan.PlanSHA256 {
 			return ApplyResult{}, errors.New("artifact GC apply: operation conflicts with admitted plan")
 		}
-		if journal.Stage == "cleaned" {
+		if in.Plan.RequiredExport && journal.ExportID != "" {
+			if err := verifyJournalExport(ctx, root, journal, in.Secrets); err != nil {
+				return ApplyResult{}, err
+			}
+			exportVerified = true
+		}
+		if err := reconcileCompletedEffects(ctx, root, journal); err != nil {
+			return ApplyResult{}, err
+		}
+		if journal.Stage == stageCleaned {
 			return ApplyResult{Journal: journal, Replayed: true}, nil
 		}
 	}
@@ -85,8 +95,8 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		if replanned.PlanID != in.Plan.PlanID || replanned.PlanSHA256 != in.Plan.PlanSHA256 {
 			return ApplyResult{}, errors.New("artifact GC apply: stale plan")
 		}
-		journal = Journal{SchemaVersion: JournalSchema, OperationID: in.Plan.OperationID, Stage: "admitted", Plan: in.Plan, UpdatedAt: in.Clock().UTC()}
-		if err := persistJournal(root, &journal); err != nil {
+		journal = Journal{SchemaVersion: JournalSchema, OperationID: in.Plan.OperationID, Stage: stageAdmitted, Plan: in.Plan, UpdatedAt: in.Clock().UTC()}
+		if err := persistJournal(root, Journal{}, &journal); err != nil {
 			return ApplyResult{}, err
 		}
 	}
@@ -102,18 +112,16 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		if err != nil {
 			return ApplyResult{}, err
 		}
-		verify, err := ledgerexport.Verify(ctx, root, exported.Manifest.ExportID, in.Secrets)
-		if err != nil || !verify.Passed {
-			return ApplyResult{}, errors.Join(err, errors.New("artifact GC apply: required ledger export did not verify"))
-		}
-		replay, err := ledgerexport.ReplayValidate(ctx, root, exported.Manifest.ExportID, in.Secrets)
-		if err != nil || !replay.Passed {
-			return ApplyResult{}, errors.Join(err, errors.New("artifact GC apply: required ledger export did not replay-validate"))
-		}
+		prior := cloneJournal(journal)
 		journal.ExportID = exported.Manifest.ExportID
-		journal.Stage = "export_verified"
+		journal.Stage = stageExportVerified
+		journal.Cancelled = false
 		journal.UpdatedAt = in.Clock().UTC()
-		if err := persistJournal(root, &journal); err != nil {
+		if err := verifyJournalExport(ctx, root, journal, in.Secrets); err != nil {
+			return ApplyResult{}, err
+		}
+		exportVerified = true
+		if err := persistJournal(root, prior, &journal); err != nil {
 			return ApplyResult{}, err
 		}
 	}
@@ -131,7 +139,7 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		case ActionCompress:
 			err = applyCompression(ctx, root, action)
 		case ActionPrune:
-			if in.Plan.RequiredExport && journal.ExportID == "" {
+			if in.Plan.RequiredExport && !exportVerified {
 				err = errors.New("artifact GC apply: prune lacks verified export")
 			} else {
 				err = applyPrune(root, in.Plan.OperationID, action)
@@ -140,28 +148,33 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		if err != nil {
 			return ApplyResult{}, fmt.Errorf("artifact GC apply: %s %s: %w", action.Kind, action.Path, err)
 		}
+		prior := cloneJournal(journal)
 		journal.CompletedPaths = append(journal.CompletedPaths, action.Path)
 		completed[action.Path] = true
 		journal.Stage = string(action.Kind) + "_applied"
 		journal.Cancelled = false
 		journal.UpdatedAt = in.Clock().UTC()
-		if err := persistJournal(root, &journal); err != nil {
+		if err := persistJournal(root, prior, &journal); err != nil {
 			return ApplyResult{}, err
 		}
 	}
-	journal.Stage = "completed"
-	journal.Cancelled = false
-	journal.UpdatedAt = in.Clock().UTC()
-	if err := persistJournal(root, &journal); err != nil {
-		return ApplyResult{}, err
+	if journal.Stage != stageCompleted {
+		prior := cloneJournal(journal)
+		journal.Stage = stageCompleted
+		journal.Cancelled = false
+		journal.UpdatedAt = in.Clock().UTC()
+		if err := persistJournal(root, prior, &journal); err != nil {
+			return ApplyResult{}, err
+		}
 	}
 	quarantine := filepath.Join(root, ".revolvr", "retention", "gc", safeOperationDir(in.Plan.OperationID), "quarantine")
 	if err := os.RemoveAll(quarantine); err != nil {
 		return ApplyResult{Journal: journal, Resumable: true}, err
 	}
-	journal.Stage = "cleaned"
+	prior := cloneJournal(journal)
+	journal.Stage = stageCleaned
 	journal.UpdatedAt = in.Clock().UTC()
-	if err := persistJournal(root, &journal); err != nil {
+	if err := persistJournal(root, prior, &journal); err != nil {
 		return ApplyResult{}, err
 	}
 	return ApplyResult{Journal: journal}, nil
@@ -227,7 +240,23 @@ func ResumeGC(ctx context.Context, repositoryRoot, operationID, ledgerPath strin
 	return ApplyGC(ctx, ApplyInput{RepositoryRoot: repositoryRoot, LedgerPath: ledgerPath, Plan: journal.Plan, Secrets: secrets})
 }
 func InspectGC(repositoryRoot, operationID string) (Journal, bool, error) {
-	return loadJournalMustRoot(repositoryRoot, operationID)
+	root, err := canonicalRoot(repositoryRoot)
+	if err != nil {
+		return Journal{}, false, err
+	}
+	journal, found, err := loadJournal(root, operationID)
+	if err != nil || !found {
+		return journal, found, err
+	}
+	if journal.Plan.RequiredExport && journal.ExportID != "" {
+		if err := verifyJournalExport(context.Background(), root, journal, nil); err != nil {
+			return Journal{}, false, err
+		}
+	}
+	if err := reconcileCompletedEffects(context.Background(), root, journal); err != nil {
+		return Journal{}, false, err
+	}
+	return journal, true, nil
 }
 func loadJournalMustRoot(root, id string) (Journal, bool, error) {
 	canonical, err := canonicalRoot(root)
@@ -386,10 +415,11 @@ func applyPrune(root, operationID string, action Action) error {
 }
 
 func cancelJournal(root string, journal *Journal, clock func() time.Time, cause error) (ApplyResult, error) {
+	prior := cloneJournal(*journal)
 	journal.Cancelled = true
-	journal.Stage = "cancelled"
+	journal.Stage = stageCancelled
 	journal.UpdatedAt = clock().UTC()
-	persistErr := persistJournal(root, journal)
+	persistErr := persistJournal(root, prior, journal)
 	return ApplyResult{Journal: *journal, Resumable: true}, errors.Join(cause, persistErr)
 }
 
@@ -397,54 +427,6 @@ func journalPath(root, id string) string {
 	return filepath.Join(root, ".revolvr", "retention", "gc", safeOperationDir(id), "journal.json")
 }
 func safeOperationDir(id string) string { return hash([]byte(strings.TrimSpace(id))) }
-func loadJournal(root, id string) (Journal, bool, error) {
-	path := journalPath(root, id)
-	raw, _, err := readRegular(path, 32<<20)
-	if errors.Is(err, os.ErrNotExist) {
-		return Journal{}, false, nil
-	}
-	if err != nil {
-		return Journal{}, false, err
-	}
-	var journal Journal
-	if err := strictJSON(raw, &journal); err != nil {
-		return Journal{}, false, err
-	}
-	canonical, _ := canonicalJSON(journal)
-	if !bytes.Equal(raw, canonical) || journal.SchemaVersion != JournalSchema || journal.OperationID != strings.TrimSpace(id) {
-		return Journal{}, false, errors.New("artifact GC inspect: invalid journal")
-	}
-	return journal, true, nil
-}
-func persistJournal(root string, journal *Journal) error {
-	journal.Sequence++
-	raw, err := canonicalJSON(*journal)
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(journalPath(root, journal.OperationID))
-	historyDir := filepath.Join(dir, "history")
-	if err := os.MkdirAll(historyDir, 0o700); err != nil {
-		return err
-	}
-	history := filepath.Join(historyDir, fmt.Sprintf("%020d.json", journal.Sequence))
-	if err := writeImmutableOrEqual(history, raw); err != nil {
-		return err
-	}
-	return writeAtomic(journalPath(root, journal.OperationID), raw, 0o600)
-}
-
-func writeImmutableOrEqual(path string, raw []byte) error {
-	if existing, err := os.ReadFile(path); err == nil {
-		if bytes.Equal(existing, raw) {
-			return nil
-		}
-		return errors.New("artifact GC journal: conflicting immutable history")
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	return writeAtomic(path, raw, 0o600)
-}
 
 func acquireMutationLeases(ctx context.Context, root string, clock func() time.Time) (func(), error) {
 	// The mutation order is retention, autonomous execution, Git administration,

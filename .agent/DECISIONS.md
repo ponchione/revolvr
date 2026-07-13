@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## R2-03 Immutable GC Recovery Authority (2026-07-13)
+
+- The authoritative GC journal is the complete, contiguous series of
+  canonical immutable snapshots named by sequence, beginning with admission at
+  sequence one. The mutable `journal.json` is only a cache: it may be absent or
+  point to an older byte-equivalent history entry, but it may not be ahead,
+  conflict with its backing entry, or exist without history. Gaps, directories,
+  and foreign history names fail closed. A regular atomic-writer temporary is
+  explicitly uncommitted and ignored so a crash before rename can retry.
+- Every history entry retains one exact validated plan and operation. Legal
+  transitions require the next sequence, a nondecreasing UTC timestamp, the
+  precise stage/cancellation combination, an immutable valid export ID, and an
+  exact prefix of ordered mutating action paths. History is published before
+  the checkpoint cache. Older chains that encode an invalid or ambiguous state
+  are refused rather than normalized into destructive authority.
+- Effects precede the immutable history claim. Recovery therefore verifies
+  every claimed compression against canonical manifest and exact gzip/source
+  identities, and every claimed prune against absent source representations
+  plus its exact quarantined representation. An unclaimed filesystem-ahead
+  effect remains eligible for the existing idempotent action reconciliation.
+- Quarantine removal occurs after the durable `completed` state, so recovery
+  accepts a fully removed quarantine while that is the latest state. Partial or
+  conflicting quarantine evidence is rejected. `cleaned` is terminal only
+  when the operation quarantine is absent and every claimed action remains
+  reconciled.
+- A nonempty export ID is never sufficient prune authority. Every recorded
+  export is verified and replay-validated on apply/resume and inspection, then
+  its canonical manifest must match the plan's operation, frozen time, policy,
+  complete bounds, high-water mark, no-predecessor contract, and WAL-safe
+  logical ledger identity. This check also gates terminal replay.
+
 ## R2-02 Artifact-Retention Exclusion Contract (2026-07-13)
 
 - This decision supersedes AW-25's check-and-release probe rule. Mutating GC

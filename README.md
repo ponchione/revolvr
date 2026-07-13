@@ -342,6 +342,12 @@ dual, or divergent representations. Pruning is opt-in and requires an exact
 immutable ledger export that passes verification and logical replay before any
 file enters the operation quarantine.
 
+Resume and inspection reconstruct the latest legal state from contiguous
+immutable journal history rather than trusting the mutable checkpoint. Every
+claimed completed action is reconciled with its exact filesystem effect, and
+recorded prune exports are reverified and replay-validated before recovery can
+skip work or report terminal success.
+
 Ledger export is also available independently. It preserves every run field,
 global event identity, exact payload bytes, event payload schema label, range,
 and a WAL-safe canonical logical source-ledger identity without deleting live

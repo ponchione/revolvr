@@ -3,10 +3,51 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 and R2-02 are complete; R2-03 is the next bounded follow-up. The
-detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all eleven items
-are complete. The prior AUD-01 through AUD-16 queue and the ordered AW-01
-through AW-31 autonomous workflow program remain complete and published.
+`.agent/TASKS.md`. R2-01 through R2-03 are complete; R2-04 is the next bounded
+follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
+eleven items are complete. The prior AUD-01 through AUD-16 queue and the
+ordered AW-01 through AW-31 autonomous workflow program remain complete and
+published.
+
+## R2-03 Completion (2026-07-13)
+
+- Selected task: R2-03 — reconstruct and validate artifact-GC recovery
+  authority from immutable history and observed effects. No later R2 item was
+  started.
+- GC load now reconstructs the authoritative state from exact, contiguous
+  immutable snapshots beginning with admission. A missing checkpoint is
+  recoverable; a stale checkpoint is accepted only when byte-equivalent to its
+  backing history entry. Abandoned regular atomic-write temporaries are not
+  committed authority; ahead, conflicting, unbacked, gapped, or other foreign
+  history/checkpoint state fails closed.
+- Every snapshot and transition validates the schema, operation and exact
+  plan, sequence, nondecreasing UTC timestamp, legal stage and cancellation
+  state, immutable export identity, and the exact mutating-action prefix.
+  Persistence validates both states and publishes history before refreshing
+  the mutable checkpoint cache.
+- Apply and inspect reconcile every claimed compression or prune with the
+  planned source identity and exact observed representation. Terminal cleanup
+  may be physically ahead of a `completed` snapshot, but a `cleaned` claim
+  requires an absent quarantine; unapplied or conflicting effects are never
+  skipped or reported as replayed.
+- Every recorded prune export is cryptographically verified and logically
+  replay-validated again, then bound to the exact plan operation, time, policy,
+  bounds, high-water mark, and WAL-safe logical source identity before prune
+  can resume or terminal replay can succeed.
+- Files changed: `internal/artifactretention/{apply,journal}.go`, retention and
+  journal recovery tests, `README.md`, and
+  `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: focused artifact-retention tests; recovery corruption
+  tests repeated 10 times; race-enabled artifact-retention and ledger-export
+  suites; `go test -count=1 ./...`; `go vet ./...`; artifact-GC CLI help; and
+  `git diff --check`.
+  Coverage includes missing/stale/ahead/conflicting checkpoints, abandoned
+  history temporaries, missing and gapped history, reordered/duplicate
+  completed paths, cancellation/timestamp/stage violations, fake and
+  valid-wrong-authority exports, unapplied cleaned claims, positive terminal
+  replay, and tampered terminal exports.
+- What remains: R2-04 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## R2-02 Completion (2026-07-13)
 

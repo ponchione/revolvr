@@ -346,7 +346,7 @@ func TestApplyReconcilesInterruptedCompressionPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	journal := Journal{SchemaVersion: JournalSchema, OperationID: plan.OperationID, Stage: "admitted", Plan: plan, UpdatedAt: plan.FrozenAt}
-	if err := persistJournal(root, &journal); err != nil {
+	if err := persistJournal(root, Journal{}, &journal); err != nil {
 		t.Fatal(err)
 	}
 	action := plan.Actions[0]
