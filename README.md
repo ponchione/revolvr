@@ -176,7 +176,7 @@ runs. The closest CLI equivalents are:
 
 ```bash
 go run ./cmd/revolvr doctor
-go run ./cmd/revolvr run --once
+go run ./cmd/revolvr run
 go run ./cmd/revolvr run --max-passes 3
 ```
 
@@ -478,7 +478,7 @@ Use this short flow when exercising Revolvr against this repository:
 ```bash
 go run ./cmd/revolvr doctor
 go run ./cmd/revolvr task add --summary "README docs" "Add concise setup and usage docs"
-go run ./cmd/revolvr run --once
+go run ./cmd/revolvr run
 go run ./cmd/revolvr status
 go run ./cmd/revolvr show <run-id>
 ```
@@ -544,9 +544,11 @@ and receipt validation outside the loaded run detail.
 
 ## Run
 
-Run one selected pending task:
+Run one selected pending task. Bare `run` is the default one-pass form;
+`--once` is its explicit equivalent:
 
 ```bash
+go run ./cmd/revolvr run
 go run ./cmd/revolvr run --once
 ```
 

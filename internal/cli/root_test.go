@@ -87,6 +87,24 @@ func TestRootHelpWorks(t *testing.T) {
 	}
 }
 
+func TestRunHelpDocumentsBareOnePassDefault(t *testing.T) {
+	var out bytes.Buffer
+	root := NewRootCommand(Options{Version: "test", Out: &out})
+	root.SetArgs([]string{"run", "--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	help := out.String()
+	for _, want := range []string{"Run one harness pass", "--once", "run one selected task (the default mode)", "--max-passes", "--until-terminal", "--queue", "--daemon"} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("run help missing %q:\n%s", want, help)
+		}
+	}
+	if strings.Contains(help, "not implemented") {
+		t.Fatalf("run help retains placeholder language:\n%s", help)
+	}
+}
+
 func TestVersionOutputWorks(t *testing.T) {
 	var out bytes.Buffer
 	root := NewRootCommand(Options{Version: "test-version", Out: &out})
@@ -1218,6 +1236,49 @@ func TestRunOnceInvokesRunnerAndPrintsSummary(t *testing.T) {
 	if got, want := out.String(), "Run run-1 completed task task-1; commit abc123.\n"; got != want {
 		t.Fatalf("run once output = %q, want %q", got, want)
 	}
+}
+
+func TestRunBareDefaultsToOnePassAndPropagatesRunnerFailure(t *testing.T) {
+	t.Run("success output", func(t *testing.T) {
+		var out bytes.Buffer
+		calls := 0
+		root := NewRootCommand(Options{
+			Version: "test",
+			Out:     &out,
+			WorkDir: t.TempDir(),
+			RunOnce: func(context.Context, runonce.Config) (runonce.Result, error) {
+				calls++
+				return runonce.Result{Outcome: runonce.OutcomeNoTask, NoTask: true}, nil
+			},
+		})
+		root.SetArgs([]string{"run"})
+		if err := root.Execute(); err != nil {
+			t.Fatalf("bare run: %v", err)
+		}
+		if calls != 1 || out.String() != "No pending runnable tasks.\n" {
+			t.Fatalf("bare run calls=%d output=%q", calls, out.String())
+		}
+	})
+
+	t.Run("failure exit", func(t *testing.T) {
+		var out bytes.Buffer
+		root := NewRootCommand(Options{
+			Version: "test",
+			Out:     &out,
+			WorkDir: t.TempDir(),
+			RunOnce: func(context.Context, runonce.Config) (runonce.Result, error) {
+				return runonce.Result{}, fmt.Errorf("bare runner failed")
+			},
+		})
+		root.SetArgs([]string{"run"})
+		err := root.Execute()
+		if err == nil || err.Error() != "bare runner failed" {
+			t.Fatalf("bare run error = %v", err)
+		}
+		if out.Len() != 0 {
+			t.Fatalf("failed bare run output = %q", out.String())
+		}
+	})
 }
 
 func TestRunOncePrintsLiveCodexProgressBeforeSummary(t *testing.T) {

@@ -3,11 +3,38 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 through R2-09 are complete; R2-10 is the next bounded
+`.agent/TASKS.md`. R2-01 through R2-10 are complete; R2-11 is the next bounded
 follow-up. The detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all
 eleven items are complete. The prior AUD-01 through AUD-16 queue and the
 ordered AW-01 through AW-31 autonomous workflow program remain complete and
 published.
+
+## R2-10 Completion (2026-07-13)
+
+- Selected task: R2-10 — replace bare `revolvr run` placeholder success with a
+  real CLI contract. No R2-11 GC rendering-error work was started.
+- Bare `revolvr run` now invokes the same configured one-pass path as
+  `revolvr run --once`. The explicit flag remains supported for scripts and
+  clarity; its help text identifies it as the default mode.
+- The five explicit mode flags retain their existing mutual exclusion and
+  bound ownership. Bare run with autonomous-only flags still fails clearly,
+  `--max-passes` still selects the bounded loop, and autonomous task, queue, and
+  daemon modes remain unchanged.
+- The single-use placeholder renderer and all “not implemented” success output
+  are removed. Normal no-task and committed summaries are rendered, while a
+  one-pass runner error propagates as a nonzero command error without success
+  text.
+- Tests cover run help/default wording, bare no-task invocation and exact
+  output, bare runner-failure propagation and empty output, plus the complete
+  existing CLI mode-conflict/bound suite.
+- Files changed: `internal/cli/{root.go,root_test.go}`; `README.md`; and
+  `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: focused run tests; complete `internal/cli` tests;
+  `go test -count=1 ./...`; `go vet ./...`; live
+  `go run ./cmd/revolvr run --help`; and `git diff --check`.
+- What remains: R2-11, then the final audit-document deletion and whole-goal
+  completion audit in a fresh pass.
+- Blockers: none.
 
 ## R2-09 Completion (2026-07-13)
 

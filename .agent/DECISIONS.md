@@ -1,5 +1,19 @@
 # Agent Decisions
 
+## R2-10 Bare Run Contract (2026-07-13)
+
+- `revolvr run` with no mode flag means one selected harness pass. It is
+  behaviorally identical to `revolvr run --once`; the flag remains a supported
+  explicit spelling rather than a distinct mode.
+- Explicit bounded-loop, autonomous task, queue, and daemon modes continue to
+  take precedence only when their corresponding mode flag is selected. Their
+  mutual-exclusion, option ownership, and positive-bound validation are
+  unchanged.
+- A bare run uses ordinary one-pass result and error semantics. No task is a
+  successful informative result, committed work uses the normal summary, and
+  runner/config failures are nonzero. A placeholder may never turn a missing
+  operation into successful automation.
+
 ## R2-09 Verification Command Presence (2026-07-13)
 
 - `verification.commands` has three semantic states. Omitted and YAML `null`

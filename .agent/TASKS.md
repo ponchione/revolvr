@@ -351,7 +351,7 @@ Detailed evidence, failure scenarios, and test guidance are in
 - [x] R2-07 — Durably synchronize both sides of retention quarantine renames and cleanup.
 - [x] R2-08 — Unify ledger-export writer and reader record-size contracts.
 - [x] R2-09 — Preserve explicit empty verification-command configuration.
-- [ ] R2-10 — Give bare `revolvr run` a real non-placeholder contract.
+- [x] R2-10 — Give bare `revolvr run` a real non-placeholder contract.
 - [ ] R2-11 — Preserve both GC operation and result-rendering errors in the CLI.
 
 ## Completed History

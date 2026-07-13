@@ -1159,10 +1159,10 @@ func newRunCommand(opts Options) *cobra.Command {
 			if cmd.Flags().Changed("max-passes") {
 				return runBoundedLoop(cmd, opts.WorkDir, runOnce, maxPasses)
 			}
-			return runPlaceholder(cmd, nil)
+			return runSinglePass(cmd, opts.WorkDir, runOnce)
 		},
 	}
-	cmd.Flags().BoolVar(&once, "once", false, "run one selected task")
+	cmd.Flags().BoolVar(&once, "once", false, "run one selected task (the default mode)")
 	cmd.Flags().IntVar(&maxPasses, "max-passes", 0, "run up to N fresh passes")
 	cmd.Flags().BoolVar(&untilTerminal, "until-terminal", false, "run one pinned autonomous task until a terminal stop")
 	cmd.Flags().BoolVar(&queueMode, "queue", false, "run ready autonomous tasks until exhausted")
@@ -1430,11 +1430,6 @@ func newReceiptValidateCommand(opts Options) *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func runPlaceholder(cmd *cobra.Command, _ []string) error {
-	_, err := fmt.Fprintf(cmd.OutOrStdout(), "%s is not implemented yet.\n", cmd.CommandPath())
-	return err
 }
 
 func runHelp(cmd *cobra.Command, _ []string) error {
