@@ -3,10 +3,47 @@
 ## Current Focus
 
 The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
-`.agent/TASKS.md`. R2-01 is complete; R2-02 is the next bounded follow-up. The
+`.agent/TASKS.md`. R2-01 and R2-02 are complete; R2-03 is the next bounded follow-up. The
 detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all eleven items
 are complete. The prior AUD-01 through AUD-16 queue and the ordered AW-01
 through AW-31 autonomous workflow program remain complete and published.
+
+## R2-02 Completion (2026-07-13)
+
+- Selected task: R2-02 — make artifact-retention exclusion race-free across
+  every competing mutator. No later R2 item was started.
+- Mutating GC now creates and retains all four admission locks for the entire
+  transaction in the documented order: artifact retention, nonwaiting
+  autonomous execution, nonwaiting Git administration, then nonwaiting child
+  publication. Partial acquisition releases in reverse order. An absent inner
+  lock file therefore cannot turn a probe into an unprotected race window.
+- Every direct/control-root and autonomous-workspace source writer now holds a
+  shared control-root artifact-retention gate for its complete lease. GC takes
+  that gate exclusively before inner locks. Shared admission preserves
+  independent workspace concurrency; release drops the gate even when source
+  metadata cleanup fails, while GC's locked fallback scan rejects still-live
+  control-root or workspace metadata.
+- Deadlock avoidance is explicit: retention is GC's only waiting acquisition;
+  inner coordinator/admin/publication locks are nonwaiting. Thus an existing
+  autonomous owner that reaches source admission causes GC to release its
+  outer gate before the source writer proceeds.
+- Files changed: `internal/artifactretention/apply.go` and retention tests;
+  `internal/lock/source_writer.go` and tests; child-publication and archive
+  admission tests; `README.md`; and `.agent/{TASKS,STATE,DECISIONS}.md`.
+- Verification passed: affected-package baseline and focused tests; the new
+  barrier/admission tests repeated 10 times; `go test -count=1 ./...`; focused
+  race tests for retention, locks, execution, child, archive, mixed-pass,
+  supervisor, and autonomous-cycle packages; `go vet ./...`; and `git diff
+  --check`.
+- Coverage acquires the complete GC lease set as the deterministic barrier,
+  then proves archive execution admission fails, Git-admin and child locks
+  remain contended, and source admission times out without publishing
+  metadata. Actual archive and child operations retain task/HEAD/journal state
+  while blocked. Reverse-direction tests prove both control and workspace
+  writers exclude GC, legacy/live metadata remains a fallback, independent
+  workspace writers coexist, and all admissions proceed after release.
+- What remains: R2-03 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## R2-01 Completion (2026-07-13)
 

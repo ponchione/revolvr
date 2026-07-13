@@ -56,15 +56,23 @@ func TestGitStageUsesLiteralPathspecs(t *testing.T) {
 }
 
 func TestArchiveRefusesWhileQueueCoordinatorLeaseIsActive(t *testing.T) {
-	root := t.TempDir()
+	root, store := terminalRepo(t, DispositionCancelled)
+	defer store.Close()
+	headBefore := strings.TrimSpace(runGitTest(t, root, "rev-parse", "HEAD"))
 	release, err := autonomousexec.Acquire(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer release()
-	_, err = Archive(context.Background(), Config{RepositoryRoot: root}, ArchiveRequest{TaskID: "terminal-task", OperationID: "archive-race", Authority: authority(DispositionCancelled), ArchivedAt: archiveTestTime})
+	_, err = Archive(context.Background(), Config{RepositoryRoot: root, Ledger: store}, ArchiveRequest{TaskID: "terminal-task", OperationID: "archive-race", Authority: authority(DispositionCancelled), ArchivedAt: archiveTestTime})
 	if !errors.Is(err, autonomousexec.ErrActive) {
 		t.Fatalf("archive contention err=%v", err)
+	}
+	if _, found, findErr := taskfile.FindByID(root, "terminal-task"); findErr != nil || !found {
+		t.Fatalf("blocked archive changed active task: found=%t error=%v", found, findErr)
+	}
+	if got := strings.TrimSpace(runGitTest(t, root, "rev-parse", "HEAD")); got != headBefore {
+		t.Fatalf("blocked archive advanced HEAD from %s to %s", headBefore, got)
 	}
 }
 

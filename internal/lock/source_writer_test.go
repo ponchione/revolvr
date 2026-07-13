@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -92,7 +93,7 @@ func TestAcquireSourceWriterReplacesStaleLock(t *testing.T) {
 	workDir := t.TempDir()
 	clock := &fixedClock{value: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)}
 
-	_, err := AcquireSourceWriter(ctx, Config{
+	stale, err := AcquireSourceWriter(ctx, Config{
 		WorkingDir: workDir,
 		RunID:      "stale-run",
 		PID:        111,
@@ -102,6 +103,7 @@ func TestAcquireSourceWriterReplacesStaleLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first acquire: %v", err)
 	}
+	defer stale.Release(ctx)
 
 	clock.value = clock.value.Add(2 * time.Minute)
 	fresh, err := AcquireSourceWriter(ctx, Config{
@@ -191,8 +193,12 @@ func TestHeartbeatReportsLockPersistenceFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer handle.releaseRetentionAdmission()
 	path := handle.Path()
 	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(workDir, filepath.FromSlash(ArtifactRetentionRelPath))); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(filepath.Dir(path)); err != nil {
@@ -214,6 +220,7 @@ func TestHeartbeatRefusesReplacementOwnerToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer stale.Release(ctx)
 	clock.value = clock.value.Add(2 * time.Minute)
 	fresh, err := AcquireSourceWriter(ctx, Config{WorkingDir: workDir, RunID: "fresh-run", PID: 222, Timeout: time.Minute, Clock: clock.now})
 	if err != nil {
@@ -292,6 +299,53 @@ func TestWorkspaceSourceWriterUsesControlRootAndBindsExecutionIdentity(t *testin
 	}
 	if err := writer.Release(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestIndependentWorkspaceSourceWritersShareRetentionAdmission(t *testing.T) {
+	control := t.TempDir()
+	acquire := func(workspaceID string, pid int) *SourceWriter {
+		execution := filepath.Join(control, ".revolvr", "autonomous", "worktrees", workspaceID)
+		if err := os.MkdirAll(execution, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writer, err := AcquireSourceWriter(context.Background(), Config{ControlRoot: control, ExecutionRoot: execution, WorkspaceID: workspaceID, RunID: "run-" + workspaceID, PID: pid, Timeout: time.Minute})
+		if err != nil {
+			t.Fatalf("acquire %s: %v", workspaceID, err)
+		}
+		return writer
+	}
+	first := acquire("workspace-one", 101)
+	defer first.Release(context.Background())
+	second := acquire("workspace-two", 202)
+	defer second.Release(context.Background())
+}
+
+func TestReleaseDropsRetentionAdmissionEvenWhenMetadataReleaseFails(t *testing.T) {
+	root := t.TempDir()
+	writer, err := AcquireSourceWriter(context.Background(), Config{WorkingDir: root, RunID: "cancelled-release", PID: 123, Timeout: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := writer.Release(cancelled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled release error = %v", err)
+	}
+
+	path := filepath.Join(root, filepath.FromSlash(ArtifactRetentionRelPath))
+	file, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		file.Close()
+		t.Fatalf("retention admission remained held after failed release: %v", err)
+	}
+	_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	_ = file.Close()
+	if err := writer.Release(context.Background()); err != nil {
+		t.Fatalf("clear metadata after cancelled release: %v", err)
 	}
 }
 

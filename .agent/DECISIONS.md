@@ -1,5 +1,37 @@
 # Agent Decisions
 
+## R2-02 Artifact-Retention Exclusion Contract (2026-07-13)
+
+- This decision supersedes AW-25's check-and-release probe rule. Mutating GC
+  owns four OS advisory locks for its complete transaction, ordered artifact
+  retention, autonomous execution, Git administration, then child
+  publication. Every file is created if absent. Only the outer retention lock
+  waits; inner locks are nonwaiting admission checks, and partial acquisition
+  releases in reverse order.
+- Archive/reopen and queue/direct autonomous coordination remain excluded by
+  the held autonomous-execution lock. Workspace Git administration is excluded
+  by the held Git-admin lock. Child publication is excluded by its held lock.
+  Those entrants do not also acquire retention, avoiding redundant nesting.
+- Every successful source-writer acquisition first takes a shared
+  control-root artifact-retention lock and holds its open file description
+  through heartbeat-protected work until release. Workspace writers use the
+  control root rather than their execution worktree, and distinct workspace
+  writers may coexist under shared locks. GC takes the same inode exclusively.
+- The apparent autonomous/retention inversion is bounded deliberately: GC
+  never waits for an autonomous lock after taking retention. If an autonomous
+  owner is already active and waits for shared source admission, GC's inner
+  probe fails and releases retention, allowing the owner to proceed. GC waits
+  only when a source writer already owns a shared gate and holds no inner lock
+  while waiting.
+- Source release always relinquishes its shared gate, including cancellation,
+  expiry, ownership conflict, and persistence-error paths. Because metadata
+  cleanup can fail or an older process may not participate in the gate, GC
+  scans both control-root and every workspace source-writer namespace after
+  exclusive acquisition and refuses any unexpired owner.
+- This is a cooperative cross-process exclusion contract; R2-02 does not
+  replace the established lock/path security boundary. Queue and child path
+  hardening remains R2-05.
+
 ## R2-01 WAL-Safe Logical Ledger Authority (2026-07-13)
 
 - SQLite file bytes, WAL sidecars, and checkpoint state are not logical ledger

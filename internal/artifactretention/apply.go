@@ -447,50 +447,77 @@ func writeImmutableOrEqual(path string, raw []byte) error {
 }
 
 func acquireMutationLeases(ctx context.Context, root string, clock func() time.Time) (func(), error) {
+	// The mutation order is retention, autonomous execution, Git administration,
+	// then child publication. Retention is the only waiting exclusive acquire;
+	// every inner acquire is a probe, but every successful file remains held for
+	// the full GC transaction.
 	dir := filepath.Join(root, ".revolvr", "locks")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	retention, err := openFlock(ctx, filepath.Join(dir, "artifact-retention.lock"), true)
+	held := make([]*os.File, 0, 4)
+	release := func() {
+		for i := len(held) - 1; i >= 0; i-- {
+			releaseFlock(held[i])
+		}
+	}
+	retention, err := openFlock(ctx, filepath.Join(root, filepath.FromSlash(lock.ArtifactRetentionRelPath)), true)
 	if err != nil {
 		return nil, err
 	}
+	held = append(held, retention)
 	autonomous, err := openFlock(ctx, filepath.Join(dir, "autonomous-execution.lock"), false)
 	if err != nil {
-		releaseFlock(retention)
+		release()
 		return nil, errors.New("artifact GC apply: autonomous execution is active")
 	}
+	held = append(held, autonomous)
 	for _, name := range []string{"git-admin.lock", "child-publication.lock"} {
-		held, lockErr := openFlock(ctx, filepath.Join(dir, name), false)
+		lease, lockErr := openFlock(ctx, filepath.Join(dir, name), false)
 		if lockErr != nil {
-			releaseFlock(autonomous)
-			releaseFlock(retention)
+			release()
 			return nil, fmt.Errorf("artifact GC apply: active %s", name)
 		}
-		releaseFlock(held)
+		held = append(held, lease)
 	}
-	metadata, found, err := lock.ReadSourceWriter(context.WithoutCancel(ctx), root)
-	if err != nil {
-		releaseFlock(autonomous)
-		releaseFlock(retention)
+	if err := rejectActiveSourceWriters(context.WithoutCancel(ctx), root, clock().UTC()); err != nil {
+		release()
 		return nil, err
 	}
-	if found && metadata.ExpiresAt.After(clock().UTC()) {
-		releaseFlock(autonomous)
-		releaseFlock(retention)
-		return nil, errors.New("artifact GC apply: source writer is active")
-	}
-	return func() { releaseFlock(autonomous); releaseFlock(retention) }, nil
+	return release, nil
 }
-func openFlock(ctx context.Context, path string, create bool) (*os.File, error) {
-	flags := os.O_RDWR
-	if create {
-		flags |= os.O_CREATE
+
+func rejectActiveSourceWriters(ctx context.Context, root string, now time.Time) error {
+	if metadata, found, err := lock.ReadSourceWriter(ctx, root); err != nil {
+		return err
+	} else if found && metadata.ExpiresAt.After(now) {
+		return fmt.Errorf("artifact GC apply: control-root source writer %q is active", metadata.RunID)
 	}
-	f, err := os.OpenFile(path, flags, 0o600)
-	if errors.Is(err, os.ErrNotExist) && !create {
-		return nil, nil
+	dir := filepath.Join(root, ".revolvr", "locks", "workspaces")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
 	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			return errors.New("artifact GC apply: malformed workspace source-writer namespace")
+		}
+		metadata, found, err := lock.ReadWorkspaceSourceWriter(ctx, root, entry.Name())
+		if err != nil {
+			return err
+		}
+		if found && metadata.ExpiresAt.After(now) {
+			return fmt.Errorf("artifact GC apply: workspace source writer %q is active", metadata.RunID)
+		}
+	}
+	return nil
+}
+
+func openFlock(ctx context.Context, path string, wait bool) (*os.File, error) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -499,7 +526,11 @@ func openFlock(ctx context.Context, path string, create bool) (*os.File, error) 
 		if err == nil {
 			return f, nil
 		}
-		if !create {
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			f.Close()
+			return nil, err
+		}
+		if !wait {
 			f.Close()
 			return nil, err
 		}

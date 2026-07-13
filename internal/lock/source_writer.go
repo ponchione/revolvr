@@ -9,11 +9,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
 
-const SourceWriterRelPath = ".revolvr/locks/source-writer.lock"
+const (
+	SourceWriterRelPath      = ".revolvr/locks/source-writer.lock"
+	ArtifactRetentionRelPath = ".revolvr/locks/artifact-retention.lock"
+)
 
 const defaultTimeout = 5 * time.Minute
 
@@ -52,6 +56,8 @@ type SourceWriter struct {
 	clock         func() time.Time
 	workspaceID   string
 	executionRoot string
+	retentionMu   sync.Mutex
+	retentionFile *os.File
 }
 
 type HeldError struct {
@@ -90,6 +96,16 @@ func AcquireSourceWriter(ctx context.Context, cfg Config) (*SourceWriter, error)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	retentionFile, err := acquireRetentionAdmission(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("acquire source-writer retention admission: %w", err)
+	}
+	keepRetention := false
+	defer func() {
+		if !keepRetention {
+			releaseRetentionAdmission(retentionFile)
+		}
+	}()
 
 	file, err := openLockFile(path)
 	if err != nil {
@@ -125,7 +141,7 @@ func AcquireSourceWriter(ctx context.Context, cfg Config) (*SourceWriter, error)
 		return nil, err
 	}
 
-	return &SourceWriter{
+	writer := &SourceWriter{
 		path:          path,
 		runID:         cfg.RunID,
 		pid:           cfg.PID,
@@ -133,7 +149,10 @@ func AcquireSourceWriter(ctx context.Context, cfg Config) (*SourceWriter, error)
 		clock:         cfg.Clock,
 		workspaceID:   cfg.WorkspaceID,
 		executionRoot: cfg.ExecutionRoot,
-	}, nil
+		retentionFile: retentionFile,
+	}
+	keepRetention = true
+	return writer, nil
 }
 
 func ReadSourceWriter(ctx context.Context, workingDir string) (Metadata, bool, error) {
@@ -230,6 +249,7 @@ func (l *SourceWriter) Release(ctx context.Context) error {
 	if l == nil {
 		return nil
 	}
+	defer l.releaseRetentionAdmission()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -351,11 +371,71 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
 	}
-	path, err := SourceWriterPath(cfg.WorkingDir)
+	workingDir, err := filepath.Abs(cfg.WorkingDir)
 	if err != nil {
 		return Config{}, "", err
 	}
+	cfg.WorkingDir = filepath.Clean(workingDir)
+	path := filepath.Join(cfg.WorkingDir, filepath.FromSlash(SourceWriterRelPath))
 	return cfg, path, nil
+}
+
+func acquireRetentionAdmission(ctx context.Context, cfg Config) (*os.File, error) {
+	// Every source writer holds a shared control-root retention gate for its
+	// complete lease. GC takes the same file exclusively before probing any
+	// inner coordinator lock, so an autonomous owner may safely wait here: a GC
+	// that encounters that owner fails its nonwaiting inner probe and releases.
+	root := cfg.ControlRoot
+	if root == "" {
+		root = cfg.WorkingDir
+	}
+	path := filepath.Join(root, filepath.FromSlash(ArtifactRetentionRelPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("create artifact-retention lock directory: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("open artifact-retention lock: %w", err)
+	}
+	for {
+		err := syscall.Flock(int(file.Fd()), syscall.LOCK_SH|syscall.LOCK_NB)
+		if err == nil {
+			return file, nil
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			_ = file.Close()
+			return nil, fmt.Errorf("lock artifact-retention admission: %w", err)
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			_ = file.Close()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func releaseRetentionAdmission(file *os.File) {
+	if file == nil {
+		return
+	}
+	_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	_ = file.Close()
+}
+
+func (l *SourceWriter) releaseRetentionAdmission() {
+	l.retentionMu.Lock()
+	file := l.retentionFile
+	l.retentionFile = nil
+	l.retentionMu.Unlock()
+	releaseRetentionAdmission(file)
 }
 
 func openLockFile(path string) (*os.File, error) {

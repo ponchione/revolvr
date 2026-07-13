@@ -109,6 +109,35 @@ func TestApplyRejectsConfiguredSecretBeforePersistentPublication(t *testing.T) {
 	}
 }
 
+func TestApplyWaitsAtPublicationAdmissionBeforeAnyMutation(t *testing.T) {
+	repo, parent, stateSHA := childFixture(t)
+	input := childInput(repo, parent, stateSHA)
+	release, err := lock(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	_, err = Apply(ctx, input)
+	cancel()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		release()
+		t.Fatalf("publication admission error = %v, want lock wait cancellation", err)
+	}
+	journalPath := filepath.Join(repo, ".revolvr", "autonomous", "child-publications", input.OperationID+".json")
+	if _, err := os.Stat(journalPath); !errors.Is(err, os.ErrNotExist) {
+		release()
+		t.Fatalf("blocked publication created journal: %v", err)
+	}
+	if tasks, err := taskfile.List(repo); err != nil || len(tasks) != 1 || tasks[0].ID != parent.ID {
+		release()
+		t.Fatalf("blocked publication changed tasks: tasks=%+v err=%v", tasks, err)
+	}
+	release()
+	if result, err := Apply(context.Background(), input); err != nil || len(result.Children) != 1 {
+		t.Fatalf("publication after admission release = %+v, %v", result, err)
+	}
+}
+
 func childFixture(t *testing.T) (string, taskfile.Task, string) {
 	t.Helper()
 	repo := t.TempDir()

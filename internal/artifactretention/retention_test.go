@@ -10,11 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"revolvr/internal/autonomousexec"
 	"revolvr/internal/ledger"
 	"revolvr/internal/ledgerexport"
+	revolvrlock "revolvr/internal/lock"
 )
 
 func TestPolicyDefaultsAndValidation(t *testing.T) {
@@ -40,6 +43,159 @@ func TestPolicyDefaultsAndValidation(t *testing.T) {
 	bad.CompressAfter = bad.PruneAfter + time.Second
 	if bad.Validate() == nil {
 		t.Fatal("contradictory ages accepted")
+	}
+}
+
+func TestMutationLeasesHoldEveryCompetingAdmissionAfterAcquisitionBarrier(t *testing.T) {
+	root := t.TempDir()
+	release, err := acquireMutationLeases(context.Background(), root, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := false
+	defer func() {
+		if !released {
+			release()
+		}
+	}()
+
+	if unlock, err := autonomousexec.TryAcquire(root); !errors.Is(err, autonomousexec.ErrActive) {
+		if err == nil {
+			unlock()
+		}
+		t.Fatalf("archive execution admission error = %v, want active exclusion", err)
+	}
+
+	lockFiles := make([]*os.File, 0, 2)
+	for _, name := range []string{"git-admin.lock", "child-publication.lock"} {
+		path := filepath.Join(root, ".revolvr", "locks", name)
+		file, err := os.OpenFile(path, os.O_RDWR, 0)
+		if err != nil {
+			t.Fatalf("open held %s: %v", name, err)
+		}
+		lockFiles = append(lockFiles, file)
+		if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			t.Fatalf("competing %s admission lock error = %v, want contention", name, err)
+		}
+	}
+	defer func() {
+		for _, file := range lockFiles {
+			_ = file.Close()
+		}
+	}()
+
+	writerCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if writer, err := revolvrlock.AcquireSourceWriter(writerCtx, revolvrlock.Config{WorkingDir: root, RunID: "blocked-writer", PID: 123, Timeout: time.Minute}); !errors.Is(err, context.DeadlineExceeded) {
+		if err == nil {
+			_ = writer.Release(context.Background())
+		}
+		t.Fatalf("source-writer admission error = %v, want retention contention", err)
+	}
+	if _, found, err := revolvrlock.ReadSourceWriter(context.Background(), root); err != nil || found {
+		t.Fatalf("blocked source writer published metadata: found=%t err=%v", found, err)
+	}
+
+	release()
+	released = true
+	if unlock, err := autonomousexec.TryAcquire(root); err != nil {
+		t.Fatalf("archive admission remained blocked after release: %v", err)
+	} else {
+		unlock()
+	}
+	for _, file := range lockFiles {
+		if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+			t.Fatalf("competing admission remained blocked after release: %v", err)
+		}
+		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	}
+	writer, err := revolvrlock.AcquireSourceWriter(context.Background(), revolvrlock.Config{WorkingDir: root, RunID: "admitted-writer", PID: 456, Timeout: time.Minute})
+	if err != nil {
+		t.Fatalf("source writer remained blocked after release: %v", err)
+	}
+	if err := writer.Release(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestControlAndWorkspaceSourceWritersHoldSharedRetentionAdmission(t *testing.T) {
+	for _, workspace := range []bool{false, true} {
+		name := "control"
+		if workspace {
+			name = "workspace"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			cfg := revolvrlock.Config{WorkingDir: root, RunID: name + "-writer", PID: 123, Timeout: time.Minute}
+			if workspace {
+				execution := filepath.Join(root, ".revolvr", "autonomous", "worktrees", "workspace-one")
+				if err := os.MkdirAll(execution, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				cfg = revolvrlock.Config{ControlRoot: root, ExecutionRoot: execution, WorkspaceID: "workspace-one", RunID: name + "-writer", PID: 123, Timeout: time.Minute}
+			}
+			writer, err := revolvrlock.AcquireSourceWriter(context.Background(), cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			gcCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			if release, err := acquireMutationLeases(gcCtx, root, time.Now); !errors.Is(err, context.DeadlineExceeded) {
+				if err == nil {
+					release()
+				}
+				cancel()
+				_ = writer.Release(context.Background())
+				t.Fatalf("GC admission error = %v, want active source-writer contention", err)
+			}
+			cancel()
+			if err := writer.Release(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			release, err := acquireMutationLeases(context.Background(), root, time.Now)
+			if err != nil {
+				t.Fatalf("GC remained blocked after source-writer release: %v", err)
+			}
+			release()
+		})
+	}
+}
+
+func TestMutationLeasesRejectLiveWriterMetadataAfterGateReleaseFailure(t *testing.T) {
+	for _, workspace := range []bool{false, true} {
+		name := "control"
+		if workspace {
+			name = "workspace"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			cfg := revolvrlock.Config{WorkingDir: root, RunID: name + "-writer", PID: 123, Timeout: time.Minute}
+			if workspace {
+				execution := filepath.Join(root, ".revolvr", "autonomous", "worktrees", "workspace-one")
+				if err := os.MkdirAll(execution, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				cfg = revolvrlock.Config{ControlRoot: root, ExecutionRoot: execution, WorkspaceID: "workspace-one", RunID: name + "-writer", PID: 123, Timeout: time.Minute}
+			}
+			writer, err := revolvrlock.AcquireSourceWriter(context.Background(), cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cancelled, cancel := context.WithCancel(context.Background())
+			cancel()
+			if err := writer.Release(cancelled); !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancelled writer release error = %v", err)
+			}
+			if release, err := acquireMutationLeases(context.Background(), root, time.Now); err == nil || !strings.Contains(err.Error(), "source writer") {
+				if err == nil {
+					release()
+				}
+				t.Fatalf("GC live-metadata admission error = %v", err)
+			}
+			if err := writer.Release(context.Background()); err != nil {
+				t.Fatalf("clear writer metadata: %v", err)
+			}
+		})
 	}
 }
 

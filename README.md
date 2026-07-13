@@ -329,6 +329,12 @@ go run ./cmd/revolvr artifact gc inspect gc-2026-07
 go run ./cmd/revolvr artifact gc --operation-id gc-2026-07 --apply --resume
 ```
 
+A mutating GC transaction excludes autonomous execution, Git administration,
+child publication, and control-root or workspace source writers until cleanup
+finishes. A source writer already in progress holds shared admission and makes
+GC wait; a writer starting during GC waits before publishing lock metadata or
+mutating source.
+
 Compression uses deterministic gzip plus a versioned manifest that retains the
 original SHA-256, size, and mtime. Receipt validation and Codex-metric recovery
 read the admitted compressed form transparently and reject missing, corrupt,
