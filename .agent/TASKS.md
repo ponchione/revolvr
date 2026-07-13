@@ -337,6 +337,23 @@ Completion and verification evidence for every item below is preserved in
   Acceptance: production LOC decreases with no behavior change; intentional validation/evaluation remains explicit; no cosmetic TUI or API refactor is introduced.
   Verification: run focused touched-package tests, `go test ./...`, `go vet ./...`, and `git diff --check`; make no code change if safety cannot be proven.
 
+### Second Wide-Sweep Audit Follow-up (2026-07-13)
+
+Detailed evidence, failure scenarios, and test guidance are in
+`CODEBASE_AUDIT_2026-07-13.md`. Each item below is one bounded follow-up task.
+
+- [x] R2-01 — Replace raw SQLite main-file hashes with WAL-safe logical ledger authority.
+- [ ] R2-02 — Make artifact-retention exclusion race-free across every competing mutator.
+- [ ] R2-03 — Reconstruct and validate GC recovery authority from immutable history and observed effects.
+- [ ] R2-04 — Validate child-publication journals and consume one shared verified publication projection.
+- [ ] R2-05 — Apply the protected runtime-path contract to queue and child persistence.
+- [ ] R2-06 — Validate a contiguous legal queue transition history during recovery.
+- [ ] R2-07 — Durably synchronize both sides of retention quarantine renames and cleanup.
+- [ ] R2-08 — Unify ledger-export writer and reader record-size contracts.
+- [ ] R2-09 — Preserve explicit empty verification-command configuration.
+- [ ] R2-10 — Give bare `revolvr run` a real non-placeholder contract.
+- [ ] R2-11 — Preserve both GC operation and result-rendering errors in the CLI.
+
 ## Completed History
 
 The previous harness, app-boundary, and TUI operator-console tasks were completed on 2026-07-08. Details are preserved in `.agent/STATE.md` and the Git history.

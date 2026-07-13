@@ -3,6 +3,8 @@ package artifactretention
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"os"
@@ -216,6 +218,55 @@ func TestApplyReconcilesInterruptedCompressionPublication(t *testing.T) {
 	}
 }
 
+func TestActionRevalidationUsesLogicalLedgerIdentityInWALMode(t *testing.T) {
+	root, ledgerPath, _, _, old := retentionFixture(t)
+	db := openRetentionWALWriter(t, ledgerPath)
+	defer db.Close()
+	checkpointRetentionWAL(t, db)
+	checkpointedMain := retentionMainFileHash(t, ledgerPath)
+
+	if _, err := db.Exec(`UPDATE runs SET summary = ? WHERE id = ?`, "committed in WAL", "run-old"); err != nil {
+		t.Fatal(err)
+	}
+	if got := retentionMainFileHash(t, ledgerPath); got != checkpointedMain {
+		t.Fatal("WAL commit unexpectedly changed the SQLite main file")
+	}
+	p := DefaultPolicy()
+	p.MutationEnabled = true
+	p.RecentRunCount = 0
+	p.MinimumCompressBytes = 0
+	plan, err := PlanGC(context.Background(), PlanInput{RepositoryRoot: root, LedgerPath: ledgerPath, OperationID: "wal-checkpoint", FrozenAt: old.Add(48 * time.Hour), Policy: p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Actions) == 0 {
+		t.Fatal("plan has no action to revalidate")
+	}
+	checkpointRetentionWAL(t, db)
+	if got := retentionMainFileHash(t, ledgerPath); got == checkpointedMain {
+		t.Fatal("checkpoint did not change the SQLite main file; test cannot distinguish physical and logical identity")
+	}
+	if err := revalidateActionAuthority(context.Background(), root, ledgerPath, plan, plan.Actions[0]); err != nil {
+		t.Fatalf("unchanged logical ledger rejected after checkpoint: %v", err)
+	}
+
+	stable, err := PlanGC(context.Background(), PlanInput{RepositoryRoot: root, LedgerPath: ledgerPath, OperationID: "wal-divergence", FrozenAt: old.Add(48 * time.Hour), Policy: p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stableMain := retentionMainFileHash(t, ledgerPath)
+	if _, err := db.Exec(`UPDATE runs SET task = ? WHERE id = ?`, "same-high-water divergence", "run-old"); err != nil {
+		t.Fatal(err)
+	}
+	if got := retentionMainFileHash(t, ledgerPath); got != stableMain {
+		t.Fatal("same-high-water WAL update unexpectedly changed the SQLite main file")
+	}
+	err = revalidateActionAuthority(context.Background(), root, ledgerPath, stable, stable.Actions[0])
+	if err == nil || !strings.Contains(err.Error(), "ledger identity changed") {
+		t.Fatalf("same-high-water logical divergence error = %v", err)
+	}
+}
+
 func retentionFixture(t *testing.T) (string, string, string, []byte, time.Time) {
 	t.Helper()
 	root := t.TempDir()
@@ -237,4 +288,46 @@ func retentionFixture(t *testing.T) (string, string, string, []byte, time.Time) 
 	store.CompleteRun(context.Background(), "run-old", ledger.RunCompletion{Status: ledger.StatusCompleted, CompletedAt: old.Add(time.Minute)})
 	store.Close()
 	return root, ledgerPath, logical, raw, old
+}
+
+func openRetentionWALWriter(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mode string
+	if err := db.QueryRow(`PRAGMA journal_mode=WAL`).Scan(&mode); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if strings.ToLower(mode) != "wal" {
+		db.Close()
+		t.Fatalf("journal mode = %q", mode)
+	}
+	if _, err := db.Exec(`PRAGMA wal_autocheckpoint=0`); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	return db
+}
+
+func checkpointRetentionWAL(t *testing.T, db *sql.DB) {
+	t.Helper()
+	var busy, logFrames, checkpointed int
+	if err := db.QueryRow(`PRAGMA wal_checkpoint(TRUNCATE)`).Scan(&busy, &logFrames, &checkpointed); err != nil {
+		t.Fatal(err)
+	}
+	if busy != 0 {
+		t.Fatalf("WAL checkpoint remained busy: log=%d checkpointed=%d", logFrames, checkpointed)
+	}
+}
+
+func retentionMainFileHash(t *testing.T, path string) [sha256.Size]byte {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sha256.Sum256(raw)
 }

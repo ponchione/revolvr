@@ -212,24 +212,32 @@ func matchIdentity(raw []byte, want Identity) error {
 }
 
 func readRegular(path string, capBytes int64) ([]byte, os.FileInfo, error) {
-	info, err := os.Lstat(path)
+	info, err := statRegular(path, capBytes)
 	if err != nil {
 		return nil, nil, err
 	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, nil, errors.New("artifact is not a regular non-symlink file")
-	}
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink != 1 {
-		return nil, nil, errors.New("artifact has unexpected hard links")
-	}
-	if info.Mode().Perm()&0o022 != 0 {
-		return nil, nil, errors.New("artifact has unsafe group/world-write mode")
-	}
-	if capBytes >= 0 && info.Size() > capBytes {
-		return nil, nil, errors.New("artifact exceeds read cap")
-	}
 	raw, err := os.ReadFile(path)
 	return raw, info, err
+}
+
+func statRegular(path string, capBytes int64) (os.FileInfo, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("artifact is not a regular non-symlink file")
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink != 1 {
+		return nil, errors.New("artifact has unexpected hard links")
+	}
+	if info.Mode().Perm()&0o022 != 0 {
+		return nil, errors.New("artifact has unsafe group/world-write mode")
+	}
+	if capBytes >= 0 && info.Size() > capBytes {
+		return nil, errors.New("artifact exceeds read cap")
+	}
+	return info, nil
 }
 
 func resolveLogical(root, value string) (string, error) {

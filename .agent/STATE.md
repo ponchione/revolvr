@@ -2,10 +2,67 @@
 
 ## Current Focus
 
-The 2026-07-13 wide-sweep audit is registered as AUD-01 through AUD-16 in
-`.agent/TASKS.md`. AUD-01 through AUD-16 are complete and the wide-sweep audit
-queue is exhausted. The ordered AW-01 through AW-31
-autonomous-workflow program remains complete and published.
+The second 2026-07-13 wide-sweep audit is registered as R2-01 through R2-11 in
+`.agent/TASKS.md`. R2-01 is complete; R2-02 is the next bounded follow-up. The
+detailed report remains `CODEBASE_AUDIT_2026-07-13.md` until all eleven items
+are complete. The prior AUD-01 through AUD-16 queue and the ordered AW-01
+through AW-31 autonomous workflow program remain complete and published.
+
+## R2-01 Completion (2026-07-13)
+
+- Selected task: R2-01 — replace raw SQLite main-file hashes with WAL-safe
+  logical ledger authority. No later R2 item was started.
+- A shared `revolvr-ledger-logical-snapshot-v1` identity now hashes a canonical
+  length-prefixed projection of the high-water mark, every ordered run field,
+  and every event ID/run/type/time plus byte-exact payload. Explicit presence
+  markers distinguish absent optional values, and time locations normalize to
+  the same UTC instant.
+- Ledger exports tag new source identities with that logical schema and bind
+  the tag through the recomputed export authority ID. Untagged existing v1
+  manifests remain readable, but their physical SQLite hash is diagnostic
+  only; it is never accepted as same-high-water logical authority.
+- GC plans bind the same tagged logical identity. Planning compares coherent
+  snapshots on both sides of inventory while separately retaining file-inode
+  safety checks; apply recomputes the logical identity before every mutation.
+  SQLite checkpoints therefore do not invalidate unchanged authority, while
+  same-high-water row or exact-payload divergence does.
+- Files changed: `internal/ledger/snapshot_identity.go` and tests;
+  `internal/ledgerexport/export.go` and tests;
+  `internal/artifactretention/{apply,compression,plan}.go` and retention tests;
+  `README.md`; `.agent/{TASKS,STATE,DECISIONS}.md`; and the registered audit
+  report.
+- Verification passed: focused tests for `internal/ledger`,
+  `internal/ledgerexport`, and `internal/artifactretention`; WAL export tests
+  repeated 20 times; WAL retention tests repeated 20 times; `go test -count=1
+  ./...`; `go test -race -count=1` for all three touched packages; `go vet
+  ./...`; and `git diff --check`. New coverage proves uncheckpointed committed
+  rows, physical-byte-changing checkpoints, same-high-water WAL divergence,
+  concurrent commits, every logical field, and byte-exact payload identity.
+- Verification note: one earlier race run hit an existing timing-sensitive
+  busy-reader assertion; its exact test then passed 10 race repetitions and
+  the final touched-package race suite passed cleanly.
+- What remains: R2-02 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
+
+## Second Wide-Sweep Audit (2026-07-13)
+
+- Selected task: perform a new wide-sweep audit after completion of the prior
+  AUD-01 through AUD-16 queue. No product-code fix was started.
+- Files changed: `CODEBASE_AUDIT_2026-07-13.md`, `.agent/TASKS.md`, and
+  `.agent/STATE.md`.
+- Result: confirmed 11 actionable findings: five high-priority integrity or
+  concurrency defects, four medium-priority durability/configuration defects,
+  and two low-priority CLI defects. The highest-risk themes are WAL-safe ledger
+  identity, retention exclusion/recovery, and child/queue persistence
+  authority. No broad speculative refactor was recommended.
+- Verification passed: `go test -count=1 ./...`; `go test -race -count=1
+  ./...`; `go test -shuffle=on -count=1 ./...`; Go 1.22 compatibility tests;
+  `go vet ./...`; `govulncheck ./...` with no reachable vulnerabilities;
+  formatting, tidy, module, and diff checks; and CLI help/config/status smokes.
+- Targeted observation: bare `revolvr run` exited zero and printed an
+  unimplemented placeholder, confirming R2-10.
+- What remains: R2-01 through R2-11, one bounded task per fresh pass.
+- Blockers: none.
 
 ## Wide-Sweep Audit Queue (2026-07-13)
 

@@ -1,5 +1,34 @@
 # Agent Decisions
 
+## R2-01 WAL-Safe Logical Ledger Authority (2026-07-13)
+
+- SQLite file bytes, WAL sidecars, and checkpoint state are not logical ledger
+  authority. The shared authority is schema
+  `revolvr-ledger-logical-snapshot-v1`: a domain-separated, length-prefixed
+  hash stream over the snapshot high-water mark, ordered run and event counts,
+  every run field, and every event ID/run/type/time with exact payload bytes.
+  Optional pointers/payloads have explicit presence markers, integer widths
+  are fixed, and times normalize to UTC RFC3339 nanoseconds.
+- `byte_size` beside this identity is the canonical logical stream size, not
+  the SQLite main-file size. Source path admission, regular-file/mode/link
+  validation, and before/after inode identity remain separate protections and
+  must not be inferred from the logical digest.
+- New ledger exports carry the logical identity schema in `source_ledger`, and
+  that tag is part of the content-derived export ID. Verification recomputes
+  the authority ID before trusting the tag and compares current logical state
+  when the live high-water equals the export high-water. A later high-water
+  remains coverage rather than exact-current-state authority.
+- Existing untagged v1 export manifests remain structurally compatible. Their
+  physical hash is treated as diagnostic only; immutable records, counts,
+  bounds, hashes, replay, and live high-water coverage remain verified without
+  presenting the raw SQLite hash as logical proof. Removing a logical tag from
+  a new manifest invalidates its export ID.
+- GC planning uses two transactional logical snapshots around inventory and
+  requires equality plus stable source-file identity. Every action
+  revalidation compares the tagged logical identity and high-water before
+  mutation. Existing untagged plans are refused and must be replanned because
+  physical hashes cannot safely authorize a new mutation.
+
 ## AUD-16 Proven Dead-Code Boundary (2026-07-13)
 
 - Cleanup is limited to values whose lack of effects was established from the

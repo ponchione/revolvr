@@ -36,6 +36,11 @@ type Artifact struct {
 	ByteSize int64  `json:"byte_size"`
 }
 
+type SourceLedgerIdentity struct {
+	Artifact
+	IdentitySchema string `json:"identity_schema,omitempty"`
+}
+
 type Bounds struct {
 	AfterEventID   int64 `json:"after_event_id"`
 	ThroughEventID int64 `json:"through_event_id"`
@@ -47,7 +52,7 @@ type Manifest struct {
 	OperationID         string                `json:"operation_id"`
 	ExportedAt          time.Time             `json:"exported_at"`
 	PolicySHA256        string                `json:"policy_sha256"`
-	SourceLedger        Artifact              `json:"source_ledger"`
+	SourceLedger        SourceLedgerIdentity  `json:"source_ledger"`
 	Bounds              Bounds                `json:"bounds"`
 	HighWaterEventID    int64                 `json:"high_water_event_id"`
 	RunCount            int                   `json:"run_count"`
@@ -171,7 +176,7 @@ func Export(ctx context.Context, in ExportInput) (Result, error) {
 	if ledgerPath == "" {
 		ledgerPath = filepath.Join(root, ".revolvr", "ledger.sqlite")
 	}
-	ledgerIdentity, err := fileIdentity(root, ledgerPath)
+	ledgerPath, ledgerRel, ledgerInfo, err := sourceLedgerFile(root, ledgerPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("ledger export: source ledger: %w", err)
 	}
@@ -187,10 +192,12 @@ func Export(ctx context.Context, in ExportInput) (Result, error) {
 	if closeErr != nil {
 		return Result{}, closeErr
 	}
-	afterIdentity, err := fileIdentity(root, ledgerPath)
-	if err != nil || afterIdentity != ledgerIdentity {
+	_, afterRel, afterInfo, err := sourceLedgerFile(root, ledgerPath)
+	if err != nil || afterRel != ledgerRel || !os.SameFile(ledgerInfo, afterInfo) {
 		return Result{}, errors.Join(err, errors.New("ledger export: source ledger changed during snapshot"))
 	}
+	logicalIdentity := ledger.IdentifySnapshot(snapshot)
+	ledgerIdentity := SourceLedgerIdentity{Artifact: Artifact{Path: ledgerRel, SHA256: logicalIdentity.SHA256, ByteSize: logicalIdentity.ByteSize}, IdentitySchema: ledger.SnapshotIdentitySchema}
 	through := in.Bounds.ThroughEventID
 	if through == 0 || through > snapshot.MaxEventID {
 		through = snapshot.MaxEventID
@@ -211,16 +218,16 @@ func Export(ctx context.Context, in ExportInput) (Result, error) {
 		return Result{}, err
 	}
 	recordsHash := hashBytes(stream)
-	authority := struct {
-		OperationID string                `json:"operation_id"`
-		ExportedAt  time.Time             `json:"exported_at"`
-		Policy      string                `json:"policy_sha256"`
-		Ledger      Artifact              `json:"source_ledger"`
-		Bounds      Bounds                `json:"bounds"`
-		RecordsHash string                `json:"records_sha256"`
-		Predecessor string                `json:"predecessor_id,omitempty"`
-		Compressed  []CompressedReference `json:"compressed_artifacts,omitempty"`
-	}{in.OperationID, in.ExportedAt, strings.TrimSpace(in.PolicySHA256), ledgerIdentity, actualBounds, recordsHash, strings.TrimSpace(in.PredecessorID), compressedArtifacts}
+	authority := exportAuthority{
+		OperationID: in.OperationID,
+		ExportedAt:  in.ExportedAt,
+		Policy:      strings.TrimSpace(in.PolicySHA256),
+		Ledger:      ledgerIdentity,
+		Bounds:      actualBounds,
+		RecordsHash: recordsHash,
+		Predecessor: strings.TrimSpace(in.PredecessorID),
+		Compressed:  compressedArtifacts,
+	}
 	authorityRaw, _ := json.Marshal(authority)
 	exportID := hashBytes(authorityRaw)
 	dirRel := filepath.ToSlash(filepath.Join(".revolvr", "retention", "exports", exportID))
@@ -436,18 +443,26 @@ func Verify(ctx context.Context, repositoryRoot, exportID string, secrets []stri
 	add("source_ledger_path", sourcePathErr)
 	if sourcePathErr == nil {
 		if _, statErr := os.Stat(ledgerAbs); statErr == nil {
-			store, openErr := ledger.OpenLiveReadOnly(ctx, ledgerAbs)
+			ledgerAbs, _, sourceInfo, openErr := sourceLedgerFile(root, ledgerAbs)
+			var store *ledger.Store
+			if openErr == nil {
+				store, openErr = ledger.OpenLiveReadOnly(ctx, ledgerAbs)
+			}
 			if openErr == nil {
 				snapshot, snapshotErr := store.ReadSnapshot(ctx)
-				_ = store.Close()
-				openErr = snapshotErr
+				closeErr := store.Close()
+				_, _, afterInfo, identityErr := sourceLedgerFile(root, ledgerAbs)
+				openErr = errors.Join(snapshotErr, closeErr, identityErr)
+				if openErr == nil && !os.SameFile(sourceInfo, afterInfo) {
+					openErr = errors.New("source ledger file changed during verification")
+				}
 				if openErr == nil && snapshot.MaxEventID < manifest.HighWaterEventID {
 					openErr = errors.New("source ledger no longer covers export high-water")
 				}
-				if openErr == nil && snapshot.MaxEventID == manifest.HighWaterEventID {
-					current, identityErr := fileIdentity(root, ledgerAbs)
-					if identityErr != nil || current != manifest.SourceLedger {
-						openErr = errors.Join(identityErr, errors.New("source ledger identity changed at same high-water"))
+				if openErr == nil && snapshot.MaxEventID == manifest.HighWaterEventID && manifest.SourceLedger.IdentitySchema == ledger.SnapshotIdentitySchema {
+					identity := ledger.IdentifySnapshot(snapshot)
+					if identity.SHA256 != manifest.SourceLedger.SHA256 || identity.ByteSize != manifest.SourceLedger.ByteSize {
+						openErr = errors.New("source ledger identity changed at same high-water")
 					}
 				}
 			}
@@ -687,7 +702,7 @@ func loadManifest(repositoryRoot, exportID string) (Manifest, []byte, string, er
 }
 
 func validateManifest(m Manifest, id string) error {
-	if m.SchemaVersion != ManifestSchema || m.ExportID != id || !safeID(m.ExportID) || strings.TrimSpace(m.OperationID) == "" || m.ExportedAt.IsZero() || m.ExportedAt.Location() != time.UTC {
+	if m.SchemaVersion != ManifestSchema || m.ExportID != id || !safeID(m.ExportID) || strings.TrimSpace(m.OperationID) == "" || m.ExportedAt.IsZero() || m.ExportedAt.Location() != time.UTC || exportAuthorityID(m) != m.ExportID {
 		return errors.New("invalid ledger export manifest authority")
 	}
 	if m.RunCount < 0 || m.EventCount < 0 || m.LegacyPayloadCount < 0 || m.HighWaterEventID != m.Bounds.ThroughEventID {
@@ -697,10 +712,36 @@ func validateManifest(m Manifest, id string) error {
 	if m.Records.Path != wantRecords || m.Records.ByteSize < 0 || len(m.Records.SHA256) != 64 {
 		return errors.New("invalid ledger export records identity")
 	}
-	if m.SourceLedger.Path != ".revolvr/ledger.sqlite" || m.SourceLedger.ByteSize < 0 || len(m.SourceLedger.SHA256) != 64 {
+	if m.SourceLedger.Path != ".revolvr/ledger.sqlite" || m.SourceLedger.ByteSize < 0 || len(m.SourceLedger.SHA256) != 64 || (m.SourceLedger.IdentitySchema != "" && m.SourceLedger.IdentitySchema != ledger.SnapshotIdentitySchema) {
 		return errors.New("invalid source ledger identity")
 	}
 	return nil
+}
+
+type exportAuthority struct {
+	OperationID string                `json:"operation_id"`
+	ExportedAt  time.Time             `json:"exported_at"`
+	Policy      string                `json:"policy_sha256"`
+	Ledger      SourceLedgerIdentity  `json:"source_ledger"`
+	Bounds      Bounds                `json:"bounds"`
+	RecordsHash string                `json:"records_sha256"`
+	Predecessor string                `json:"predecessor_id,omitempty"`
+	Compressed  []CompressedReference `json:"compressed_artifacts,omitempty"`
+}
+
+func exportAuthorityID(manifest Manifest) string {
+	authority := exportAuthority{
+		OperationID: manifest.OperationID,
+		ExportedAt:  manifest.ExportedAt,
+		Policy:      manifest.PolicySHA256,
+		Ledger:      manifest.SourceLedger,
+		Bounds:      manifest.Bounds,
+		RecordsHash: manifest.Records.SHA256,
+		Predecessor: manifest.PredecessorID,
+		Compressed:  manifest.CompressedArtifacts,
+	}
+	raw, _ := json.Marshal(authority)
+	return hashBytes(raw)
 }
 
 func validateCompressedReferences(values []CompressedReference) error {
@@ -714,20 +755,29 @@ func validateCompressedReferences(values []CompressedReference) error {
 	return nil
 }
 
-func fileIdentity(root, path string) (Artifact, error) {
+func sourceLedgerFile(root, path string) (string, string, os.FileInfo, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return Artifact{}, err
+		return "", "", nil, err
 	}
 	if !pathguard.WithinRoot(root, abs) {
-		return Artifact{}, errors.New("path escapes repository")
+		return "", "", nil, errors.New("path escapes repository")
 	}
-	raw, err := safeRead(abs, 1<<30)
+	info, err := os.Lstat(abs)
 	if err != nil {
-		return Artifact{}, err
+		return "", "", nil, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return "", "", nil, errors.New("source ledger is not a regular non-symlink file")
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink != 1 {
+		return "", "", nil, errors.New("source ledger has unexpected hard links")
+	}
+	if info.Size() > 1<<30 {
+		return "", "", nil, errors.New("source ledger exceeds read cap")
 	}
 	rel, _ := filepath.Rel(root, abs)
-	return Artifact{Path: filepath.ToSlash(rel), SHA256: hashBytes(raw), ByteSize: int64(len(raw))}, nil
+	return abs, filepath.ToSlash(rel), info, nil
 }
 
 func safeRead(path string, cap int64) ([]byte, error) {

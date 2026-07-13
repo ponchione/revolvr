@@ -338,7 +338,8 @@ file enters the operation quarantine.
 
 Ledger export is also available independently. It preserves every run field,
 global event identity, exact payload bytes, event payload schema label, range,
-and source-ledger identity without deleting live SQLite rows:
+and a WAL-safe canonical logical source-ledger identity without deleting live
+SQLite rows:
 
 ```bash
 go run ./cmd/revolvr ledger export \

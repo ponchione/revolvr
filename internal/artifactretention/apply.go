@@ -171,12 +171,9 @@ func revalidateActionAuthority(ctx context.Context, root, ledgerPath string, pla
 	if strings.TrimSpace(ledgerPath) == "" {
 		ledgerPath = filepath.Join(root, ".revolvr", "ledger.sqlite")
 	}
-	raw, _, err := readRegular(ledgerPath, 1<<30)
+	_, err := statRegular(ledgerPath, 1<<30)
 	if err != nil {
 		return err
-	}
-	if hash(raw) != plan.Ledger.SHA256 || int64(len(raw)) != plan.Ledger.ByteSize {
-		return errors.New("artifact GC apply: ledger identity changed")
 	}
 	store, err := ledger.OpenLiveReadOnly(ctx, ledgerPath)
 	if err != nil {
@@ -189,6 +186,10 @@ func revalidateActionAuthority(ctx context.Context, root, ledgerPath string, pla
 	}
 	if snapshot.MaxEventID != plan.Ledger.HighWaterEventID {
 		return errors.New("artifact GC apply: ledger high-water changed")
+	}
+	identity := ledger.IdentifySnapshot(snapshot)
+	if identity.SHA256 != plan.Ledger.SHA256 || identity.ByteSize != plan.Ledger.ByteSize {
+		return errors.New("artifact GC apply: ledger identity changed")
 	}
 	tasks, err := taskfile.List(root)
 	if err != nil {

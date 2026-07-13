@@ -69,6 +69,7 @@ type LedgerIdentity struct {
 	SHA256           string `json:"sha256"`
 	ByteSize         int64  `json:"byte_size"`
 	HighWaterEventID int64  `json:"high_water_event_id"`
+	IdentitySchema   string `json:"identity_schema"`
 }
 type Plan struct {
 	SchemaVersion         string         `json:"schema_version"`
@@ -122,7 +123,7 @@ func PlanGC(ctx context.Context, in PlanInput) (Plan, error) {
 	if ledgerPath == "" {
 		ledgerPath = filepath.Join(root, ".revolvr", "ledger.sqlite")
 	}
-	ledgerRaw, _, err := readRegular(ledgerPath, 1<<30)
+	ledgerInfo, err := statRegular(ledgerPath, 1<<30)
 	if err != nil {
 		return Plan{}, fmt.Errorf("artifact GC plan: ledger: %w", err)
 	}
@@ -139,13 +140,29 @@ func PlanGC(ctx context.Context, in PlanInput) (Plan, error) {
 	if closeErr != nil {
 		return Plan{}, closeErr
 	}
+	ledgerIdentity := ledger.IdentifySnapshot(snapshot)
 	candidates, err := inventory(ctx, root, snapshot, in.Policy)
 	if err != nil {
 		return Plan{}, err
 	}
-	afterLedger, _, err := readRegular(ledgerPath, 1<<30)
-	if err != nil || !bytes.Equal(afterLedger, ledgerRaw) {
+	afterStore, err := ledger.OpenLiveReadOnly(ctx, ledgerPath)
+	if err != nil {
+		return Plan{}, err
+	}
+	afterSnapshot, readErr := afterStore.ReadSnapshot(ctx)
+	closeErr = afterStore.Close()
+	if readErr != nil {
+		return Plan{}, readErr
+	}
+	if closeErr != nil {
+		return Plan{}, closeErr
+	}
+	afterLedgerInfo, err := statRegular(ledgerPath, 1<<30)
+	if err != nil || !os.SameFile(ledgerInfo, afterLedgerInfo) {
 		return Plan{}, errors.Join(err, errors.New("artifact GC plan: ledger changed during inventory"))
+	}
+	if ledger.IdentifySnapshot(afterSnapshot) != ledgerIdentity {
+		return Plan{}, errors.New("artifact GC plan: ledger changed during inventory")
 	}
 
 	active := map[string]bool{}
@@ -189,7 +206,7 @@ func PlanGC(ctx context.Context, in PlanInput) (Plan, error) {
 		})
 	}
 
-	plan := Plan{SchemaVersion: PlanSchema, OperationID: strings.TrimSpace(in.OperationID), FrozenAt: in.FrozenAt, Policy: in.Policy, PolicySHA256: policyHash, EffectiveConfigSHA256: strings.TrimSpace(in.EffectiveConfigSHA256), RepositoryRoot: root, Ledger: LedgerIdentity{Path: filepath.ToSlash(ledgerRel), SHA256: hash(ledgerRaw), ByteSize: int64(len(ledgerRaw)), HighWaterEventID: snapshot.MaxEventID}}
+	plan := Plan{SchemaVersion: PlanSchema, OperationID: strings.TrimSpace(in.OperationID), FrozenAt: in.FrozenAt, Policy: in.Policy, PolicySHA256: policyHash, EffectiveConfigSHA256: strings.TrimSpace(in.EffectiveConfigSHA256), RepositoryRoot: root, Ledger: LedgerIdentity{Path: filepath.ToSlash(ledgerRel), SHA256: ledgerIdentity.SHA256, ByteSize: ledgerIdentity.ByteSize, HighWaterEventID: snapshot.MaxEventID, IdentitySchema: ledger.SnapshotIdentitySchema}}
 	eligibleFiles := 0
 	var eligibleBytes int64
 	for _, c := range candidates {
@@ -283,6 +300,9 @@ func MarshalPlan(plan Plan) ([]byte, error) {
 func ValidatePlan(plan Plan) error {
 	if plan.SchemaVersion != PlanSchema || plan.PlanID == "" || plan.OperationID == "" || plan.FrozenAt.IsZero() {
 		return errors.New("invalid artifact GC plan")
+	}
+	if plan.Ledger.IdentitySchema != ledger.SnapshotIdentitySchema {
+		return errors.New("artifact GC plan: unsupported ledger identity schema")
 	}
 	if err := plan.Policy.Validate(); err != nil {
 		return err
