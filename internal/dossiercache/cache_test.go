@@ -65,6 +65,29 @@ func TestSourceAcceptsSupportedGitObjectIDs(t *testing.T) {
 	}
 }
 
+func TestSourceGuidanceAcceptsSafeDotDotPrefixes(t *testing.T) {
+	source := testSource()
+	source.Guidance = []GuidanceIdentity{
+		{Path: "..foo", SHA256: strings.Repeat("a", 64), ByteSize: 1},
+		{Path: "..well-known/file", SHA256: strings.Repeat("b", 64), ByteSize: 2},
+	}
+	if err := source.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestSourceGuidanceRejectsTraversalAbsoluteAndNoncanonicalPaths(t *testing.T) {
+	for _, path := range invalidRepositoryPaths(t) {
+		t.Run(strings.ReplaceAll(path, "/", "_"), func(t *testing.T) {
+			source := testSource()
+			source.Guidance = []GuidanceIdentity{{Path: path, SHA256: strings.Repeat("a", 64), ByteSize: 1}}
+			if err := source.Validate(); err == nil {
+				t.Fatalf("Validate() accepted invalid guidance path %q", path)
+			}
+		})
+	}
+}
+
 func TestCacheCorruptionNeverReturnsBytes(t *testing.T) {
 	root := t.TempDir()
 	store := Store{RepositoryRoot: root}
@@ -106,6 +129,28 @@ func TestRepositoryMapDeterministicWholePathBounds(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("map missing %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestRepositoryMapAcceptsSafeDotDotPrefixes(t *testing.T) {
+	mapped, err := BuildRepositoryMap(testSource(), []string{"..foo", "..well-known/file"})
+	if err != nil {
+		t.Fatalf("BuildRepositoryMap() error = %v", err)
+	}
+	for _, want := range []string{"..foo [file]", "..well-known/file [file]"} {
+		if !strings.Contains(string(mapped.Content), want) {
+			t.Fatalf("repository map missing %q:\n%s", want, mapped.Content)
+		}
+	}
+}
+
+func TestRepositoryMapRejectsTraversalAbsoluteAndNoncanonicalPaths(t *testing.T) {
+	for _, path := range invalidRepositoryPaths(t) {
+		t.Run(strings.ReplaceAll(path, "/", "_"), func(t *testing.T) {
+			if _, err := BuildRepositoryMap(testSource(), []string{path}); err == nil {
+				t.Fatalf("BuildRepositoryMap() accepted invalid path %q", path)
+			}
+		})
 	}
 }
 
@@ -179,5 +224,18 @@ func testSource() Source {
 		CommitSHA: strings.Repeat("c", 40), TreeSHA: strings.Repeat("d", 40),
 		MaxPaths: 100, MaxBytes: 64 * 1024,
 		Guidance: []GuidanceIdentity{{Path: "AGENTS.md", SHA256: strings.Repeat("e", 64), ByteSize: 10}},
+	}
+}
+
+func invalidRepositoryPaths(t *testing.T) []string {
+	t.Helper()
+	return []string{
+		"..",
+		"../foo",
+		"a/../../b",
+		filepath.Join(string(filepath.Separator), "tmp", "absolute"),
+		"./foo",
+		"a/../b",
+		"a//b",
 	}
 }

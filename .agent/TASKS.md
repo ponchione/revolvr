@@ -41,7 +41,7 @@
   headings inside Markdown fences.
 - [x] AUDIT-R3-05 — Make Git object-ID validation consistent for SHA-1 and
   SHA-256 repositories across workspace, cache, map, and dossier boundaries.
-- [ ] AUDIT-R3-06 — Accept safe tracked names beginning with `..` while still
+- [x] AUDIT-R3-06 — Accept safe tracked names beginning with `..` while still
   rejecting path traversal.
 - [ ] AUDIT-R3-07 — Replace map-order-dependent validation diagnostics with
   explicit deterministic ordering.

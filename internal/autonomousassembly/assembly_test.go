@@ -243,6 +243,34 @@ func TestAssembleRepositoryMapCacheHitGuidanceInvalidationAndCorruptionFallback(
 	}
 }
 
+func TestAssembleRepositoryMapIncludesSafeDotDotPrefixedNames(t *testing.T) {
+	repo := newTestRepository(t, "task-dotdot", false)
+	writeTestFile(t, filepath.Join(repo, "..foo"), []byte("safe prefix\n"))
+	writeTestFile(t, filepath.Join(repo, "..well-known", "file"), []byte("safe nested prefix\n"))
+	gitRun(t, repo, "add", ".")
+	gitRun(t, repo, "commit", "-q", "-m", "Add safe dot-dot-prefixed paths")
+
+	result, err := Assemble(context.Background(), Input{
+		RepositoryRoot: repo,
+		TaskID:         "task-dotdot",
+		State:          validState("task-dotdot"),
+		RepositoryMapPolicy: RepositoryMapPolicy{
+			Enabled:  true,
+			MaxPaths: 100,
+			MaxBytes: 64 * 1024,
+		},
+		Role: autonomous.DossierRoleSupervisor,
+	})
+	if err != nil {
+		t.Fatalf("Assemble() error = %v", err)
+	}
+	for _, want := range []string{"..foo [file]", "..well-known/file [file]"} {
+		if !strings.Contains(string(result.Markdown), want) {
+			t.Fatalf("repository-map dossier missing %q:\n%s", want, result.Markdown)
+		}
+	}
+}
+
 func TestAssembleRepositoryMapFromSHA256Repository(t *testing.T) {
 	repo := newSHA256TestRepository(t, "task-sha256")
 	head := gitOutput(t, repo, "rev-parse", "HEAD")

@@ -124,7 +124,7 @@ func (s Source) Validate() error {
 	}
 	previous := ""
 	for _, item := range s.Guidance {
-		if item.Path == "" || item.Path <= previous || filepath.IsAbs(item.Path) || filepath.Clean(item.Path) != item.Path || strings.HasPrefix(item.Path, "..") || !validSHA256(item.SHA256) || item.ByteSize < 0 {
+		if item.Path == "" || item.Path <= previous || filepath.IsAbs(item.Path) || filepath.Clean(item.Path) != item.Path || escapesRepositoryRoot(item.Path) || !validSHA256(item.SHA256) || item.ByteSize < 0 {
 			return errors.New("dossier cache: guidance identities must be ordered, canonical, and exact")
 		}
 		previous = item.Path

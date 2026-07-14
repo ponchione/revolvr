@@ -2,10 +2,29 @@
 
 ## Current Focus
 
-`AUDIT-R3-05` closes inconsistent Git object-ID validation across autonomous
-workspace, cache, map, archive, finalization, and dossier boundaries. The first
-unchecked follow-up is `AUDIT-R3-06`, which accepts safe tracked names beginning
-with `..` while retaining component-aware traversal rejection.
+`AUDIT-R3-06` closes over-rejection of safe repository names beginning with
+`..`. The first unchecked follow-up is `AUDIT-R3-07`, which replaces
+map-order-dependent validation diagnostics with explicit deterministic order.
+
+## Component-Aware Repository Paths (2026-07-14)
+
+- Dossier-cache guidance and Git-tree paths now share one escape check. Only
+  exact `..` or a cleaned path beginning with `..` plus the platform separator
+  is traversal; a textual `..` prefix inside a legitimate component is inert.
+- Existing empty, absolute, normalization, UTF-8, NUL, ordering, duplicate,
+  mode/type, and protected `.git`/`.revolvr` checks remain unchanged.
+- Unit regressions admit `..foo` and `..well-known/file` through both source
+  guidance and repository-map construction. They reject `..`, `../foo`,
+  `a/../../b`, an absolute path, `./foo`, `a/../b`, and `a//b` at both
+  boundaries.
+- A real Git fixture commits both safe names and proves they survive
+  `ls-tree -z`, map construction, and complete autonomous dossier assembly.
+- Verification passed: focused and complete affected-package tests, shuffled
+  affected-package tests, ten race-enabled focused repetitions,
+  `go test -count=1 ./...`, `go vet ./...`, `go mod verify`, formatting,
+  `git diff --check`, Linux/Darwin/FreeBSD amd64 cross-builds, and the Windows
+  diagnostic-stub cross-build.
+- No dependency was added. The next task is `AUDIT-R3-07`; blockers: none.
 
 ## SHA-1 and SHA-256 Git Object Identities (2026-07-14)
 

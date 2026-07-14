@@ -1,5 +1,17 @@
 # Agent Decisions
 
+## AUDIT-R3-06 Component-Aware Repository Paths (2026-07-14)
+
+- A clean repository-relative component beginning with `..` is not traversal.
+  Dossier-cache guidance and Git-tree validation reject only exact `..` or a
+  cleaned path beginning with `..` plus the platform separator.
+- Absolute and noncanonical paths remain invalid before publication; Git-tree
+  validation also retains its UTF-8/NUL, duplicate, type/mode, and protected
+  runtime-path rules. This change does not reinterpret backslashes as
+  separators on the supported Unix platforms.
+- Real-Git assembly coverage commits `..foo` and `..well-known/file` and proves
+  those exact names remain visible in the deterministic repository-map dossier.
+
 ## AUDIT-R3-05 SHA-1 and SHA-256 Git Object Identities (2026-07-14)
 
 - `internal/gitoid.Valid` is the single full-Git-object-ID validator. Revolvr

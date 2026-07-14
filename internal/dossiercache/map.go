@@ -66,7 +66,7 @@ func BuildRepositoryMapItems(source Source, items []TreeItem) (MapResult, error)
 	previous := ""
 	for _, item := range copyItems {
 		path := item.Path
-		if path == "" || !utf8.ValidString(path) || filepath.IsAbs(path) || filepath.Clean(path) != path || strings.HasPrefix(path, "..") || strings.ContainsRune(path, '\x00') {
+		if path == "" || !utf8.ValidString(path) || filepath.IsAbs(path) || filepath.Clean(path) != path || escapesRepositoryRoot(path) || strings.ContainsRune(path, '\x00') {
 			return MapResult{}, fmt.Errorf("dossier cache: invalid Git tree path %q", path)
 		}
 		if len(item.Mode) != 6 || (item.Type != "blob" && item.Type != "tree" && item.Type != "commit") {
@@ -107,6 +107,11 @@ func BuildRepositoryMapItems(source Source, items []TreeItem) (MapResult, error)
 		return MapResult{}, errors.New("dossier cache: repository map bounds too small for required identity and omission facts")
 	}
 	return MapResult{Content: out.Bytes(), Total: len(filtered), Included: included}, nil
+}
+
+func escapesRepositoryRoot(value string) bool {
+	clean := filepath.Clean(value)
+	return clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))
 }
 
 func maxInt(a, b int) int {
