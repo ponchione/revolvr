@@ -31,7 +31,7 @@
   file only if all findings are resolved.
 - [x] AUDIT-R3-00 — Conduct an independent wide-sweep audit and record only
   reproduced or directly evidenced findings in `AUDIT_PROBLEMS.md`.
-- [ ] AUDIT-R3-01 — Settle runner process groups after successful leader exit
+- [x] AUDIT-R3-01 — Settle runner process groups after successful leader exit
   and prove that no descendant can mutate after return.
 - [ ] AUDIT-R3-02 — Make initialization and task-directory creation no-follow
   and identity-safe without breaking legitimate linked worktrees.

@@ -39,3 +39,17 @@ func processTreeRunning(pid int) (bool, error) {
 		return false, err
 	}
 }
+
+func processTreeIdentityReused(pid int) (bool, error) {
+	_, err := syscall.Getpgid(pid)
+	switch {
+	case err == nil:
+		// The original group leader has already been reaped by cmd.Wait. A
+		// process now occupying its PID is therefore unrelated to this run.
+		return true, nil
+	case errors.Is(err, syscall.ESRCH):
+		return false, nil
+	default:
+		return false, err
+	}
+}

@@ -19,6 +19,10 @@ func processTreeRunning(int) (bool, error) {
 	return false, &unsupportedProcessTreeError{platform: runtime.GOOS}
 }
 
+func processTreeIdentityReused(int) (bool, error) {
+	return false, &unsupportedProcessTreeError{platform: runtime.GOOS}
+}
+
 type unsupportedProcessTreeError struct {
 	platform string
 }

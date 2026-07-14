@@ -20,7 +20,10 @@ const (
 	lineTruncationMarker        = " [line truncated]"
 )
 
-var ErrProcessTreeUnsupported = errors.New("process-tree lifecycle boundary is unsupported on this platform")
+var (
+	ErrProcessTreeUnsupported = errors.New("process-tree lifecycle boundary is unsupported on this platform")
+	ErrProcessTreeUnsettled   = errors.New("command exited while descendants remained running")
+)
 
 type Command struct {
 	Name                 string
@@ -112,6 +115,19 @@ func Run(ctx context.Context, in Command) Result {
 			errors.Is(termination.cause, context.DeadlineExceeded),
 		)
 	}
+	if termination.descendantsRemained {
+		exitCode := 0
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+		return resultFromBuffers(
+			stdoutBuf,
+			stderrBuf,
+			exitCode,
+			errors.Join(ErrProcessTreeUnsettled, termination.err),
+			false,
+		)
+	}
 	if err != nil {
 		exitCode := -1
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -127,9 +143,10 @@ func Run(ctx context.Context, in Command) Result {
 }
 
 type processTreeTermination struct {
-	cancelled bool
-	cause     error
-	err       error
+	cancelled           bool
+	descendantsRemained bool
+	cause               error
+	err                 error
 }
 
 func watchProcessTree(ctx context.Context, pid int, grace time.Duration, commandDone <-chan struct{}) <-chan processTreeTermination {
@@ -139,20 +156,52 @@ func watchProcessTree(ctx context.Context, pid int, grace time.Duration, command
 		case <-ctx.Done():
 			done <- processTreeTermination{cancelled: true, cause: ctx.Err(), err: terminateProcessTree(pid, grace)}
 		case <-commandDone:
-			select {
-			case <-ctx.Done():
-				done <- processTreeTermination{cancelled: true, cause: ctx.Err(), err: terminateProcessTree(pid, grace)}
-			default:
-				done <- processTreeTermination{}
+			remained, err := settleExitedProcessTree(pid, grace)
+			cause := ctx.Err()
+			done <- processTreeTermination{
+				cancelled:           cause != nil,
+				descendantsRemained: remained,
+				cause:               cause,
+				err:                 err,
 			}
 		}
 	}()
 	return done
 }
 
+func settleExitedProcessTree(pid int, grace time.Duration) (bool, error) {
+	running, err := processTreeRunning(pid)
+	if err != nil {
+		return true, fmt.Errorf("inspect process tree after command exit: %w", err)
+	}
+	if !running {
+		return false, nil
+	}
+	return true, terminateExitedProcessTree(pid, grace)
+}
+
+func terminateExitedProcessTree(pid int, grace time.Duration) error {
+	return terminateProcessTreeWithSignal(pid, grace, func(force bool) error {
+		reused, err := processTreeIdentityReused(pid)
+		if err != nil {
+			return fmt.Errorf("verify exited process-tree identity: %w", err)
+		}
+		if reused {
+			return errors.New("refusing to signal a reused process-group identity")
+		}
+		return signalProcessTree(pid, force)
+	})
+}
+
 func terminateProcessTree(pid int, grace time.Duration) error {
+	return terminateProcessTreeWithSignal(pid, grace, func(force bool) error {
+		return signalProcessTree(pid, force)
+	})
+}
+
+func terminateProcessTreeWithSignal(pid int, grace time.Duration, signal func(force bool) error) error {
 	var result error
-	if err := signalProcessTree(pid, false); err != nil && !errors.Is(err, os.ErrProcessDone) {
+	if err := signal(false); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		result = errors.Join(result, fmt.Errorf("gracefully terminate process tree: %w", err))
 	}
 
@@ -171,7 +220,7 @@ func terminateProcessTree(pid int, grace time.Duration) error {
 
 		select {
 		case <-timer.C:
-			if err := signalProcessTree(pid, true); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			if err := signal(true); err != nil && !errors.Is(err, os.ErrProcessDone) {
 				result = errors.Join(result, fmt.Errorf("force terminate process tree: %w", err))
 			}
 			return result

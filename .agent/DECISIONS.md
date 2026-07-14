@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## AUDIT-R3-01 Natural-Exit Process-Group Settlement (2026-07-14)
+
+- A direct command's exit is not the process-tree completion boundary.
+  `runner.Run` inspects the dedicated process group after `cmd.Wait` and joins
+  the same bounded TERM/poll/KILL settlement used for cancellation whenever a
+  group member remains.
+- `ErrProcessTreeUnsettled` is a runner-level lifecycle failure. It is returned
+  even when the direct child exited zero, while the direct exit code remains
+  available as evidence. Cancellation and deadline causes remain authoritative
+  when they race with or trigger settlement.
+- Natural-exit signalling is permitted only while the reaped leader PID has
+  not been occupied by another process. PID reuse makes the boundary fail
+  closed without signalling the possibly unrelated process-group identity.
+- The boundary covers ordinary descendants that remain in the inherited
+  process group; it does not change the established non-sandbox contract for a
+  hostile child that deliberately escapes that group.
+
 ## AUDIT-FIX-06 Supported Platform Contract (2026-07-14)
 
 - Revolvr's operational CLI supports Linux, macOS, and FreeBSD. These are the

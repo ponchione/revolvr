@@ -2,10 +2,31 @@
 
 ## Current Focus
 
-`AUDIT-R3-00` completed an independent wide-sweep audit. Eight evidence-backed
-problems or cleanup opportunities are recorded in `AUDIT_PROBLEMS.md`; the
-first unchecked follow-up is `AUDIT-R3-01`, which closes the successful-command
-descendant-process lifecycle gap.
+`AUDIT-R3-01` closes the successful-command descendant-process lifecycle gap.
+The first unchecked follow-up is `AUDIT-R3-02`, which makes initialization and
+task-directory creation no-follow and identity-safe without breaking genuine
+linked worktrees.
+
+## Runner Process-Group Settlement (2026-07-14)
+
+- `runner.Run` now inspects the original process group after `cmd.Wait` on
+  every natural-exit path. Remaining descendants receive the existing bounded
+  TERM/poll/KILL settlement before the runner returns.
+- A leader that exits while descendants remain produces the distinct
+  `ErrProcessTreeUnsettled` runner error even when its own exit code is zero;
+  cancellation and deadline causes retain their existing result authority.
+- Post-exit signalling first checks that no process has reused the reaped
+  leader PID. If reuse is observed, the runner fails closed without signalling
+  the unrelated group identity.
+- Unix regressions use a direct shell child whose background writer redirects
+  every inherited stream. Natural leader exit is not reported as success, and
+  natural and cancelled runs cannot perform the delayed sentinel mutation
+  after runner return.
+- Verification passed: runner package test, five repetitions of six focused
+  lifecycle tests, runner race test, `git diff --check`,
+  `go test -count=1 ./...`, and
+  Linux/Darwin/FreeBSD amd64 plus unsupported-Windows-stub cross-builds.
+- No dependency was added. The next task is `AUDIT-R3-02`; blockers: none.
 
 ## Independent Wide-Sweep Audit (2026-07-14)
 

@@ -27,6 +27,89 @@ const (
 	processTreeSentinelDelay     = 600 * time.Millisecond
 )
 
+func TestRunSettlesDescendantsAfterSuccessfulLeaderExit(t *testing.T) {
+	root := t.TempDir()
+	command := redirectedBackgroundWriterCommand(root, false, false)
+	command.TerminateGracePeriod = 120 * time.Millisecond
+
+	result := Run(context.Background(), command)
+	if !errors.Is(result.Err, ErrProcessTreeUnsettled) {
+		t.Fatalf("result = %+v, want unsettled process-tree error", result)
+	}
+	if result.ExitCode != 0 || result.TimedOut {
+		t.Fatalf("result = %+v, want successful leader exit without timeout", result)
+	}
+
+	assertRedirectedWriterStoppedWithoutMutation(t, root)
+}
+
+func TestRunPreservesDeadlineDuringNaturalExitSettlement(t *testing.T) {
+	root := t.TempDir()
+	command := redirectedBackgroundWriterCommand(root, false, true)
+	command.Timeout = 150 * time.Millisecond
+	command.TerminateGracePeriod = 400 * time.Millisecond
+
+	result := Run(context.Background(), command)
+	if !errors.Is(result.Err, context.DeadlineExceeded) || !result.TimedOut {
+		t.Fatalf("result = %+v, want deadline during natural-exit settlement", result)
+	}
+
+	assertRedirectedWriterStoppedWithoutMutation(t, root)
+}
+
+func TestRunCancellationSettlesRedirectedBackgroundWriter(t *testing.T) {
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resultDone := make(chan Result, 1)
+	command := redirectedBackgroundWriterCommand(root, true, false)
+	command.TerminateGracePeriod = 120 * time.Millisecond
+	go func() {
+		resultDone <- Run(ctx, command)
+	}()
+	waitForHelperFiles(t, root, "ready-redirected-writer")
+
+	cancel()
+	result := waitForRunnerResult(t, resultDone)
+	if !errors.Is(result.Err, context.Canceled) || result.TimedOut {
+		t.Fatalf("result = %+v, want caller cancellation", result)
+	}
+
+	assertRedirectedWriterStoppedWithoutMutation(t, root)
+}
+
+func redirectedBackgroundWriterCommand(root string, keepLeaderRunning, ignoreTerm bool) Command {
+	writer := `printf ready > "$RUNNER_WRITER_READY"; sleep 0.6; printf late > "$RUNNER_WRITER_SENTINEL"`
+	if ignoreTerm {
+		writer = `trap '' TERM; ` + writer
+	}
+	script := `(` + writer + `) </dev/null >/dev/null 2>&1 & ` +
+		`while [ ! -f "$RUNNER_WRITER_READY" ]; do sleep 0.01; done`
+	if keepLeaderRunning {
+		script += `; sleep 5`
+	}
+	return Command{
+		Name: "/bin/sh",
+		Args: []string{"-c", script},
+		Env: []string{
+			"RUNNER_WRITER_READY=" + filepath.Join(root, "ready-redirected-writer"),
+			"RUNNER_WRITER_SENTINEL=" + filepath.Join(root, "sentinel-redirected-writer"),
+		},
+		Timeout: 5 * time.Second,
+	}
+}
+
+func assertRedirectedWriterStoppedWithoutMutation(t *testing.T, root string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(root, "ready-redirected-writer")); err != nil {
+		t.Fatalf("redirected background writer did not start: %v", err)
+	}
+	time.Sleep(processTreeSentinelDelay + 100*time.Millisecond)
+	if _, err := os.Stat(filepath.Join(root, "sentinel-redirected-writer")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("redirected background writer mutated after return: stat error %v", err)
+	}
+}
+
 func TestRunCancellationTerminatesChildAndGrandchild(t *testing.T) {
 	root := t.TempDir()
 	unrelated, unrelatedDone := startUnrelatedHelper(t, root)
