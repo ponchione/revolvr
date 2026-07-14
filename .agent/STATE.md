@@ -2,9 +2,37 @@
 
 ## Current Focus
 
-`AUDIT-R3-CLOSE-01` is complete. AP-01 through AP-08 are independently
-re-audited against current source and fresh regressions, the final verification
-matrix passes, and `AUDIT_PROBLEMS.md` is deleted. No audit task remains.
+`AUDIT-R4-00` is complete. A fresh wide-sweep audit found six evidence-backed
+problems and records exact impact, affected code, remediation, and regression
+requirements in `AUDIT_PROBLEMS.md`. The next bounded task is `AUDIT-R4-01`;
+there are no blockers.
+
+## Fresh R4 Wide-Sweep Audit (2026-07-14)
+
+- AP-01 is a systemic check/use filesystem gap. A temporary deterministic
+  regression used `FailureBeforeStateRename` to replace the task-state
+  namespace and proved that `replaceState` created an outside `state.json`
+  from attacker-controlled bytes before returning an error. The same root
+  pattern affects shared runtime-path creation and multiple state,
+  notification, task-run, archive, finalization, and evidence-read owners.
+- AP-02 proves the runner returns immediately after sending process-group
+  `SIGKILL` without polling for exit. AP-03 proves active TUI `q`/`ctrl+c`
+  emits `tea.Quit` before the background operation publishes its terminal
+  message or finishes durable cleanup.
+- AP-04 was experimentally reproduced: the same event with two nested usage
+  objects yielded both token totals across 1,000 parses in each of ten focused
+  runs. AP-05 identifies missing opened-file identity in authoritative source
+  snapshots. AP-06 identifies two remaining map-order first-error diagnostics.
+- Audit-only reproducer tests were removed. No production code or dependency
+  changed. No speculative performance or LOC issue was recorded; consolidating
+  corrected filesystem ownership is the one substantiated safe simplification
+  opportunity.
+- Fresh verification passed: ordinary, race-enabled, and shuffled complete Go
+  suites; `go vet`; module verification; vulnerability scan with no reachable
+  vulnerability; formatting/diff/shell checks; CLI help/config/status; and the
+  supported Linux/Darwin/FreeBSD cross-build sample.
+- The audit revision is `f9dcd960b3b4`. Follow-up tasks `AUDIT-R4-01` through
+  `AUDIT-R4-11` are bounded by owner or behavior; blockers: none.
 
 ## Final R3 Audit Closure (2026-07-14)
 

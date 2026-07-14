@@ -50,6 +50,31 @@
 - [x] AUDIT-R3-CLOSE-01 — Re-audit AP-01 through AP-08 against committed
   source and regressions, run the final verification matrix, and delete
   `AUDIT_PROBLEMS.md` only when every finding is proven closed.
+- [x] AUDIT-R4-00 — Conduct a fresh wide-sweep audit and record only
+  reproduced or directly evidenced findings in `AUDIT_PROBLEMS.md`.
+- [ ] AUDIT-R4-01 — Make the shared runtime-path boundary descriptor-rooted
+  across ancestor substitution and migrate canonical autonomous-state
+  persistence with the reproduced outside-rename regression.
+- [ ] AUDIT-R4-02 — Migrate notification intent, payload, history, journal,
+  cleanup, sync, and lease checks to the stable runtime-path boundary.
+- [ ] AUDIT-R4-03 — Repair task-run protected reads and bind history/checkpoint
+  publication and cleanup to stable parent and file identities.
+- [ ] AUDIT-R4-04 — Migrate autonomous archive immutable/mutable storage and
+  removal away from its bespoke check-then-use path helpers.
+- [ ] AUDIT-R4-05 — Bind autonomous finalization artifact publication and
+  readback to stable parent, temporary-file, and destination identities.
+- [ ] AUDIT-R4-06 — Inventory and migrate the remaining authoritative
+  `Lstat`-then-by-name evidence readers identified by AP-01.
+- [ ] AUDIT-R4-07 — Poll for bounded process-group settlement after `SIGKILL`
+  and close cancellation/identity-reuse races in the runner.
+- [ ] AUDIT-R4-08 — Make active TUI quit wait for the matching run, loop,
+  task-run, or queue terminal event before exiting.
+- [ ] AUDIT-R4-09 — Replace recursive map-order Codex usage selection with
+  schema precedence and fail-closed ambiguity handling.
+- [ ] AUDIT-R4-10 — Bind source-snapshot bytes to the opened file identity and
+  reject regular-file and symlink ABA substitutions.
+- [ ] AUDIT-R4-11 — Make action-budget and archive-file first-error diagnostics
+  deterministic under multiple simultaneous failures.
 
 ## Completed Programs
 
