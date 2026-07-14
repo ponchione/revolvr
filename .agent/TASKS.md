@@ -65,7 +65,7 @@
   readback to stable parent, temporary-file, and destination identities.
 - [x] AUDIT-R4-06 — Inventory and migrate the remaining authoritative
   `Lstat`-then-by-name evidence readers identified by AP-01.
-- [ ] AUDIT-R4-07 — Poll for bounded process-group settlement after `SIGKILL`
+- [x] AUDIT-R4-07 — Poll for bounded process-group settlement after `SIGKILL`
   and close cancellation/identity-reuse races in the runner.
 - [ ] AUDIT-R4-08 — Make active TUI quit wait for the matching run, loop,
   task-run, or queue terminal event before exiting.

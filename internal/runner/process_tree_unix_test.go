@@ -165,6 +165,7 @@ func TestRunForceKillsSignalIgnoringDescendantsAfterGrace(t *testing.T) {
 	command := processTreeHelperCommand(root, true)
 	grace := 120 * time.Millisecond
 	command.TerminateGracePeriod = grace
+	command.KillSettlementPeriod = 500 * time.Millisecond
 	go func() {
 		resultDone <- Run(ctx, command)
 	}()
@@ -184,7 +185,82 @@ func TestRunForceKillsSignalIgnoringDescendantsAfterGrace(t *testing.T) {
 		t.Fatalf("runner returned after %s, want bounded force termination", elapsed)
 	}
 
+	assertTreeStoppedAtReturn(t, root)
 	assertTreeStoppedWithoutMutation(t, root)
+}
+
+func TestRunWaitsForForceKilledDescendantReapingBeforeReturn(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("deterministic zombie-state observation uses Linux /proc")
+	}
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan int, 1)
+	resultDone := make(chan Result, 1)
+	command := processTreeHelperCommand(root, true)
+	command.TerminateGracePeriod = 50 * time.Millisecond
+	command.KillSettlementPeriod = 2 * time.Second
+	command.OnStart = func(pid int) { started <- pid }
+	go func() { resultDone <- Run(ctx, command) }()
+
+	var processGroup int
+	select {
+	case processGroup = <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("runner command did not start")
+	}
+	held := helperSubprocess("held-reap", root, true)
+	held.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: processGroup}
+	held.Stdout = io.Discard
+	held.Stderr = io.Discard
+	if err := held.Start(); err != nil {
+		t.Fatalf("start held descendant: %v", err)
+	}
+	heldReaped := false
+	defer func() {
+		if heldReaped {
+			return
+		}
+		_ = held.Process.Kill()
+		_ = held.Wait()
+	}()
+	waitForHelperFiles(t, root, "ready-root", "ready-child", "ready-grandchild", "ready-held-reap")
+
+	cancel()
+	deadline := time.Now().Add(time.Second)
+	for processExecuting(held.Process.Pid) {
+		if time.Now().After(deadline) {
+			t.Fatal("held descendant was not force-killed")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	select {
+	case result := <-resultDone:
+		t.Fatalf("runner returned before force-killed descendant was reaped: %+v", result)
+	default:
+	}
+
+	heldDone := make(chan error, 1)
+	go func() { heldDone <- held.Wait() }()
+	select {
+	case <-heldDone:
+		heldReaped = true
+	case <-time.After(3 * time.Second):
+		t.Fatal("held descendant did not reap")
+	}
+	result := waitForRunnerResult(t, resultDone)
+	if !errors.Is(result.Err, context.Canceled) || errors.Is(result.Err, ErrProcessTreeUnsettled) || result.TimedOut {
+		t.Fatalf("result = %+v, want settled caller cancellation", result)
+	}
+	if _, err := os.Stat(filepath.Join(root, "sentinel-held-reap")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("held descendant mutated before return: %v", err)
+	}
+	assertTreeStoppedAtReturn(t, root)
+	assertTreeStoppedWithoutMutation(t, root)
+	if _, err := os.Stat(filepath.Join(root, "sentinel-held-reap")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("held descendant mutated after return: %v", err)
+	}
 }
 
 func TestRunPreservesCancellationWhenCommandExitsDuringGrace(t *testing.T) {
@@ -303,6 +379,28 @@ func assertTreeStoppedWithoutMutation(t *testing.T, root string) {
 	}
 }
 
+func assertTreeStoppedAtReturn(t *testing.T, root string) {
+	t.Helper()
+	for _, role := range []string{"root", "child", "grandchild"} {
+		pidBytes, err := os.ReadFile(filepath.Join(root, "pid-"+role))
+		if err != nil {
+			t.Fatalf("read %s pid: %v", role, err)
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+		if err != nil {
+			t.Fatalf("parse %s pid: %v", role, err)
+		}
+		if processExecuting(pid) {
+			t.Fatalf("%s process %d remained executable when runner returned", role, pid)
+		}
+	}
+	for _, role := range []string{"child", "grandchild"} {
+		if _, err := os.Stat(filepath.Join(root, "sentinel-"+role)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("cancelled %s had already mutated at runner return: stat error %v", role, err)
+		}
+	}
+}
+
 func waitForProcessStop(t *testing.T, pid int) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -383,6 +481,10 @@ func TestProcessTreeHelperProcess(t *testing.T) {
 	case "grandchild":
 		writeHelperFile(root, "ready-grandchild", "ready")
 		delayedHelperMutation(root, role)
+		time.Sleep(5 * time.Second)
+	case "held-reap":
+		writeHelperFile(root, "ready-held-reap", "ready")
+		go delayedHelperMutation(root, role)
 		time.Sleep(5 * time.Second)
 	case "unrelated":
 		writeHelperFile(root, "ready-unrelated", "ready")

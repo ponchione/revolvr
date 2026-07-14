@@ -1,5 +1,30 @@
 # Agent Decisions
 
+## AUDIT-R4-07 Bounded Post-Kill Process Settlement (2026-07-14)
+
+- Graceful termination and forced-kill settlement are separate lifecycle
+  phases with separate deadlines. `TerminateGracePeriod` bounds TERM handling;
+  `KillSettlementPeriod` bounds proof that the group is gone after KILL and
+  defaults independently to five seconds.
+- A successful `SIGKILL` syscall is not settlement evidence. The runner polls
+  the process group until absence, and inability to prove absence before the
+  kill-settlement deadline is `ErrProcessTreeUnsettled` joined with the
+  original cancellation/deadline and all retained signal/inspection errors.
+- Signaling and liveness inspection use one guarded process-tree lifecycle.
+  While the command leader is unreaped its PID remains the operation's
+  identity. Once `cmd.Wait` completes, every later signal or poll first applies
+  the exited-leader reuse check; a reused identity stops settlement without a
+  platform signal or liveness syscall against the replacement.
+- Natural leader exit and cancellation deliberately share that guard. A race
+  in which cancellation signals before reap but polls after reap therefore
+  transitions to strict exited-leader identity checks rather than retaining
+  stale pre-reap authority.
+- Deterministic settlement testing uses both an injected lifecycle and a real
+  Linux process group. The real regression keeps a force-killed, TERM-ignoring
+  child as an unreaped zombie so the group remains observable, proving `Run`
+  waits for group disappearance and that the no-mutation oracle begins at its
+  return boundary.
+
 ## AUDIT-R4-06 Stable Remaining Evidence Readers (2026-07-14)
 
 - Capped protected reads belong in `runtimepath`, not in pathname prechecks at

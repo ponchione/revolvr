@@ -176,6 +176,169 @@ func TestRunPreservesAuthoritativeStdoutWriterErrorIdentity(t *testing.T) {
 	}
 }
 
+func TestTerminateProcessTreeWaitsForForceKillSettlement(t *testing.T) {
+	forceSent := make(chan struct{})
+	release := make(chan struct{})
+	lifecycle := processTreeLifecycle{
+		signal: func(force bool) error {
+			if force {
+				close(forceSent)
+			}
+			return nil
+		},
+		running: func() (bool, error) {
+			select {
+			case <-forceSent:
+				select {
+				case <-release:
+					return false, nil
+				default:
+					return true, nil
+				}
+			default:
+				return true, nil
+			}
+		},
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- terminateProcessTreeWithSignal(5*time.Millisecond, 250*time.Millisecond, lifecycle)
+	}()
+
+	select {
+	case <-forceSent:
+	case <-time.After(time.Second):
+		t.Fatal("force signal was not sent")
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("termination returned before force-killed tree settled: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("termination error after settlement: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("termination did not return after settlement")
+	}
+}
+
+func TestTerminateProcessTreeReportsBoundedUnsettledAndPreservesErrors(t *testing.T) {
+	gracefulErr := errors.New("graceful signal failed")
+	forceErr := errors.New("force signal failed")
+	inspectionErr := errors.New("inspection failed")
+	forceSent := false
+	lifecycle := processTreeLifecycle{
+		signal: func(force bool) error {
+			if force {
+				forceSent = true
+				return forceErr
+			}
+			return gracefulErr
+		},
+		running: func() (bool, error) { return false, inspectionErr },
+	}
+	started := time.Now()
+	err := terminateProcessTreeWithSignal(5*time.Millisecond, 20*time.Millisecond, lifecycle)
+	if !forceSent || !errors.Is(err, ErrProcessTreeUnsettled) || !errors.Is(err, gracefulErr) || !errors.Is(err, forceErr) || !errors.Is(err, inspectionErr) {
+		t.Fatalf("termination error = %v, force sent = %t", err, forceSent)
+	}
+	if elapsed := time.Since(started); elapsed < 20*time.Millisecond {
+		t.Fatalf("termination returned after %s, before kill-settlement deadline", elapsed)
+	}
+}
+
+func TestProcessTreeLifecycleChecksReapedIdentityBeforeSignalAndPoll(t *testing.T) {
+	reaped := false
+	reused := false
+	identityCalls, signalCalls, runningCalls := 0, 0, 0
+	lifecycle := newProcessTreeLifecycle(42, func() bool { return reaped }, processTreePlatform{
+		signal: func(pid int, force bool) error {
+			if pid != 42 || force {
+				t.Fatalf("signal = (%d, %t)", pid, force)
+			}
+			signalCalls++
+			return nil
+		},
+		running: func(pid int) (bool, error) {
+			if pid != 42 {
+				t.Fatalf("running pid = %d", pid)
+			}
+			runningCalls++
+			return true, nil
+		},
+		identityReused: func(pid int) (bool, error) {
+			if pid != 42 {
+				t.Fatalf("identity pid = %d", pid)
+			}
+			identityCalls++
+			return reused, nil
+		},
+	})
+	if err := lifecycle.signal(false); err != nil {
+		t.Fatal(err)
+	}
+	if running, err := lifecycle.running(); err != nil || !running {
+		t.Fatalf("pre-reap running = %t, %v", running, err)
+	}
+	if identityCalls != 0 || signalCalls != 1 || runningCalls != 1 {
+		t.Fatalf("pre-reap calls = identity %d, signal %d, running %d", identityCalls, signalCalls, runningCalls)
+	}
+
+	reaped, reused = true, true
+	if _, err := lifecycle.running(); !errors.Is(err, errProcessTreeIdentityReuse) {
+		t.Fatalf("reused poll error = %v", err)
+	}
+	if err := lifecycle.signal(false); !errors.Is(err, errProcessTreeIdentityReuse) {
+		t.Fatalf("reused signal error = %v", err)
+	}
+	if identityCalls != 2 || signalCalls != 1 || runningCalls != 1 {
+		t.Fatalf("post-reap calls = identity %d, signal %d, running %d", identityCalls, signalCalls, runningCalls)
+	}
+}
+
+func TestTerminationRefusesReusedIdentityOnNaturalExitAndCancellationRace(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		initialReaped bool
+		reapOnSignal  bool
+		wantSignals   int
+	}{
+		{name: "natural exit", initialReaped: true, wantSignals: 0},
+		{name: "cancellation race", reapOnSignal: true, wantSignals: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reaped := tc.initialReaped
+			signalCalls, runningCalls := 0, 0
+			platform := processTreePlatform{
+				signal: func(int, bool) error {
+					signalCalls++
+					if tc.reapOnSignal {
+						reaped = true
+					}
+					return nil
+				},
+				running: func(int) (bool, error) {
+					runningCalls++
+					return true, nil
+				},
+				identityReused: func(int) (bool, error) { return true, nil },
+			}
+			lifecycle := newProcessTreeLifecycle(42, func() bool { return reaped }, platform)
+			err := terminateProcessTreeWithSignal(100*time.Millisecond, 100*time.Millisecond, lifecycle)
+			if !errors.Is(err, ErrProcessTreeUnsettled) || !errors.Is(err, errProcessTreeIdentityReuse) {
+				t.Fatalf("termination error = %v", err)
+			}
+			if signalCalls != tc.wantSignals || runningCalls != 0 {
+				t.Fatalf("calls = signal %d, running %d; want signal %d, running 0", signalCalls, runningCalls, tc.wantSignals)
+			}
+		})
+	}
+}
+
 func TestLineEmitterTruncatesOnceAndResynchronizesAcrossChunks(t *testing.T) {
 	var lines []string
 	writer := &lineEmitter{onLine: func(line string) { lines = append(lines, line) }}

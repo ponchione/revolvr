@@ -2,10 +2,38 @@
 
 ## Current Focus
 
-`AUDIT-R4-06` is complete. Every AP-01-listed evidence reader, plus the
-directly discovered autonomous-migration orphan-state reader, now consumes
-opened, identity-checked files through one stable runtime-path boundary. The
-next bounded task is `AUDIT-R4-07`; there are no blockers.
+`AUDIT-R4-07` is complete. Runner cancellation and natural-exit cleanup now
+prove process-group settlement after `SIGKILL` within a distinct bounded
+deadline, and refuse reused leader/process-group identities before later
+signals or polls. The next bounded task is `AUDIT-R4-08`; there are no
+blockers.
+
+## Bounded Post-Kill Process-Tree Settlement (2026-07-14)
+
+- `runner.Command` has a distinct `KillSettlementPeriod`, defaulting to five
+  seconds independently of the graceful TERM period. After the grace timer
+  sends `SIGKILL`, the runner continues bounded liveness polling and cannot
+  return until the original process group is proven gone.
+- Failure to prove post-kill settlement returns `ErrProcessTreeUnsettled`.
+  Graceful-signal, force-signal, and inspection errors remain joined with the
+  cancellation/deadline cause instead of being discarded or replaced.
+- One guarded lifecycle owns both signals and polls. Before every operation
+  after `cmd.Wait` has reaped the leader, it checks whether that PID/process-
+  group identity was reused. Natural-exit settlement and cancellation races
+  share the same guard and fail closed without touching the replacement.
+- A deterministic lower-level regression holds the post-kill liveness result
+  until explicitly released. A Linux end-to-end regression adds a TERM-
+  ignoring child to the command's process group, holds its killed zombie
+  unreaped, proves `Run` has not returned, then reaps it and proves every tree
+  member is non-executable and no sentinel exists beginning at return.
+- Regressions also prove the separate kill deadline, typed unsettled failure,
+  preservation of every error class, and refusal of natural-exit and
+  cancellation identity-reuse races before platform signal/poll calls.
+- Verification passed: ten complete runner-package repetitions, focused
+  adversarial tests, runner race tests, complete ordinary/shuffled/race suites,
+  `go vet ./...`, `go mod verify`, formatting and diff checks, Linux/Darwin/
+  FreeBSD amd64 builds, and the unsupported-Windows diagnostic-stub build. No
+  dependency was added. The next task is `AUDIT-R4-08`; blockers: none.
 
 ## Stable Remaining Evidence Readers (2026-07-14)
 
