@@ -67,7 +67,7 @@
   `Lstat`-then-by-name evidence readers identified by AP-01.
 - [x] AUDIT-R4-07 — Poll for bounded process-group settlement after `SIGKILL`
   and close cancellation/identity-reuse races in the runner.
-- [ ] AUDIT-R4-08 — Make active TUI quit wait for the matching run, loop,
+- [x] AUDIT-R4-08 — Make active TUI quit wait for the matching run, loop,
   task-run, or queue terminal event before exiting.
 - [ ] AUDIT-R4-09 — Replace recursive map-order Codex usage selection with
   schema precedence and fail-closed ambiguity handling.

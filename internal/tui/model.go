@@ -187,21 +187,22 @@ type preflightState struct {
 }
 
 type runOnceState struct {
-	Active          bool
-	Started         bool
-	CancelRequested bool
-	Mode            string
-	Token           int
-	Cancel          context.CancelFunc
-	Messages        <-chan tea.Msg
-	Status          string
-	RunID           string
-	Outcome         string
-	MaxPasses       int
-	Stats           app.RunLoopStats
-	Err             string
-	Logs            []string
-	QueueResult     autonomousqueue.Result
+	Active              bool
+	Started             bool
+	CancelRequested     bool
+	QuitAfterSettlement bool
+	Mode                string
+	Token               int
+	Cancel              context.CancelFunc
+	Messages            <-chan tea.Msg
+	Status              string
+	RunID               string
+	Outcome             string
+	MaxPasses           int
+	Stats               app.RunLoopStats
+	Err                 string
+	Logs                []string
+	QueueResult         autonomousqueue.Result
 }
 
 func NewStatusModel(status app.StatusResult) StatusModel {
@@ -470,8 +471,13 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.token != m.runOnce.Token || !m.runOnce.Started {
 			return m, nil
 		}
+		quitAfterSettlement := m.runOnce.QuitAfterSettlement
 		m.applyRunOnceDone(msg)
+		m.runOnce.QuitAfterSettlement = false
 		m.updateViewportContent()
+		if quitAfterSettlement {
+			return m, tea.Quit
+		}
 		if m.view == viewAutonomous && (msg.taskRun || msg.queue) {
 			return m, m.loadAutonomousSelectorsCmd()
 		}
@@ -1392,8 +1398,11 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "ctrl+c", "q":
+		m.runOnce.QuitAfterSettlement = true
 		m.requestRunCancel()
-		return true, tea.Quit
+		m.message = "Cancellation requested; waiting for run settlement before exit."
+		m.updateViewportContent()
+		return true, nil
 	case "c":
 		m.requestRunCancel()
 		return true, nil

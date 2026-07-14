@@ -2,11 +2,39 @@
 
 ## Current Focus
 
-`AUDIT-R4-07` is complete. Runner cancellation and natural-exit cleanup now
-prove process-group settlement after `SIGKILL` within a distinct bounded
-deadline, and refuse reused leader/process-group identities before later
-signals or polls. The next bounded task is `AUDIT-R4-08`; there are no
-blockers.
+`AUDIT-R4-08` is complete. Active TUI `q` and `ctrl+c` now request
+cancellation but keep Bubble Tea alive until the matching run, loop,
+autonomous-task, or queue terminal message has applied. The next bounded task
+is `AUDIT-R4-09`; there are no blockers.
+
+## TUI Quit-After-Settlement (2026-07-14)
+
+- Active `q`/`ctrl+c` sets `QuitAfterSettlement` on the current token-bound run
+  state, requests cancellation once, and returns no `tea.Quit`. The existing
+  `c` key remains cancel-without-quit.
+- Progress and terminal commands continue draining the operation's buffered
+  message stream while quit is pending. Cancellation stops producers from
+  blocking on progress sends, while the terminal send remains consumable by
+  the outstanding start/wait command.
+- Only a terminal message with the current operation token can release the
+  delayed quit. The model first applies the mode-specific terminal result,
+  refreshed status, run detail, logs, and inactive state, then clears the quit
+  marker and emits `tea.Quit`. Stale terminal messages do neither.
+- Autonomous task and queue completion normally reload workflow selectors;
+  delayed quit intentionally takes precedence after terminal application,
+  because the completion goroutine has already performed status refresh and
+  durable domain cleanup.
+- One table-driven regression covers run-once, bounded loop, exact task run,
+  and autonomous queue under both `q` and `ctrl+c`. Each action blocks after
+  observing cancellation, proves no quit or terminal before cleanup release,
+  rejects a stale terminal, then proves cleanup and refresh precede the exact
+  terminal and `tea.Quit`.
+- Verification passed: twenty focused repetitions, ten complete TUI-package
+  repetitions, focused and package race tests, complete ordinary/shuffled/race
+  suites, `go vet ./...`, `go mod verify`, CLI help, formatting and diff checks,
+  Linux/Darwin/FreeBSD amd64 builds, and the unsupported-Windows diagnostic
+  stub. No dependency was added. The next task is `AUDIT-R4-09`; blockers:
+  none.
 
 ## Bounded Post-Kill Process-Tree Settlement (2026-07-14)
 

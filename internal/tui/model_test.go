@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"revolvr/internal/app"
+	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoustaskrun"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
@@ -1332,6 +1333,145 @@ func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
 		"Error: context canceled",
 		"system: terminal state: cancelled",
 	)
+}
+
+func TestStatusModelActiveQuitWaitsForMatchingTerminalAcrossRunModes(t *testing.T) {
+	modes := []struct {
+		name string
+		key  string
+	}{
+		{name: "run once", key: "R"},
+		{name: "loop", key: "L"},
+		{name: "task run", key: "U"},
+		{name: "queue", key: "Q"},
+	}
+	quitKeys := []struct {
+		name string
+		msg  tea.KeyMsg
+	}{
+		{name: "q", msg: keyRunes("q")},
+		{name: "ctrl-c", msg: tea.KeyMsg{Type: tea.KeyCtrlC}},
+	}
+	for _, mode := range modes {
+		for _, quitKey := range quitKeys {
+			t.Run(mode.name+"/"+quitKey.name, func(t *testing.T) {
+				status := app.StatusResult{Initialized: true}
+				if mode.key == "U" {
+					status.Tasks = []taskmodel.Task{{ID: "task-quit", Status: taskmodel.StatusPending, Workflow: taskfile.WorkflowAutonomousV1}}
+				}
+				started := make(chan struct{})
+				cancelObserved := make(chan struct{})
+				releaseCleanup := make(chan struct{})
+				cleanupReleased := false
+				defer func() {
+					if !cleanupReleased {
+						close(releaseCleanup)
+					}
+				}()
+				cleanupFinished := make(chan struct{})
+				refreshed := make(chan struct{})
+				waitForCleanup := func(ctx context.Context) error {
+					close(started)
+					<-ctx.Done()
+					close(cancelObserved)
+					<-releaseCleanup
+					close(cleanupFinished)
+					return ctx.Err()
+				}
+				actions := StatusActions{
+					RefreshStatus: func() (app.StatusResult, error) {
+						close(refreshed)
+						return status, nil
+					},
+				}
+				switch mode.key {
+				case "R":
+					actions.RunOnce = func(ctx context.Context, _ app.RunProgress) (runonce.Result, error) {
+						err := waitForCleanup(ctx)
+						return runonce.Result{Outcome: runonce.OutcomeBlocked}, err
+					}
+				case "L":
+					actions.RunLoop = func(ctx context.Context, maxPasses int, _ app.RunProgress, _ app.RunPassFunc) (app.RunLoopResult, error) {
+						err := waitForCleanup(ctx)
+						return app.RunLoopResult{Stats: app.RunLoopStats{MaxPasses: maxPasses, StopReason: "context_cancelled"}}, err
+					}
+				case "U":
+					actions.RunTask = func(ctx context.Context, taskID string, _ int64, _ autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
+						err := waitForCleanup(ctx)
+						return autonomoustaskrun.Result{TaskID: taskID, StopReason: autonomoustaskrun.StopOperationCancelled}, err
+					}
+				case "Q":
+					actions.RunQueue = func(ctx context.Context, _, _ int64, _ autonomousqueue.Progress) (autonomousqueue.Result, error) {
+						err := waitForCleanup(ctx)
+						return autonomousqueue.Result{OperationID: "queue-quit", StopReason: autonomousqueue.StopCancelled}, err
+					}
+				}
+
+				model := NewStatusModelWithActions(status, actions)
+				model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+				model, startCmd := updateStatusModel(t, model, keyRunes(mode.key))
+				if startCmd == nil {
+					t.Fatal("start command is nil")
+				}
+				terminalMessages := make(chan tea.Msg, 1)
+				go func() { terminalMessages <- startCmd() }()
+				select {
+				case <-started:
+				case <-time.After(time.Second):
+					t.Fatal("run action did not start")
+				}
+
+				model, quitCmd := updateStatusModel(t, model, quitKey.msg)
+				if quitCmd != nil {
+					t.Fatal("active quit returned a command before settlement")
+				}
+				if !model.runOnce.Active || !model.runOnce.CancelRequested || !model.runOnce.QuitAfterSettlement {
+					t.Fatalf("active quit state = %#v", model.runOnce)
+				}
+				select {
+				case <-cancelObserved:
+				case <-time.After(time.Second):
+					t.Fatal("run action did not observe cancellation")
+				}
+				stale := runOnceDoneMsg{token: model.runOnce.Token - 1}
+				model, staleCmd := updateStatusModel(t, model, stale)
+				if staleCmd != nil || !model.runOnce.Active || !model.runOnce.QuitAfterSettlement {
+					t.Fatalf("stale terminal released quit: cmd=%v state=%#v", staleCmd, model.runOnce)
+				}
+				select {
+				case terminal := <-terminalMessages:
+					t.Fatalf("terminal published before cleanup release: %T", terminal)
+				case <-time.After(20 * time.Millisecond):
+				}
+
+				close(releaseCleanup)
+				cleanupReleased = true
+				var terminal tea.Msg
+				select {
+				case terminal = <-terminalMessages:
+				case <-time.After(time.Second):
+					t.Fatal("terminal message was not published")
+				}
+				for name, done := range map[string]<-chan struct{}{"cleanup": cleanupFinished, "refresh": refreshed} {
+					select {
+					case <-done:
+					default:
+						t.Fatalf("%s was incomplete before terminal publication", name)
+					}
+				}
+				model, quitCmd = updateStatusModel(t, model, terminal)
+				if quitCmd == nil {
+					t.Fatal("matching terminal did not release delayed quit")
+				}
+				if model.runOnce.Active || model.runOnce.QuitAfterSettlement {
+					t.Fatalf("settled state = %#v", model.runOnce)
+				}
+				if _, ok := quitCmd().(tea.QuitMsg); !ok {
+					t.Fatal("matching terminal command is not tea.Quit")
+				}
+			})
+		}
+	}
 }
 
 func TestStatusModelRunLoopCyclesPassCount(t *testing.T) {

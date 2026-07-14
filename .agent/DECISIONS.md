@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## AUDIT-R4-08 TUI Quit-After-Settlement (2026-07-14)
+
+- TUI quit is a requested terminal transition while an operation is active,
+  not immediate program termination. `q` and `ctrl+c` mark the current
+  token-scoped run for quit, request cancellation, and keep the existing
+  Bubble Tea command/message stream alive.
+- The domain operation's exact terminal message is the join boundary. It is
+  published only after run/loop/task/queue execution and status refresh (plus
+  run-detail refresh where applicable) finish. The model applies that message
+  completely before emitting `tea.Quit`.
+- A delayed quit is released only by the current run token. Stale progress or
+  terminal messages cannot stop the program, clear active state, or transfer
+  quit authority to another operation.
+- Quit-pending does not start a second waiter or close the event channel. The
+  outstanding start/wait command continues consuming the buffered stream;
+  cancellation-aware progress callbacks stop enqueueing, and the terminal
+  publication remains drainable without a send/quit deadlock.
+- For autonomous task and queue modes, terminal application followed by quit
+  supersedes the ordinary selector-reload command. Status refresh and durable
+  cleanup are already part of terminal construction, so no domain settlement
+  is skipped.
+
 ## AUDIT-R4-07 Bounded Post-Kill Process Settlement (2026-07-14)
 
 - Graceful termination and forced-kill settlement are separate lifecycle
