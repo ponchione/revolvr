@@ -1,5 +1,306 @@
 # Agent Decisions
 
+## AM-02 Autonomous Migration Transaction Authority (2026-07-14)
+
+- `internal/autonomousmigration.Apply` is the sole migration publication and
+  recovery boundary. The AM-01 plan material deterministically names an
+  operation; immutable source/projected/state artifacts and a contiguous
+  four-record history are durable authority, while the mutable journal is only
+  a checkpoint that may be missing or behind history but never ahead or
+  divergent.
+- Publication order is a safety invariant: every batch state is published and
+  identity-checked before any canonical task becomes `autonomous-v1`. Task
+  publication is an exact compare-and-swap from the AM-01 source bytes to its
+  deterministic projection. A crash may expose a partial batch, but never an
+  autonomous task pointing at absent state, and replay completes that exact
+  batch rather than replanning changed evidence.
+- Exact existing bytes are adoptable; different bytes are user/conflict
+  authority and are never overwritten. Apply planning alone may admit a task
+  namespace containing exactly the canonical initial state and nothing else,
+  which recovers an identical orphan without weakening ordinary AM-01 dry-run
+  eligibility. Completed operation replay validates current autonomous task
+  and state authority but permits legitimate status/lifecycle evolution.
+- Application holds the non-waiting outer autonomous-execution lease, the
+  source-writer lease, and a cancellable migration flock. It validates the
+  shared graph and complete requested batch under those locks, uses only a
+  read-only ledger for archive scheduling evidence, and creates no Codex run,
+  ledger event, Git commit, or inferred plan/acceptance/finding evidence.
+- `revolvr task migrate` applies unless `--dry-run` is explicit. Recovery is
+  selected before fresh planning so mixed/autonomous partial publication is
+  resumable. Explicit IDs must match one exact durable task set; `--all`
+  prioritizes incomplete authority and treats a completed batch as replay only
+  when no new active mixed-pass work exists.
+- `revolvr init` remains initialization-only. It never migrates tasks or
+  creates autonomous task state; strict missing-state admission diagnostics
+  direct operators to the migration command for interrupted conversions.
+
+## AM-01 Autonomous Migration Planning Authority (2026-07-14)
+
+- `internal/autonomousmigration.Build` is the deterministic, read-only batch
+  planning authority. It consumes one already assembled `taskschedule.Snapshot`
+  so strict canonical loading, archive/checkpoint reconciliation, graph
+  validation, and migration projection all refer to the same repository
+  evidence. Any shared invalid-graph diagnostic rejects the complete batch.
+- `--all` means every active `mixed-pass-v1` task, not already-autonomous tasks
+  or operator checkpoints. Explicit IDs and all-mode are mutually exclusive;
+  selection and rejection output are source-path/task-ID deterministic and no
+  candidate is returned when any requested task is ineligible.
+- Initial eligibility is deliberately narrow: pending implement-phase mixed
+  tasks only, with no child lineage, existing autonomous state/task namespace,
+  or unsafe path component. Other phases are unrepresentable prior-phase
+  evidence rather than something migration may translate or discard.
+- `taskfile.ProjectAutonomousMigration` owns exact task-byte projection. It
+  preserves unrelated frontmatter, safe extensions, line endings, and the full
+  body while removing mixed-only `phase`/`profile`, setting `workflow` to
+  `autonomous-v1`, and adding only the canonical task-specific state path.
+- A planned initial state is the current validated AW-02 schema at pending
+  lifecycle with retry/time/token budget modes unset and no model-authored or
+  inferred evidence. Exact source, projected-task, and state byte identities
+  are retained in each plan entry for AM-02 compare-and-publish authority.
+- AM-01 CLI execution is always plan-only, including when `--dry-run` is
+  omitted. It performs no locks, journals, state/task writes, Codex invocation,
+  or Git commit. AM-02 exclusively owns locked application, durable recovery,
+  orphan adoption, conflict handling, and replay semantics.
+
+## OC-02 Checkpoint Fulfillment Authority (2026-07-14)
+
+- `internal/app.FulfillCheckpoint` owns operator-facing orchestration: exact
+  task/path/operator validation, strict receipt loading, shared graph
+  prevalidation, publication request, and post-publication scheduler
+  re-evaluation. It has no Codex, ledger-event, or Git-commit side effect.
+- `internal/taskfile.FulfillOperatorCheckpoint` is the sole publication
+  boundary. Starting from exact canonical task bytes, it changes pending to
+  completed and inserts the receipt SHA-256 in one byte-preserving atomic
+  replacement. A stale pending snapshot fails; an already completed identical
+  binding succeeds without a write; a different binding is a conflict.
+- A fulfillment request must name the checkpoint's exact canonical
+  repository-relative receipt path and the exact normalized operator identity
+  already recorded inside the receipt. Receipt bytes are loaded and hashed
+  before publication and re-read immediately before the task mutation.
+- The existing valid shared graph is a prerequisite to mutation. Fulfillment
+  does not directly promote dependents: after publication, the repository
+  adapter reloads and verifies the bound receipt, and only the shared scheduler
+  can classify the checkpoint completed and select newly unlocked work.
+- `taskmodel.Task` carries the checkpoint state and receipt identity used by
+  read surfaces. App projection assigns `awaiting`, `fulfilled`, or `invalid`;
+  CLI and TUI render those values and never reconstruct checkpoint policy.
+- Operator checkpoints remain pre-authored, never-agent-executed external
+  evidence. Autonomous `needs_input` remains a runtime supervisor question
+  with durable question revisions, answers, and resume history.
+
+## OC-01 Operator Checkpoint Receipt Authority (2026-07-14)
+
+- `operator-checkpoint-v1` is a canonical dependency identity but never an
+  executable workflow. Its only canonical statuses are pending and completed;
+  the repository adapter projects pending as `awaiting_operator`, and neither
+  pending nor completed checkpoints can enter a Codex-ready selection.
+- Every checkpoint declares exactly
+  `.agent/checkpoints/<task-id>/receipt.json`. Pending checkpoint metadata is
+  deliberately unbound; completed metadata binds the exact receipt bytes with
+  `checkpoint_receipt_sha256`. OC-02 must publish that binding and status
+  transition atomically rather than using the generic status updater.
+- `operator-checkpoint-receipt-v1` is a closed, dependency-free JSON contract.
+  It contains accepted outcome, operator/provenance, explicit UTC time,
+  subject/decision, typed repository-relative evidence paths with lowercase
+  SHA-256 identities, and optional build/source hashes. Evidence bytes,
+  secrets, private payloads, arbitrary maps, unknown fields, and duplicate
+  fields are outside the contract.
+- Canonical task parsing owns exact receipt-path and workflow-metadata rules.
+  Read-only receipt loading owns non-symlink regular-file safety, strict
+  content validation, task matching, and exact byte identity. The repository
+  scheduler adapter owns reconciliation of the bound hash against current
+  receipt bytes.
+- `taskscheduler` remains the final pure admission boundary: awaiting authority
+  classifies as operator input, while completed authority must carry a valid
+  bound hash and a verified adapter result. Missing, malformed, mismatched, or
+  identity-drifted completed receipts invalidate the graph and clear all
+  selections; only verified completion satisfies dependency edges.
+- General app projection may carry checkpoints as non-worker tasks so shared
+  graph evidence remains readable. Command mutation, replay semantics, and
+  checkpoint-specific CLI/TUI rendering are intentionally deferred to OC-02.
+
+## TS-04 Autonomous Shared Scheduling Authority (2026-07-14)
+
+- `internal/taskscheduler` is the only owner of autonomous graph validation,
+  cycle detection, dependency semantics, ready ordering, selected-next choice,
+  and occupied-task conflict classification. `internal/autonomousscheduler`
+  remains only as a compatibility adapter carrying canonical task/state
+  identity into autonomous task-run, queue, and child-publication boundaries.
+- `internal/taskschedule` owns shared canonical task and lifecycle loading.
+  `LoadActiveStrict` is the autonomous mutation/admission boundary requiring
+  every autonomous state and child-publication authority; ordinary repository
+  read projections use `LoadActive` so sparse state remains visible and policy
+  is still evaluated once by the shared scheduler.
+- Queue-local exclusion and fairness remain queue policy, but queue readiness
+  and parallel occupancy conflicts consume shared `TaskReadiness` projections.
+  Queues filter non-autonomous ready tasks without reordering or reclassifying
+  autonomous candidates, and exact selected identity is retained on adapter
+  nodes.
+- Active autonomous task views load the same repository schedule as list/status
+  with an autonomous selection scope. They render shared dependency issues and
+  invalid diagnostics and explicitly distinguish the selected ready task from
+  another ready task; they do not reconstruct lifecycle or archive policy.
+- Only exact verified/reconciled completed archive authority satisfies an
+  edge. Verified cancelled, abandoned, and superseded archives produce typed
+  terminal-unsatisfied issues containing the immutable archive ID and terminal
+  reason. Malformed or unverified archive authority invalidates the graph;
+  supersession never redirects a dependency.
+- Autonomous execution treats any nonempty shared invalid-graph diagnostic set
+  as a pre-admission error. No task operation or worker may start from an
+  invalid graph, and explicit task execution must classify that exact task as
+  shared `ready` before admission.
+
+## TS-03 Shared Read Projection Authority (2026-07-13)
+
+- `internal/taskschedule` is the single repository-to-scheduler adapter shared
+  by mixed execution and general read projections. It loads locally valid
+  canonical task bytes without hiding duplicate identities, applies available
+  autonomous lifecycle, verifies archive authority, and delegates every graph
+  and readiness decision to `internal/taskscheduler`.
+- One scheduler evaluation owns deterministic per-workflow selections for
+  mixed-pass and autonomous tasks. The explicitly scoped `SelectedNext` remains
+  execution authority; `WorkflowSelections` lets app views expose both ready
+  identities without performing a second evaluation or recomputing policy.
+- Canonical task projections remain in source-path order for stable human
+  listing. Selection flags are exact task-ID/source-path matches against the
+  shared result and are independent of display order. Typed readiness, exact
+  unmet IDs, dependency issues, conflicts, and diagnostics travel with the
+  projection; `StatusResult.Schedule` preserves the complete result.
+- CLI and TUI are renderers only. A missing selected identity is rendered as
+  `none`/`nothing runnable` even when pending tasks exist. TUI chooses the
+  shared mixed marker before the autonomous marker because its general `R Run
+  Once` control invokes mixed-pass execution; neither path scans for a pending
+  substitute.
+- Graph invalidity remains readable rather than becoming an arbitrary list
+  error: every projected task has `invalid_graph`, the complete ordered
+  diagnostics remain available, and all workflow selections are empty.
+  Locally malformed canonical files still fail during taskfile loading before
+  graph evaluation.
+- Dependency-blind taskfile runnable/select APIs are removed, not deprecated.
+  `taskfile` continues to own parsing, canonical source discovery, duplicate-
+  fail-fast `List` compatibility for nonscheduler callers, and atomic metadata
+  writes; scheduling consumers use the duplicate-preserving `LoadAll` adapter
+  boundary instead.
+- `internal/autonomousscheduler` remains temporarily only for autonomous
+  execution, queue, and specialized readiness consumers. Removing that final
+  duplicated graph policy and adapting occupancy/admission behavior is the
+  bounded TS-04 task, not part of TS-03 read-surface migration.
+
+## TS-02 Mixed Execution Scheduling Authority (2026-07-13)
+
+- Mixed execution consumes one exact `taskscheduler.Result` and uses only its
+  `SelectedNext`; it never scans pending tasks or reorders the ready set.
+  `SelectionWorkflow` is explicit result authority so a single validated
+  cross-workflow graph can select the correct executable workflow without
+  hiding other readiness evidence.
+- `taskfile.LoadAll` is the duplicate-preserving canonical load boundary for a
+  graph consumer. It performs file/path/frontmatter validation and stable
+  source discovery but no cross-file identity decision. Legacy `List` retains
+  duplicate fail-fast behavior temporarily for unmigrated TS-03 read callers.
+- Autonomous active dependencies use their validated durable lifecycle when
+  state exists and otherwise retain canonical task status compatibility.
+  Archive dependencies are admitted only after full archive verification with
+  the live ledger, Git authority, and configured-secret absence checks; the
+  shared scheduler alone assigns dependency meaning to admitted evidence.
+- `runonce.Result.Schedule` is the execution projection. Graph diagnostics are
+  returned as `ScheduleError`, while a valid mixed selection that has no ready
+  task and at least one terminal-unsatisfied mixed dependent returns
+  `TerminalDependencyError`. Both stop before ledger run creation and Codex;
+  temporary waiting/block/input and an empty mixed queue remain no-task.
+- Terminal-unsatisfied tasks are reported both globally and in a scheduler-
+  owned selection-workflow subset. Execution consumes the subset, preventing
+  an unrelated autonomous terminal edge from turning an empty mixed run into
+  an error.
+- Bounded loops do not pin or cache a mixed task. Every production pass calls
+  `runonce.Run`, which reloads and re-evaluates canonical graph authority after
+  the prior pass's atomic metadata update. This is what unlocks dependents and
+  prevents surplus selection from stale state.
+
+## TS-01 Pure Shared Scheduler Contract (2026-07-13)
+
+- `internal/taskscheduler.Evaluate` is the pure shared boundary. Canonical task,
+  workflow-state, archive, and occupancy owners supply normalized value
+  evidence; the scheduler performs no I/O and returns a complete map-free
+  `revolvr-task-schedule-v1` value suitable for deterministic JSON.
+- Effective scheduling state is explicit rather than inferred inside the
+  graph. This lets mixed-pass canonical status, autonomous durable lifecycle,
+  and future checkpoint fulfillment remain owned and validated by their
+  respective adapters while one package owns their dependency meaning.
+- Graph invalidity is data, not a lossy first error. Typed diagnostics are
+  sorted deterministically; no task is ready or selected when any diagnostic
+  exists, and every task receives `invalid_graph` readiness so read surfaces
+  can explain an execution refusal.
+- An unsatisfied edge records both its exact dependency ID and typed per-edge
+  evidence. Overall task precedence is terminal-unsatisfied over needs-input
+  over blocked over ordinary waiting. This prevents a permanent terminal edge
+  from being hidden by a temporary blocker while retaining all contributing
+  edges for rendering.
+- Operator checkpoints in pending/awaiting state are explicit operator-input
+  nodes and never enter the ready set. Their dependents wait with an exact
+  `awaiting_operator_dependency` edge reason. OC-01 remains responsible for
+  validating receipt authority before it may adapt a checkpoint as completed.
+- All non-ready task/category projections are canonical source-path/task-ID
+  ordered. Priority is applied only after readiness is proved, using
+  prioritized before unprioritized, lower numeric value, slash-normalized
+  source path, and task ID. `SelectedNext` is an exact copy of the first ready
+  projection eligible for the explicit selection workflow, or the first ready
+  projection overall when selection scope is empty.
+- Archive inputs are admitted only with a nonempty archive identity and exact
+  verified/reconciled authority. Completed satisfies an edge; cancelled,
+  abandoned, and superseded remain terminal-unsatisfied and require an
+  explicit reason. Active/archive ambiguity and duplicate archive task
+  identity invalidate the graph.
+
+## Scheduling, Checkpoint, and Migration Campaign Boundary (2026-07-13)
+
+- `internal/taskscheduler` will become the sole workflow-aware authority for
+  graph construction/validation, dependency readiness, deterministic ready
+  ordering, typed reasons/diagnostics, selected-next decisions, and applicable
+  conflicts. `internal/taskfile` retains canonical parsing, validation,
+  loading, and atomic metadata writes but no independent selection policy.
+- The shared result deterministically separates ready, exact dependency-
+  waiting, dependency-blocked, terminal-unsatisfied, operator-input/checkpoint,
+  conflict-blocked, and invalid-graph tasks and identifies at most one selected
+  next task. Invalid graphs fail execution closed while read surfaces retain
+  typed diagnostics.
+- Only completed dependencies satisfy edges. Pending/running wait; blocked and
+  needs-input retain distinct dependency reasons; cancelled, abandoned, and
+  superseded are terminal-unsatisfied and supersession never redirects an
+  edge. Only verified/reconciled completed archives satisfy dependencies; all
+  other archive dispositions are explicit terminal-unsatisfied evidence.
+- Missing or duplicate task identities, duplicate/self edges, active/archive
+  ambiguity, malformed archive authority, and cycles invalidate the graph.
+  Ready ordering is prioritized before unprioritized, then lower numeric
+  priority, canonical slash-normalized source path, and task ID. Priority does
+  not make an unready task runnable.
+- Mixed execution, bounded loops, app projections, CLI/TUI reads, and
+  autonomous selection/readiness must consume the same result. Rendering may
+  not recompute policy, and every first-pending fallback and apparently
+  authoritative dependency-blind selector must be removed after migration.
+- Canonical frontmatter is closed by default. Recognized and `x-` extension
+  keys are the only admitted keys; both reject duplicates. Extensions remain
+  byte-preserved and inert. Unsupported-key diagnostics bind canonical source
+  path, one-based frontmatter line, and exact key without introducing a broad
+  YAML dependency.
+- `operator-checkpoint-v1` is a separate never-agent-executed canonical
+  workflow and dependency identity. It awaits an explicit operator fulfillment
+  against a strict, versioned, dependency-free JSON receipt containing only
+  safe evidence references and SHA-256 identities. Completed checkpoint
+  receipt absence, mismatch, malformation, or identity drift invalidates the
+  graph. Autonomous `needs_input` remains a separate runtime supervisor
+  question with durable answer/resume history.
+- Autonomous bulk migration initially admits only pending mixed-pass implement
+  tasks with no autonomous state, lineage, or unrepresentable prior execution.
+  Planning is deterministic and batch-wide before mutation. Application is
+  locked, journaled/restartable, state-before-task, exact-replay idempotent, and
+  conflict-fail-closed; it never fabricates evidence, overwrites user evidence,
+  converts silently during init, invokes Codex, or commits.
+- `/home/gernsback/source/cyber-arpg` remains read-only throughout the campaign.
+  Only QA-01 may perform its specified final load/graph/projection and migration
+  dry-run assessment, without running Codex or applying migration. Dependency-
+  heavy tasks remain mixed-pass unless another reason independently justifies
+  migration.
+
 ## R2-11 Artifact-GC CLI Error Composition (2026-07-13)
 
 - Artifact-GC operation and result rendering are independent fallible effects.

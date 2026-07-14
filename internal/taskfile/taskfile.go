@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"revolvr/internal/id"
+	"revolvr/internal/operatorcheckpoint"
 	"revolvr/internal/pathguard"
 )
 
@@ -29,9 +30,10 @@ const (
 )
 
 const (
-	WorkflowMixedPassV1  = "mixed-pass-v1"
-	WorkflowAutonomousV1 = "autonomous-v1"
-	DefaultWorkflow      = WorkflowMixedPassV1
+	WorkflowMixedPassV1          = "mixed-pass-v1"
+	WorkflowAutonomousV1         = "autonomous-v1"
+	WorkflowOperatorCheckpointV1 = "operator-checkpoint-v1"
+	DefaultWorkflow              = WorkflowMixedPassV1
 )
 
 const (
@@ -43,27 +45,29 @@ const (
 )
 
 type Task struct {
-	ID                  string
-	Title               string
-	Profile             string
-	Status              string
-	Workflow            string
-	Phase               string
-	AutonomousStatePath string
-	Priority            int
-	HasPriority         bool
-	DependsOn           []string
-	Tags                []string
-	Conflicts           []string
-	ParentTaskID        string
-	ChildProposalID     string
-	ChildDecisionID     string
-	ChildRunID          string
-	ChildEvidence       []string
-	ParentBehavior      string
-	ContextBody         string
-	SourcePath          string
-	SourceBytes         []byte
+	ID                      string
+	Title                   string
+	Profile                 string
+	Status                  string
+	Workflow                string
+	Phase                   string
+	AutonomousStatePath     string
+	CheckpointReceiptPath   string
+	CheckpointReceiptSHA256 string
+	Priority                int
+	HasPriority             bool
+	DependsOn               []string
+	Tags                    []string
+	Conflicts               []string
+	ParentTaskID            string
+	ChildProposalID         string
+	ChildDecisionID         string
+	ChildRunID              string
+	ChildEvidence           []string
+	ParentBehavior          string
+	ContextBody             string
+	SourcePath              string
+	SourceBytes             []byte
 }
 
 const (
@@ -98,6 +102,9 @@ type MetadataUpdate struct {
 	Status string
 	Phase  string
 }
+
+var writeCheckpointFileAtomically = writeFileAtomically
+var writeMigrationFileAtomically = writeFileAtomically
 
 type ReopenInput struct {
 	OriginalSourcePath  string
@@ -158,6 +165,97 @@ func ProjectReopenedTask(repositoryRoot string, input ReopenInput) (Task, error)
 // no-overwrite semantics and strict byte-for-byte readback.
 func PublishReopenedTask(repositoryRoot string, projected Task) (Task, error) {
 	return publishProjectedTask(repositoryRoot, projected, "publish reopened task")
+}
+
+// ProjectAutonomousMigration returns the exact canonical task bytes produced
+// by migrating one pending mixed-pass implementation task. It preserves every
+// unrelated frontmatter and body byte, removes mixed-pass-only routing fields,
+// and performs no filesystem mutation.
+func ProjectAutonomousMigration(repositoryRoot string, snapshot Task) (Task, error) {
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, err
+	}
+	if strings.TrimSpace(snapshot.SourcePath) == "" || len(snapshot.SourceBytes) == 0 {
+		return Task{}, errors.New("project autonomous migration: exact task snapshot is required")
+	}
+	sourcePath, _, err := resolveTaskPath(root, snapshot.SourcePath)
+	if err != nil {
+		return Task{}, err
+	}
+	current, err := parse(snapshot.SourceBytes, sourcePath, root)
+	if err != nil {
+		return Task{}, fmt.Errorf("project autonomous migration %s: validate snapshot: %w", sourcePath, err)
+	}
+	if current.ID != snapshot.ID {
+		return Task{}, fmt.Errorf("project autonomous migration %s: task identity changed from %q to %q", sourcePath, snapshot.ID, current.ID)
+	}
+	if current.Workflow != WorkflowMixedPassV1 || current.Status != StatusPending || current.Phase != PhaseImplement {
+		return Task{}, fmt.Errorf("project autonomous migration %s: task %q is not a pending mixed-pass implement task", sourcePath, current.ID)
+	}
+	if current.ParentTaskID != "" || current.ChildProposalID != "" || current.ChildDecisionID != "" || current.ChildRunID != "" || len(current.ChildEvidence) != 0 || current.ParentBehavior != "" {
+		return Task{}, fmt.Errorf("project autonomous migration %s: task %q has child lineage", sourcePath, current.ID)
+	}
+
+	updated, err := rewriteAutonomousMigrationMetadata(snapshot.SourceBytes, current.ID)
+	if err != nil {
+		return Task{}, fmt.Errorf("project autonomous migration %s: %w", sourcePath, err)
+	}
+	projected, err := parse(updated, sourcePath, root)
+	if err != nil {
+		return Task{}, fmt.Errorf("project autonomous migration %s: validate projected task: %w", sourcePath, err)
+	}
+	return projected, nil
+}
+
+// PublishAutonomousMigration atomically replaces one exact mixed-pass task
+// snapshot with its exact autonomous migration projection. An already
+// projected file is an idempotent replay; every other current byte sequence is
+// a conflict and is never overwritten.
+func PublishAutonomousMigration(repositoryRoot string, snapshot, projected Task) (Task, bool, error) {
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, false, err
+	}
+	if strings.TrimSpace(snapshot.SourcePath) == "" || len(snapshot.SourceBytes) == 0 {
+		return Task{}, false, errors.New("publish autonomous migration: exact mixed-pass task snapshot is required")
+	}
+	want, err := ProjectAutonomousMigration(root, snapshot)
+	if err != nil {
+		return Task{}, false, err
+	}
+	if projected.ID != want.ID || projected.SourcePath != want.SourcePath || !bytes.Equal(projected.SourceBytes, want.SourceBytes) {
+		return Task{}, false, errors.New("publish autonomous migration: projected task differs from the deterministic migration projection")
+	}
+	sourcePath, absPath, err := resolveTaskPath(root, snapshot.SourcePath)
+	if err != nil {
+		return Task{}, false, err
+	}
+	currentRaw, err := os.ReadFile(absPath)
+	if err != nil {
+		return Task{}, false, fmt.Errorf("publish autonomous migration %s: %w", sourcePath, err)
+	}
+	if bytes.Equal(currentRaw, projected.SourceBytes) {
+		current, loadErr := Load(root, sourcePath)
+		return current, false, loadErr
+	}
+	if !bytes.Equal(currentRaw, snapshot.SourceBytes) {
+		return Task{}, false, fmt.Errorf("publish autonomous migration %s: task bytes changed since planning", sourcePath)
+	}
+	if err := writeMigrationFileAtomically(absPath, projected.SourceBytes, 0o644); err != nil {
+		return Task{}, false, fmt.Errorf("publish autonomous migration %s: %w", sourcePath, err)
+	}
+	if err := syncTaskDirectory(filepath.Dir(absPath)); err != nil {
+		return Task{}, false, fmt.Errorf("publish autonomous migration %s: sync task directory: %w", sourcePath, err)
+	}
+	current, err := Load(root, sourcePath)
+	if err != nil {
+		return Task{}, false, err
+	}
+	if !bytes.Equal(current.SourceBytes, projected.SourceBytes) {
+		return Task{}, false, fmt.Errorf("publish autonomous migration %s: readback identity mismatch", sourcePath)
+	}
+	return current, true, nil
 }
 
 // ProjectAutonomousTask returns deterministic LF task bytes for a new pending
@@ -374,6 +472,26 @@ func Load(repositoryRoot string, path string) (Task, error) {
 }
 
 func List(repositoryRoot string) ([]Task, error) {
+	tasks, err := LoadAll(repositoryRoot)
+	if err != nil {
+		return nil, err
+	}
+	tasksByID := make(map[string]Task, len(tasks))
+	for _, task := range tasks {
+		if previous, exists := tasksByID[task.ID]; exists {
+			return nil, fmt.Errorf("task id %q is duplicated in %s and %s", task.ID, previous.SourcePath, task.SourcePath)
+		}
+		tasksByID[task.ID] = task
+	}
+	return tasks, nil
+}
+
+// LoadAll returns every locally valid canonical task in source-path order
+// without applying cross-task graph validation such as duplicate identity
+// checks. Shared scheduling adapters use this boundary so taskscheduler owns
+// complete-graph diagnostics; ordinary List callers retain fail-fast
+// compatibility until their projections migrate.
+func LoadAll(repositoryRoot string) ([]Task, error) {
 	root, err := repositoryRootAbs(repositoryRoot)
 	if err != nil {
 		return nil, err
@@ -400,16 +518,11 @@ func List(repositoryRoot string) ([]Task, error) {
 	sort.Strings(names)
 
 	tasks := make([]Task, 0, len(names))
-	tasksByID := make(map[string]Task, len(names))
 	for _, name := range names {
 		task, err := Load(root, filepath.Join(TasksDir, name))
 		if err != nil {
 			return nil, err
 		}
-		if previous, exists := tasksByID[task.ID]; exists {
-			return nil, fmt.Errorf("task id %q is duplicated in %s and %s", task.ID, previous.SourcePath, task.SourcePath)
-		}
-		tasksByID[task.ID] = task
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
@@ -417,54 +530,6 @@ func List(repositoryRoot string) ([]Task, error) {
 
 func isTaskDocumentName(name string) bool {
 	return name != "AGENTS.md" && filepath.Ext(name) == ".md"
-}
-
-func ListRunnable(repositoryRoot string) ([]Task, error) {
-	return ListRunnableForWorkflow(repositoryRoot, DefaultWorkflow)
-}
-
-func ListRunnableForWorkflow(repositoryRoot string, workflow string) ([]Task, error) {
-	workflow = strings.TrimSpace(workflow)
-	if !validWorkflow(workflow) {
-		return nil, fmt.Errorf("list runnable task files: invalid workflow %q", workflow)
-	}
-	tasks, err := List(repositoryRoot)
-	if err != nil {
-		return nil, err
-	}
-	runnable := tasks[:0]
-	for _, task := range tasks {
-		if task.Status == StatusPending && task.Workflow == workflow {
-			runnable = append(runnable, task)
-		}
-	}
-	sort.SliceStable(runnable, func(i, j int) bool {
-		left := runnable[i]
-		right := runnable[j]
-		if left.HasPriority && right.HasPriority && left.Priority != right.Priority {
-			return left.Priority < right.Priority
-		}
-		if left.HasPriority != right.HasPriority {
-			return left.HasPriority
-		}
-		return filepath.Base(left.SourcePath) < filepath.Base(right.SourcePath)
-	})
-	return runnable, nil
-}
-
-func SelectNext(repositoryRoot string) (Task, bool, error) {
-	return SelectNextForWorkflow(repositoryRoot, DefaultWorkflow)
-}
-
-func SelectNextForWorkflow(repositoryRoot string, workflow string) (Task, bool, error) {
-	tasks, err := ListRunnableForWorkflow(repositoryRoot, workflow)
-	if err != nil {
-		return Task{}, false, err
-	}
-	if len(tasks) == 0 {
-		return Task{}, false, nil
-	}
-	return tasks[0], true, nil
 }
 
 func FindByID(repositoryRoot string, taskID string) (Task, bool, error) {
@@ -518,6 +583,81 @@ func UpdateBlockedToPending(repositoryRoot string, taskID string) (Task, bool, e
 
 func UpdateStatus(repositoryRoot string, path string, status string) (Task, error) {
 	return UpdateMetadata(repositoryRoot, path, MetadataUpdate{Status: status})
+}
+
+// FulfillOperatorCheckpoint atomically changes one exact pending checkpoint
+// snapshot to completed and binds it to the supplied receipt identity. An
+// already completed checkpoint with the same identity is an idempotent replay;
+// every other completed state is a conflict.
+func FulfillOperatorCheckpoint(repositoryRoot string, snapshot Task, receiptSHA256 string) (Task, bool, error) {
+	root, err := repositoryRootAbs(repositoryRoot)
+	if err != nil {
+		return Task{}, false, err
+	}
+	if strings.TrimSpace(snapshot.SourcePath) == "" || len(snapshot.SourceBytes) == 0 {
+		return Task{}, false, errors.New("fulfill operator checkpoint: exact task snapshot is required")
+	}
+	sourcePath, absPath, err := resolveTaskPath(root, snapshot.SourcePath)
+	if err != nil {
+		return Task{}, false, err
+	}
+	projected, changed, err := projectOperatorCheckpointFulfillment(root, sourcePath, snapshot, receiptSHA256)
+	if err != nil {
+		return Task{}, false, err
+	}
+
+	currentRaw, err := os.ReadFile(absPath)
+	if err != nil {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: %w", sourcePath, err)
+	}
+	if !bytes.Equal(currentRaw, snapshot.SourceBytes) {
+		current, parseErr := parse(currentRaw, sourcePath, root)
+		if parseErr == nil && current.ID == snapshot.ID && current.Workflow == WorkflowOperatorCheckpointV1 && current.Status == StatusCompleted && current.CheckpointReceiptSHA256 == receiptSHA256 {
+			return current, false, nil
+		}
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: task bytes changed since validation", sourcePath)
+	}
+	if !changed {
+		return projected, false, nil
+	}
+	if err := writeCheckpointFileAtomically(absPath, projected.SourceBytes, 0o644); err != nil {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: %w", sourcePath, err)
+	}
+	return projected, true, nil
+}
+
+func projectOperatorCheckpointFulfillment(root, sourcePath string, snapshot Task, receiptSHA256 string) (Task, bool, error) {
+	parsed, err := parse(snapshot.SourceBytes, sourcePath, root)
+	if err != nil {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: validate snapshot: %w", sourcePath, err)
+	}
+	if parsed.ID != snapshot.ID {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: task identity changed from %q to %q", sourcePath, snapshot.ID, parsed.ID)
+	}
+	if parsed.Workflow != WorkflowOperatorCheckpointV1 {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: task %q uses workflow %q", sourcePath, parsed.ID, parsed.Workflow)
+	}
+	if !operatorcheckpoint.ValidSHA256(receiptSHA256) {
+		return Task{}, false, errors.New("fulfill operator checkpoint: receipt identity must be a lowercase SHA-256")
+	}
+	if parsed.Status == StatusCompleted {
+		if parsed.CheckpointReceiptSHA256 != receiptSHA256 {
+			return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: conflicting replay binds %s, not %s", sourcePath, parsed.CheckpointReceiptSHA256, receiptSHA256)
+		}
+		return parsed, false, nil
+	}
+	if parsed.Status != StatusPending {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: checkpoint status is %q", sourcePath, parsed.Status)
+	}
+	updated, err := fulfillOperatorCheckpointBytes(snapshot.SourceBytes, receiptSHA256)
+	if err != nil {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: %w", sourcePath, err)
+	}
+	projected, err := parse(updated, sourcePath, root)
+	if err != nil {
+		return Task{}, false, fmt.Errorf("fulfill operator checkpoint %s: validate projected task: %w", sourcePath, err)
+	}
+	return projected, true, nil
 }
 
 func UpdateMetadata(repositoryRoot string, path string, update MetadataUpdate) (Task, error) {
@@ -695,7 +835,7 @@ func (t Task) SourceByteSize() int {
 
 func parse(raw []byte, sourcePath string, repositoryRoot string) (Task, error) {
 	lines := splitLines(string(raw))
-	meta, bodyStart, err := parseFrontmatter(lines)
+	meta, bodyStart, err := parseFrontmatter(lines, sourcePath)
 	if err != nil {
 		return Task{}, err
 	}
@@ -790,9 +930,14 @@ func parse(raw []byte, sourcePath string, repositoryRoot string) (Task, error) {
 		}
 	}
 
-	profile := strings.TrimSpace(meta["profile"])
+	profile, profileSet := meta["profile"]
+	profile = strings.TrimSpace(profile)
 	statePath, statePathSet := meta["autonomous_state_path"]
 	statePath = strings.TrimSpace(statePath)
+	receiptPath, receiptPathSet := meta["checkpoint_receipt_path"]
+	receiptPath = strings.TrimSpace(receiptPath)
+	receiptSHA256, receiptSHA256Set := meta["checkpoint_receipt_sha256"]
+	receiptSHA256 = strings.TrimSpace(receiptSHA256)
 	phase, phaseSet := meta["phase"]
 	phase = strings.TrimSpace(phase)
 	switch workflow {
@@ -809,6 +954,9 @@ func parse(raw []byte, sourcePath string, repositoryRoot string) (Task, error) {
 		if statePathSet {
 			return Task{}, fmt.Errorf("frontmatter key %q is not allowed for workflow %q", "autonomous_state_path", workflow)
 		}
+		if receiptPathSet || receiptSHA256Set {
+			return Task{}, fmt.Errorf("checkpoint receipt metadata is not allowed for workflow %q", workflow)
+		}
 	case WorkflowAutonomousV1:
 		if phaseSet {
 			return Task{}, fmt.Errorf("frontmatter key %q is not allowed for workflow %q", "phase", workflow)
@@ -822,35 +970,63 @@ func parse(raw []byte, sourcePath string, repositoryRoot string) (Task, error) {
 		if err := validateAutonomousStatePath(repositoryRoot, taskID, statePath); err != nil {
 			return Task{}, err
 		}
+		if receiptPathSet || receiptSHA256Set {
+			return Task{}, fmt.Errorf("checkpoint receipt metadata is not allowed for workflow %q", workflow)
+		}
+	case WorkflowOperatorCheckpointV1:
+		if phaseSet || profileSet || statePathSet {
+			return Task{}, fmt.Errorf("phase, profile, and autonomous_state_path are not allowed for workflow %q", workflow)
+		}
+		if lineageSet {
+			return Task{}, fmt.Errorf("autonomous child lineage is not allowed for workflow %q", workflow)
+		}
+		if status != StatusPending && status != StatusCompleted {
+			return Task{}, fmt.Errorf("invalid status %q for workflow %q", status, workflow)
+		}
+		if !receiptPathSet || receiptPath == "" {
+			return Task{}, fmt.Errorf("frontmatter key %q is required for workflow %q", "checkpoint_receipt_path", workflow)
+		}
+		if _, err := operatorcheckpoint.ValidateCanonicalReceiptPath(repositoryRoot, taskID, receiptPath); err != nil {
+			return Task{}, err
+		}
+		if status == StatusPending && receiptSHA256Set {
+			return Task{}, fmt.Errorf("frontmatter key %q is not allowed for pending workflow %q", "checkpoint_receipt_sha256", workflow)
+		}
+		if status == StatusCompleted && (!receiptSHA256Set || !operatorcheckpoint.ValidSHA256(receiptSHA256)) {
+			return Task{}, fmt.Errorf("frontmatter key %q must be a lowercase SHA-256 for completed workflow %q", "checkpoint_receipt_sha256", workflow)
+		}
 	}
 
 	return Task{
-		ID:                  taskID,
-		Title:               title,
-		Profile:             profile,
-		Status:              status,
-		Workflow:            workflow,
-		Phase:               phase,
-		AutonomousStatePath: statePath,
-		Priority:            priority,
-		HasPriority:         hasPriority,
-		DependsOn:           dependsOn,
-		Tags:                tags,
-		Conflicts:           conflicts,
-		ParentTaskID:        parentTaskID,
-		ChildProposalID:     childProposalID,
-		ChildDecisionID:     childDecisionID,
-		ChildRunID:          childRunID,
-		ChildEvidence:       childEvidence,
-		ParentBehavior:      parentBehavior,
-		ContextBody:         string(raw),
-		SourcePath:          sourcePath,
-		SourceBytes:         append([]byte(nil), raw...),
+		ID:                      taskID,
+		Title:                   title,
+		Profile:                 profile,
+		Status:                  status,
+		Workflow:                workflow,
+		Phase:                   phase,
+		AutonomousStatePath:     statePath,
+		CheckpointReceiptPath:   receiptPath,
+		CheckpointReceiptSHA256: receiptSHA256,
+		Priority:                priority,
+		HasPriority:             hasPriority,
+		DependsOn:               dependsOn,
+		Tags:                    tags,
+		Conflicts:               conflicts,
+		ParentTaskID:            parentTaskID,
+		ChildProposalID:         childProposalID,
+		ChildDecisionID:         childDecisionID,
+		ChildRunID:              childRunID,
+		ChildEvidence:           childEvidence,
+		ParentBehavior:          parentBehavior,
+		ContextBody:             string(raw),
+		SourcePath:              sourcePath,
+		SourceBytes:             append([]byte(nil), raw...),
 	}, nil
 }
 
-func parseFrontmatter(lines []string) (map[string]string, int, error) {
+func parseFrontmatter(lines []string, sourcePath string) (map[string]string, int, error) {
 	meta := map[string]string{}
+	seen := map[string]struct{}{}
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
 		return meta, 0, nil
 	}
@@ -862,23 +1038,40 @@ func parseFrontmatter(lines []string) (map[string]string, int, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		key, value, ok := strings.Cut(line, ":")
+		rawKey, value, ok := strings.Cut(line, ":")
 		if !ok {
 			return nil, 0, fmt.Errorf("invalid frontmatter line %d: expected key: value", i+1)
 		}
-		key = strings.ToLower(strings.TrimSpace(key))
+		rawKey = strings.TrimSpace(rawKey)
+		key := strings.ToLower(rawKey)
 		value = trimScalar(strings.TrimSpace(value))
-		switch key {
-		case "id", "profile", "status", "priority", "workflow", "phase", "autonomous_state_path", "depends_on", "tags", "conflicts", "parent_task_id", "child_proposal_id", "child_decision_id", "child_run_id", "child_evidence", "parent_behavior":
-			if _, exists := meta[key]; exists {
+		recognized := recognizedFrontmatterKey(key)
+		if recognized || validExtensionKey(key) {
+			if _, exists := seen[key]; exists {
 				return nil, 0, fmt.Errorf("duplicate frontmatter key %q", key)
 			}
-			meta[key] = value
-		default:
+			seen[key] = struct{}{}
+			if recognized {
+				meta[key] = value
+			}
 			continue
 		}
+		return nil, 0, fmt.Errorf("unsupported frontmatter key %q at %s:%d", rawKey, filepath.ToSlash(filepath.Clean(sourcePath)), i+1)
 	}
 	return nil, 0, errors.New("unterminated frontmatter")
+}
+
+func recognizedFrontmatterKey(key string) bool {
+	switch key {
+	case "id", "profile", "status", "priority", "workflow", "phase", "autonomous_state_path", "checkpoint_receipt_path", "checkpoint_receipt_sha256", "depends_on", "tags", "conflicts", "parent_task_id", "child_proposal_id", "child_decision_id", "child_run_id", "child_evidence", "parent_behavior":
+		return true
+	default:
+		return false
+	}
+}
+
+func validExtensionKey(key string) bool {
+	return strings.HasPrefix(key, "x-") && len(key) > len("x-")
 }
 
 func parseIdentityList(key, raw string, valid func(string) bool) ([]string, error) {
@@ -990,6 +1183,55 @@ func updateMetadataInFrontmatter(lines []rawLine, update MetadataUpdate) ([]byte
 	if !replacedPhase {
 		out.WriteString("phase: " + update.Phase)
 		out.Write(eol)
+	}
+	for i := end; i < len(lines); i++ {
+		writeRawLine(&out, lines[i])
+	}
+	return out.Bytes(), nil
+}
+
+func fulfillOperatorCheckpointBytes(raw []byte, receiptSHA256 string) ([]byte, error) {
+	lines := splitRawLines(raw)
+	if len(lines) == 0 || strings.TrimSpace(string(lines[0].content)) != "---" {
+		return nil, errors.New("checkpoint task has no frontmatter")
+	}
+	end := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(string(lines[i].content)) == "---" {
+			end = i
+			break
+		}
+	}
+	if end == -1 {
+		return nil, errors.New("unterminated frontmatter")
+	}
+
+	var out bytes.Buffer
+	writeRawLine(&out, lines[0])
+	replacedStatus := false
+	insertedReceiptIdentity := false
+	eol := preferredLineEnding(lines)
+	for i := 1; i < end; i++ {
+		switch frontmatterKey(string(lines[i].content)) {
+		case "status":
+			out.WriteString("status: " + StatusCompleted)
+			out.Write(lines[i].ending)
+			replacedStatus = true
+			continue
+		case "checkpoint_receipt_path":
+			writeRawLine(&out, lines[i])
+			out.WriteString("checkpoint_receipt_sha256: " + receiptSHA256)
+			out.Write(eol)
+			insertedReceiptIdentity = true
+			continue
+		}
+		writeRawLine(&out, lines[i])
+	}
+	if !replacedStatus {
+		return nil, errors.New("checkpoint task has no status metadata")
+	}
+	if !insertedReceiptIdentity {
+		return nil, errors.New("checkpoint task has no receipt path metadata")
 	}
 	for i := end; i < len(lines); i++ {
 		writeRawLine(&out, lines[i])
@@ -1206,6 +1448,63 @@ func rewriteReopenMetadata(raw []byte, newTaskID string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+func rewriteAutonomousMigrationMetadata(raw []byte, taskID string) ([]byte, error) {
+	lines := splitRawLines(raw)
+	statePath := path.Join(".revolvr", "autonomous", "tasks", taskID, "state.json")
+	eol := preferredLineEnding(lines)
+	if len(lines) == 0 || strings.TrimSpace(string(lines[0].content)) != "---" {
+		var out bytes.Buffer
+		out.WriteString("---")
+		out.Write(eol)
+		out.WriteString("workflow: " + WorkflowAutonomousV1)
+		out.Write(eol)
+		out.WriteString("autonomous_state_path: " + statePath)
+		out.Write(eol)
+		out.WriteString("---")
+		out.Write(eol)
+		out.Write(raw)
+		return out.Bytes(), nil
+	}
+
+	end := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(string(lines[i].content)) == "---" {
+			end = i
+			break
+		}
+	}
+	if end < 0 {
+		return nil, errors.New("unterminated frontmatter")
+	}
+
+	var out bytes.Buffer
+	writeRawLine(&out, lines[0])
+	wroteWorkflow := false
+	for i := 1; i < end; i++ {
+		switch frontmatterKey(string(lines[i].content)) {
+		case "workflow":
+			out.WriteString("workflow: " + WorkflowAutonomousV1)
+			out.Write(lines[i].ending)
+			wroteWorkflow = true
+		case "phase", "profile":
+			// These fields route mixed-pass phases and have no autonomous-v1
+			// representation. All other authored bytes remain untouched.
+		default:
+			writeRawLine(&out, lines[i])
+		}
+	}
+	if !wroteWorkflow {
+		out.WriteString("workflow: " + WorkflowAutonomousV1)
+		out.Write(eol)
+	}
+	out.WriteString("autonomous_state_path: " + statePath)
+	out.Write(eol)
+	for i := end; i < len(lines); i++ {
+		writeRawLine(&out, lines[i])
+	}
+	return out.Bytes(), nil
+}
+
 func syncTaskDirectory(path string) error {
 	dir, err := os.Open(path)
 	if err != nil {
@@ -1216,7 +1515,7 @@ func syncTaskDirectory(path string) error {
 }
 
 func validWorkflow(workflow string) bool {
-	return workflow == WorkflowMixedPassV1 || workflow == WorkflowAutonomousV1
+	return workflow == WorkflowMixedPassV1 || workflow == WorkflowAutonomousV1 || workflow == WorkflowOperatorCheckpointV1
 }
 
 func validateAutonomousStatePath(repositoryRoot string, taskID string, statePath string) error {

@@ -21,6 +21,8 @@ import (
 	"revolvr/internal/pathguard"
 	"revolvr/internal/redact"
 	"revolvr/internal/taskfile"
+	"revolvr/internal/taskschedule"
+	"revolvr/internal/taskscheduler"
 )
 
 const maxAutonomousViewArtifactBytes = 4 << 20
@@ -90,12 +92,12 @@ func loadAutonomousTaskView(ctx context.Context, root, selector string) (autonom
 		return autonomousview.View{}, fmt.Errorf("task show: %q not found as an active task or archive selector", selector)
 	}
 	if active != nil {
-		return loadActiveView(ctx, root, *active, tasks, archives)
+		return loadActiveView(ctx, root, *active)
 	}
 	return loadArchiveView(ctx, root, selector)
 }
 
-func loadActiveView(ctx context.Context, root string, task taskfile.Task, tasks []taskfile.Task, archives []autonomousarchive.Entry) (autonomousview.View, error) {
+func loadActiveView(ctx context.Context, root string, task taskfile.Task) (autonomousview.View, error) {
 	input := autonomousview.Input{Source: autonomousview.Source{Kind: autonomousview.SourceActive, TaskID: task.ID, Title: task.Title, TaskPath: task.SourcePath, TaskSHA256: task.SourceSHA256(), TaskByteSize: task.SourceByteSize(), Workflow: task.Workflow, TaskStatus: task.Status, StatePath: task.AutonomousStatePath}, References: []autonomousview.Reference{{Kind: "task", Path: task.SourcePath, SHA256: task.SourceSHA256(), ByteSize: task.SourceByteSize(), Detail: "Canonical active task bytes."}}}
 	if task.Workflow != taskfile.WorkflowAutonomousV1 {
 		input.Diagnostics = append(input.Diagnostics, autonomousview.Diagnostic{Code: "wrong_workflow", Section: "identity", Detail: "Autonomous evidence is unavailable for mixed-pass tasks.", Reference: task.SourcePath})
@@ -116,7 +118,10 @@ func loadActiveView(ctx context.Context, root string, task taskfile.Task, tasks 
 	input.State = &snapshot.State
 	input.Source.StateSHA256, input.Source.StateByteSize = snapshot.SHA256, snapshot.ByteSize
 	input.References = append(input.References, autonomousview.Reference{Kind: "state", Path: snapshot.SourcePath, SHA256: snapshot.SHA256, ByteSize: snapshot.ByteSize, Detail: "Canonical active autonomous state."})
-	input.SchedulerReadiness, input.SchedulerReasons, input.Diagnostics = projectReadiness(task, snapshot.State, tasks, archives, input.Diagnostics)
+	input.SchedulerReadiness, input.SchedulerReasons, input.Diagnostics, err = projectReadiness(ctx, root, task, input.Diagnostics)
+	if err != nil {
+		return autonomousview.View{}, err
+	}
 	audits, auditErr := store.LoadCommittedAuditHistory(ctx, task.ID)
 	if auditErr != nil {
 		input.Diagnostics = append(input.Diagnostics, autonomousview.Diagnostic{Code: "audit_history_unavailable", Section: "audit", Detail: "Committed audit history could not be reconstructed safely.", Reference: task.AutonomousStatePath})
@@ -194,44 +199,85 @@ func loadArchiveView(ctx context.Context, root, selector string) (autonomousview
 	return view, nil
 }
 
-func projectReadiness(task taskfile.Task, state autonomous.ExecutionState, tasks []taskfile.Task, archives []autonomousarchive.Entry, diagnostics []autonomousview.Diagnostic) (string, []autonomousview.WhyReason, []autonomousview.Diagnostic) {
-	if task.Status != taskfile.StatusPending {
-		return "not_pending", []autonomousview.WhyReason{{Code: "scheduler_not_ready", Text: "The canonical task status is not pending."}}, diagnostics
+func projectReadiness(ctx context.Context, root string, task taskfile.Task, diagnostics []autonomousview.Diagnostic) (string, []autonomousview.WhyReason, []autonomousview.Diagnostic, error) {
+	runCfg, err := LoadRunOnceConfig(root, DefaultRunOnceConfig(root))
+	if err != nil {
+		return "", nil, diagnostics, err
 	}
-	if state.Lifecycle == autonomous.LifecycleStateNeedsInput {
-		return "needs_input", []autonomousview.WhyReason{{Code: "scheduler_not_ready", Text: "Scheduler readiness is waiting for operator input."}}, diagnostics
+	paths, err := resolveStatePaths(root)
+	if err != nil {
+		return "", nil, diagnostics, err
 	}
-	if state.Lifecycle == autonomous.LifecycleStateBlocked {
-		return "blocked", []autonomousview.WhyReason{{Code: "scheduler_not_ready", Text: "Scheduler readiness is blocked by the task lifecycle."}}, diagnostics
+	runs, closeRuns, err := openSchedulingLedger(ctx, paths)
+	if err != nil {
+		return "", nil, diagnostics, err
 	}
-	active := map[string]taskfile.Task{}
-	for _, item := range tasks {
-		active[item.ID] = item
+	defer closeRuns()
+	snapshot, err := taskschedule.Load(ctx, taskschedule.Config{
+		RepositoryRoot:    root,
+		SelectionWorkflow: taskscheduler.WorkflowAutonomousV1,
+		Ledger:            runs,
+		GitExecutable:     runCfg.GitExecutable,
+		GitTimeout:        runCfg.GitTimeout,
+		ForbiddenValues:   archiveSecretValues(runCfg),
+	})
+	if err != nil {
+		return "", nil, diagnostics, fmt.Errorf("task show: load shared scheduling authority: %w", err)
 	}
-	archived := map[string]autonomousarchive.Entry{}
-	for _, item := range archives {
-		archived[item.Manifest.TaskID] = item
-	}
-	waiting := []string{}
-	for _, dependency := range task.DependsOn {
-		if item, ok := active[dependency]; ok {
-			if item.Status != taskfile.StatusCompleted {
-				waiting = append(waiting, dependency)
-			}
-			continue
+	return projectScheduledReadiness(task, snapshot.Result, diagnostics)
+}
+
+func projectScheduledReadiness(task taskfile.Task, result taskscheduler.Result, diagnostics []autonomousview.Diagnostic) (string, []autonomousview.WhyReason, []autonomousview.Diagnostic, error) {
+	for _, diagnostic := range result.InvalidGraph {
+		reference := diagnostic.SourcePath
+		if reference == "" {
+			reference = diagnostic.DependencyID
 		}
-		if item, ok := archived[dependency]; ok {
-			waiting = append(waiting, dependency)
-			diagnostics = append(diagnostics, autonomousview.Diagnostic{Code: "archive_dependency_unverified", Section: "why", Detail: "An archived dependency exists, but ordinary task viewing does not perform full archive verification.", Reference: item.ManifestPath})
-			continue
+		if reference == "" {
+			reference = diagnostic.TaskID
 		}
-		waiting = append(waiting, dependency)
-		diagnostics = append(diagnostics, autonomousview.Diagnostic{Code: "missing_dependency", Section: "why", Detail: "A declared dependency has no active or archived authority.", Reference: dependency})
+		diagnostics = append(diagnostics, autonomousview.Diagnostic{Code: string(diagnostic.Code), Section: "why", Detail: diagnostic.Detail, Reference: reference})
 	}
-	if len(waiting) != 0 {
-		return "waiting_dependency", []autonomousview.WhyReason{{Code: "scheduler_not_ready", Text: "Scheduler readiness is waiting on dependencies: " + strings.Join(waiting, ", ")}}, diagnostics
+	var readiness taskscheduler.TaskReadiness
+	found := false
+	for _, candidate := range result.Tasks {
+		if candidate.TaskID == task.ID && candidate.SourcePath == filepath.ToSlash(task.SourcePath) {
+			readiness, found = candidate, true
+			break
+		}
 	}
-	return "ready", nil, diagnostics
+	if !found {
+		return "", nil, diagnostics, fmt.Errorf("task show: shared schedule omitted task %q", task.ID)
+	}
+	reasons := make([]autonomousview.WhyReason, 0, len(readiness.DependencyIssues)+1)
+	for _, issue := range readiness.DependencyIssues {
+		text := fmt.Sprintf("Dependency %s is %s (state=%s", issue.DependencyID, issue.Reason, issue.State)
+		if issue.Archived {
+			text += ", archive=" + issue.ArchiveID
+		}
+		text += ")."
+		if issue.Detail != "" {
+			text += " " + issue.Detail
+		}
+		reasons = append(reasons, autonomousview.WhyReason{Code: string(issue.Reason), Text: text})
+	}
+	if readiness.Reason == taskscheduler.ReasonReady {
+		selected, selectedFound := result.SelectedForWorkflow(taskscheduler.WorkflowAutonomousV1)
+		if selectedFound && selected.TaskID == readiness.TaskID && selected.SourcePath == readiness.SourcePath {
+			reasons = append(reasons, autonomousview.WhyReason{Code: "scheduler_selected_next", Text: "Shared ready ordering selects this task as the next autonomous task."})
+		} else if selectedFound {
+			reasons = append(reasons, autonomousview.WhyReason{Code: "scheduler_ready_not_selected", Text: fmt.Sprintf("This task is ready, but shared ordering selects %s first.", selected.TaskID)})
+		}
+	} else {
+		text := "Scheduler readiness is " + string(readiness.Reason) + "."
+		if len(readiness.UnmetDependencyIDs) != 0 {
+			text = "Scheduler readiness is " + string(readiness.Reason) + " on dependencies: " + strings.Join(readiness.UnmetDependencyIDs, ", ") + "."
+		} else if len(readiness.ConflictingTaskOrKeys) != 0 {
+			text = "Scheduler readiness is conflict_blocked by: " + strings.Join(readiness.ConflictingTaskOrKeys, ", ") + "."
+		}
+		reasons = append(reasons, autonomousview.WhyReason{Code: "scheduler_not_ready", Text: text})
+	}
+	return string(readiness.Reason), reasons, diagnostics, nil
 }
 
 func loadDecision(root string, reference autonomous.DecisionReference) (autonomous.SupervisorDecision, []byte, error) {

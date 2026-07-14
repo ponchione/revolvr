@@ -223,12 +223,12 @@ func TestArchiveRejectsBlockedAndReopenCreatesNewLifecycle(t *testing.T) {
 	if reopened.Task.Status != taskfile.StatusPending || reopened.State.State.Lifecycle != autonomous.LifecycleStatePending || reopened.State.State.ReopenedFrom == nil || reopened.State.State.ReopenedFrom.ArchiveID != archived.Entry.Manifest.ArchiveID {
 		t.Fatalf("reopened = %+v", reopened)
 	}
-	if !strings.Contains(string(reopened.Task.SourceBytes), "unknown: preserved\n") || !strings.HasSuffix(string(reopened.Task.SourceBytes), "Exact spec without final newline") {
+	if !strings.Contains(string(reopened.Task.SourceBytes), "x-unknown: preserved\n") || !strings.HasSuffix(string(reopened.Task.SourceBytes), "Exact spec without final newline") {
 		t.Fatalf("reopened task did not preserve unknown metadata/spec bytes: %q", reopened.Task.SourceBytes)
 	}
-	next, found, err := taskfile.SelectNextForWorkflow(root, taskfile.WorkflowAutonomousV1)
-	if err != nil || !found || next.ID != "terminal-task-reopened" {
-		t.Fatalf("next = %+v found=%t err=%v", next, found, err)
+	foundTask, found, err := taskfile.FindByID(root, "terminal-task-reopened")
+	if err != nil || !found || foundTask.Workflow != taskfile.WorkflowAutonomousV1 {
+		t.Fatalf("reopened task = %+v found=%t err=%v", foundTask, found, err)
 	}
 	replay, err := Reopen(context.Background(), Config{RepositoryRoot: root, Ledger: store}, ReopenRequest{Selector: archived.Entry.Manifest.ArchiveID, OperationID: "reopen-one", NewTaskID: "terminal-task-reopened", Authority: "operator:test", Reason: "new requirements", ReopenedAt: reopenedAt})
 	if err != nil || !replay.Replayed || replay.Record.CommitSHA != reopened.Record.CommitSHA {
@@ -372,7 +372,7 @@ func lifecycleRepo(t *testing.T, lifecycle autonomous.LifecycleState, status, re
 		t.Fatal(err)
 	}
 	statePath := ".revolvr/autonomous/tasks/terminal-task/state.json"
-	taskRaw := []byte("---\nid: terminal-task\nstatus: " + status + "\nworkflow: autonomous-v1\nautonomous_state_path: " + statePath + "\nunknown: preserved\n---\n# Terminal task\r\n\r\nExact spec without final newline")
+	taskRaw := []byte("---\nid: terminal-task\nstatus: " + status + "\nworkflow: autonomous-v1\nautonomous_state_path: " + statePath + "\nx-unknown: preserved\n---\n# Terminal task\r\n\r\nExact spec without final newline")
 	taskPath := filepath.Join(root, ".agent", "tasks", "terminal-task.md")
 	if err := os.MkdirAll(filepath.Dir(taskPath), 0o755); err != nil {
 		t.Fatal(err)

@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomousstate"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/gitstate"
@@ -26,6 +28,7 @@ import (
 	"revolvr/internal/runner"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 	"revolvr/internal/verification"
 )
 
@@ -1037,6 +1040,181 @@ func TestRunSelectsLowestPriorityPendingTaskFileByPriorityThenFilename(t *testin
 	}
 }
 
+func TestRunDependencySelectionUsesSharedSelectedIdentity(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		dependencyStatus string
+		wantSelected     string
+	}{
+		{name: "pending prerequisite outranks preferred dependent", dependencyStatus: taskfile.StatusPending, wantSelected: "dependency"},
+		{name: "completed prerequisite unlocks dependent", dependencyStatus: taskfile.StatusCompleted, wantSelected: "dependent"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newTestEnv(t)
+			writeRunTaskFile(t, env, "020-dependency.md", taskFileMarkdownWithScheduling("dependency", "Dependency", tt.dependencyStatus, taskfile.PhaseImplement, ptrInt(50), nil))
+			writeRunTaskFile(t, env, "010-dependent.md", taskFileMarkdownWithScheduling("dependent", "Dependent", taskfile.StatusPending, taskfile.PhaseImplement, ptrInt(1), []string{"dependency"}))
+			codexCalls := 0
+			result, err := Run(context.Background(), Config{
+				WorkingDir:     env.workDir,
+				LedgerStore:    env.ledger,
+				DirtyCapture:   cleanDirtyCapture,
+				ChangedCapture: emptyChangedCapture,
+				CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+					codexCalls++
+					return codexexec.Result{ExitCode: 1}, nil
+				},
+				Clock:                  env.clock,
+				CodexVersionDiscoverer: testCodexVersionDiscoverer,
+			})
+			if err != nil {
+				t.Fatalf("run once: %v", err)
+			}
+			if result.Task.ID != tt.wantSelected || result.FileTask.ID != tt.wantSelected || result.Schedule.SelectedNext == nil || result.Schedule.SelectedNext.TaskID != tt.wantSelected {
+				t.Fatalf("selection result = task:%q file:%q schedule:%#v, want %q", result.Task.ID, result.FileTask.ID, result.Schedule.SelectedNext, tt.wantSelected)
+			}
+			if codexCalls != 1 {
+				t.Fatalf("Codex calls = %d, want 1", codexCalls)
+			}
+		})
+	}
+}
+
+func TestRunUnsatisfiedDependencyReasonsStartNoCodex(t *testing.T) {
+	tests := []struct {
+		name         string
+		state        taskscheduler.State
+		wantReason   taskscheduler.Reason
+		wantTerminal bool
+	}{
+		{name: "running", state: taskscheduler.StateRunning, wantReason: taskscheduler.ReasonWaitingDependency},
+		{name: "blocked", state: taskscheduler.StateBlocked, wantReason: taskscheduler.ReasonBlockedDependency},
+		{name: "needs input", state: taskscheduler.StateNeedsInput, wantReason: taskscheduler.ReasonNeedsInputDependency},
+		{name: "cancelled", state: taskscheduler.StateCancelled, wantReason: taskscheduler.ReasonTerminalUnsatisfiedDependency, wantTerminal: true},
+		{name: "abandoned", state: taskscheduler.StateAbandoned, wantReason: taskscheduler.ReasonTerminalUnsatisfiedDependency, wantTerminal: true},
+		{name: "superseded", state: taskscheduler.StateSuperseded, wantReason: taskscheduler.ReasonTerminalUnsatisfiedDependency, wantTerminal: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newTestEnv(t)
+			if tt.state == taskscheduler.StateNeedsInput {
+				writeAutonomousSchedulingTask(t, env, "dependency", autonomous.LifecycleStateNeedsInput)
+			} else {
+				writeRunTaskFile(t, env, "020-dependency.md", taskFileMarkdownWithScheduling("dependency", "Dependency", string(tt.state), taskfile.PhaseImplement, ptrInt(50), nil))
+			}
+			writeRunTaskFile(t, env, "010-dependent.md", taskFileMarkdownWithScheduling("dependent", "Dependent", taskfile.StatusPending, taskfile.PhaseImplement, ptrInt(1), []string{"dependency"}))
+			codexCalls := 0
+			result, err := Run(context.Background(), Config{
+				WorkingDir:  env.workDir,
+				LedgerStore: env.ledger,
+				CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+					codexCalls++
+					return codexexec.Result{}, nil
+				},
+				Clock: env.clock,
+			})
+			if tt.wantTerminal {
+				var terminalErr TerminalDependencyError
+				if !errors.As(err, &terminalErr) || result.Outcome != OutcomeBlocked || len(terminalErr.Tasks) != 1 {
+					t.Fatalf("terminal result=%+v error=%v typed=%+v", result, err, terminalErr)
+				}
+			} else if err != nil || !result.NoTask || result.Outcome != OutcomeNoTask {
+				t.Fatalf("waiting result=%+v error=%v", result, err)
+			}
+			if codexCalls != 0 || result.Run.ID != "" {
+				t.Fatalf("Codex calls=%d run=%q, want no runner", codexCalls, result.Run.ID)
+			}
+			got := scheduleTaskResult(t, result.Schedule, "dependent")
+			if got.Reason != tt.wantReason || !reflect.DeepEqual(got.UnmetDependencyIDs, []string{"dependency"}) {
+				t.Fatalf("dependent readiness = %#v", got)
+			}
+		})
+	}
+}
+
+func TestRunInvalidGraphStartsNoCodex(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(testEnv)
+		code  taskscheduler.DiagnosticCode
+	}{
+		{name: "missing dependency", code: taskscheduler.DiagnosticMissingDependency, setup: func(env testEnv) {
+			writeRunTaskFile(t, env, "task.md", taskFileMarkdownWithScheduling("task", "Task", taskfile.StatusPending, taskfile.PhaseImplement, nil, []string{"missing"}))
+		}},
+		{name: "cycle", code: taskscheduler.DiagnosticDependencyCycle, setup: func(env testEnv) {
+			writeRunTaskFile(t, env, "a.md", taskFileMarkdownWithScheduling("a", "A", taskfile.StatusPending, taskfile.PhaseImplement, nil, []string{"b"}))
+			writeRunTaskFile(t, env, "b.md", taskFileMarkdownWithScheduling("b", "B", taskfile.StatusPending, taskfile.PhaseImplement, nil, []string{"a"}))
+		}},
+		{name: "duplicate task id", code: taskscheduler.DiagnosticDuplicateTaskID, setup: func(env testEnv) {
+			writeRunTaskFile(t, env, "a.md", taskFileMarkdownWithScheduling("duplicate", "A", taskfile.StatusPending, taskfile.PhaseImplement, nil, nil))
+			writeRunTaskFile(t, env, "b.md", taskFileMarkdownWithScheduling("duplicate", "B", taskfile.StatusPending, taskfile.PhaseImplement, nil, nil))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newTestEnv(t)
+			tt.setup(env)
+			codexCalls := 0
+			result, err := Run(context.Background(), Config{
+				WorkingDir:  env.workDir,
+				LedgerStore: env.ledger,
+				CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+					codexCalls++
+					return codexexec.Result{}, nil
+				},
+				Clock: env.clock,
+			})
+			var scheduleErr ScheduleError
+			if !errors.As(err, &scheduleErr) || result.Outcome != OutcomeBlocked || result.Schedule.Valid() {
+				t.Fatalf("result=%+v error=%v typed=%+v", result, err, scheduleErr)
+			}
+			found := false
+			for _, diagnostic := range scheduleErr.Diagnostics {
+				found = found || diagnostic.Code == tt.code
+			}
+			if !found {
+				t.Fatalf("diagnostics = %#v, want %q", scheduleErr.Diagnostics, tt.code)
+			}
+			if codexCalls != 0 || result.Run.ID != "" {
+				t.Fatalf("Codex calls=%d run=%q, want no runner", codexCalls, result.Run.ID)
+			}
+		})
+	}
+}
+
+func TestRunUnsupportedCanonicalFrontmatterStartsNoCodex(t *testing.T) {
+	env := newTestEnv(t)
+	path := filepath.Join(env.workDir, taskfile.TasksDir, "typo.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create task directory: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(`---
+id: typo-task
+status: pending
+depend_on: prerequisite
+---
+# Typo Task
+`), 0o644); err != nil {
+		t.Fatalf("write typo task: %v", err)
+	}
+	codexCalls := 0
+	result, err := Run(context.Background(), Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalls++
+			return codexexec.Result{}, nil
+		},
+		Clock: env.clock,
+	})
+	want := `unsupported frontmatter key "depend_on" at .agent/tasks/typo.md:4`
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("run error = %v, want %q", err, want)
+	}
+	if codexCalls != 0 || result.Run.ID != "" || result.Outcome != OutcomeBlocked {
+		t.Fatalf("result=%+v codex_calls=%d, want pre-selection block with no run", result, codexCalls)
+	}
+}
+
 func TestRunSelectsOnlyMixedPassTasks(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
@@ -1089,6 +1267,43 @@ Run through mixed-pass.
 	}
 }
 
+func TestRunSelectionScopeDoesNotPromoteAutonomousTerminalBlocker(t *testing.T) {
+	env := newTestEnv(t)
+	writeRunTaskFile(t, env, "001-cancelled.md", `---
+id: autonomous-cancelled
+status: cancelled
+workflow: autonomous-v1
+autonomous_state_path: .revolvr/autonomous/tasks/autonomous-cancelled/state.json
+---
+# Cancelled Autonomous Task
+`)
+	writeRunTaskFile(t, env, "002-dependent.md", `---
+id: autonomous-dependent
+status: pending
+workflow: autonomous-v1
+autonomous_state_path: .revolvr/autonomous/tasks/autonomous-dependent/state.json
+depends_on: autonomous-cancelled
+---
+# Autonomous Dependent
+`)
+	codexCalls := 0
+	result, err := Run(context.Background(), Config{
+		WorkingDir:  env.workDir,
+		LedgerStore: env.ledger,
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalls++
+			return codexexec.Result{}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil || !result.NoTask || result.Outcome != OutcomeNoTask {
+		t.Fatalf("result=%+v error=%v, want ordinary empty mixed selection", result, err)
+	}
+	if codexCalls != 0 || len(result.Schedule.TerminalUnsatisfied) != 1 || len(result.Schedule.SelectionTerminalUnsatisfied) != 0 {
+		t.Fatalf("Codex calls=%d schedule=%+v", codexCalls, result.Schedule)
+	}
+}
+
 func TestRunSecondPassAfterCompletionReturnsNoTask(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
@@ -1138,7 +1353,7 @@ func TestRunSecondPassAfterCompletionReturnsNoTask(t *testing.T) {
 	}
 }
 
-func TestRunSecondPendingTaskAfterSuccessfulFileTaskCommitStartsClean(t *testing.T) {
+func TestRunReevaluatesDependenciesAfterSuccessfulPrerequisiteCommit(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()
 	runTestGit(t, workDir, "init", "-q")
@@ -1162,8 +1377,8 @@ func TestRunSecondPendingTaskAfterSuccessfulFileTaskCommitStartsClean(t *testing
 	}
 	writeTestRunProfile(t, workDir, prompt.DefaultRunProfileName, defaultRunProfileTemplateContent(t))
 	writeTestRunProfile(t, workDir, "simplifier", "Simplifier test profile.\n\nComplete the final phase.")
-	firstTask := writeRunTaskFile(t, env, "010-first.md", taskFileMarkdownWithPhase("task-first", "First Task", taskfile.StatusPending, taskfile.PhaseSimplify))
-	secondTask := writeRunTaskFile(t, env, "020-second.md", taskFileMarkdownWithPhase("task-second", "Second Task", taskfile.StatusPending, taskfile.PhaseSimplify))
+	firstTask := writeRunTaskFile(t, env, "010-first.md", taskFileMarkdownWithScheduling("task-first", "First Task", taskfile.StatusPending, taskfile.PhaseSimplify, ptrInt(50), nil))
+	secondTask := writeRunTaskFile(t, env, "020-second.md", taskFileMarkdownWithScheduling("task-second", "Second Task", taskfile.StatusPending, taskfile.PhaseSimplify, ptrInt(1), []string{"task-first"}))
 	runTestGit(t, workDir, "add", ".")
 	runTestGit(t, workDir, "commit", "-q", "-m", "Initial file tasks")
 
@@ -1193,6 +1408,9 @@ func TestRunSecondPendingTaskAfterSuccessfulFileTaskCommitStartsClean(t *testing
 	if first.Outcome != OutcomeCommitted {
 		t.Fatalf("first outcome = %s, want committed; message=%s", first.Outcome, first.Message)
 	}
+	if first.Task.ID != "task-first" || first.Schedule.SelectedNext == nil || first.Schedule.SelectedNext.TaskID != "task-first" {
+		t.Fatalf("first selection = task:%q schedule:%#v, want prerequisite", first.Task.ID, first.Schedule.SelectedNext)
+	}
 	if got := loadRunTask(t, env, firstTask.SourcePath).Status; got != taskfile.StatusCompleted {
 		t.Fatalf("first file task status = %q, want completed", got)
 	}
@@ -1207,6 +1425,9 @@ func TestRunSecondPendingTaskAfterSuccessfulFileTaskCommitStartsClean(t *testing
 	}
 	if second.Task.ID != "task-second" {
 		t.Fatalf("second selected task = %q, want task-second", second.Task.ID)
+	}
+	if second.Schedule.SelectedNext == nil || second.Schedule.SelectedNext.TaskID != "task-second" {
+		t.Fatalf("second schedule selection = %#v, want unlocked dependent", second.Schedule.SelectedNext)
 	}
 	if got := loadRunTask(t, env, secondTask.SourcePath).Status; got != taskfile.StatusCompleted {
 		t.Fatalf("second file task status = %q, want completed", got)
@@ -2866,6 +3087,74 @@ func taskFileMarkdownWithPhase(id string, title string, status string, phase str
 	fmt.Fprintf(&out, "# %s\n\n", title)
 	fmt.Fprintf(&out, "%s\n", title)
 	return out.String()
+}
+
+func taskFileMarkdownWithScheduling(id, title, status, phase string, priority *int, dependencies []string) string {
+	var out strings.Builder
+	out.WriteString("---\n")
+	fmt.Fprintf(&out, "id: %s\n", id)
+	fmt.Fprintf(&out, "workflow: %s\n", taskfile.WorkflowMixedPassV1)
+	fmt.Fprintf(&out, "phase: %s\n", phase)
+	fmt.Fprintf(&out, "status: %s\n", status)
+	if priority != nil {
+		fmt.Fprintf(&out, "priority: %d\n", *priority)
+	}
+	if len(dependencies) != 0 {
+		fmt.Fprintf(&out, "depends_on: %s\n", strings.Join(dependencies, ", "))
+	}
+	out.WriteString("---\n")
+	fmt.Fprintf(&out, "# %s\n\n%s\n", title, title)
+	return out.String()
+}
+
+func writeAutonomousSchedulingTask(t *testing.T, env testEnv, id string, lifecycle autonomous.LifecycleState) {
+	t.Helper()
+	writeRunTaskFile(t, env, "020-"+id+".md", fmt.Sprintf(`---
+id: %s
+status: pending
+workflow: autonomous-v1
+autonomous_state_path: .revolvr/autonomous/tasks/%s/state.json
+priority: 50
+---
+# Autonomous Dependency
+
+Wait for supervisor input.
+`, id, id))
+	state := autonomous.ExecutionState{
+		SchemaVersion: autonomous.ExecutionStateSchemaVersion,
+		TaskID:        id,
+		Lifecycle:     lifecycle,
+		Attempts: autonomous.AttemptState{
+			RetryBudget:       autonomous.CountBudget{Mode: autonomous.BudgetModeUnset},
+			ElapsedTimeBudget: autonomous.DurationBudget{Mode: autonomous.BudgetModeUnset},
+			TokenBudget:       autonomous.CountBudget{Mode: autonomous.BudgetModeUnset},
+		},
+	}
+	if lifecycle == autonomous.LifecycleStateNeedsInput {
+		state.NeedsInput = &autonomous.NeedsInputDetail{Reason: "operator decision required"}
+	}
+	raw, err := autonomousstate.MarshalState(state)
+	if err != nil {
+		t.Fatalf("marshal autonomous scheduling state: %v", err)
+	}
+	statePath := filepath.Join(env.workDir, ".revolvr", "autonomous", "tasks", id, "state.json")
+	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
+		t.Fatalf("create autonomous scheduling state directory: %v", err)
+	}
+	if err := os.WriteFile(statePath, raw, 0o644); err != nil {
+		t.Fatalf("write autonomous scheduling state: %v", err)
+	}
+}
+
+func scheduleTaskResult(t *testing.T, result taskscheduler.Result, taskID string) taskscheduler.TaskReadiness {
+	t.Helper()
+	for _, task := range result.Tasks {
+		if task.TaskID == taskID {
+			return task
+		}
+	}
+	t.Fatalf("schedule task %q not found in %#v", taskID, result.Tasks)
+	return taskscheduler.TaskReadiness{}
 }
 
 func ptrInt(value int) *int {

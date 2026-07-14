@@ -19,6 +19,7 @@ import (
 	"revolvr/internal/autonomousarchive"
 	"revolvr/internal/autonomousdaemon"
 	"revolvr/internal/autonomousmetrics"
+	"revolvr/internal/autonomousmigration"
 	"revolvr/internal/autonomousnotification"
 	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoustaskrun"
@@ -30,6 +31,7 @@ import (
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 	tuiapp "revolvr/internal/tui"
 )
 
@@ -50,6 +52,9 @@ type Options struct {
 	PlanArtifactGC       ArtifactGCPlanFunc
 	ApplyArtifactGC      ArtifactGCApplyFunc
 	ResumeArtifactGC     ArtifactGCResumeFunc
+	FulfillCheckpoint    CheckpointFulfillFunc
+	PlanTaskMigration    MigrationPlanFunc
+	ApplyTaskMigration   MigrationApplyFunc
 }
 
 type TaskRunFunc func(context.Context, app.Config, app.TaskRunInput) (autonomoustaskrun.Result, error)
@@ -58,6 +63,9 @@ type DaemonRunFunc func(context.Context, app.Config, app.DaemonInput) (autonomou
 type ArtifactGCPlanFunc func(context.Context, app.Config, app.GCPlanInput) (artifactretention.Plan, error)
 type ArtifactGCApplyFunc func(context.Context, app.Config, app.GCApplyInput) (artifactretention.ApplyResult, error)
 type ArtifactGCResumeFunc func(context.Context, app.Config, string) (artifactretention.ApplyResult, error)
+type CheckpointFulfillFunc func(context.Context, app.Config, app.FulfillCheckpointInput) (app.FulfillCheckpointResult, error)
+type MigrationPlanFunc func(context.Context, app.Config, app.MigrationPlanInput) (autonomousmigration.Plan, error)
+type MigrationApplyFunc func(context.Context, app.Config, app.MigrationPlanInput) (autonomousmigration.ApplyResult, error)
 
 type RunOnceFunc = app.RunOnceRunner
 type TUIRunFunc func(context.Context, app.StatusResult, tuiapp.RunOptions) error
@@ -91,6 +99,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(
 		newInitCommand(opts),
 		newTaskCommand(opts),
+		newCheckpointCommand(opts),
 		newArchiveCommand(opts),
 		newArtifactCommand(opts),
 		newLedgerCommand(opts),
@@ -106,6 +115,47 @@ func NewRootCommand(opts Options) *cobra.Command {
 	)
 
 	return root
+}
+
+func newCheckpointCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "checkpoint",
+		Short: "Manage pre-authored operator checkpoints",
+		Args:  cobra.NoArgs,
+		RunE:  runHelp,
+	}
+	cmd.AddCommand(newCheckpointFulfillCommand(opts))
+	return cmd
+}
+
+func newCheckpointFulfillCommand(opts Options) *cobra.Command {
+	runner := opts.FulfillCheckpoint
+	if runner == nil {
+		runner = app.FulfillCheckpoint
+	}
+	var receiptPath, operator string
+	cmd := &cobra.Command{
+		Use:   "fulfill <task-id>",
+		Short: "Bind accepted operator evidence to a checkpoint",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.FulfillCheckpointInput{
+				TaskID: args[0], ReceiptPath: receiptPath, Operator: operator,
+			})
+			if err != nil {
+				return err
+			}
+			state := "fulfilled"
+			if result.Replayed {
+				state = "already fulfilled"
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Checkpoint %s %s: receipt=%s sha256=%s\n", result.Task.ID, state, result.ReceiptPath, result.ReceiptSHA256)
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&receiptPath, "receipt", "", "canonical repository-relative receipt path")
+	cmd.Flags().StringVar(&operator, "operator", "", "operator identity recorded in the receipt")
+	return cmd
 }
 
 func newMetricsCommand(opts Options) *cobra.Command {
@@ -581,6 +631,7 @@ func newTaskCommand(opts Options) *cobra.Command {
 	cmd.AddCommand(
 		newTaskAddCommand(opts),
 		newTaskImportCommand(opts),
+		newTaskMigrateCommand(opts),
 		newTaskListCommand(opts),
 		newTaskShowCommand(opts),
 		newTaskWhyCommand(opts),
@@ -588,6 +639,74 @@ func newTaskCommand(opts Options) *cobra.Command {
 		newTaskUnblockCommand(opts),
 	)
 	return cmd
+}
+
+func newTaskMigrateCommand(opts Options) *cobra.Command {
+	planner := opts.PlanTaskMigration
+	if planner == nil {
+		planner = app.PlanTaskMigration
+	}
+	applier := opts.ApplyTaskMigration
+	if applier == nil {
+		applier = app.ApplyTaskMigration
+	}
+	var target string
+	var all, dryRun bool
+	cmd := &cobra.Command{
+		Use:   "migrate [task-id...]",
+		Short: "Migrate mixed-pass tasks to autonomous-v1",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			input := app.MigrationPlanInput{
+				TargetWorkflow: target, TaskIDs: append([]string(nil), args...), All: all, DryRun: dryRun,
+			}
+			if dryRun {
+				plan, err := planner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, input)
+				if err != nil {
+					return err
+				}
+				return writeMigrationPlan(cmd.OutOrStdout(), plan)
+			}
+			result, err := applier(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, input)
+			if err != nil {
+				return err
+			}
+			return writeMigrationResult(cmd.OutOrStdout(), result)
+		},
+	}
+	cmd.Flags().StringVar(&target, "to", "", "target workflow (autonomous-v1)")
+	cmd.Flags().BoolVar(&all, "all", false, "migrate every active mixed-pass-v1 task as one batch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show the deterministic plan without writing files")
+	_ = cmd.MarkFlagRequired("to")
+	return cmd
+}
+
+func writeMigrationResult(out io.Writer, result autonomousmigration.ApplyResult) error {
+	disposition := "applied"
+	if result.Replayed {
+		disposition = "replayed"
+	}
+	_, err := fmt.Fprintf(out, "Autonomous migration %s: %d task(s).\nOperation: %s\nStage: %s\n", disposition, len(result.Plan.Entries), result.OperationID, result.Stage)
+	return err
+}
+
+func writeMigrationPlan(out io.Writer, plan autonomousmigration.Plan) error {
+	mode := "plan-only"
+	if plan.DryRun {
+		mode = "dry-run"
+	}
+	if _, err := fmt.Fprintf(out, "Autonomous migration %s: %d task(s); no files written.\nSchema: %s\nTarget: %s\n", mode, len(plan.Entries), plan.SchemaVersion, plan.TargetWorkflow); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(out, "TASK ID\tSOURCE\tSOURCE SHA-256\tPROJECTED SHA-256\tSTATE PATH\tSTATE SHA-256\n"); err != nil {
+		return err
+	}
+	for _, entry := range plan.Entries {
+		if _, err := fmt.Fprintf(out, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.TaskID, entry.SourcePath, entry.SourceSHA256, entry.ProjectedSHA256, entry.AutonomousStatePath, entry.StateSHA256); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func newTaskShowCommand(opts Options) *cobra.Command {
@@ -925,23 +1044,30 @@ func newTaskListCommand(opts Options) *cobra.Command {
 				_, err = fmt.Fprint(cmd.OutOrStdout(), "No tasks.\n")
 				return err
 			}
-			if _, err := fmt.Fprint(cmd.OutOrStdout(), "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tDEPENDS_ON\tTAGS\tCONFLICTS\tPARENT\tTASK\tSUMMARY\n"); err != nil {
+			if _, err := fmt.Fprint(cmd.OutOrStdout(), "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tSELECTED\tREADINESS\tWAITING_ON\tCONFLICT_BLOCKERS\tDIAGNOSTICS\tDEPENDS_ON\tTAGS\tCONFLICTS\tPARENT\tTASK\tSUMMARY\tCHECKPOINT\tCHECKPOINT_RECEIPT\n"); err != nil {
 				return err
 			}
 			for _, task := range tasks {
-				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 					task.ID,
 					task.Status,
 					task.Workflow,
 					task.Phase,
 					task.RunProfile,
 					task.NextState,
+					taskSelectedWorkflows(task),
+					task.ReadinessReason,
+					strings.Join(task.WaitingDependencyIDs, ","),
+					strings.Join(task.ConflictBlockers, ","),
+					taskSchedulingDiagnostics(task),
 					strings.Join(task.DependsOn, ","),
 					strings.Join(task.Tags, ","),
 					strings.Join(task.Conflicts, ","),
 					task.ParentTaskID,
 					oneLine(task.Task),
 					oneLine(task.Summary),
+					task.CheckpointState,
+					task.CheckpointReceiptPath,
 				); err != nil {
 					return err
 				}
@@ -1310,7 +1436,7 @@ func newStatusCommand(opts Options) *cobra.Command {
 				_, err = fmt.Fprint(cmd.OutOrStdout(), "Not initialized. Run `revolvr init` first.\n")
 				return err
 			}
-			return writeStatus(cmd.OutOrStdout(), status.Tasks, status.RecentRuns, status.LatestEvents)
+			return writeStatus(cmd.OutOrStdout(), status.Tasks, status.Schedule, status.RecentRuns, status.LatestEvents)
 		},
 	}
 }
@@ -1496,7 +1622,7 @@ type taskCounts struct {
 	completed int
 }
 
-func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run, latestEvents []ledger.Event) error {
+func writeStatus(out io.Writer, tasks []taskmodel.Task, schedule taskscheduler.Result, recentRuns []ledger.Run, latestEvents []ledger.Event) error {
 	counts := countTasks(tasks)
 	if _, err := fmt.Fprintf(out, "Total tasks: %d\n", counts.total); err != nil {
 		return err
@@ -1510,10 +1636,16 @@ func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run,
 	if _, err := fmt.Fprintf(out, "Completed tasks: %d\n", counts.completed); err != nil {
 		return err
 	}
+	if err := writeCheckpointStatus(out, tasks); err != nil {
+		return err
+	}
 	if err := writeNextTaskStatus(out, tasks); err != nil {
 		return err
 	}
 	if err := writeNextAutonomousStatus(out, tasks); err != nil {
+		return err
+	}
+	if err := writeSchedulingStatus(out, tasks, schedule); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(out, "Recent runs: %d\n", len(recentRuns)); err != nil {
@@ -1524,6 +1656,23 @@ func writeStatus(out io.Writer, tasks []taskmodel.Task, recentRuns []ledger.Run,
 		return err
 	}
 	return writeLatestRunStatus(out, recentRuns[0], latestEvents)
+}
+
+func writeCheckpointStatus(out io.Writer, tasks []taskmodel.Task) error {
+	for _, task := range tasks {
+		if task.Workflow != taskfile.WorkflowOperatorCheckpointV1 {
+			continue
+		}
+		if _, err := fmt.Fprintf(out, "Operator checkpoint: %s state=%s receipt=%s sha256=%s\n",
+			optionalStatusValue(task.ID),
+			optionalStatusValue(task.CheckpointState),
+			optionalStatusValue(task.CheckpointReceiptPath),
+			optionalStatusValue(task.CheckpointReceiptSHA),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeNextAutonomousStatus(out io.Writer, tasks []taskmodel.Task) error {
@@ -1548,13 +1697,49 @@ func writeNextTaskStatus(out io.Writer, tasks []taskmodel.Task) error {
 			return writeNextTask(out, task)
 		}
 	}
+	_, err := fmt.Fprint(out, "Next task: none\n")
+	return err
+}
+
+func writeSchedulingStatus(out io.Writer, tasks []taskmodel.Task, schedule taskscheduler.Result) error {
 	for _, task := range tasks {
-		if task.Status != taskmodel.StatusPending {
+		if task.Status != taskmodel.StatusPending || task.ReadinessReason == "" || task.Readiness == taskscheduler.ReasonReady {
 			continue
 		}
-		return writeNextTask(out, task)
+		if _, err := fmt.Fprintf(out, "Task readiness: %s reason=%s waiting_on=%s conflict_blockers=%s\n",
+			optionalStatusValue(task.ID),
+			optionalStatusValue(task.ReadinessReason),
+			optionalStatusValue(strings.Join(task.WaitingDependencyIDs, ",")),
+			optionalStatusValue(strings.Join(task.ConflictBlockers, ",")),
+		); err != nil {
+			return err
+		}
+	}
+	for _, diagnostic := range schedule.InvalidGraph {
+		if _, err := fmt.Fprintf(out, "Scheduling diagnostic: %s: %s\n", diagnostic.Code, oneLine(diagnostic.Detail)); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func taskSelectedWorkflows(task taskmodel.Task) string {
+	selected := make([]string, 0, 2)
+	if task.NextRunnable {
+		selected = append(selected, "mixed-pass-v1")
+	}
+	if task.NextAutonomous {
+		selected = append(selected, "autonomous-v1")
+	}
+	return strings.Join(selected, ",")
+}
+
+func taskSchedulingDiagnostics(task taskmodel.Task) string {
+	diagnostics := make([]string, 0, len(task.SchedulingDiagnostics))
+	for _, diagnostic := range task.SchedulingDiagnostics {
+		diagnostics = append(diagnostics, fmt.Sprintf("%s: %s", diagnostic.Code, oneLine(diagnostic.Detail)))
+	}
+	return strings.Join(diagnostics, "; ")
 }
 
 func writeNextTask(out io.Writer, task taskmodel.Task) error {

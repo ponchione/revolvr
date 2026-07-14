@@ -16,6 +16,8 @@ import (
 	"revolvr/internal/autonomousarchive"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/autonomousview"
+	"revolvr/internal/taskfile"
+	"revolvr/internal/taskscheduler"
 )
 
 func TestShowAutonomousTaskActiveIsReadOnlyAndDegradesMalformedOptionalHistory(t *testing.T) {
@@ -50,6 +52,55 @@ func TestShowAutonomousTaskActiveIsReadOnlyAndDegradesMalformedOptionalHistory(t
 	}
 	if _, err := os.Stat(filepath.Join(root, ".revolvr", "cache", "dossier")); !os.IsNotExist(err) {
 		t.Fatalf("dossier cache was created: %v", err)
+	}
+}
+
+func TestProjectScheduledReadinessUsesSharedArchiveEvidence(t *testing.T) {
+	task := taskfile.Task{ID: "dependent", Workflow: taskfile.WorkflowAutonomousV1, Status: taskfile.StatusPending, SourcePath: ".agent/tasks/dependent.md"}
+	taskInput := taskscheduler.Task{ID: task.ID, Workflow: taskscheduler.WorkflowAutonomousV1, State: taskscheduler.StatePending, SourcePath: task.SourcePath, DependsOn: []string{"archived"}}
+	tests := []struct {
+		name        string
+		archive     taskscheduler.Archive
+		wantReason  taskscheduler.Reason
+		wantWhy     string
+		wantInvalid bool
+	}{
+		{name: "completed", archive: taskscheduler.Archive{TaskID: "archived", ArchiveID: "archive-completed", Disposition: taskscheduler.StateCompleted, Verified: true, Reconciled: true}, wantReason: taskscheduler.ReasonReady, wantWhy: "scheduler_selected_next"},
+		{name: "cancelled", archive: taskscheduler.Archive{TaskID: "archived", ArchiveID: "archive-cancelled", Disposition: taskscheduler.StateCancelled, Reason: "operator cancelled", Verified: true, Reconciled: true}, wantReason: taskscheduler.ReasonTerminalUnsatisfiedDependency, wantWhy: string(taskscheduler.ReasonTerminalUnsatisfiedDependency)},
+		{name: "abandoned", archive: taskscheduler.Archive{TaskID: "archived", ArchiveID: "archive-abandoned", Disposition: taskscheduler.StateAbandoned, Reason: "operator abandoned", Verified: true, Reconciled: true}, wantReason: taskscheduler.ReasonTerminalUnsatisfiedDependency, wantWhy: string(taskscheduler.ReasonTerminalUnsatisfiedDependency)},
+		{name: "superseded", archive: taskscheduler.Archive{TaskID: "archived", ArchiveID: "archive-superseded", Disposition: taskscheduler.StateSuperseded, Reason: "operator superseded", Verified: true, Reconciled: true}, wantReason: taskscheduler.ReasonTerminalUnsatisfiedDependency, wantWhy: string(taskscheduler.ReasonTerminalUnsatisfiedDependency)},
+		{name: "unverified", archive: taskscheduler.Archive{TaskID: "archived", ArchiveID: "archive-unverified", Disposition: taskscheduler.StateCompleted}, wantReason: taskscheduler.ReasonInvalidGraph, wantWhy: "scheduler_not_ready", wantInvalid: true},
+		{name: "malformed disposition", archive: taskscheduler.Archive{TaskID: "archived", ArchiveID: "archive-malformed", Disposition: "expired", Verified: true, Reconciled: true}, wantReason: taskscheduler.ReasonInvalidGraph, wantWhy: "scheduler_not_ready", wantInvalid: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := taskscheduler.Evaluate(taskscheduler.Input{Tasks: []taskscheduler.Task{taskInput}, Archives: []taskscheduler.Archive{tt.archive}, SelectionWorkflow: taskscheduler.WorkflowAutonomousV1})
+			reason, why, diagnostics, err := projectScheduledReadiness(task, result, nil)
+			if err != nil || reason != string(tt.wantReason) || !hasWhyReason(why, tt.wantWhy) {
+				t.Fatalf("reason=%q why=%+v diagnostics=%+v err=%v", reason, why, diagnostics, err)
+			}
+			if tt.wantInvalid != hasDiagnostic(diagnostics, string(taskscheduler.DiagnosticMalformedArchive)) {
+				t.Fatalf("diagnostics=%+v want malformed=%t", diagnostics, tt.wantInvalid)
+			}
+		})
+	}
+}
+
+func TestProjectScheduledReadinessReportsExactSharedSelectedIdentity(t *testing.T) {
+	viewed := taskfile.Task{ID: "second", Workflow: taskfile.WorkflowAutonomousV1, Status: taskfile.StatusPending, SourcePath: ".agent/tasks/second.md"}
+	result := taskscheduler.Evaluate(taskscheduler.Input{
+		Tasks: []taskscheduler.Task{
+			{ID: "second", Workflow: taskscheduler.WorkflowAutonomousV1, State: taskscheduler.StatePending, SourcePath: viewed.SourcePath, HasPriority: true, Priority: 2},
+			{ID: "first", Workflow: taskscheduler.WorkflowAutonomousV1, State: taskscheduler.StatePending, SourcePath: ".agent/tasks/first.md", HasPriority: true, Priority: 1},
+		},
+		SelectionWorkflow: taskscheduler.WorkflowAutonomousV1,
+	})
+	reason, why, diagnostics, err := projectScheduledReadiness(viewed, result, nil)
+	if err != nil || reason != string(taskscheduler.ReasonReady) || !hasWhyReason(why, "scheduler_ready_not_selected") || len(diagnostics) != 0 {
+		t.Fatalf("reason=%q why=%+v diagnostics=%+v err=%v", reason, why, diagnostics, err)
+	}
+	if !strings.Contains(why[0].Text, "first") {
+		t.Fatalf("why=%+v, want selected task identity", why)
 	}
 }
 
@@ -253,6 +304,15 @@ func snapshotTree(t *testing.T, root string) map[string]treeFact {
 	return result
 }
 func hasDiagnostic(values []autonomousview.Diagnostic, code string) bool {
+	for _, item := range values {
+		if item.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func hasWhyReason(values []autonomousview.WhyReason, code string) bool {
 	for _, item := range values {
 		if item.Code == code {
 			return true

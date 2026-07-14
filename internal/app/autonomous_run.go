@@ -42,6 +42,7 @@ import (
 	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
+	"revolvr/internal/taskscheduler"
 )
 
 type TaskRunInput struct {
@@ -138,7 +139,7 @@ func runTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 			if classifyErr != nil {
 				return autonomoustaskrun.Result{}, classifyErr
 			}
-			if node.Reason != autonomousscheduler.ReasonReady {
+			if node.Reason != taskscheduler.ReasonReady {
 				return autonomoustaskrun.Result{}, fmt.Errorf("autonomous task %q is not ready: %s (dependencies=%v conflicts=%v)", taskID, node.Reason, node.WaitingOn, node.Conflicts)
 			}
 		}
@@ -409,10 +410,14 @@ func verifiedSchedulingArchives(ctx context.Context, root string, cfg runonce.Co
 		if verifyErr != nil {
 			return nil, verifyErr
 		}
-		if !report.Passed {
-			return nil, fmt.Errorf("scheduler: archived dependency authority %q failed verification", entry.Manifest.TaskID)
-		}
-		result = append(result, autonomousscheduler.ArchiveEvidence{TaskID: entry.Manifest.TaskID, ArchiveID: entry.Manifest.ArchiveID, Disposition: string(entry.Manifest.Disposition), Verified: true, Reconciled: true})
+		result = append(result, autonomousscheduler.ArchiveEvidence{
+			TaskID:      entry.Manifest.TaskID,
+			ArchiveID:   entry.Manifest.ArchiveID,
+			Disposition: string(entry.Manifest.Disposition),
+			Reason:      entry.Manifest.Reason,
+			Verified:    report.Passed,
+			Reconciled:  report.Passed,
+		})
 	}
 	return result, nil
 }

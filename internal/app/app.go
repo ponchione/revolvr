@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/ledger"
 	"revolvr/internal/passpolicy"
 	"revolvr/internal/receipt"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskimport"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 )
 
 const (
@@ -70,6 +70,7 @@ type ImportedTask struct {
 type StatusResult struct {
 	Initialized  bool
 	Tasks        []taskmodel.Task
+	Schedule     taskscheduler.Result
 	RecentRuns   []ledger.Run
 	LatestEvents []ledger.Event
 }
@@ -172,7 +173,13 @@ func ListTasks(ctx context.Context, cfg Config) ([]taskmodel.Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	return listTaskFilesAsTasks(paths.WorkDir)
+	runs, closeRuns, err := openSchedulingLedger(ctx, paths)
+	if err != nil {
+		return nil, err
+	}
+	defer closeRuns()
+	tasks, _, err := listTaskFilesAsTasks(ctx, paths.WorkDir, runs)
+	return tasks, err
 }
 
 func RetryTask(ctx context.Context, cfg Config, taskID string) (taskmodel.Task, error) {
@@ -196,16 +203,15 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 		return StatusResult{Initialized: false}, nil
 	}
 
-	taskList, err := listTaskFilesAsTasks(paths.WorkDir)
-	if err != nil {
-		return StatusResult{}, err
-	}
-
 	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
 	if err != nil {
 		return StatusResult{}, err
 	}
 	defer runs.Close()
+	taskList, schedule, err := listTaskFilesAsTasks(ctx, paths.WorkDir, runs)
+	if err != nil {
+		return StatusResult{}, err
+	}
 
 	limit := cfg.RecentRunsLimit
 	if limit <= 0 {
@@ -230,100 +236,89 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 	return StatusResult{
 		Initialized:  true,
 		Tasks:        taskList,
+		Schedule:     schedule,
 		RecentRuns:   recentRuns,
 		LatestEvents: latestEvents,
 	}, nil
 }
 
-func listTaskFilesAsTasks(workDir string) ([]taskmodel.Task, error) {
-	tasks, err := taskfile.List(workDir)
+func listTaskFilesAsTasks(ctx context.Context, workDir string, runs *ledger.Store) ([]taskmodel.Task, taskscheduler.Result, error) {
+	snapshot, err := loadTaskSchedule(ctx, workDir, runs)
 	if err != nil {
-		return nil, err
+		return nil, taskscheduler.Result{}, err
 	}
-
-	result := make([]taskmodel.Task, 0, len(tasks))
-	nextRunnable := nextRunnableTaskIndex(tasks)
-	for i, task := range tasks {
+	mixedSelected, hasMixedSelected := snapshot.Result.SelectedForWorkflow(taskscheduler.WorkflowMixedPassV1)
+	autonomousSelected, hasAutonomousSelected := snapshot.Result.SelectedForWorkflow(taskscheduler.WorkflowAutonomousV1)
+	result := make([]taskmodel.Task, 0, len(snapshot.Tasks))
+	for _, task := range snapshot.Tasks {
 		adapted, err := taskFromFileTask(task)
 		if err != nil {
-			return nil, err
+			return nil, taskscheduler.Result{}, err
 		}
-		adapted.NextRunnable = i == nextRunnable
+		readiness, found := snapshot.Readiness(task)
+		if !found {
+			return nil, taskscheduler.Result{}, fmt.Errorf("task schedule omitted canonical task %q at %s", task.ID, task.SourcePath)
+		}
+		adapted.Readiness = readiness.Reason
+		adapted.ReadinessReason = string(readiness.Reason)
+		if task.Workflow == taskfile.WorkflowOperatorCheckpointV1 {
+			switch {
+			case task.Status == taskfile.StatusPending:
+				adapted.CheckpointState = taskmodel.CheckpointStateAwaiting
+			case readiness.Reason == taskscheduler.ReasonCompleted:
+				adapted.CheckpointState = taskmodel.CheckpointStateFulfilled
+			default:
+				adapted.CheckpointState = taskmodel.CheckpointStateInvalid
+			}
+		}
+		adapted.WaitingDependencyIDs = append([]string(nil), readiness.UnmetDependencyIDs...)
+		adapted.DependencyIssues = append([]taskscheduler.DependencyIssue(nil), readiness.DependencyIssues...)
+		adapted.ConflictBlockers = append([]string(nil), readiness.ConflictingTaskOrKeys...)
+		adapted.SchedulingDiagnostics = cloneSchedulingDiagnostics(snapshot.Result.InvalidGraph)
+		adapted.NextRunnable = hasMixedSelected && readiness.TaskID == mixedSelected.TaskID && readiness.SourcePath == mixedSelected.SourcePath
+		adapted.NextAutonomous = hasAutonomousSelected && readiness.TaskID == autonomousSelected.TaskID && readiness.SourcePath == autonomousSelected.SourcePath
+		adapted.SelectedNext = snapshot.Result.SelectedNext != nil && readiness.TaskID == snapshot.Result.SelectedNext.TaskID && readiness.SourcePath == snapshot.Result.SelectedNext.SourcePath
+		adapted.AutonomousReady = task.Workflow == taskfile.WorkflowAutonomousV1 && readiness.Reason == taskscheduler.ReasonReady
 		result = append(result, adapted)
 	}
-	hasAutonomous := false
-	for _, task := range tasks {
-		hasAutonomous = hasAutonomous || task.Workflow == taskfile.WorkflowAutonomousV1
-	}
-	if hasAutonomous {
-		runCfg, err := LoadRunOnceConfig(workDir, DefaultRunOnceConfig(workDir))
-		if err != nil {
-			return nil, err
-		}
-		archives, err := verifiedSchedulingArchives(context.Background(), workDir, runCfg)
-		if err != nil {
-			return nil, err
-		}
-		active, err := autonomousscheduler.LoadActive(context.Background(), workDir)
-		if err != nil {
-			return nil, err
-		}
-		graph, err := autonomousscheduler.BuildSnapshot(active, archives)
-		if err != nil {
-			return nil, err
-		}
-		selected := autonomousscheduler.SelectNextReady(graph, nil)
-		for i := range result {
-			if result[i].Workflow != taskfile.WorkflowAutonomousV1 {
-				continue
-			}
-			node, classifyErr := autonomousscheduler.ClassifyTask(graph, result[i].ID, nil)
-			if classifyErr != nil {
-				return nil, classifyErr
-			}
-			result[i].AutonomousReady = node.Reason == autonomousscheduler.ReasonReady
-			result[i].ReadinessReason = string(node.Reason)
-			result[i].NextAutonomous = selected.Found && selected.Task.ID == result[i].ID
-		}
-	}
-	return result, nil
+	return result, snapshot.Result, nil
 }
 
-func nextRunnableTaskIndex(tasks []taskfile.Task) int {
-	next := -1
-	for i, task := range tasks {
-		if task.Status != taskfile.StatusPending || task.Workflow != taskfile.WorkflowMixedPassV1 {
-			continue
-		}
-		if next == -1 || taskRunsBefore(task, tasks[next]) {
-			next = i
-		}
+func openSchedulingLedger(ctx context.Context, paths statePaths) (*ledger.Store, func(), error) {
+	initialized, err := ledgerInitialized(paths)
+	if err != nil || !initialized {
+		return nil, func() {}, err
 	}
-	return next
+	runs, err := ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return runs, func() { _ = runs.Close() }, nil
 }
 
-func taskRunsBefore(left taskfile.Task, right taskfile.Task) bool {
-	if left.HasPriority && right.HasPriority && left.Priority != right.Priority {
-		return left.Priority < right.Priority
+func cloneSchedulingDiagnostics(input []taskscheduler.Diagnostic) []taskscheduler.Diagnostic {
+	result := make([]taskscheduler.Diagnostic, len(input))
+	for i, diagnostic := range input {
+		diagnostic.Cycle = append([]string(nil), diagnostic.Cycle...)
+		result[i] = diagnostic
 	}
-	if left.HasPriority != right.HasPriority {
-		return left.HasPriority
-	}
-	return filepath.Base(left.SourcePath) < filepath.Base(right.SourcePath)
+	return result
 }
 
 func taskFromFileTask(task taskfile.Task) (taskmodel.Task, error) {
-	if task.Workflow == taskfile.WorkflowAutonomousV1 {
+	if task.Workflow == taskfile.WorkflowAutonomousV1 || task.Workflow == taskfile.WorkflowOperatorCheckpointV1 {
 		return taskmodel.Task{
-			ID:           task.ID,
-			Task:         task.ContextBody,
-			Status:       task.Status,
-			Summary:      task.Title,
-			Workflow:     task.Workflow,
-			DependsOn:    append([]string(nil), task.DependsOn...),
-			Tags:         append([]string(nil), task.Tags...),
-			Conflicts:    append([]string(nil), task.Conflicts...),
-			ParentTaskID: task.ParentTaskID,
+			ID:                    task.ID,
+			Task:                  task.ContextBody,
+			Status:                task.Status,
+			Summary:               task.Title,
+			Workflow:              task.Workflow,
+			DependsOn:             append([]string(nil), task.DependsOn...),
+			Tags:                  append([]string(nil), task.Tags...),
+			Conflicts:             append([]string(nil), task.Conflicts...),
+			ParentTaskID:          task.ParentTaskID,
+			CheckpointReceiptPath: task.CheckpointReceiptPath,
+			CheckpointReceiptSHA:  task.CheckpointReceiptSHA256,
 		}, nil
 	}
 	policy, err := passpolicy.Lookup(task.Workflow, task.Phase)

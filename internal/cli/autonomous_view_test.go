@@ -25,6 +25,7 @@ func TestTaskWhyActiveByteStable(t *testing.T) {
 		"Currently admitted action: none\n" +
 		"Scheduler readiness: ready\n" +
 		"Next supervisor action: undetermined_requires_supervisor\n" +
+		"- scheduler_selected_next: Shared ready ordering selects this task as the next autonomous task.\n" +
 		"- plan_incomplete: The current durable plan still has nonterminal steps.\n" +
 		"- acceptance_pending: 1 acceptance criterion/criteria remain pending.\n" +
 		"- verification_unavailable: Current verification evidence is not available in the bounded snapshot.\n" +

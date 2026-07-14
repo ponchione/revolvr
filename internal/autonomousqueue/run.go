@@ -14,6 +14,7 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
+	"revolvr/internal/taskscheduler"
 )
 
 type Snapshot struct {
@@ -437,15 +438,18 @@ func eligible(nodes []autonomousscheduler.Node, exclusions []Exclusion) ([]auton
 	var ready []autonomousscheduler.Node
 	var waiting []string
 	for _, node := range nodes {
-		if node.Task.Workflow == taskfile.WorkflowAutonomousV1 && node.Lifecycle == "needs_input" {
-			waiting = append(waiting, node.Task.ID+":"+string(autonomousscheduler.ReasonNeedsInput))
+		if node.Task.Workflow != taskfile.WorkflowAutonomousV1 {
 			continue
 		}
-		if node.Task.Workflow == taskfile.WorkflowAutonomousV1 && (node.Task.Status == taskfile.StatusBlocked || node.Lifecycle == taskfile.StatusBlocked) {
-			waiting = append(waiting, node.Task.ID+":blocked")
+		if node.Reason == taskscheduler.ReasonNeedsInput {
+			waiting = append(waiting, node.Task.ID+":"+string(taskscheduler.ReasonNeedsInput))
 			continue
 		}
-		if node.Reason == autonomousscheduler.ReasonReady {
+		if node.Reason == taskscheduler.ReasonBlocked {
+			waiting = append(waiting, node.Task.ID+":"+string(taskscheduler.ReasonBlocked))
+			continue
+		}
+		if node.Reason == taskscheduler.ReasonReady {
 			if excluded[node.Task.ID] != nodeAuthority(node) {
 				ready = append(ready, node)
 			} else {
@@ -453,7 +457,7 @@ func eligible(nodes []autonomousscheduler.Node, exclusions []Exclusion) ([]auton
 			}
 			continue
 		}
-		if node.Task.Workflow == taskfile.WorkflowAutonomousV1 && node.Task.Status != taskfile.StatusCompleted {
+		if node.Task.Status != taskfile.StatusCompleted {
 			waiting = append(waiting, node.Task.ID+":"+string(node.Reason))
 		}
 	}
@@ -481,13 +485,13 @@ func classifyEmpty(nodes []autonomousscheduler.Node) StopReason {
 		if node.Task.Workflow != taskfile.WorkflowAutonomousV1 {
 			continue
 		}
-		if node.Lifecycle == "needs_input" {
+		if node.Reason == taskscheduler.ReasonNeedsInput {
 			input = true
 		}
-		if node.Task.Status == taskfile.StatusBlocked || node.Lifecycle == taskfile.StatusBlocked {
+		if node.Reason == taskscheduler.ReasonBlocked {
 			blocked = true
 		}
-		if node.Task.Status == taskfile.StatusPending && node.Lifecycle != "completed" {
+		if node.Task.Status == taskfile.StatusPending && node.Reason != taskscheduler.ReasonCompleted {
 			pending = true
 		}
 	}

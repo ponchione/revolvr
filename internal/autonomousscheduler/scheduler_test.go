@@ -1,109 +1,178 @@
 package autonomousscheduler
 
 import (
+	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
 	"revolvr/internal/taskfile"
+	"revolvr/internal/taskscheduler"
 )
 
-func task(id string, priority int, deps ...string) ActiveTask {
-	return ActiveTask{Task: taskfile.Task{ID: id, Title: id, Status: taskfile.StatusPending, Workflow: taskfile.WorkflowAutonomousV1, HasPriority: true, Priority: priority, DependsOn: deps, SourcePath: ".agent/tasks/" + id + ".md"}, Lifecycle: "pending"}
+func task(id string, priority int, dependencies ...string) ActiveTask {
+	return ActiveTask{Task: taskfile.Task{ID: id, Title: id, Status: taskfile.StatusPending, Workflow: taskfile.WorkflowAutonomousV1, HasPriority: true, Priority: priority, DependsOn: dependencies, SourcePath: ".agent/tasks/" + id + ".md"}, Lifecycle: "pending"}
 }
 
-func TestDependencyDAGAndDeterministicPrioritySelection(t *testing.T) {
-	a := task("a", 5)
-	a.Task.Status = taskfile.StatusCompleted
-	b := task("b", 2, "a")
-	c := task("c", 1, "a")
-	d := task("d", 0, "b", "c")
-	g, err := BuildSnapshot([]ActiveTask{d, b, a, c}, nil)
+func TestAdapterUsesSharedDependencyStateSemantics(t *testing.T) {
+	tests := []struct {
+		name, lifecycle, status string
+		want                    taskscheduler.Reason
+	}{
+		{name: "pending", lifecycle: "pending", status: taskfile.StatusPending, want: taskscheduler.ReasonWaitingDependency},
+		{name: "completed", lifecycle: "completed", status: taskfile.StatusCompleted, want: taskscheduler.ReasonReady},
+		{name: "running", lifecycle: "working", status: taskfile.StatusPending, want: taskscheduler.ReasonWaitingDependency},
+		{name: "blocked", lifecycle: "blocked", status: taskfile.StatusBlocked, want: taskscheduler.ReasonBlockedDependency},
+		{name: "needs input", lifecycle: "needs_input", status: taskfile.StatusPending, want: taskscheduler.ReasonNeedsInputDependency},
+		{name: "cancelled", lifecycle: "cancelled", status: taskfile.StatusCancelled, want: taskscheduler.ReasonTerminalUnsatisfiedDependency},
+		{name: "abandoned", lifecycle: "abandoned", status: taskfile.StatusAbandoned, want: taskscheduler.ReasonTerminalUnsatisfiedDependency},
+		{name: "superseded", lifecycle: "superseded", status: taskfile.StatusSuperseded, want: taskscheduler.ReasonTerminalUnsatisfiedDependency},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dependency := task("dependency", 50)
+			dependency.Lifecycle, dependency.Task.Status = tt.lifecycle, tt.status
+			graph, err := BuildSnapshot([]ActiveTask{task("dependent", 1, "dependency"), dependency}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			node, err := ClassifyTask(graph, "dependent", nil)
+			if err != nil || node.Reason != tt.want {
+				t.Fatalf("node=%+v err=%v, want reason %s", node, err, tt.want)
+			}
+			if tt.want == taskscheduler.ReasonReady {
+				if len(node.WaitingOn) != 0 {
+					t.Fatalf("completed dependency remained waiting: %+v", node)
+				}
+			} else if !reflect.DeepEqual(node.WaitingOn, []string{"dependency"}) {
+				t.Fatalf("waiting=%v, want dependency", node.WaitingOn)
+			}
+		})
+	}
+}
+
+func TestAdapterUsesSharedReadyOrderingSelectionAndConflicts(t *testing.T) {
+	mixed := task("mixed", -100)
+	mixed.Task.Workflow = taskfile.WorkflowMixedPassV1
+	mixed.Lifecycle = ""
+	a := task("a", 1)
+	b := task("b", 1)
+	a.Task.SourcePath = ".agent/tasks/same.md"
+	b.Task.SourcePath = ".agent/tasks/same.md"
+	a.Task.Conflicts = []string{"resource"}
+	b.Task.Conflicts = []string{"resource"}
+	graph, err := BuildSnapshot([]ActiveTask{b, mixed, a}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := SelectNextReady(g, nil)
-	if !selected.Found || selected.Task.ID != "c" {
-		t.Fatalf("selection = %#v, want c", selected)
+	selected := SelectNextReady(graph, nil)
+	if !selected.Found || selected.Task.ID != "a" {
+		t.Fatalf("selection=%+v, want autonomous a", selected)
 	}
-	node, err := ClassifyTask(g, "d", nil)
-	if err != nil || node.Reason != ReasonWaitingDependency || strings.Join(node.WaitingOn, ",") != "b,c" {
-		t.Fatalf("d = %#v, %v", node, err)
+	nodes := ClassifyAll(graph, nil)
+	var ready []string
+	for _, node := range nodes {
+		if node.Reason == taskscheduler.ReasonReady && node.Task.Workflow == taskfile.WorkflowAutonomousV1 {
+			ready = append(ready, node.Task.ID)
+		}
+	}
+	if !reflect.DeepEqual(ready, []string{"a", "b"}) {
+		t.Fatalf("ready order=%v", ready)
+	}
+	conflict, err := ClassifyTask(graph, "b", []string{"a"})
+	if err != nil || conflict.Reason != taskscheduler.ReasonConflictBlocked || !reflect.DeepEqual(conflict.Conflicts, []string{"a"}) {
+		t.Fatalf("conflict=%+v err=%v", conflict, err)
 	}
 }
 
-func TestCompletedArchiveUnlocksButIsNeverSelected(t *testing.T) {
-	g, err := BuildSnapshot([]ActiveTask{task("dependent", 1, "archived")}, []ArchiveEvidence{{TaskID: "archived", ArchiveID: "archive-1", Disposition: "completed", Verified: true, Reconciled: true}})
+func TestAdapterUsesSharedCrossWorkflowDependencyEvidence(t *testing.T) {
+	mixed := task("mixed-dependency", 10)
+	mixed.Task.Workflow = taskfile.WorkflowMixedPassV1
+	mixed.Lifecycle = ""
+	dependent := task("autonomous-dependent", 1, mixed.Task.ID)
+
+	graph, err := BuildSnapshot([]ActiveTask{dependent, mixed}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := SelectNextReady(g, nil)
-	if !selected.Found || selected.Task.ID != "dependent" {
-		t.Fatalf("selection = %#v", selected)
+	waiting, err := ClassifyTask(graph, dependent.Task.ID, nil)
+	if err != nil || waiting.Reason != taskscheduler.ReasonWaitingDependency || len(waiting.Issues) != 1 || waiting.Issues[0].Workflow != taskscheduler.WorkflowMixedPassV1 {
+		t.Fatalf("waiting=%+v err=%v", waiting, err)
+	}
+
+	mixed.Task.Status = taskfile.StatusCompleted
+	graph, err = BuildSnapshot([]ActiveTask{dependent, mixed}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := SelectNextReady(graph, nil)
+	if !selected.Found || selected.Task.ID != dependent.Task.ID {
+		t.Fatalf("selection=%+v, want unlocked autonomous dependent", selected)
 	}
 }
 
-func TestGraphRejectsMissingDuplicateAmbiguousAndCycles(t *testing.T) {
+func TestAdapterPreservesEveryArchiveDispositionReason(t *testing.T) {
+	for _, disposition := range []string{taskfile.StatusCompleted, taskfile.StatusCancelled, taskfile.StatusAbandoned, taskfile.StatusSuperseded} {
+		t.Run(disposition, func(t *testing.T) {
+			archive := ArchiveEvidence{TaskID: "archived", ArchiveID: "archive-one", Disposition: disposition, Verified: true, Reconciled: true}
+			if disposition != taskfile.StatusCompleted {
+				archive.Reason = "operator recorded " + disposition
+			}
+			graph, err := BuildSnapshot([]ActiveTask{task("dependent", 1, "archived")}, []ArchiveEvidence{archive})
+			if err != nil {
+				t.Fatal(err)
+			}
+			node, err := ClassifyTask(graph, "dependent", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if disposition == taskfile.StatusCompleted {
+				if node.Reason != taskscheduler.ReasonReady {
+					t.Fatalf("completed archive node=%+v", node)
+				}
+				return
+			}
+			if node.Reason != taskscheduler.ReasonTerminalUnsatisfiedDependency || len(node.Issues) != 1 || node.Issues[0].Detail != archive.Reason || node.Issues[0].ArchiveID != archive.ArchiveID {
+				t.Fatalf("terminal archive node=%+v", node)
+			}
+		})
+	}
+}
+
+func TestAdapterReturnsSharedInvalidGraphDiagnostics(t *testing.T) {
 	tests := []struct {
 		name     string
 		active   []ActiveTask
 		archives []ArchiveEvidence
-		want     string
+		code     taskscheduler.DiagnosticCode
 	}{
-		{"missing", []ActiveTask{task("a", 1, "missing")}, nil, `missing dependency "missing"`},
-		{"duplicate", []ActiveTask{task("a", 1), task("a", 2)}, nil, `duplicate active task id "a"`},
-		{"ambiguous", []ActiveTask{task("a", 1)}, []ArchiveEvidence{{TaskID: "a", ArchiveID: "archive-a", Disposition: "completed", Verified: true, Reconciled: true}}, `ambiguous between active and archived`},
-		{"cycle", []ActiveTask{task("a", 1, "b"), task("b", 1, "c"), task("c", 1, "a")}, nil, `a -> b -> c -> a`},
+		{name: "missing", active: []ActiveTask{task("a", 1, "missing")}, code: taskscheduler.DiagnosticMissingDependency},
+		{name: "duplicate", active: []ActiveTask{task("a", 1), task("a", 2)}, code: taskscheduler.DiagnosticDuplicateTaskID},
+		{name: "ambiguous", active: []ActiveTask{task("a", 1)}, archives: []ArchiveEvidence{{TaskID: "a", ArchiveID: "archive-a", Disposition: "completed", Verified: true, Reconciled: true}}, code: taskscheduler.DiagnosticActiveArchiveAmbiguity},
+		{name: "cycle", active: []ActiveTask{task("a", 1, "b"), task("b", 1, "c"), task("c", 1, "a")}, code: taskscheduler.DiagnosticDependencyCycle},
+		{name: "unverified archive", active: []ActiveTask{task("a", 1, "archived")}, archives: []ArchiveEvidence{{TaskID: "archived", ArchiveID: "archive-a", Disposition: "completed"}}, code: taskscheduler.DiagnosticMalformedArchive},
+		{name: "noncompleted archive without reason", active: []ActiveTask{task("a", 1, "archived")}, archives: []ArchiveEvidence{{TaskID: "archived", ArchiveID: "archive-a", Disposition: "cancelled", Verified: true, Reconciled: true}}, code: taskscheduler.DiagnosticMalformedArchive},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			result := BuildResult(tt.active, tt.archives, nil)
+			if result.Valid() || result.SelectedNext != nil || !hasDiagnostic(result.InvalidGraph, tt.code) {
+				t.Fatalf("result=%+v", result)
+			}
 			_, err := BuildSnapshot(tt.active, tt.archives)
-			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("error = %v, want %q", err, tt.want)
+			var graphErr GraphError
+			if !errors.As(err, &graphErr) || !hasDiagnostic(graphErr.Diagnostics, tt.code) || !strings.Contains(err.Error(), string(tt.code)) {
+				t.Fatalf("error=%v diagnostics=%+v", err, graphErr.Diagnostics)
 			}
 		})
 	}
 }
 
-func TestPriorityTieAndConflictsAreStable(t *testing.T) {
-	b := task("b", 1)
-	a := task("a", 1)
-	b.Task.SourcePath = ".agent/tasks/001.md"
-	a.Task.SourcePath = ".agent/tasks/001.md"
-	b.Task.Conflicts = []string{"resource"}
-	a.Task.Conflicts = []string{"resource"}
-	g, err := BuildSnapshot([]ActiveTask{b, a}, nil)
-	if err != nil {
-		t.Fatal(err)
+func hasDiagnostic(diagnostics []taskscheduler.Diagnostic, code taskscheduler.DiagnosticCode) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == code {
+			return true
+		}
 	}
-	if got := SelectNextReady(g, nil).Task.ID; got != "a" {
-		t.Fatalf("tie selection = %q, want a", got)
-	}
-	if node, _ := ClassifyTask(g, "b", []string{"a"}); node.Reason != ReasonConflict {
-		t.Fatalf("conflict node = %#v", node)
-	}
-}
-
-func TestDependencyStateReasons(t *testing.T) {
-	for _, tt := range []struct {
-		name, lifecycle, status string
-		want                    Reason
-	}{
-		{"pending", "pending", taskfile.StatusPending, ReasonWaitingDependency},
-		{"blocked", "blocked", taskfile.StatusBlocked, ReasonBlockedDependency},
-		{"input", "needs_input", taskfile.StatusPending, ReasonNeedsInput},
-		{"cancelled", "cancelled", taskfile.StatusCancelled, ReasonWaitingDependency},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			dep := task("dep", 1)
-			dep.Lifecycle, dep.Task.Status = tt.lifecycle, tt.status
-			g, err := BuildSnapshot([]ActiveTask{dep, task("child", 1, "dep")}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			node, _ := ClassifyTask(g, "child", nil)
-			if node.Reason != tt.want {
-				t.Fatalf("reason = %s, want %s", node.Reason, tt.want)
-			}
-		})
-	}
+	return false
 }

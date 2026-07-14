@@ -27,6 +27,7 @@ import (
 	"revolvr/internal/runner"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 	"revolvr/internal/verification"
 )
 
@@ -138,6 +139,7 @@ type Result struct {
 	Commit             commit.Result
 	ReceiptWarnings    []ReceiptWarning
 	LedgerError        error
+	Schedule           taskscheduler.Result
 
 	phasePolicy            passpolicy.Policy
 	phaseTransitionApplied bool
@@ -196,15 +198,37 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	}
 	defer closeLedger()
 
-	fileTask, ok, err := taskfile.SelectNextForWorkflow(workDir, taskfile.WorkflowMixedPassV1)
+	schedule, err := evaluateMixedSchedule(ctx, cfg, workDir, ledgerStore)
 	if err != nil {
+		result.Outcome = OutcomeBlocked
+		result.Message = "evaluate task schedule failed: " + err.Error()
 		return result, err
 	}
-	if !ok {
+	result.Schedule = schedule.Result
+	if !schedule.Result.Valid() {
+		scheduleErr := ScheduleError{Diagnostics: append([]taskscheduler.Diagnostic(nil), schedule.Result.InvalidGraph...)}
+		result.Outcome = OutcomeBlocked
+		result.Message = scheduleErr.Error()
+		return result, scheduleErr
+	}
+	if schedule.Result.SelectedNext == nil {
+		if len(schedule.Result.SelectionTerminalUnsatisfied) != 0 {
+			terminalErr := TerminalDependencyError{Tasks: append([]taskscheduler.TaskReadiness(nil), schedule.Result.SelectionTerminalUnsatisfied...)}
+			result.Outcome = OutcomeBlocked
+			result.Message = terminalErr.Error()
+			return result, terminalErr
+		}
 		result.Outcome = OutcomeNoTask
 		result.NoTask = true
 		result.Message = "no pending runnable tasks"
 		return result, nil
+	}
+	fileTask, ok := schedule.Task(schedule.Result.SelectedNext.TaskID)
+	if !ok {
+		err := fmt.Errorf("run once: selected task %q is absent from the canonical snapshot", schedule.Result.SelectedNext.TaskID)
+		result.Outcome = OutcomeBlocked
+		result.Message = err.Error()
+		return result, err
 	}
 	task := taskFromFileTask(fileTask)
 	result.Task = task

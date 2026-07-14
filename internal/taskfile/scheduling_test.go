@@ -11,7 +11,7 @@ import (
 
 func TestSchedulingMetadataStrictRoundTripAndStatusPreservation(t *testing.T) {
 	repo := t.TempDir()
-	raw := []byte("---\r\nid: child\r\nstatus: pending\r\nworkflow: autonomous-v1\r\nautonomous_state_path: .revolvr/autonomous/tasks/child/state.json\r\npriority: 2\r\ndepends_on: base,parent\r\ntags: api,small\r\nconflicts: task-x,shared-db\r\nparent_task_id: parent\r\nchild_proposal_id: proposal-one\r\nchild_decision_id: decision-one\r\nchild_run_id: run-one\r\nchild_evidence: task:parent,plan:plan-one\r\nparent_behavior: depends_on_parent\r\nunknown: keep exact\r\n---\r\n# Child\r\n\r\nExact body without final newline")
+	raw := []byte("---\r\nid: child\r\nstatus: pending\r\nworkflow: autonomous-v1\r\nautonomous_state_path: .revolvr/autonomous/tasks/child/state.json\r\npriority: 2\r\ndepends_on: base,parent\r\ntags: api,small\r\nconflicts: task-x,shared-db\r\nparent_task_id: parent\r\nchild_proposal_id: proposal-one\r\nchild_decision_id: decision-one\r\nchild_run_id: run-one\r\nchild_evidence: task:parent,plan:plan-one\r\nparent_behavior: depends_on_parent\r\nx-unknown: keep exact\r\n---\r\n# Child\r\n\r\nExact body without final newline")
 	path := filepath.Join(repo, TasksDir, "child.md")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
@@ -53,6 +53,19 @@ func TestSchedulingMetadataRejectsInvalidListsAndLineage(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestLoadAllPreservesDuplicateIDsForSharedGraphValidation(t *testing.T) {
+	repo := t.TempDir()
+	writeTaskFile(t, repo, "a.md", "---\nid: duplicate\nstatus: pending\n---\n# A\n")
+	writeTaskFile(t, repo, "b.md", "---\nid: duplicate\nstatus: pending\n---\n# B\n")
+	tasks, err := LoadAll(repo)
+	if err != nil || len(tasks) != 2 || tasks[0].ID != "duplicate" || tasks[1].ID != "duplicate" {
+		t.Fatalf("load all tasks=%#v error=%v", tasks, err)
+	}
+	if _, err := List(repo); err == nil || !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("ordinary list error = %v, want compatibility duplicate rejection", err)
 	}
 }
 

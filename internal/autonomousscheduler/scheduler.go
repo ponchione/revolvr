@@ -1,45 +1,27 @@
-// Package autonomousscheduler owns pure dependency graph validation,
-// readiness classification, and deterministic selection. It never runs a
-// task and never turns the pinned task runner into a queue.
+// Package autonomousscheduler adapts strict autonomous repository authority
+// to the shared workflow-aware taskscheduler. It owns no graph, ordering,
+// dependency, cycle, or conflict policy.
 package autonomousscheduler
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"revolvr/internal/taskfile"
+	"revolvr/internal/taskscheduler"
 )
 
-type Reason string
-
-const (
-	ReasonReady             Reason = "ready"
-	ReasonNotPending        Reason = "not_pending"
-	ReasonWrongWorkflow     Reason = "wrong_workflow"
-	ReasonWaitingDependency Reason = "waiting_dependency"
-	ReasonBlockedDependency Reason = "blocked_dependency"
-	ReasonNeedsInput        Reason = "needs_input_dependency"
-	ReasonConflict          Reason = "conflict"
-)
-
-type ActiveTask struct {
-	Task          taskfile.Task
-	Lifecycle     string
-	StateSHA256   string
-	StateByteSize int
-}
-
-// ArchiveEvidence is supplied only after an archive owner has verified and
-// reconciled the exact immutable AW-21 identity. The pure graph does not read
-// live archive or Git state.
+// ArchiveEvidence is supplied only after an archive owner has inspected the
+// exact immutable AW-21 identity. taskscheduler decides whether that evidence
+// is valid and whether its disposition satisfies an edge.
 type ArchiveEvidence struct {
-	TaskID, ArchiveID string
-	Disposition       string
-	Verified          bool
-	Reconciled        bool
+	TaskID      string
+	ArchiveID   string
+	Disposition string
+	Reason      string
+	Verified    bool
+	Reconciled  bool
 }
 
 type Node struct {
@@ -47,272 +29,208 @@ type Node struct {
 	Lifecycle     string
 	StateSHA256   string
 	StateByteSize int
-	Reason        Reason
+	Reason        taskscheduler.Reason
 	WaitingOn     []string
+	Issues        []taskscheduler.DependencyIssue
 	Conflicts     []string
+	SelectedNext  bool
 }
 
 type Graph struct {
 	Nodes    []Node
-	archives map[string]ArchiveEvidence
-	byID     map[string]int
+	active   []ActiveTask
+	archives []ArchiveEvidence
 }
 
 type Selection struct {
 	Task      taskfile.Task
 	Found     bool
-	Reason    Reason
+	Reason    taskscheduler.Reason
 	WaitingOn []string
+	Issues    []taskscheduler.DependencyIssue
 	Conflicts []string
 }
 
+type GraphError struct {
+	Diagnostics []taskscheduler.Diagnostic
+}
+
+func (e GraphError) Error() string {
+	parts := make([]string, 0, len(e.Diagnostics))
+	for _, diagnostic := range e.Diagnostics {
+		parts = append(parts, string(diagnostic.Code)+": "+diagnostic.Detail)
+	}
+	return "scheduler: invalid graph: " + strings.Join(parts, "; ")
+}
+
+// BuildResult exposes the complete shared result for autonomous read surfaces,
+// including invalid-graph diagnostics. It never hides diagnostics behind a
+// first-error graph builder.
+func BuildResult(active []ActiveTask, archives []ArchiveEvidence, occupied []string) taskscheduler.Result {
+	input := taskscheduler.Input{
+		Tasks:             make([]taskscheduler.Task, 0, len(active)),
+		Archives:          make([]taskscheduler.Archive, 0, len(archives)),
+		Occupied:          append([]string(nil), occupied...),
+		SelectionWorkflow: taskscheduler.WorkflowAutonomousV1,
+	}
+	for _, item := range active {
+		state := taskscheduler.State(item.Task.Status)
+		if item.Task.Workflow == taskfile.WorkflowAutonomousV1 && item.Lifecycle != "" {
+			state = taskscheduler.State(item.Lifecycle)
+		}
+		input.Tasks = append(input.Tasks, taskscheduler.Task{
+			ID:          item.Task.ID,
+			Workflow:    taskscheduler.Workflow(item.Task.Workflow),
+			State:       state,
+			SourcePath:  item.Task.SourcePath,
+			Priority:    item.Task.Priority,
+			HasPriority: item.Task.HasPriority,
+			DependsOn:   append([]string(nil), item.Task.DependsOn...),
+			Conflicts:   append([]string(nil), item.Task.Conflicts...),
+		})
+	}
+	for _, archive := range archives {
+		input.Archives = append(input.Archives, taskscheduler.Archive{
+			TaskID:      archive.TaskID,
+			ArchiveID:   archive.ArchiveID,
+			Disposition: taskscheduler.State(archive.Disposition),
+			Reason:      archive.Reason,
+			Verified:    archive.Verified,
+			Reconciled:  archive.Reconciled,
+		})
+	}
+	return taskscheduler.Evaluate(input)
+}
+
+// BuildSnapshot is the fail-closed autonomous execution/queue admission
+// boundary. The pure result remains available through BuildResult for views.
 func BuildSnapshot(active []ActiveTask, archives []ArchiveEvidence) (Graph, error) {
-	items := append([]ActiveTask(nil), active...)
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Task.SourcePath != items[j].Task.SourcePath {
-			return items[i].Task.SourcePath < items[j].Task.SourcePath
-		}
-		return items[i].Task.ID < items[j].Task.ID
-	})
-	g := Graph{Nodes: make([]Node, len(items)), byID: make(map[string]int, len(items)), archives: make(map[string]ArchiveEvidence, len(archives))}
-	for i, item := range items {
-		if item.Task.ID == "" {
-			return Graph{}, errors.New("scheduler: active task has empty identity")
-		}
-		if previous, ok := g.byID[item.Task.ID]; ok {
-			return Graph{}, fmt.Errorf("scheduler: duplicate active task id %q at %s and %s", item.Task.ID, items[previous].Task.SourcePath, item.Task.SourcePath)
-		}
-		g.byID[item.Task.ID] = i
-		g.Nodes[i] = Node{Task: item.Task, Lifecycle: item.Lifecycle, StateSHA256: item.StateSHA256, StateByteSize: item.StateByteSize}
+	active = cloneActive(active)
+	archives = append([]ArchiveEvidence(nil), archives...)
+	result := BuildResult(active, archives, nil)
+	if !result.Valid() {
+		return Graph{}, GraphError{Diagnostics: cloneDiagnostics(result.InvalidGraph)}
 	}
-	orderedArchives := append([]ArchiveEvidence(nil), archives...)
-	sort.Slice(orderedArchives, func(i, j int) bool { return orderedArchives[i].TaskID < orderedArchives[j].TaskID })
-	for _, archive := range orderedArchives {
-		if archive.TaskID == "" || archive.ArchiveID == "" || !archive.Verified || !archive.Reconciled {
-			return Graph{}, fmt.Errorf("scheduler: archive evidence for %q is not exact verified and reconciled authority", archive.TaskID)
-		}
-		if _, ok := g.archives[archive.TaskID]; ok {
-			return Graph{}, fmt.Errorf("scheduler: duplicate archived task id %q", archive.TaskID)
-		}
-		if _, ok := g.byID[archive.TaskID]; ok {
-			return Graph{}, fmt.Errorf("scheduler: task id %q is ambiguous between active and archived identities", archive.TaskID)
-		}
-		g.archives[archive.TaskID] = archive
-	}
-	for i := range g.Nodes {
-		for _, dependency := range g.Nodes[i].Task.DependsOn {
-			if _, activeOK := g.byID[dependency]; activeOK {
-				continue
-			}
-			if _, archiveOK := g.archives[dependency]; archiveOK {
-				continue
-			}
-			return Graph{}, fmt.Errorf("scheduler: task %q has missing dependency %q", g.Nodes[i].Task.ID, dependency)
-		}
-	}
-	if cycle := findCycle(g); len(cycle) != 0 {
-		return Graph{}, fmt.Errorf("scheduler: dependency cycle: %s", strings.Join(cycle, " -> "))
-	}
-	return g, nil
+	graph := Graph{active: active, archives: archives}
+	graph.Nodes = nodesFromResult(active, result)
+	return graph, nil
+}
+
+// Schedule re-evaluates one admitted immutable graph against queue-local
+// occupancy. All policy remains inside taskscheduler.
+func Schedule(graph Graph, occupied []string) taskscheduler.Result {
+	return BuildResult(graph.active, graph.archives, occupied)
 }
 
 func SelectNextReady(graph Graph, occupied []string) Selection {
-	occupiedSet := make(map[string]struct{}, len(occupied))
-	for _, id := range occupied {
-		occupiedSet[id] = struct{}{}
-	}
-	nodes := make([]Node, len(graph.Nodes))
-	for i := range graph.Nodes {
-		nodes[i] = classify(graph, i, occupiedSet)
-	}
-	sort.Slice(nodes, func(i, j int) bool { return taskBefore(nodes[i].Task, nodes[j].Task) })
-	for _, node := range nodes {
-		if node.Reason == ReasonReady {
-			return Selection{Task: node.Task, Found: true, Reason: node.Reason}
+	result := Schedule(graph, occupied)
+	if selected, found := result.SelectedForWorkflow(taskscheduler.WorkflowAutonomousV1); found {
+		node, ok := nodeForReadiness(graph.active, selected)
+		if ok {
+			return Selection{Task: node.Task, Found: true, Reason: selected.Reason}
 		}
 	}
-	for _, reason := range []Reason{ReasonNeedsInput, ReasonBlockedDependency, ReasonWaitingDependency, ReasonConflict, ReasonNotPending, ReasonWrongWorkflow} {
-		for _, node := range nodes {
-			if node.Reason == reason {
-				return Selection{Reason: reason, WaitingOn: append([]string(nil), node.WaitingOn...), Conflicts: append([]string(nil), node.Conflicts...)}
-			}
+	for _, node := range nodesFromResult(graph.active, result) {
+		if node.Task.Workflow == taskfile.WorkflowAutonomousV1 {
+			return Selection{Reason: node.Reason, WaitingOn: append([]string(nil), node.WaitingOn...), Issues: append([]taskscheduler.DependencyIssue(nil), node.Issues...), Conflicts: append([]string(nil), node.Conflicts...)}
 		}
 	}
 	return Selection{}
 }
 
-// ClassifyAll returns every node in the same deterministic order used by
-// selection. Queue-local exclusion and fairness policy can consume this pure
-// projection without moving that policy into the scheduler.
+// ClassifyAll returns ready nodes first in the shared ready ordering, followed
+// by non-ready nodes in the shared deterministic diagnostic order.
 func ClassifyAll(graph Graph, occupied []string) []Node {
-	occupiedSet := make(map[string]struct{}, len(occupied))
-	for _, id := range occupied {
-		occupiedSet[id] = struct{}{}
-	}
-	nodes := make([]Node, len(graph.Nodes))
-	for i := range graph.Nodes {
-		nodes[i] = classify(graph, i, occupiedSet)
-	}
-	sort.Slice(nodes, func(i, j int) bool { return taskBefore(nodes[i].Task, nodes[j].Task) })
-	return nodes
+	return nodesFromResult(graph.active, Schedule(graph, occupied))
 }
 
 func ClassifyTask(graph Graph, taskID string, occupied []string) (Node, error) {
-	i, ok := graph.byID[taskID]
-	if !ok {
-		return Node{}, fmt.Errorf("scheduler: active task %q not found", taskID)
-	}
-	set := make(map[string]struct{}, len(occupied))
-	for _, id := range occupied {
-		set[id] = struct{}{}
-	}
-	return classify(graph, i, set), nil
-}
-
-func classify(g Graph, index int, occupied map[string]struct{}) Node {
-	node := g.Nodes[index]
-	if node.Task.Workflow != taskfile.WorkflowAutonomousV1 {
-		node.Reason = ReasonWrongWorkflow
-		return node
-	}
-	if node.Task.Status != taskfile.StatusPending {
-		node.Reason = ReasonNotPending
-		return node
-	}
-	if node.Lifecycle == "needs_input" {
-		node.Reason = ReasonNeedsInput
-		return node
-	}
-	if node.Lifecycle == taskfile.StatusBlocked {
-		node.Reason = ReasonBlockedDependency
-		return node
-	}
-	for _, dependency := range node.Task.DependsOn {
-		if archive, ok := g.archives[dependency]; ok {
-			if archive.Disposition != taskfile.StatusCompleted {
-				node.WaitingOn = append(node.WaitingOn, dependency)
-			}
+	result := Schedule(graph, occupied)
+	for _, readiness := range result.Tasks {
+		if readiness.TaskID != taskID {
 			continue
 		}
-		dep := g.Nodes[g.byID[dependency]]
-		if dep.Task.Status == taskfile.StatusCompleted || dep.Lifecycle == taskfile.StatusCompleted {
+		node, ok := nodeForReadiness(graph.active, readiness)
+		if !ok {
+			break
+		}
+		if node.Task.Workflow != taskfile.WorkflowAutonomousV1 {
+			return Node{}, fmt.Errorf("scheduler: active task %q uses workflow %q, not autonomous-v1", taskID, node.Task.Workflow)
+		}
+		node.SelectedNext = result.SelectedNext != nil && sameReadiness(*result.SelectedNext, readiness)
+		return node, nil
+	}
+	return Node{}, fmt.Errorf("scheduler: active task %q not found", taskID)
+}
+
+func nodesFromResult(active []ActiveTask, result taskscheduler.Result) []Node {
+	ordered := make([]taskscheduler.TaskReadiness, 0, len(result.Tasks))
+	seen := make(map[string]struct{}, len(result.Ready))
+	for _, readiness := range result.Ready {
+		ordered = append(ordered, readiness)
+		seen[readinessKey(readiness)] = struct{}{}
+	}
+	for _, readiness := range result.Tasks {
+		if _, ok := seen[readinessKey(readiness)]; !ok {
+			ordered = append(ordered, readiness)
+		}
+	}
+	nodes := make([]Node, 0, len(ordered))
+	for _, readiness := range ordered {
+		node, ok := nodeForReadiness(active, readiness)
+		if !ok {
 			continue
 		}
-		node.WaitingOn = append(node.WaitingOn, dependency)
-		switch {
-		case dep.Lifecycle == "needs_input":
-			node.Reason = ReasonNeedsInput
-		case dep.Task.Status == taskfile.StatusBlocked || dep.Lifecycle == taskfile.StatusBlocked:
-			if node.Reason != ReasonNeedsInput {
-				node.Reason = ReasonBlockedDependency
-			}
-		default:
-			if node.Reason == "" {
-				node.Reason = ReasonWaitingDependency
-			}
-		}
+		node.SelectedNext = result.SelectedNext != nil && sameReadiness(*result.SelectedNext, readiness)
+		nodes = append(nodes, node)
 	}
-	if len(node.WaitingOn) != 0 {
-		sort.Strings(node.WaitingOn)
-		return node
-	}
-	for occupiedID := range occupied {
-		if conflicts(g, node.Task, occupiedID) {
-			node.Conflicts = append(node.Conflicts, occupiedID)
-		}
-	}
-	if len(node.Conflicts) != 0 {
-		sort.Strings(node.Conflicts)
-		node.Reason = ReasonConflict
-		return node
-	}
-	node.Reason = ReasonReady
-	return node
+	return nodes
 }
 
-func conflicts(g Graph, task taskfile.Task, occupiedID string) bool {
-	if occupiedID == task.ID {
-		return true
-	}
-	for _, token := range task.Conflicts {
-		if token == occupiedID {
-			return true
+func nodeForReadiness(active []ActiveTask, readiness taskscheduler.TaskReadiness) (Node, bool) {
+	for _, item := range active {
+		if item.Task.ID != readiness.TaskID || filepath.ToSlash(item.Task.SourcePath) != readiness.SourcePath {
+			continue
 		}
+		return Node{
+			Task:          item.Task,
+			Lifecycle:     item.Lifecycle,
+			StateSHA256:   item.StateSHA256,
+			StateByteSize: item.StateByteSize,
+			Reason:        readiness.Reason,
+			WaitingOn:     append([]string(nil), readiness.UnmetDependencyIDs...),
+			Issues:        append([]taskscheduler.DependencyIssue(nil), readiness.DependencyIssues...),
+			Conflicts:     append([]string(nil), readiness.ConflictingTaskOrKeys...),
+		}, true
 	}
-	i, ok := g.byID[occupiedID]
-	if !ok {
-		return false
-	}
-	other := g.Nodes[i].Task
-	for _, token := range other.Conflicts {
-		if token == task.ID {
-			return true
-		}
-	}
-	for _, left := range task.Conflicts {
-		for _, right := range other.Conflicts {
-			if left == right {
-				return true
-			}
-		}
-	}
-	return false
+	return Node{}, false
 }
 
-func taskBefore(left, right taskfile.Task) bool {
-	if left.HasPriority && right.HasPriority && left.Priority != right.Priority {
-		return left.Priority < right.Priority
-	}
-	if left.HasPriority != right.HasPriority {
-		return left.HasPriority
-	}
-	if left.SourcePath != right.SourcePath {
-		return filepath.ToSlash(left.SourcePath) < filepath.ToSlash(right.SourcePath)
-	}
-	return left.ID < right.ID
+func readinessKey(readiness taskscheduler.TaskReadiness) string {
+	return readiness.TaskID + "\x00" + readiness.SourcePath
 }
 
-func findCycle(g Graph) []string {
-	state := make([]uint8, len(g.Nodes))
-	stack := make([]int, 0, len(g.Nodes))
-	var visit func(int) []string
-	visit = func(i int) []string {
-		state[i] = 1
-		stack = append(stack, i)
-		deps := append([]string(nil), g.Nodes[i].Task.DependsOn...)
-		sort.Strings(deps)
-		for _, id := range deps {
-			j, active := g.byID[id]
-			if !active {
-				continue
-			}
-			if state[j] == 0 {
-				if cycle := visit(j); len(cycle) != 0 {
-					return cycle
-				}
-			}
-			if state[j] == 1 {
-				start := 0
-				for stack[start] != j {
-					start++
-				}
-				cycle := make([]string, 0, len(stack)-start+1)
-				for _, n := range stack[start:] {
-					cycle = append(cycle, g.Nodes[n].Task.ID)
-				}
-				return append(cycle, g.Nodes[j].Task.ID)
-			}
-		}
-		stack = stack[:len(stack)-1]
-		state[i] = 2
-		return nil
+func sameReadiness(left, right taskscheduler.TaskReadiness) bool {
+	return left.TaskID == right.TaskID && left.SourcePath == right.SourcePath
+}
+
+func cloneActive(input []ActiveTask) []ActiveTask {
+	result := make([]ActiveTask, len(input))
+	for i, item := range input {
+		item.Task.SourceBytes = append([]byte(nil), item.Task.SourceBytes...)
+		item.Task.DependsOn = append([]string(nil), item.Task.DependsOn...)
+		item.Task.Tags = append([]string(nil), item.Task.Tags...)
+		item.Task.Conflicts = append([]string(nil), item.Task.Conflicts...)
+		result[i] = item
 	}
-	for i := range g.Nodes {
-		if state[i] == 0 {
-			if c := visit(i); len(c) != 0 {
-				return c
-			}
-		}
+	return result
+}
+
+func cloneDiagnostics(input []taskscheduler.Diagnostic) []taskscheduler.Diagnostic {
+	result := make([]taskscheduler.Diagnostic, len(input))
+	for i, diagnostic := range input {
+		diagnostic.Cycle = append([]string(nil), diagnostic.Cycle...)
+		result[i] = diagnostic
 	}
-	return nil
+	return result
 }

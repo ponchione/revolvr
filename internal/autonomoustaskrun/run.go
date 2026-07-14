@@ -17,6 +17,7 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
+	"revolvr/internal/taskscheduler"
 )
 
 type StepInput struct {
@@ -304,7 +305,7 @@ func resolveTaskScheduled(ctx context.Context, root, id string, archives []auton
 	if err != nil {
 		return taskfile.Task{}, false, err
 	}
-	if node.Reason != autonomousscheduler.ReasonReady {
+	if node.Reason != taskscheduler.ReasonReady {
 		return taskfile.Task{}, false, fmt.Errorf("task run: explicit task %q is not ready: %s (dependencies=%v conflicts=%v)", id, node.Reason, node.WaitingOn, node.Conflicts)
 	}
 	return node.Task, true, nil

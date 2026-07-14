@@ -1,6 +1,7 @@
 package taskfile
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -239,6 +240,90 @@ phase: audit
 	}
 }
 
+func TestLoadRejectsUnsupportedFrontmatterKeysWithExactLocation(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+		want string
+	}{
+		{
+			name: "dependency typo",
+			key:  "depend_on",
+			want: `unsupported frontmatter key "depend_on" at .agent/tasks/dependency-typo.md:4`,
+		},
+		{
+			name: "preserve exact key",
+			key:  "Depend_On",
+			want: `unsupported frontmatter key "Depend_On" at .agent/tasks/preserve-exact-key.md:4`,
+		},
+		{
+			name: "empty extension namespace",
+			key:  "x-",
+			want: `unsupported frontmatter key "x-" at .agent/tasks/empty-extension-namespace.md:4`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := t.TempDir()
+			name := strings.ReplaceAll(tt.name, " ", "-") + ".md"
+			path := writeTaskFile(t, repo, name, fmt.Sprintf("---\nid: strict-task\nstatus: pending\n%s: ignored\n---\n# Strict Task\n", tt.key))
+
+			_, err := Load(repo, path)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("load error = %v, want %q", err, tt.want)
+			}
+			_, err = List(repo)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("list error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsDuplicateExtensionKey(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "duplicate-extension.md", `---
+x-owner: first
+X-OWNER: second
+---
+# Duplicate Extension
+`)
+
+	_, err := Load(repo, path)
+	if err == nil || !strings.Contains(err.Error(), `duplicate frontmatter key "x-owner"`) {
+		t.Fatalf("error = %v, want duplicate extension key", err)
+	}
+}
+
+func TestExtensionMetadataIsInertAndPreservedByUpdate(t *testing.T) {
+	repo := t.TempDir()
+	raw := []byte("---\r\nid: extension-task\r\nstatus: pending\r\nx-status: completed\r\nx-depends_on: missing-task\r\nx-owner:  Preserve exact spacing  \r\n---\r\n# Extension Task\r\n\r\nBody without final newline")
+	path := filepath.Join(repo, TasksDir, "extension.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create task directory: %v", err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write task: %v", err)
+	}
+
+	task, err := Load(repo, filepath.Join(TasksDir, "extension.md"))
+	if err != nil {
+		t.Fatalf("load task: %v", err)
+	}
+	if task.Status != StatusPending || len(task.DependsOn) != 0 {
+		t.Fatalf("extension metadata changed control fields: status=%q depends_on=%v", task.Status, task.DependsOn)
+	}
+	updated, err := UpdateStatus(repo, task.SourcePath, StatusBlocked)
+	if err != nil {
+		t.Fatalf("update status: %v", err)
+	}
+	want := bytes.Replace(raw, []byte("status: pending"), []byte("status: blocked"), 1)
+	if !bytes.Equal(updated.SourceBytes, want) {
+		t.Fatalf("updated source changed extension bytes\ngot:  %q\nwant: %q", updated.SourceBytes, want)
+	}
+}
+
 func TestLoadRejectsUnsafeProfile(t *testing.T) {
 	repo := t.TempDir()
 	path := writeTaskFile(t, repo, "bad-profile.md", `---
@@ -347,42 +432,6 @@ func TestCreateRejectsTasksDirectorySymlinkOutsideRepository(t *testing.T) {
 	}
 }
 
-func TestListRunnableOrdersByPriorityThenFilename(t *testing.T) {
-	repo := t.TempDir()
-	writeTaskFile(t, repo, "030-later.md", taskMarkdownWithPhase("later", "pending", "30", PhaseDocument))
-	writeTaskFile(t, repo, "010-alpha.md", taskMarkdownWithPhase("alpha", "pending", "10", PhaseImplement))
-	writeTaskFile(t, repo, "010-beta.md", taskMarkdownWithPhase("beta", "pending", "10", PhaseAudit))
-	writeTaskFile(t, repo, "999-unprioritized.md", "# Unprioritized\n")
-	writeTaskFile(t, repo, "001-completed.md", taskMarkdown("completed", "completed", "1"))
-	writeTaskFile(t, repo, "002-running.md", taskMarkdown("running", "running", "2"))
-
-	runnable, err := ListRunnable(repo)
-	if err != nil {
-		t.Fatalf("list runnable task files: %v", err)
-	}
-	got := taskSourcePaths(runnable)
-	want := []string{
-		filepath.Join(TasksDir, "010-alpha.md"),
-		filepath.Join(TasksDir, "010-beta.md"),
-		filepath.Join(TasksDir, "030-later.md"),
-		filepath.Join(TasksDir, "999-unprioritized.md"),
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("runnable order = %#v, want %#v", got, want)
-	}
-
-	next, ok, err := SelectNext(repo)
-	if err != nil {
-		t.Fatalf("select next task file: %v", err)
-	}
-	if !ok {
-		t.Fatal("select next returned ok=false, want true")
-	}
-	if got, want := next.SourcePath, filepath.Join(TasksDir, "010-alpha.md"); got != want {
-		t.Fatalf("next source path = %q, want %q", got, want)
-	}
-}
-
 func TestListLoadsOnlyDirectMarkdownFiles(t *testing.T) {
 	repo := t.TempDir()
 	writeTaskFile(t, repo, "direct.md", "# Direct\n")
@@ -419,14 +468,6 @@ func TestTaskDiscoveryReservesAGENTSForGuidance(t *testing.T) {
 	}
 	if got, want := found.Phase, PhaseAudit; got != want {
 		t.Fatalf("existing task phase = %q, want %q", got, want)
-	}
-
-	next, ok, err := SelectNext(repo)
-	if err != nil || !ok {
-		t.Fatalf("select next task = %+v, %v, %v", next, ok, err)
-	}
-	if got, want := next.ID, "existing"; got != want {
-		t.Fatalf("next task id = %q, want %q", got, want)
 	}
 
 	created, err := Create(repo, CreateInput{ID: "created", Title: "Created", Body: "Create beside nested guidance."})
@@ -589,17 +630,14 @@ id: duplicated
 	}
 }
 
-func TestSelectNextRejectsDuplicateTaskIDs(t *testing.T) {
+func TestListRejectsDuplicateTaskIDs(t *testing.T) {
 	repo := t.TempDir()
 	writeTaskFile(t, repo, "010-one.md", "---\nid: duplicated\nstatus: pending\n---\n# One\n")
 	writeTaskFile(t, repo, "020-two.md", "---\nid: duplicated\nstatus: pending\n---\n# Two\n")
 
-	_, ok, err := SelectNext(repo)
+	_, err := List(repo)
 	if err == nil {
-		t.Fatal("select next duplicate id succeeded, want error")
-	}
-	if ok {
-		t.Fatal("select next duplicate id ok=true, want false")
+		t.Fatal("list duplicate id succeeded, want error")
 	}
 	for _, want := range []string{"duplicated", "010-one.md", "020-two.md"} {
 		if !strings.Contains(err.Error(), want) {
@@ -654,7 +692,7 @@ id: replace-status
 profile: implementer
 status: pending
 priority: 7
-unknown: preserved
+x-unknown: preserved
 ---
 # Replace Status
 
@@ -675,7 +713,7 @@ id: replace-status
 profile: implementer
 status: completed
 priority: 7
-unknown: preserved
+x-unknown: preserved
 ---
 # Replace Status
 
@@ -794,7 +832,7 @@ workflow: mixed-pass-v1
 phase: audit
 status: pending
 priority: 4
-unknown: preserved
+x-unknown: preserved
 ---
 # Advance Task
 
@@ -822,7 +860,7 @@ workflow: mixed-pass-v1
 phase: document
 status: pending
 priority: 4
-unknown: preserved
+x-unknown: preserved
 ---
 # Advance Task
 

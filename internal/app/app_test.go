@@ -20,6 +20,7 @@ import (
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 	"revolvr/internal/verification"
 )
 
@@ -185,12 +186,124 @@ phase: audit
 	if tasks[0].NextRunnable || !tasks[1].NextRunnable {
 		t.Fatalf("next-runnable flags = %v/%v, want false/true", tasks[0].NextRunnable, tasks[1].NextRunnable)
 	}
-	next, ok, err := taskfile.SelectNext(workDir)
-	if err != nil || !ok {
-		t.Fatalf("select next ok=%v err=%v", ok, err)
+	if tasks[0].ReadinessReason != "ready" || tasks[1].ReadinessReason != "ready" {
+		t.Fatalf("readiness = %q/%q, want ready/ready", tasks[0].ReadinessReason, tasks[1].ReadinessReason)
 	}
-	if next.ID != tasks[1].ID {
-		t.Fatalf("selected task = %q, want marked task %q", next.ID, tasks[1].ID)
+}
+
+func TestListTasksAndStatusRejectUnsupportedCanonicalFrontmatter(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTaskFile(t, workDir, "typo.md", `---
+id: typo-task
+status: pending
+depend_on: prerequisite
+---
+# Typo Task
+`)
+	want := `unsupported frontmatter key "depend_on" at .agent/tasks/typo.md:4`
+
+	if _, err := ListTasks(ctx, Config{WorkDir: workDir}); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("list tasks error = %v, want %q", err, want)
+	}
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("initialize ledger: %v", err)
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatalf("close ledger: %v", err)
+	}
+	if _, err := Status(ctx, Config{WorkDir: workDir}); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("status error = %v, want %q", err, want)
+	}
+}
+
+func TestListTasksAndStatusProjectSharedDependencySelection(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTestFile(t, filepath.Join(workDir, ".agent", "profiles", "implementer.md"), "Implement the selected task.\n")
+	writeAppTaskFile(t, workDir, "010-dependent.md", `---
+id: task-dependent
+status: pending
+priority: 1
+depends_on: task-prerequisite
+---
+# Dependent
+`)
+	writeAppTaskFile(t, workDir, "020-prerequisite.md", `---
+id: task-prerequisite
+status: pending
+priority: 50
+---
+# Prerequisite
+`)
+
+	tasks, err := ListTasks(ctx, Config{WorkDir: workDir})
+	if err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if got, want := taskIDs(tasks), []string{"task-dependent", "task-prerequisite"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("task order = %#v, want source order %#v", got, want)
+	}
+	if tasks[0].NextRunnable || tasks[0].Readiness != taskscheduler.ReasonWaitingDependency || !reflect.DeepEqual(tasks[0].WaitingDependencyIDs, []string{"task-prerequisite"}) {
+		t.Fatalf("dependent projection = %+v, want exact waiting dependency and no selection", tasks[0])
+	}
+	if !tasks[1].NextRunnable || tasks[1].Readiness != taskscheduler.ReasonReady {
+		t.Fatalf("prerequisite projection = %+v, want selected ready task", tasks[1])
+	}
+
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("initialize ledger: %v", err)
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatalf("close initialized ledger: %v", err)
+	}
+	status, err := Status(ctx, Config{WorkDir: workDir})
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	selected, found := status.Schedule.SelectedForWorkflow(taskscheduler.WorkflowMixedPassV1)
+	if !found || selected.TaskID != "task-prerequisite" || !status.Tasks[1].NextRunnable {
+		t.Fatalf("status selection found=%t selected=%+v tasks=%+v", found, selected, status.Tasks)
+	}
+
+	runs, err = ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("open run ledger: %v", err)
+	}
+	defer runs.Close()
+	codexCalls := 0
+	runResult, err := runonce.Run(ctx, runonce.Config{
+		WorkingDir:  workDir,
+		LedgerStore: runs,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalls++
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+		CodexVersionDiscoverer: func(context.Context, codexexec.VersionConfig) (string, error) {
+			return "codex-test 1.2.3", nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if runResult.Task.ID != selected.TaskID || runResult.FileTask.ID != selected.TaskID || codexCalls != 1 {
+		t.Fatalf("run selection task=%q file=%q codex_calls=%d, want status-selected %q", runResult.Task.ID, runResult.FileTask.ID, codexCalls, selected.TaskID)
 	}
 }
 
@@ -203,7 +316,7 @@ status: pending
 workflow: autonomous-v1
 autonomous_state_path: .revolvr/autonomous/tasks/task-autonomous/state.json
 priority: 1
-custom: preserved
+x-custom: preserved
 ---
 # Autonomous Task
 
@@ -249,7 +362,7 @@ priority: 2
 	if got, want := fileTask.AutonomousStatePath, ".revolvr/autonomous/tasks/task-autonomous/state.json"; got != want {
 		t.Fatalf("state path = %q, want %q", got, want)
 	}
-	if !strings.Contains(fileTask.ContextBody, "custom: preserved") || !strings.Contains(fileTask.ContextBody, "Keep this specification.") {
+	if !strings.Contains(fileTask.ContextBody, "x-custom: preserved") || !strings.Contains(fileTask.ContextBody, "Keep this specification.") {
 		t.Fatalf("retried task content = %q", fileTask.ContextBody)
 	}
 	if _, err := os.Stat(filepath.Join(workDir, ".revolvr")); !os.IsNotExist(err) {
@@ -762,7 +875,7 @@ workflow: mixed-pass-v1
 phase: audit
 profile: ignored-frontmatter-profile
 priority: 7
-custom: preserved
+x-custom: preserved
 ---
 # Retry Audit
 
@@ -784,7 +897,7 @@ workflow: mixed-pass-v1
 phase: audit
 profile: ignored-frontmatter-profile
 priority: 7
-custom: preserved
+x-custom: preserved
 ---
 # Retry Audit
 
@@ -1307,6 +1420,95 @@ func TestRunLoopClassifiesRunnerContextCancellation(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result.Stats, wantStats) {
 		t.Fatalf("loop stats = %#v, want %#v", result.Stats, wantStats)
+	}
+}
+
+func TestRunLoopReevaluatesSharedScheduleAfterPrerequisiteCompletion(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeAppTestFile(t, filepath.Join(workDir, ".agent", "profiles", "simplifier.md"), "Complete the final mixed-pass phase.\n")
+	writeAppTaskFile(t, workDir, "010-first.md", `---
+id: task-first
+status: pending
+workflow: mixed-pass-v1
+phase: simplify
+priority: 50
+---
+# First
+
+Complete the prerequisite.
+`)
+	writeAppTaskFile(t, workDir, "020-second.md", `---
+id: task-second
+status: pending
+workflow: mixed-pass-v1
+phase: simplify
+priority: 1
+depends_on: task-first
+---
+# Second
+
+Run only after the prerequisite.
+`)
+
+	runnerCalls := 0
+	selected := []string{}
+	result, err := RunLoop(ctx, Config{WorkDir: workDir}, RunLoopInput{
+		MaxPasses: 5,
+		Runner: func(runCtx context.Context, cfg runonce.Config) (runonce.Result, error) {
+			runnerCalls++
+			selectedPath := ""
+			switch runnerCalls {
+			case 1:
+				selectedPath = filepath.ToSlash(filepath.Join(taskfile.TasksDir, "010-first.md"))
+			case 2:
+				selectedPath = filepath.ToSlash(filepath.Join(taskfile.TasksDir, "020-second.md"))
+			}
+			captureCalls := 0
+			cfg.DirtyCapture = func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+				return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+			}
+			cfg.ChangedCapture = func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+				captureCalls++
+				paths := []string{"internal/feature.go"}
+				if captureCalls == 2 {
+					paths = append(paths, selectedPath)
+				}
+				return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: append([]string(nil), paths...), Paths: paths}, nil
+			}
+			cfg.CodexRunner = func(context.Context, codexexec.Config) (codexexec.Result, error) {
+				return codexexec.Result{ExitCode: 0, FinalMessage: "done"}, nil
+			}
+			cfg.CodexVersionDiscoverer = func(context.Context, codexexec.VersionConfig) (string, error) {
+				return "codex-test 1.2.3", nil
+			}
+			cfg.VerificationRunner = func(context.Context, verification.Config) (verification.Result, error) {
+				return verification.Result{Status: verification.StatusPassed, Passed: true, FailedCommandIndex: -1, Commands: []verification.CommandResult{{Command: "go test ./...", Status: verification.StatusPassed, Passed: true}}}, nil
+			}
+			cfg.CommitRunner = func(context.Context, commit.Config) (commit.Result, error) {
+				return commit.Result{Status: commit.StatusCommitted, CommitSHA: fmt.Sprintf("commit-%d", runnerCalls), ChangedFiles: []string{"internal/feature.go", selectedPath}}, nil
+			}
+			runResult, runErr := runonce.Run(runCtx, cfg)
+			if runResult.Task.ID != "" {
+				selected = append(selected, runResult.Task.ID)
+			}
+			return runResult, runErr
+		},
+	})
+	if err != nil {
+		t.Fatalf("run loop: %v", err)
+	}
+	if got, want := selected, []string{"task-first", "task-second"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("selected tasks = %#v, want %#v", got, want)
+	}
+	if runnerCalls != 3 || result.Stats.Passes != 3 || result.Stats.Completed != 2 || !result.Stats.NoTask || result.Stats.StopReason != "no_task" {
+		t.Fatalf("loop result=%+v runner calls=%d", result, runnerCalls)
+	}
+	for _, name := range []string{"010-first.md", "020-second.md"} {
+		task, loadErr := taskfile.Load(workDir, filepath.Join(taskfile.TasksDir, name))
+		if loadErr != nil || task.Status != taskfile.StatusCompleted {
+			t.Fatalf("task %s status=%q error=%v", name, task.Status, loadErr)
+		}
 	}
 }
 

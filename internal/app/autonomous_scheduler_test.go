@@ -38,6 +38,22 @@ func TestExplicitAutonomousRunRejectsWaitingDependencyBeforeRunner(t *testing.T)
 	}
 }
 
+func TestAutonomousRunRejectsInvalidSharedGraphBeforeRunner(t *testing.T) {
+	repo := t.TempDir()
+	createSchedulingTask(t, repo, "invalid-child", []string{"missing-dependency"})
+	calls := 0
+	_, err := RunTaskUntilTerminal(context.Background(), Config{WorkDir: repo}, TaskRunInput{OperationID: "invalid-graph", MaxCycles: 1, Clock: time.Now, Runner: func(context.Context, autonomoustaskrun.StepInput) (autonomoustaskrun.StepResult, error) {
+		calls++
+		return autonomoustaskrun.StepResult{}, nil
+	}})
+	if err == nil || !strings.Contains(err.Error(), "missing_dependency") || calls != 0 {
+		t.Fatalf("error=%v calls=%d", err, calls)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, ".revolvr", "autonomous", "task-runs", "invalid-graph")); !os.IsNotExist(statErr) {
+		t.Fatalf("operation state exists: %v", statErr)
+	}
+}
+
 func TestQueueRunsIndependentTasksInSchedulerOrderWithoutLiveCodex(t *testing.T) {
 	repo := t.TempDir()
 	createSchedulingTask(t, repo, "second", nil)

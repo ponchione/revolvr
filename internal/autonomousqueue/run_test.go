@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"revolvr/internal/autonomoustaskrun"
 	"revolvr/internal/ledger"
 	"revolvr/internal/taskfile"
+	"revolvr/internal/taskscheduler"
 )
 
 func TestRunMultipleTasksBlockedSkipAndStarvationPrevention(t *testing.T) {
@@ -80,7 +82,7 @@ func TestRunDependencyInputDrainedBudgetSafetyAndCancellation(t *testing.T) {
 		wantErr   bool
 	}{
 		{name: "drained", nodes: []autonomousscheduler.Node{node("done", 0, "completed")}, want: StopDrained},
-		{name: "dependency", nodes: []autonomousscheduler.Node{waitingNode("child", autonomousscheduler.ReasonWaitingDependency)}, want: StopWaitingDependency},
+		{name: "dependency", nodes: []autonomousscheduler.Node{waitingNode("child", taskscheduler.ReasonWaitingDependency)}, want: StopWaitingDependency},
 		{name: "input", nodes: []autonomousscheduler.Node{lifecycleNode("input", "needs_input")}, want: StopWaitingInput},
 		{name: "safety", nodes: []autonomousscheduler.Node{node("task", 0, "pending")}, runReason: autonomoustaskrun.StopSafety, want: StopSafety, wantCalls: 1},
 		{name: "unsafe", nodes: []autonomousscheduler.Node{node("task", 0, "pending")}, runReason: autonomoustaskrun.StopUnsafeAmbiguous, runErr: errors.New("indeterminate"), want: StopUnsafeAmbiguous, wantCalls: 1, wantErr: true},
@@ -102,7 +104,7 @@ func TestRunDependencyInputDrainedBudgetSafetyAndCancellation(t *testing.T) {
 				if tt.runReason == autonomoustaskrun.StopCompleted {
 					for i := range nodes {
 						if nodes[i].Task.ID == in.TaskID {
-							nodes[i].Task.Status, nodes[i].Lifecycle, nodes[i].Reason = taskfile.StatusCompleted, "completed", autonomousscheduler.ReasonNotPending
+							nodes[i].Task.Status, nodes[i].Lifecycle, nodes[i].Reason = taskfile.StatusCompleted, "completed", taskscheduler.ReasonCompleted
 						}
 					}
 				}
@@ -117,6 +119,45 @@ func TestRunDependencyInputDrainedBudgetSafetyAndCancellation(t *testing.T) {
 				t.Fatalf("result=%+v err=%v calls=%d", result, err, calls)
 			}
 		})
+	}
+}
+
+func TestQueueEligibilityConsumesSharedArchiveAndWorkflowClassification(t *testing.T) {
+	for _, disposition := range []string{taskfile.StatusCompleted, taskfile.StatusCancelled, taskfile.StatusAbandoned, taskfile.StatusSuperseded} {
+		t.Run(disposition, func(t *testing.T) {
+			dependent := node("dependent", 1, "pending").Task
+			dependent.DependsOn = []string{"archived"}
+			archive := autonomousscheduler.ArchiveEvidence{TaskID: "archived", ArchiveID: "archive-" + disposition, Disposition: disposition, Verified: true, Reconciled: true}
+			if disposition != taskfile.StatusCompleted {
+				archive.Reason = "operator recorded " + disposition
+			}
+			graph, err := autonomousscheduler.BuildSnapshot([]autonomousscheduler.ActiveTask{{Task: dependent, Lifecycle: "pending"}}, []autonomousscheduler.ArchiveEvidence{archive})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ready, waiting := eligible(autonomousscheduler.ClassifyAll(graph, nil), nil)
+			if disposition == taskfile.StatusCompleted {
+				if len(ready) != 1 || ready[0].Task.ID != dependent.ID || !ready[0].SelectedNext || len(waiting) != 0 {
+					t.Fatalf("ready=%+v waiting=%v", ready, waiting)
+				}
+				return
+			}
+			if len(ready) != 0 || !reflect.DeepEqual(waiting, []string{"dependent:" + string(taskscheduler.ReasonTerminalUnsatisfiedDependency)}) {
+				t.Fatalf("ready=%+v waiting=%v", ready, waiting)
+			}
+		})
+	}
+
+	mixed := node("mixed", 0, "pending").Task
+	mixed.Workflow = taskfile.WorkflowMixedPassV1
+	autonomous := node("autonomous", 1, "pending").Task
+	graph, err := autonomousscheduler.BuildSnapshot([]autonomousscheduler.ActiveTask{{Task: mixed}, {Task: autonomous, Lifecycle: "pending"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready, waiting := eligible(autonomousscheduler.ClassifyAll(graph, nil), nil)
+	if len(ready) != 1 || ready[0].Task.ID != autonomous.ID || !ready[0].SelectedNext || len(waiting) != 0 {
+		t.Fatalf("cross-workflow ready=%+v waiting=%v", ready, waiting)
 	}
 }
 
@@ -143,11 +184,11 @@ func TestDependencyDiamondUnlocksAndNewIndependentChildAppearsBetweenSelections(
 			item := node(spec.id, spec.priority, "pending")
 			item.Task.DependsOn = append([]string(nil), spec.deps...)
 			if completed[spec.id] {
-				item.Task.Status, item.Lifecycle, item.Reason = taskfile.StatusCompleted, "completed", autonomousscheduler.ReasonNotPending
+				item.Task.Status, item.Lifecycle, item.Reason = taskfile.StatusCompleted, "completed", taskscheduler.ReasonCompleted
 			} else {
 				for _, dep := range spec.deps {
 					if !completed[dep] {
-						item.Reason = autonomousscheduler.ReasonWaitingDependency
+						item.Reason = taskscheduler.ReasonWaitingDependency
 						item.WaitingOn = append(item.WaitingOn, dep)
 					}
 				}
@@ -192,7 +233,7 @@ func TestCrashAfterSelectionHistoryRecoversSamePinnedTaskOperation(t *testing.T)
 	}
 	var selectedFailures int
 	cfg := testConfig(root, "queue-crash", clock, loader, func(_ context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
-		nodes[0].Task.Status, nodes[0].Lifecycle, nodes[0].Reason = taskfile.StatusCompleted, "completed", autonomousscheduler.ReasonNotPending
+		nodes[0].Task.Status, nodes[0].Lifecycle, nodes[0].Reason = taskfile.StatusCompleted, "completed", taskscheduler.ReasonCompleted
 		return taskResult(in, autonomoustaskrun.StopCompleted), nil
 	})
 	cfg.FailureInjector = func(point FailurePoint) error {
@@ -365,7 +406,7 @@ func TestQueueLedgerEffectsAreDeduplicatedOnTerminalReplay(t *testing.T) {
 		return Snapshot{Fingerprint: nodesFingerprint(nodes), Nodes: nodes}, nil
 	}
 	cfg := testConfig(root, "queue-ledger", clock, loader, func(_ context.Context, in RunTaskInput) (autonomoustaskrun.Result, error) {
-		nodes[0].Task.Status, nodes[0].Lifecycle, nodes[0].Reason = taskfile.StatusCompleted, "completed", autonomousscheduler.ReasonNotPending
+		nodes[0].Task.Status, nodes[0].Lifecycle, nodes[0].Reason = taskfile.StatusCompleted, "completed", taskscheduler.ReasonCompleted
 		return taskResult(in, autonomoustaskrun.StopCompleted), nil
 	})
 	cfg.Ledger = store
@@ -629,20 +670,29 @@ func testConfig(root, id string, clock func() time.Time, loader Loader, runner T
 
 func node(id string, priority int, lifecycle string) autonomousscheduler.Node {
 	status := taskfile.StatusPending
-	reason := autonomousscheduler.ReasonReady
-	if lifecycle == "completed" {
-		status, reason = taskfile.StatusCompleted, autonomousscheduler.ReasonNotPending
+	reason := taskscheduler.ReasonReady
+	switch lifecycle {
+	case "completed":
+		status, reason = taskfile.StatusCompleted, taskscheduler.ReasonCompleted
+	case "blocked":
+		reason = taskscheduler.ReasonBlocked
+	case "needs_input":
+		reason = taskscheduler.ReasonNeedsInput
+	case "cancelled":
+		status, reason = taskfile.StatusCancelled, taskscheduler.ReasonCancelled
+	case "abandoned":
+		status, reason = taskfile.StatusAbandoned, taskscheduler.ReasonAbandoned
+	case "superseded":
+		status, reason = taskfile.StatusSuperseded, taskscheduler.ReasonSuperseded
 	}
 	return autonomousscheduler.Node{Task: taskfile.Task{ID: id, Status: status, Workflow: taskfile.WorkflowAutonomousV1, HasPriority: true, Priority: priority, SourcePath: filepath.ToSlash(filepath.Join(".agent", "tasks", id+".md")), SourceBytes: []byte(id)}, Lifecycle: lifecycle, StateSHA256: strings.Repeat("c", 64), StateByteSize: len(id), Reason: reason}
 }
 
 func lifecycleNode(id, lifecycle string) autonomousscheduler.Node {
-	result := node(id, 0, "pending")
-	result.Lifecycle = lifecycle
-	return result
+	return node(id, 0, lifecycle)
 }
 
-func waitingNode(id string, reason autonomousscheduler.Reason) autonomousscheduler.Node {
+func waitingNode(id string, reason taskscheduler.Reason) autonomousscheduler.Node {
 	result := node(id, 0, "pending")
 	result.Reason = reason
 	result.WaitingOn = []string{"dependency"}

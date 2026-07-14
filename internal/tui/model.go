@@ -22,6 +22,7 @@ import (
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 )
 
 const (
@@ -1978,7 +1979,7 @@ func (m StatusModel) renderDashboard() string {
 	}
 
 	counts := countTasks(m.status.Tasks)
-	nextIndex := firstPendingTaskIndex(m.status.Tasks)
+	nextIndex := nextSelectedTaskIndex(m.status.Tasks)
 	lines := []string{
 		"Dashboard",
 		"State: initialized",
@@ -1990,6 +1991,8 @@ func (m StatusModel) renderDashboard() string {
 		fmt.Sprintf("Completed: %d", counts.completed),
 	}
 	lines = append(lines, nextRunnableLines(m.status.Tasks, nextIndex)...)
+	lines = append(lines, operatorCheckpointLines(m.status.Tasks)...)
+	lines = append(lines, schedulingDiagnosticLines(m.status.Schedule.InvalidGraph)...)
 	lines = append(lines, "")
 	lines = appendNotice(lines, m.message)
 
@@ -2009,7 +2012,7 @@ func (m StatusModel) renderTasks() string {
 	}
 
 	counts := countTasks(m.status.Tasks)
-	nextIndex := firstPendingTaskIndex(m.status.Tasks)
+	nextIndex := nextSelectedTaskIndex(m.status.Tasks)
 	lines = append(lines,
 		fmt.Sprintf("Total: %d", counts.total),
 		fmt.Sprintf("Pending: %d", counts.pending),
@@ -2017,6 +2020,8 @@ func (m StatusModel) renderTasks() string {
 		fmt.Sprintf("Completed: %d", counts.completed),
 	)
 	lines = append(lines, nextRunnableLines(m.status.Tasks, nextIndex)...)
+	lines = append(lines, operatorCheckpointLines(m.status.Tasks)...)
+	lines = append(lines, schedulingDiagnosticLines(m.status.Schedule.InvalidGraph)...)
 	lines = append(lines, "", "Task List")
 	if len(m.status.Tasks) == 0 {
 		lines = append(lines,
@@ -2464,19 +2469,14 @@ func countTasks(tasks []taskmodel.Task) taskCounts {
 	return counts
 }
 
-func firstPendingTaskIndex(tasks []taskmodel.Task) int {
-	for i, task := range tasks {
-		if task.Status == taskmodel.StatusPending && task.NextAutonomous {
-			return i
-		}
-	}
+func nextSelectedTaskIndex(tasks []taskmodel.Task) int {
 	for i, task := range tasks {
 		if task.Status == taskmodel.StatusPending && task.NextRunnable {
 			return i
 		}
 	}
 	for i, task := range tasks {
-		if task.Status == taskmodel.StatusPending {
+		if task.Status == taskmodel.StatusPending && task.NextAutonomous {
 			return i
 		}
 	}
@@ -2519,21 +2519,32 @@ func renderTaskDetailLines(task taskmodel.Task) []string {
 		fmt.Sprintf("Status: %s", optionalValue(task.Status)),
 	}
 	if hasTaskWorkflowState(task) {
-		lines = append(lines,
-			fmt.Sprintf("Workflow: %s", optionalValue(task.Workflow)),
-			fmt.Sprintf("Phase: %s", optionalValue(task.Phase)),
-			fmt.Sprintf("Profile: %s", optionalValue(task.RunProfile)),
-			fmt.Sprintf("Next: %s", optionalValue(task.NextState)),
-		)
+		lines = append(lines, fmt.Sprintf("Workflow: %s", optionalValue(task.Workflow)))
+		if task.Workflow == taskfile.WorkflowOperatorCheckpointV1 {
+			lines = append(lines,
+				fmt.Sprintf("Checkpoint: %s", optionalValue(task.CheckpointState)),
+				fmt.Sprintf("Checkpoint receipt: %s", optionalValue(task.CheckpointReceiptPath)),
+				fmt.Sprintf("Checkpoint receipt SHA-256: %s", optionalValue(task.CheckpointReceiptSHA)),
+			)
+		} else {
+			lines = append(lines,
+				fmt.Sprintf("Phase: %s", optionalValue(task.Phase)),
+				fmt.Sprintf("Profile: %s", optionalValue(task.RunProfile)),
+				fmt.Sprintf("Next: %s", optionalValue(task.NextState)),
+			)
+		}
 	}
-	if task.Workflow == taskfile.WorkflowAutonomousV1 {
-		lines = append(lines,
-			fmt.Sprintf("Readiness: %s", optionalValue(task.ReadinessReason)),
-			fmt.Sprintf("Depends on: %s", optionalValue(strings.Join(task.DependsOn, ","))),
-			fmt.Sprintf("Tags: %s", optionalValue(strings.Join(task.Tags, ","))),
-			fmt.Sprintf("Conflicts: %s", optionalValue(strings.Join(task.Conflicts, ","))),
-			fmt.Sprintf("Parent: %s", optionalValue(task.ParentTaskID)),
-		)
+	lines = append(lines,
+		fmt.Sprintf("Readiness: %s", optionalValue(task.ReadinessReason)),
+		fmt.Sprintf("Waiting on: %s", optionalValue(strings.Join(task.WaitingDependencyIDs, ","))),
+		fmt.Sprintf("Depends on: %s", optionalValue(strings.Join(task.DependsOn, ","))),
+		fmt.Sprintf("Tags: %s", optionalValue(strings.Join(task.Tags, ","))),
+		fmt.Sprintf("Conflicts: %s", optionalValue(strings.Join(task.Conflicts, ","))),
+		fmt.Sprintf("Conflict blockers: %s", optionalValue(strings.Join(task.ConflictBlockers, ","))),
+		fmt.Sprintf("Parent: %s", optionalValue(task.ParentTaskID)),
+	)
+	for _, diagnostic := range task.SchedulingDiagnostics {
+		lines = append(lines, fmt.Sprintf("Scheduling diagnostic: %s: %s", diagnostic.Code, oneLine(diagnostic.Detail)))
 	}
 	lines = append(lines,
 		fmt.Sprintf("Summary: %s", optionalValue(task.Summary)),
@@ -2551,6 +2562,29 @@ func renderTaskDetailLines(task taskmodel.Task) []string {
 	}
 	if task.CompletedAt != nil {
 		lines = append(lines, fmt.Sprintf("Completed: %s", optionalTimePtr(task.CompletedAt)))
+	}
+	return lines
+}
+
+func schedulingDiagnosticLines(diagnostics []taskscheduler.Diagnostic) []string {
+	lines := make([]string, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		lines = append(lines, fmt.Sprintf("Scheduling diagnostic: %s: %s", diagnostic.Code, oneLine(diagnostic.Detail)))
+	}
+	return lines
+}
+
+func operatorCheckpointLines(tasks []taskmodel.Task) []string {
+	lines := make([]string, 0)
+	for _, task := range tasks {
+		if task.Workflow != taskfile.WorkflowOperatorCheckpointV1 {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("Operator checkpoint: %s  state=%s  receipt=%s",
+			optionalValue(task.ID),
+			optionalValue(task.CheckpointState),
+			optionalValue(task.CheckpointReceiptPath),
+		))
 	}
 	return lines
 }
@@ -2577,6 +2611,12 @@ func taskWorkflowStateLine(task taskmodel.Task) string {
 func taskListWorkflowState(task taskmodel.Task) string {
 	if !hasTaskWorkflowState(task) {
 		return ""
+	}
+	if task.Workflow == taskfile.WorkflowOperatorCheckpointV1 {
+		return fmt.Sprintf("checkpoint=%s  receipt=%s",
+			optionalValue(task.CheckpointState),
+			optionalValue(task.CheckpointReceiptPath),
+		)
 	}
 	return fmt.Sprintf("phase=%s  profile=%s  next=%s",
 		optionalValue(task.Phase),

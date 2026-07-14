@@ -22,6 +22,7 @@ import (
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 )
 
 func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
@@ -51,7 +52,7 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{
 		Initialized: true,
 		Tasks: []taskmodel.Task{
-			{ID: "task-pending", Status: taskmodel.StatusPending},
+			{ID: "task-pending", Status: taskmodel.StatusPending, NextRunnable: true},
 			{ID: "task-blocked", Status: taskmodel.StatusBlocked},
 			{ID: "task-completed", Status: taskmodel.StatusCompleted},
 		},
@@ -147,7 +148,7 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 			name: "pending",
 			tasks: []taskmodel.Task{
 				{ID: "task-blocked", Status: taskmodel.StatusBlocked, Summary: "waiting on access"},
-				{ID: "task-ready", Status: taskmodel.StatusPending, Summary: "ship change"},
+				{ID: "task-ready", Status: taskmodel.StatusPending, Summary: "ship change", NextRunnable: true},
 				{ID: "task-later", Status: taskmodel.StatusPending, Task: "later task"},
 			},
 			dashboardWant: []string{
@@ -277,6 +278,63 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 	}
 }
 
+func TestStatusModelDoesNotFallbackToPendingWaitingTask(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks: []taskmodel.Task{{
+			ID:                   "task-dependent",
+			Status:               taskmodel.StatusPending,
+			Readiness:            taskscheduler.ReasonWaitingDependency,
+			ReadinessReason:      string(taskscheduler.ReasonWaitingDependency),
+			WaitingDependencyIDs: []string{"task-prerequisite"},
+			DependsOn:            []string{"task-prerequisite"},
+		}},
+	})
+
+	dashboard := normalizedViewLines(model.View())
+	requireLines(t, dashboard, "Runnable: nothing runnable", "Next task: none")
+	requireNoLine(t, dashboard, "Next task: task-dependent")
+
+	tasksView := openTasksView(t, model)
+	lines := normalizedViewLines(tasksView.View())
+	requireLines(t, lines,
+		"> - task-dependent  pending",
+		"Readiness: waiting_dependency",
+		"Waiting on: task-prerequisite",
+		"Depends on: task-prerequisite",
+	)
+	requireNoLine(t, lines, "> next task-dependent  pending")
+}
+
+func TestStatusModelRendersSharedInvalidGraphDiagnostics(t *testing.T) {
+	diagnostic := taskscheduler.Diagnostic{
+		Code:   taskscheduler.DiagnosticMissingDependency,
+		Detail: `task-invalid -> task-missing`,
+	}
+	model := NewStatusModel(app.StatusResult{
+		Initialized: true,
+		Tasks: []taskmodel.Task{{
+			ID:                    "task-invalid",
+			Status:                taskmodel.StatusPending,
+			Readiness:             taskscheduler.ReasonInvalidGraph,
+			ReadinessReason:       string(taskscheduler.ReasonInvalidGraph),
+			SchedulingDiagnostics: []taskscheduler.Diagnostic{diagnostic},
+		}},
+		Schedule: taskscheduler.Result{InvalidGraph: []taskscheduler.Diagnostic{diagnostic}},
+	})
+
+	requireLines(t, normalizedViewLines(model.View()),
+		"Runnable: nothing runnable",
+		"Next task: none",
+		`Scheduling diagnostic: missing_dependency: task-invalid -> task-missing`,
+	)
+	tasksView := openTasksView(t, model)
+	requireLines(t, normalizedViewLines(tasksView.View()),
+		"Readiness: invalid_graph",
+		`Scheduling diagnostic: missing_dependency: task-invalid -> task-missing`,
+	)
+}
+
 func TestStatusModelTasksViewRendersPopulatedTaskList(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{
 		Initialized: true,
@@ -296,13 +354,14 @@ func TestStatusModelTasksViewRendersPopulatedTaskList(t *testing.T) {
 func TestStatusModelRendersTaskWorkflowState(t *testing.T) {
 	tasks := []taskmodel.Task{
 		{
-			ID:         "task-audit",
-			Status:     taskmodel.StatusPending,
-			Summary:    "audit task",
-			Workflow:   "mixed-pass-v1",
-			Phase:      "audit",
-			RunProfile: "auditor",
-			NextState:  "document",
+			ID:           "task-audit",
+			Status:       taskmodel.StatusPending,
+			Summary:      "audit task",
+			Workflow:     "mixed-pass-v1",
+			Phase:        "audit",
+			RunProfile:   "auditor",
+			NextState:    "document",
+			NextRunnable: true,
 		},
 		{
 			ID:         "task-simplify",
@@ -2336,9 +2395,10 @@ func TestStatusModelWideRenderSnapshot(t *testing.T) {
 		Initialized: true,
 		Tasks: []taskmodel.Task{
 			{
-				ID:      "task-ready",
-				Status:  taskmodel.StatusPending,
-				Summary: "write focused TUI polish",
+				ID:           "task-ready",
+				Status:       taskmodel.StatusPending,
+				Summary:      "write focused TUI polish",
+				NextRunnable: true,
 			},
 			{
 				ID:      "task-blocked",
@@ -2409,7 +2469,7 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{
 		Initialized: true,
 		Tasks: []taskmodel.Task{
-			{ID: "task-pending", Status: taskmodel.StatusPending},
+			{ID: "task-pending", Status: taskmodel.StatusPending, NextRunnable: true},
 			{ID: "task-blocked", Status: taskmodel.StatusBlocked},
 		},
 		RecentRuns: []ledger.Run{
@@ -2677,12 +2737,13 @@ func sampleTasks() []taskmodel.Task {
 
 	return []taskmodel.Task{
 		{
-			ID:        "task-pending",
-			Status:    taskmodel.StatusPending,
-			Summary:   "write focused tests",
-			Task:      "Add focused task view tests",
-			CreatedAt: createdPending,
-			UpdatedAt: createdPending,
+			ID:           "task-pending",
+			Status:       taskmodel.StatusPending,
+			Summary:      "write focused tests",
+			Task:         "Add focused task view tests",
+			NextRunnable: true,
+			CreatedAt:    createdPending,
+			UpdatedAt:    createdPending,
 		},
 		{
 			ID:        "task-blocked",

@@ -26,6 +26,7 @@ import (
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
+	"revolvr/internal/taskscheduler"
 	tuiapp "revolvr/internal/tui"
 	"revolvr/internal/verification"
 )
@@ -38,9 +39,12 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"task"},
 		{"task", "add"},
 		{"task", "import"},
+		{"task", "migrate"},
 		{"task", "list"},
 		{"task", "retry"},
 		{"task", "unblock"},
+		{"checkpoint"},
+		{"checkpoint", "fulfill"},
 		{"archive"},
 		{"archive", "list"},
 		{"archive", "show"},
@@ -82,7 +86,7 @@ func TestRootHelpWorks(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "archive", "run", "doctor", "status", "tui", "show", "receipt"} {
+	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "checkpoint", "archive", "run", "doctor", "status", "tui", "show", "receipt"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help output missing %q:\n%s", want, help)
 		}
@@ -137,6 +141,7 @@ func TestParentCommandHelpOutput(t *testing.T) {
 				"add",
 				"import",
 				"list",
+				"migrate",
 				"retry",
 				"unblock",
 			},
@@ -207,6 +212,7 @@ func TestStatusEmptyInitializedState(t *testing.T) {
 		"Pending tasks: 0\n" +
 		"Blocked tasks: 0\n" +
 		"Completed tasks: 0\n" +
+		"Next task: none\n" +
 		"Recent runs: 0\n" +
 		"Latest run: none\n"
 	if out != want {
@@ -292,7 +298,7 @@ func TestStatusUsesPrioritySelectedNextRunnableMarker(t *testing.T) {
 		{ID: "task-filename-first", Status: taskmodel.StatusPending, Summary: "shown first", Workflow: "mixed-pass-v1", Phase: "implement", RunProfile: "implementer", NextState: "audit"},
 		{ID: "task-priority-first", Status: taskmodel.StatusPending, Summary: "runs first", Workflow: "mixed-pass-v1", Phase: "audit", RunProfile: "auditor", NextState: "document", NextRunnable: true},
 	}
-	if err := writeStatus(&out, tasks, nil, nil); err != nil {
+	if err := writeStatus(&out, tasks, taskscheduler.Result{}, nil, nil); err != nil {
 		t.Fatalf("write status: %v", err)
 	}
 	if !strings.Contains(out.String(), "Next task: task-priority-first - runs first\n") || !strings.Contains(out.String(), "Next pass: workflow=mixed-pass-v1 phase=audit profile=auditor next=document\n") {
@@ -1043,11 +1049,158 @@ func TestTaskListShowsFileBackedTasksInTaskfileOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute task list: %v", err)
 	}
-	want := "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tDEPENDS_ON\tTAGS\tCONFLICTS\tPARENT\tTASK\tSUMMARY\n" +
-		"010-first\tpending\tmixed-pass-v1\timplement\timplementer\taudit\t\t\t\t\t# First task First body.\tFirst task\n" +
-		"020-second\tpending\tmixed-pass-v1\tsimplify\tsimplifier\tcompleted\t\t\t\t\t" + oneLine(second) + "\tSecond task\n"
+	want := "ID\tSTATUS\tWORKFLOW\tPHASE\tPROFILE\tNEXT\tSELECTED\tREADINESS\tWAITING_ON\tCONFLICT_BLOCKERS\tDIAGNOSTICS\tDEPENDS_ON\tTAGS\tCONFLICTS\tPARENT\tTASK\tSUMMARY\tCHECKPOINT\tCHECKPOINT_RECEIPT\n" +
+		"010-first\tpending\tmixed-pass-v1\timplement\timplementer\taudit\tmixed-pass-v1\tready\t\t\t\t\t\t\t\t# First task First body.\tFirst task\t\t\n" +
+		"020-second\tpending\tmixed-pass-v1\tsimplify\tsimplifier\tcompleted\t\tready\t\t\t\t\t\t\t\t" + oneLine(second) + "\tSecond task\t\t\n"
 	if out != want {
 		t.Fatalf("task list output = %q, want %q", out, want)
+	}
+}
+
+func TestTaskListAndStatusRejectUnsupportedCanonicalFrontmatter(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLITaskFile(t, workDir, "typo.md", `---
+id: typo-task
+status: pending
+depend_on: prerequisite
+---
+# Typo Task
+`)
+	want := `unsupported frontmatter key "depend_on" at .agent/tasks/typo.md:4`
+
+	if _, err := executeCLI(t, workDir, "task", "list"); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("task list error = %v, want %q", err, want)
+	}
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	if _, err := executeCLI(t, workDir, "status"); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("status error = %v, want %q", err, want)
+	}
+}
+
+func TestStatusAndTaskListRenderSharedWaitingSelectionWithoutFallback(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	writeCLITaskFile(t, workDir, "010-dependent.md", `---
+id: task-dependent
+status: pending
+priority: 1
+depends_on: task-prerequisite
+---
+# Dependent
+`)
+	writeCLITaskFile(t, workDir, "020-prerequisite.md", `---
+id: task-prerequisite
+status: pending
+priority: 50
+---
+# Prerequisite
+`)
+
+	listOut, err := executeCLI(t, workDir, "task", "list")
+	if err != nil {
+		t.Fatalf("execute task list: %v", err)
+	}
+	if !strings.Contains(listOut, "task-dependent\tpending\tmixed-pass-v1\timplement\timplementer\taudit\t\twaiting_dependency\ttask-prerequisite\t") {
+		t.Fatalf("task list omitted exact waiting projection:\n%s", listOut)
+	}
+	if !strings.Contains(listOut, "task-prerequisite\tpending\tmixed-pass-v1\timplement\timplementer\taudit\tmixed-pass-v1\tready\t") {
+		t.Fatalf("task list omitted selected prerequisite:\n%s", listOut)
+	}
+
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	statusOut, err := executeCLI(t, workDir, "status")
+	if err != nil {
+		t.Fatalf("execute status: %v", err)
+	}
+	for _, want := range []string{
+		"Next task: task-prerequisite - Prerequisite\n",
+		"Task readiness: task-dependent reason=waiting_dependency waiting_on=task-prerequisite conflict_blockers=none\n",
+	} {
+		if !strings.Contains(statusOut, want) {
+			t.Fatalf("status output missing %q:\n%s", want, statusOut)
+		}
+	}
+	if strings.Contains(statusOut, "Next task: task-dependent") {
+		t.Fatalf("status fell back to waiting task:\n%s", statusOut)
+	}
+
+	status, err := app.Status(ctx, app.Config{WorkDir: workDir})
+	if err != nil {
+		t.Fatalf("load shared status projection: %v", err)
+	}
+	tuiOut := tuiapp.NewStatusModel(status).View()
+	if !strings.Contains(tuiOut, "Next task: task-prerequisite - Prerequisite") {
+		t.Fatalf("TUI omitted status-selected prerequisite:\n%s", tuiOut)
+	}
+	if strings.Contains(tuiOut, "Next task: task-dependent") {
+		t.Fatalf("TUI fell back to waiting task:\n%s", tuiOut)
+	}
+
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	if err != nil {
+		t.Fatalf("open run ledger: %v", err)
+	}
+	defer runs.Close()
+	codexCalls := 0
+	runResult, err := runonce.Run(ctx, runonce.Config{
+		WorkingDir:  workDir,
+		LedgerStore: runs,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			return gitstate.Capture{Kind: gitstate.CaptureKindChanged}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalls++
+			return codexexec.Result{ExitCode: 1}, nil
+		},
+		CodexVersionDiscoverer: func(context.Context, codexexec.VersionConfig) (string, error) {
+			return "codex-test 1.2.3", nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if runResult.Task.ID != "task-prerequisite" || runResult.FileTask.ID != "task-prerequisite" || codexCalls != 1 {
+		t.Fatalf("run selection task=%q file=%q codex_calls=%d, want shared prerequisite", runResult.Task.ID, runResult.FileTask.ID, codexCalls)
+	}
+}
+
+func TestTaskListAndStatusRenderInvalidGraphDiagnostics(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLITaskFile(t, workDir, "010-invalid.md", `---
+id: task-invalid
+status: pending
+depends_on: task-missing
+---
+# Invalid
+`)
+
+	listOut, err := executeCLI(t, workDir, "task", "list")
+	if err != nil {
+		t.Fatalf("execute task list: %v", err)
+	}
+	if !strings.Contains(listOut, "\tinvalid_graph\t") || !strings.Contains(listOut, `missing_dependency: task "task-invalid" has missing dependency "task-missing"`) {
+		t.Fatalf("task list omitted invalid graph projection:\n%s", listOut)
+	}
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	statusOut, err := executeCLI(t, workDir, "status")
+	if err != nil {
+		t.Fatalf("execute status: %v", err)
+	}
+	if !strings.Contains(statusOut, "Next task: none\n") || !strings.Contains(statusOut, `Scheduling diagnostic: missing_dependency: task "task-invalid" has missing dependency "task-missing"`) {
+		t.Fatalf("status omitted fail-closed diagnostic:\n%s", statusOut)
 	}
 }
 
@@ -1102,18 +1255,25 @@ func TestTaskRetryMakesBlockedTaskRunnableForRunOnce(t *testing.T) {
 			if cfg.WorkingDir != workDir {
 				t.Fatalf("working dir = %q, want %q", cfg.WorkingDir, workDir)
 			}
-			task, ok, err := taskfile.SelectNext(cfg.WorkingDir)
+			tasks, err := app.ListTasks(ctx, app.Config{WorkDir: cfg.WorkingDir})
 			if err != nil {
 				return runonce.Result{}, err
 			}
-			if !ok {
+			var task taskmodel.Task
+			for _, candidate := range tasks {
+				if candidate.NextRunnable {
+					task = candidate
+					break
+				}
+			}
+			if task.ID == "" {
 				return runonce.Result{Outcome: runonce.OutcomeNoTask, NoTask: true}, nil
 			}
 			selectedID = task.ID
 			return runonce.Result{
 				Outcome: runonce.OutcomeCommitted,
 				Run:     ledger.Run{ID: "run-selected"},
-				Task:    taskmodel.Task{ID: task.ID},
+				Task:    task,
 				Commit:  commit.Result{CommitSHA: "abc123"},
 			}, nil
 		},

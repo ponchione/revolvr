@@ -1,6 +1,8 @@
 package taskfile
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +10,117 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestProjectAutonomousMigrationPreservesTaskBytesAndRemovesMixedRouting(t *testing.T) {
+	repo := t.TempDir()
+	raw := []byte("---\r\nid: exact-task\r\nstatus: pending\r\nworkflow: mixed-pass-v1\r\nphase: implement\r\nprofile: custom-worker\r\npriority: 7\r\ndepends_on: base\r\ntags: api,small\r\nconflicts: shared-db\r\nx-owner: keep exact spacing\r\n---\r\n# Exact Task\r\n\r\nPreserve this body byte-for-byte.\r\n\r\n```text\r\nphase: audit\r\n```\r\nwithout-final-newline")
+	path := writeTaskFile(t, repo, "exact-task.md", string(raw))
+	snapshot, err := Load(repo, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	projected, err := ProjectAutonomousMigration(repo, snapshot)
+	if err != nil {
+		t.Fatalf("project migration: %v", err)
+	}
+	want := []byte("---\r\nid: exact-task\r\nstatus: pending\r\nworkflow: autonomous-v1\r\npriority: 7\r\ndepends_on: base\r\ntags: api,small\r\nconflicts: shared-db\r\nx-owner: keep exact spacing\r\nautonomous_state_path: .revolvr/autonomous/tasks/exact-task/state.json\r\n---\r\n# Exact Task\r\n\r\nPreserve this body byte-for-byte.\r\n\r\n```text\r\nphase: audit\r\n```\r\nwithout-final-newline")
+	if !bytes.Equal(projected.SourceBytes, want) {
+		t.Fatalf("projected bytes:\n%q\nwant:\n%q", projected.SourceBytes, want)
+	}
+	if projected.Workflow != WorkflowAutonomousV1 || projected.Phase != "" || projected.Profile != "" || projected.AutonomousStatePath != autonomousStatePath("exact-task") {
+		t.Fatalf("projected routing = %+v", projected)
+	}
+	if projected.ID != snapshot.ID || projected.Title != snapshot.Title || projected.Priority != snapshot.Priority || !reflect.DeepEqual(projected.DependsOn, snapshot.DependsOn) || !reflect.DeepEqual(projected.Tags, snapshot.Tags) || !reflect.DeepEqual(projected.Conflicts, snapshot.Conflicts) {
+		t.Fatalf("projected task did not preserve task identity and scheduling metadata: %+v", projected)
+	}
+	current, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(current, raw) {
+		t.Fatal("projection mutated the canonical task file")
+	}
+}
+
+func TestProjectAutonomousMigrationAddsFrontmatterWithoutChangingBody(t *testing.T) {
+	repo := t.TempDir()
+	raw := []byte("# Implicit Task\n\nExact body without a final newline")
+	path := writeTaskFile(t, repo, "implicit-task.md", string(raw))
+	snapshot, err := Load(repo, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projected, err := ProjectAutonomousMigration(repo, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPrefix := []byte("---\nworkflow: autonomous-v1\nautonomous_state_path: .revolvr/autonomous/tasks/implicit-task/state.json\n---\n")
+	if !bytes.Equal(projected.SourceBytes, append(wantPrefix, raw...)) {
+		t.Fatalf("projected implicit task = %q", projected.SourceBytes)
+	}
+}
+
+func TestProjectAutonomousMigrationRejectsIneligibleSnapshot(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "child.md", "---\nid: child\nstatus: pending\nworkflow: mixed-pass-v1\nphase: implement\nparent_task_id: parent\nchild_proposal_id: proposal\nchild_decision_id: decision\nchild_run_id: run\nchild_evidence: task:parent\nparent_behavior: independent\n---\n# Child\n")
+	task, err := Load(repo, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ProjectAutonomousMigration(repo, task); err == nil || !strings.Contains(err.Error(), "has child lineage") {
+		t.Fatalf("projection error = %v", err)
+	}
+}
+
+func TestPublishAutonomousMigrationIsAtomicReplaySafeAndConflictSafe(t *testing.T) {
+	repo := t.TempDir()
+	path := writeTaskFile(t, repo, "candidate.md", "---\nid: candidate\nstatus: pending\nworkflow: mixed-pass-v1\nphase: implement\nx-owner: exact\n---\n# Candidate\n\nExact body.\n")
+	snapshot, err := Load(repo, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projected, err := ProjectAutonomousMigration(repo, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated, changed, err := PublishAutonomousMigration(repo, snapshot, projected)
+	if err != nil || !changed || !bytes.Equal(updated.SourceBytes, projected.SourceBytes) {
+		t.Fatalf("publish = changed %v task %+v err %v", changed, updated, err)
+	}
+	updated, changed, err = PublishAutonomousMigration(repo, snapshot, projected)
+	if err != nil || changed || !bytes.Equal(updated.SourceBytes, projected.SourceBytes) {
+		t.Fatalf("replay = changed %v task %+v err %v", changed, updated, err)
+	}
+
+	repo = t.TempDir()
+	path = writeTaskFile(t, repo, "candidate.md", string(snapshot.SourceBytes))
+	snapshot, _ = Load(repo, path)
+	projected, _ = ProjectAutonomousMigration(repo, snapshot)
+	sentinel := errors.New("injected atomic failure")
+	originalWriter := writeMigrationFileAtomically
+	writeMigrationFileAtomically = func(string, []byte, os.FileMode) error { return sentinel }
+	t.Cleanup(func() { writeMigrationFileAtomically = originalWriter })
+	_, changed, err = PublishAutonomousMigration(repo, snapshot, projected)
+	if !errors.Is(err, sentinel) || changed {
+		t.Fatalf("failed publication = changed %v err %v", changed, err)
+	}
+	if got, readErr := os.ReadFile(filepath.Join(repo, filepath.FromSlash(path))); readErr != nil || !bytes.Equal(got, snapshot.SourceBytes) {
+		t.Fatalf("failed publication changed task: err=%v", readErr)
+	}
+	conflict := append(append([]byte(nil), snapshot.SourceBytes...), []byte("user change\n")...)
+	if err := os.WriteFile(filepath.Join(repo, filepath.FromSlash(path)), conflict, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, changed, err = PublishAutonomousMigration(repo, snapshot, projected)
+	if err == nil || changed || !strings.Contains(err.Error(), "changed since planning") {
+		t.Fatalf("conflicting publication = changed %v err %v", changed, err)
+	}
+	if got, readErr := os.ReadFile(filepath.Join(repo, filepath.FromSlash(path))); readErr != nil || !bytes.Equal(got, conflict) {
+		t.Fatalf("conflicting publication overwrote task: err=%v", readErr)
+	}
+}
 
 func TestLoadAutonomousTaskLifecycleMetadata(t *testing.T) {
 	repo := t.TempDir()
@@ -201,7 +314,7 @@ func TestLoadRejectsAutonomousStatePathSymlinkIntoAnotherNamespace(t *testing.T)
 	}
 }
 
-func TestWorkflowAwareSelectionIsDeterministicAndIsolated(t *testing.T) {
+func TestListLoadsMixedAndAutonomousWorkflowsInSourceOrder(t *testing.T) {
 	repo := t.TempDir()
 	writeTaskFile(t, repo, "001-autonomous-blocked.md", autonomousTaskMarkdown("auto-blocked", StatusBlocked, "0", "Blocked", "Blocked."))
 	writeTaskFile(t, repo, "002-autonomous-completed.md", autonomousTaskMarkdown("auto-completed", StatusCompleted, "0", "Completed", "Completed."))
@@ -211,53 +324,29 @@ func TestWorkflowAwareSelectionIsDeterministicAndIsolated(t *testing.T) {
 	writeTaskFile(t, repo, "001-mixed-priority.md", taskMarkdownWithPhase("mixed-priority", StatusPending, "2", PhaseAudit))
 	writeTaskFile(t, repo, "000-mixed-unprioritized.md", "# Mixed Unprioritized\n")
 
-	autonomous, err := ListRunnableForWorkflow(repo, WorkflowAutonomousV1)
+	tasks, err := List(repo)
 	if err != nil {
-		t.Fatalf("list autonomous tasks: %v", err)
+		t.Fatalf("list tasks: %v", err)
 	}
-	if got, want := taskSourcePaths(autonomous), []string{
+	if got, want := taskSourcePaths(tasks), []string{
+		filepath.Join(TasksDir, "000-mixed-unprioritized.md"),
+		filepath.Join(TasksDir, "001-autonomous-blocked.md"),
+		filepath.Join(TasksDir, "001-mixed-priority.md"),
+		filepath.Join(TasksDir, "002-autonomous-completed.md"),
+		filepath.Join(TasksDir, "003-autonomous-running.md"),
 		filepath.Join(TasksDir, "010-autonomous-alpha.md"),
 		filepath.Join(TasksDir, "010-autonomous-beta.md"),
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("autonomous order = %#v, want %#v", got, want)
-	}
-
-	mixed, err := ListRunnableForWorkflow(repo, WorkflowMixedPassV1)
-	if err != nil {
-		t.Fatalf("list mixed-pass tasks: %v", err)
-	}
-	if got, want := taskSourcePaths(mixed), []string{
-		filepath.Join(TasksDir, "001-mixed-priority.md"),
-		filepath.Join(TasksDir, "000-mixed-unprioritized.md"),
-	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("mixed-pass order = %#v, want %#v", got, want)
-	}
-
-	for i := 0; i < 3; i++ {
-		nextAutonomous, ok, err := SelectNextForWorkflow(repo, WorkflowAutonomousV1)
-		if err != nil || !ok || nextAutonomous.ID != "auto-alpha" {
-			t.Fatalf("autonomous selection %d = %+v, %v, %v; want auto-alpha", i, nextAutonomous, ok, err)
-		}
-		nextMixed, ok, err := SelectNext(repo)
-		if err != nil || !ok || nextMixed.SourcePath != filepath.Join(TasksDir, "001-mixed-priority.md") {
-			t.Fatalf("default selection %d = %+v, %v, %v; want 001-mixed-priority.md", i, nextMixed, ok, err)
-		}
-	}
-
-	if _, err := os.Stat(filepath.Join(repo, ".revolvr")); !os.IsNotExist(err) {
-		t.Fatalf("selection created runtime state: %v", err)
-	}
-	if _, err := ListRunnableForWorkflow(repo, "future-workflow"); err == nil || !strings.Contains(err.Error(), "invalid workflow") {
-		t.Fatalf("unknown workflow error = %v, want invalid workflow", err)
+		t.Fatalf("task source order = %#v, want %#v", got, want)
 	}
 }
 
-func TestWorkflowAwareSelectionRejectsMalformedFilesAndDuplicateIDs(t *testing.T) {
+func TestListRejectsMalformedFilesAndDuplicateIDsAcrossWorkflows(t *testing.T) {
 	t.Run("malformed", func(t *testing.T) {
 		repo := t.TempDir()
 		writeTaskFile(t, repo, "010-valid.md", autonomousTaskMarkdown("valid", StatusPending, "1", "Valid", "Valid."))
 		writeTaskFile(t, repo, "020-malformed.md", "## Missing H1\n")
-		_, _, err := SelectNextForWorkflow(repo, WorkflowAutonomousV1)
+		_, err := List(repo)
 		if err == nil || !strings.Contains(err.Error(), "020-malformed.md") {
 			t.Fatalf("selection error = %v, want malformed source", err)
 		}
@@ -275,7 +364,7 @@ priority: 2
 ---
 # Mixed
 `)
-		_, _, err := SelectNextForWorkflow(repo, WorkflowAutonomousV1)
+		_, err := List(repo)
 		if err == nil || !strings.Contains(err.Error(), `task id "duplicate" is duplicated`) {
 			t.Fatalf("selection error = %v, want duplicate task id", err)
 		}
@@ -284,7 +373,7 @@ priority: 2
 
 func TestAutonomousRetryPreservesLifecycleAndSpecificationBytes(t *testing.T) {
 	repo := t.TempDir()
-	raw := []byte("---\r\nid: task-retry\r\nstatus: blocked\r\nworkflow: autonomous-v1\r\nautonomous_state_path: .revolvr/autonomous/tasks/task-retry/state.json\r\npriority: 7\r\nunknown: preserved\r\n---\r\n# Retry Autonomous\r\n\r\nHuman-authored body.\r\nNo final newline.")
+	raw := []byte("---\r\nid: task-retry\r\nstatus: blocked\r\nworkflow: autonomous-v1\r\nautonomous_state_path: .revolvr/autonomous/tasks/task-retry/state.json\r\npriority: 7\r\nx-unknown: preserved\r\n---\r\n# Retry Autonomous\r\n\r\nHuman-authored body.\r\nNo final newline.")
 	path := filepath.Join(TasksDir, "retry.md")
 	writeFile(t, filepath.Join(repo, path), string(raw))
 

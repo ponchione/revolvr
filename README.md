@@ -32,6 +32,17 @@ local runtime state and is ignored by Git. When initialized from a Git worktree,
 `init` adds `/.revolvr/` to
 `.git/info/exclude` so tracked ignore files do not need to change.
 
+## Documentation
+
+- This README is the operator guide for setup, task workflows, runtime modes,
+  safety, recovery, and maintenance commands.
+- [`AGENTS.md`](AGENTS.md) defines repository working and verification rules.
+- [`.agent/DECISIONS.md`](.agent/DECISIONS.md) records durable architecture
+  decisions, while [`.agent/STATE.md`](.agent/STATE.md) summarizes the current
+  implementation and verification baseline.
+- [`.agent/CYBER_ARPG_READINESS_ASSESSMENT.md`](.agent/CYBER_ARPG_READINESS_ASSESSMENT.md)
+  contains the bounded read-only assessment of the 446-task Cyber-ARPG graph.
+
 ## Tasks
 
 Add work for the harness:
@@ -119,6 +130,95 @@ and `revolvr status` for the next runnable task, its next pass, and recent pass
 state. The TUI Dashboard and Tasks views show the current workflow state. Use
 `revolvr show <run-id>` or TUI Run Detail to inspect task-selection timeline
 metadata and the underlying event sequence.
+
+### Canonical metadata and scheduling
+
+Task frontmatter is a closed contract. Misspelled or unknown keys fail the
+entire canonical load; extension keys must use a nonempty `x-<name>` namespace.
+Revolvr preserves those extensions when it rewrites a task, but they are inert:
+an `x-status` or `x-depends_on` value cannot change lifecycle or scheduling.
+Comma-separated identity lists such as `depends_on`, `tags`, and `conflicts`
+are source ordered, contain no surrounding whitespace, and reject duplicates.
+
+Task list, status, the TUI, one-pass mixed execution, and autonomous admission
+all consume the same validated scheduling projection. A task is ready only
+when every dependency has verified `completed` authority. Pending or running
+dependencies wait; blocked, autonomous `needs_input`, and awaiting operator
+checkpoint dependencies remain distinct. Cancelled, abandoned, or superseded
+dependencies are terminal but unsatisfied: they never silently redirect an
+edge to a replacement task. Only a verified and reconciled completed archive
+can satisfy an archived dependency identity.
+
+Selection is deterministic by ascending explicit priority, canonical task
+path, then task ID. Missing or duplicate IDs and edges, self-dependencies,
+active/archive ambiguity, malformed archive authority, and cycles invalidate
+the complete graph. Invalid graphs select no task on any surface, so a pending
+file-order fallback cannot start Codex.
+
+### Migrating a mixed-pass task to autonomous execution
+
+Migration is an explicit operator action; `revolvr init` never converts task
+files. Start with an exact, write-free plan:
+
+```bash
+go run ./cmd/revolvr task migrate --to autonomous-v1 --dry-run <task-id>
+```
+
+Use `--all --dry-run` only to assess a complete pending mixed-pass set. A task
+is structurally eligible when it is pending at `implement`, has no autonomous
+state or migration lineage, and has no prior execution evidence. Eligibility
+does not mean migration is desirable. In particular, keep a dependency-heavy
+backlog on `mixed-pass-v1` unless there is an independent product or operating
+reason for each task to need supervisor/worker autonomous cycles.
+
+After reviewing the projected task and state identities, initialize Revolvr
+and omit `--dry-run` to apply the same selection. Application publishes the
+new autonomous state before the task points to it, records immutable
+state-before-task transition history, and never runs Codex, fabricates prior
+evidence, or creates a Git commit. If an apply is interrupted, fix the
+underlying filesystem problem and repeat the exact command: recovery replays
+the content-addressed operation, rejects changed authority, and completes only
+the missing publication stages. Do not hand-edit the migration journal or
+partially published task/state pair.
+
+### Operator checkpoints
+
+An `operator-checkpoint-v1` task is a pre-authored dependency for evidence that
+must come from outside an agent run, such as a license decision, physical
+hardware result, asset approval, or manual play acceptance. Revolvr never
+selects a checkpoint for Codex. It remains `awaiting` until an operator supplies
+the exact receipt declared by `checkpoint_receipt_path`.
+
+The receipt uses the closed `operator-checkpoint-receipt-v1` JSON schema. It
+records the checkpoint task ID, accepted outcome, operator identity,
+provenance, explicit UTC acceptance time, subject, decision, and at least one
+typed repository-relative evidence reference with a lowercase SHA-256. Put
+evidence bytes in repository files or artifacts and reference them; do not put
+secrets or private payloads inline in the receipt.
+
+After writing the receipt at `.agent/checkpoints/<task-id>/receipt.json`, bind
+it atomically to the checkpoint:
+
+```bash
+go run ./cmd/revolvr checkpoint fulfill <task-id> \
+  --receipt .agent/checkpoints/<task-id>/receipt.json \
+  --operator <identity-recorded-in-receipt>
+```
+
+Fulfillment validates the canonical task, exact receipt path and bytes,
+operator identity, and complete task graph before changing task metadata. The
+status and receipt SHA-256 are published together. Repeating the identical
+command is a no-op success; a different receipt or operator is a conflict.
+Fulfillment runs no Codex session and creates no Git commit. `status`,
+`task list`, and the read-only TUI views render checkpoints as `awaiting` or
+`fulfilled`; dependents become ready only when the shared scheduler re-evaluates
+the verified fulfilled checkpoint.
+
+Operator checkpoints are distinct from autonomous `needs_input`. A checkpoint
+and its receipt are pre-authored external acceptance evidence and are never
+agent-executed. `needs_input` is a runtime supervisor question with durable
+question versions, operator answers, and resume history for an active
+autonomous task.
 
 ## Chat-To-Task Imports
 
