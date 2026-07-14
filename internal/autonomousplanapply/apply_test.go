@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,8 +21,46 @@ import (
 	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/supervisor"
 )
+
+func TestReadProtectedPathRejectsBoundAncestorSubstitution(t *testing.T) {
+	root := t.TempDir()
+	rel := "evidence/plan.json"
+	abs := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("trusted plan evidence\n")
+	if err := os.WriteFile(abs, want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := filepath.Join(root, "evidence-held")
+	outside := t.TempDir()
+	outsidePath := filepath.Join(outside, "plan.json")
+	outsideRaw := []byte("attacker plan bytes\n")
+	if err := os.WriteFile(outsidePath, outsideRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Dir(abs), held); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Dir(abs)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readProtectedPath(boundary, rel, int64(len(want))); !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("read protected path error = %v, want unsafe boundary", err)
+	}
+	got, err := os.ReadFile(outsidePath)
+	if err != nil || !reflect.DeepEqual(got, outsideRaw) {
+		t.Fatalf("outside artifact changed: %q, %v", got, err)
+	}
+}
 
 func TestApplyPlanningResultPersistsInitialPlanReopensAndAuthorizesImplement(t *testing.T) {
 	fixture := newApplyFixture(t, nil, "one")

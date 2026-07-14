@@ -3,12 +3,15 @@ package operatorcheckpoint
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"revolvr/internal/runtimepath"
 )
 
 func TestReceiptStrictRoundTrip(t *testing.T) {
@@ -113,8 +116,50 @@ func TestLoadRequiresCanonicalNonSymlinkReceipt(t *testing.T) {
 	if err := os.Symlink(target, absPath); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(root, receiptPath, taskID); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+	if _, err := Load(root, receiptPath, taskID); !errors.Is(err, runtimepath.ErrUnsafe) {
 		t.Fatalf("symlink error = %v", err)
+	}
+}
+
+func TestLoadRejectsBoundAncestorSubstitution(t *testing.T) {
+	root := t.TempDir()
+	taskID := "manual-acceptance"
+	receiptPath := ExpectedReceiptPath(taskID)
+	absPath := filepath.Join(root, filepath.FromSlash(receiptPath))
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := Marshal(validReceipt(taskID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(absPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespace := filepath.Dir(absPath)
+	held := namespace + "-held"
+	outside := t.TempDir()
+	outsidePath := filepath.Join(outside, "receipt.json")
+	outsideRaw := bytes.Replace(raw, []byte("Approved."), []byte("Rejected."), 1)
+	if err := os.WriteFile(outsidePath, outsideRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(namespace, held); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, namespace); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := load(boundary, receiptPath, taskID); !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("load receipt error = %v, want unsafe boundary", err)
+	}
+	got, err := os.ReadFile(outsidePath)
+	if err != nil || !bytes.Equal(got, outsideRaw) {
+		t.Fatalf("outside receipt changed: %q, %v", got, err)
 	}
 }
 

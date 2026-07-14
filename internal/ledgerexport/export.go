@@ -22,6 +22,7 @@ import (
 
 	"revolvr/internal/ledger"
 	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 )
 
 const (
@@ -172,6 +173,11 @@ func Export(ctx context.Context, in ExportInput) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		return Result{}, fmt.Errorf("ledger export: bind repository boundary: %w", err)
+	}
+	root = boundary.Root()
 	ledgerPath := strings.TrimSpace(in.LedgerPath)
 	if ledgerPath == "" {
 		ledgerPath = filepath.Join(root, ".revolvr", "ledger.sqlite")
@@ -213,7 +219,7 @@ func Export(ctx context.Context, in ExportInput) (Result, error) {
 	if err := rejectSecrets([][]byte{stream}, in.Secrets); err != nil {
 		return Result{}, err
 	}
-	compressedArtifacts, err := collectCompressedReferences(ctx, root, snapshot, actualBounds, in.Secrets)
+	compressedArtifacts, err := collectCompressedReferences(ctx, boundary, snapshot, actualBounds, in.Secrets)
 	if err != nil {
 		return Result{}, err
 	}
@@ -316,7 +322,8 @@ func encodeSnapshot(ctx context.Context, snapshot ledger.Snapshot, bounds Bounds
 	return out.Bytes(), runs, events, legacy, nil
 }
 
-func collectCompressedReferences(ctx context.Context, root string, snapshot ledger.Snapshot, bounds Bounds, secrets []string) ([]CompressedReference, error) {
+func collectCompressedReferences(ctx context.Context, boundary runtimepath.Boundary, snapshot ledger.Snapshot, bounds Bounds, secrets []string) ([]CompressedReference, error) {
+	root := boundary.Root()
 	wanted := map[string]bool{}
 	for _, history := range snapshot.Runs {
 		selected := len(history.Events) == 0
@@ -358,7 +365,7 @@ func collectCompressedReferences(ctx context.Context, root string, snapshot ledg
 			return nil, err
 		}
 		manifestPath := abs + ".gz.manifest.json"
-		manifestRaw, err := safeRead(manifestPath, 1<<20)
+		manifestRaw, err := safeRead(boundary, manifestPath, 1<<20)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -380,7 +387,7 @@ func collectCompressedReferences(ctx context.Context, root string, snapshot ledg
 		if !pathguard.WithinRoot(root, compressedAbs) {
 			return nil, errors.New("ledger export: compressed artifact escapes repository")
 		}
-		compressedRaw, err := safeRead(compressedAbs, wire.Compressed.ByteSize)
+		compressedRaw, err := safeRead(boundary, compressedAbs, wire.Compressed.ByteSize)
 		if err != nil {
 			return nil, err
 		}
@@ -431,10 +438,19 @@ func validateRecordSize(size int) error {
 }
 
 func Verify(ctx context.Context, repositoryRoot, exportID string, secrets []string) (VerifyReport, error) {
-	manifest, raw, root, err := loadManifest(repositoryRoot, exportID)
+	boundary, err := bindBoundary(repositoryRoot)
 	if err != nil {
 		return VerifyReport{}, err
 	}
+	return verify(ctx, boundary, exportID, secrets)
+}
+
+func verify(ctx context.Context, boundary runtimepath.Boundary, exportID string, secrets []string) (VerifyReport, error) {
+	manifest, raw, err := loadManifest(boundary, exportID)
+	if err != nil {
+		return VerifyReport{}, err
+	}
+	root := boundary.Root()
 	report := VerifyReport{ExportID: manifest.ExportID, Passed: true}
 	add := func(name string, err error) {
 		check := Check{Name: name, Passed: err == nil, Detail: "ok"}
@@ -446,7 +462,7 @@ func Verify(ctx context.Context, repositoryRoot, exportID string, secrets []stri
 	}
 	add("manifest_schema", validateManifest(manifest, exportID))
 	if manifest.PredecessorID != "" {
-		predecessor, _, _, predecessorErr := loadManifest(root, manifest.PredecessorID)
+		predecessor, _, predecessorErr := loadManifest(boundary, manifest.PredecessorID)
 		if predecessorErr == nil && predecessor.HighWaterEventID != manifest.Bounds.AfterEventID {
 			predecessorErr = errors.New("predecessor coverage does not meet incremental lower bound")
 		}
@@ -490,7 +506,7 @@ func Verify(ctx context.Context, repositoryRoot, exportID string, secrets []stri
 	add("records_path", resolveErr)
 	var records []byte
 	if resolveErr == nil {
-		records, err = safeRead(recordsAbs, 1<<30)
+		records, err = safeRead(boundary, recordsAbs, 1<<30)
 	}
 	add("records_read", err)
 	if err == nil {
@@ -513,7 +529,11 @@ func Verify(ctx context.Context, repositoryRoot, exportID string, secrets []stri
 }
 
 func ReplayValidate(ctx context.Context, repositoryRoot, exportID string, secrets []string) (ReplayReport, error) {
-	verify, err := Verify(ctx, repositoryRoot, exportID, secrets)
+	boundary, err := bindBoundary(repositoryRoot)
+	if err != nil {
+		return ReplayReport{}, err
+	}
+	verify, err := verify(ctx, boundary, exportID, secrets)
 	if err != nil {
 		return ReplayReport{}, err
 	}
@@ -521,12 +541,13 @@ func ReplayValidate(ctx context.Context, repositoryRoot, exportID string, secret
 	if !verify.Passed {
 		return report, nil
 	}
-	manifest, _, root, err := loadManifest(repositoryRoot, exportID)
+	manifest, _, err := loadManifest(boundary, exportID)
 	if err != nil {
 		return ReplayReport{}, err
 	}
+	root := boundary.Root()
 	recordsAbs, _ := pathguard.Resolve(root, manifest.Records.Path)
-	raw, err := safeRead(recordsAbs, 1<<30)
+	raw, err := safeRead(boundary, recordsAbs, 1<<30)
 	if err != nil {
 		return ReplayReport{}, err
 	}
@@ -574,22 +595,27 @@ func ReplayValidate(ctx context.Context, repositoryRoot, exportID string, secret
 // logical ledger.Snapshot shape used by live read-only metrics. It performs no
 // repair and does not open or mutate the live ledger after verification.
 func ReplaySnapshot(ctx context.Context, repositoryRoot, exportID string, secrets []string) (ledger.Snapshot, error) {
-	verify, err := Verify(ctx, repositoryRoot, exportID, secrets)
+	boundary, err := bindBoundary(repositoryRoot)
+	if err != nil {
+		return ledger.Snapshot{}, err
+	}
+	verify, err := verify(ctx, boundary, exportID, secrets)
 	if err != nil {
 		return ledger.Snapshot{}, err
 	}
 	if !verify.Passed {
 		return ledger.Snapshot{}, errors.New("ledger export: verified logical snapshot refused because export checks failed")
 	}
-	manifest, _, root, err := loadManifest(repositoryRoot, exportID)
+	manifest, _, err := loadManifest(boundary, exportID)
 	if err != nil {
 		return ledger.Snapshot{}, err
 	}
+	root := boundary.Root()
 	recordsAbs, err := pathguard.Resolve(root, manifest.Records.Path)
 	if err != nil {
 		return ledger.Snapshot{}, err
 	}
-	raw, err := safeRead(recordsAbs, 1<<30)
+	raw, err := safeRead(boundary, recordsAbs, 1<<30)
 	if err != nil {
 		return ledger.Snapshot{}, err
 	}
@@ -690,33 +716,30 @@ func parseRecords(ctx context.Context, raw []byte) ([]replayHistory, int, int, i
 	return histories, runs, events, legacy, nil
 }
 
-func loadManifest(repositoryRoot, exportID string) (Manifest, []byte, string, error) {
-	root, err := canonicalRoot(repositoryRoot)
-	if err != nil {
-		return Manifest{}, nil, "", err
-	}
+func loadManifest(boundary runtimepath.Boundary, exportID string) (Manifest, []byte, error) {
+	root := boundary.Root()
 	exportID = strings.TrimSpace(exportID)
 	if !safeID(exportID) {
-		return Manifest{}, nil, "", errors.New("ledger export: invalid export ID")
+		return Manifest{}, nil, errors.New("ledger export: invalid export ID")
 	}
 	rel := filepath.ToSlash(filepath.Join(".revolvr", "retention", "exports", exportID, "manifest.json"))
 	abs, err := pathguard.Resolve(root, rel)
 	if err != nil {
-		return Manifest{}, nil, "", err
+		return Manifest{}, nil, err
 	}
-	raw, err := safeRead(abs, 4<<20)
+	raw, err := safeRead(boundary, abs, 4<<20)
 	if err != nil {
-		return Manifest{}, nil, "", err
+		return Manifest{}, nil, err
 	}
 	var manifest Manifest
 	if err := strictJSON(raw, &manifest); err != nil {
-		return Manifest{}, nil, "", err
+		return Manifest{}, nil, err
 	}
 	canonical, _ := canonicalJSON(manifest)
 	if !bytes.Equal(raw, canonical) {
-		return Manifest{}, nil, "", errors.New("ledger export: non-canonical manifest")
+		return Manifest{}, nil, errors.New("ledger export: non-canonical manifest")
 	}
-	return manifest, raw, root, nil
+	return manifest, raw, nil
 }
 
 func validateManifest(m Manifest, id string) error {
@@ -798,21 +821,12 @@ func sourceLedgerFile(root, path string) (string, string, os.FileInfo, error) {
 	return abs, filepath.ToSlash(rel), info, nil
 }
 
-func safeRead(path string, cap int64) ([]byte, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, errors.New("artifact is not a regular non-symlink file")
-	}
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink != 1 {
-		return nil, errors.New("artifact has unexpected hard links")
-	}
-	if info.Size() > cap {
+func safeRead(boundary runtimepath.Boundary, path string, cap int64) ([]byte, error) {
+	raw, _, err := boundary.ReadFileLimit(path, false, cap)
+	if errors.Is(err, runtimepath.ErrReadLimit) {
 		return nil, errors.New("artifact exceeds read cap")
 	}
-	return os.ReadFile(path)
+	return raw, err
 }
 
 func writeImmutable(path string, raw []byte) error {
@@ -859,6 +873,14 @@ func canonicalRoot(root string) (string, error) {
 		return "", err
 	}
 	return filepath.EvalSymlinks(abs)
+}
+
+func bindBoundary(root string) (runtimepath.Boundary, error) {
+	canonical, err := canonicalRoot(root)
+	if err != nil {
+		return runtimepath.Boundary{}, err
+	}
+	return runtimepath.Bind(canonical)
 }
 func canonicalJSON(value any) ([]byte, error) {
 	raw, err := json.MarshalIndent(value, "", "  ")

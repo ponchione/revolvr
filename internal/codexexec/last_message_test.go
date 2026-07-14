@@ -10,7 +10,73 @@ import (
 
 	"revolvr/internal/redact"
 	"revolvr/internal/runner"
+	"revolvr/internal/runtimepath"
 )
+
+func TestLastMessageRejectsAncestorSubstitutionWithoutOutsideMutation(t *testing.T) {
+	workDir := t.TempDir()
+	canonical := filepath.Join(workDir, "run/final.txt")
+	rawTemporary := lastMessageRawPath(canonical)
+	redactedTemporary := lastMessageRedactedPath(canonical)
+	outside := t.TempDir()
+	outsideRawPath := filepath.Join(outside, filepath.Base(rawTemporary))
+	outsideRaw := []byte("outside raw sentinel\n")
+	if err := os.WriteFile(outsideRawPath, outsideRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outsideSentinel := filepath.Join(outside, "sentinel.txt")
+	if err := os.WriteFile(outsideSentinel, []byte("unchanged\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Run(context.Background(), Config{
+		WorkingDir: workDir,
+		Prompt:     "test ancestor substitution",
+		Artifacts: ArtifactPaths{
+			StdoutJSONL: "run/codex.jsonl",
+			LastMessage: "run/final.txt",
+		},
+		CommandRunner: func(_ context.Context, command runner.Command) runner.Result {
+			if err := os.WriteFile(argAfter(command.Args, "--output-last-message"), []byte("trusted child output\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return runner.Result{ExitCode: 0}
+		},
+		LastMessageFailureInjector: func(point LastMessageFailurePoint) error {
+			if point != LastMessageFailureRead {
+				return nil
+			}
+			runDir := filepath.Dir(canonical)
+			if err := os.Rename(runDir, runDir+"-held"); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outside, runDir); err != nil {
+				t.Fatal(err)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("run Codex: %v", err)
+	}
+	if !errors.Is(result.ArtifactError, runtimepath.ErrUnsafe) {
+		t.Fatalf("artifact error = %v, want unsafe boundary", result.ArtifactError)
+	}
+	for path, want := range map[string][]byte{
+		outsideRawPath:  outsideRaw,
+		outsideSentinel: []byte("unchanged\n"),
+	} {
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != string(want) {
+			t.Fatalf("outside file %s changed: %q, %v", path, got, err)
+		}
+	}
+	for _, path := range []string{filepath.Join(outside, filepath.Base(canonical)), filepath.Join(outside, filepath.Base(redactedTemporary))} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("outside entry %s was created: %v", path, err)
+		}
+	}
+}
 
 func TestLastMessagePublicationFailuresNeverExposeRawCanonical(t *testing.T) {
 	points := []LastMessageFailurePoint{

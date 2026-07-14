@@ -48,6 +48,8 @@ type fileIdentity struct {
 	inode  uint64
 }
 
+var ErrReadLimit = errors.New("harness runtime path: protected file exceeds read limit")
+
 // Bind resolves and validates a repository root once and remembers its inode.
 // Later operations fail if the named root is replaced.
 func Bind(root string) (Boundary, error) {
@@ -56,8 +58,16 @@ func Bind(root string) (Boundary, error) {
 		return Boundary{}, err
 	}
 	fd, err := unix.Open(canonical, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if errors.Is(err, unix.ELOOP) {
-		return Boundary{}, unsafe(canonical, canonical, "became a symlink during root open")
+	if errors.Is(err, unix.ELOOP) || errors.Is(err, unix.ENOTDIR) {
+		var named unix.Stat_t
+		if statErr := unix.Fstatat(unix.AT_FDCWD, canonical, &named, unix.AT_SYMLINK_NOFOLLOW); statErr == nil {
+			if named.Mode&unix.S_IFMT == unix.S_IFLNK {
+				return Boundary{}, unsafe(canonical, canonical, "became a symlink during root open")
+			}
+			if !directoryMode(&named) {
+				return Boundary{}, unsafe(canonical, canonical, "repository root is not a directory")
+			}
+		}
 	}
 	if err != nil {
 		return Boundary{}, err
@@ -121,6 +131,13 @@ func (b Boundary) CheckFile(path string, missingOK bool) error {
 }
 
 func (b Boundary) ReadFile(path string, missingOK bool) ([]byte, bool, error) {
+	return b.ReadFileLimit(path, missingOK, -1)
+}
+
+// ReadFileLimit reads one protected regular file through its opened identity
+// and rejects content larger than maxBytes before returning it. A negative
+// limit preserves the unbounded ReadFile behavior.
+func (b Boundary) ReadFileLimit(path string, missingOK bool, maxBytes int64) ([]byte, bool, error) {
 	dir, found, err := b.OpenDir(filepath.Dir(path), missingOK)
 	if err != nil || !found {
 		if err == nil && !missingOK {
@@ -129,7 +146,7 @@ func (b Boundary) ReadFile(path string, missingOK bool) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	defer dir.Close()
-	return dir.ReadFile(filepath.Base(path), missingOK)
+	return dir.ReadFileLimit(filepath.Base(path), missingOK, maxBytes)
 }
 
 func (b Boundary) ReadDir(path string, missingOK bool) ([]os.DirEntry, bool, error) {
@@ -226,8 +243,16 @@ func (b Boundary) openRoot() (*os.File, error) {
 		return nil, errors.New("harness runtime path: uninitialized boundary")
 	}
 	fd, err := unix.Open(b.root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if errors.Is(err, unix.ELOOP) {
-		return nil, unsafe(b.root, b.root, "became a symlink during root open")
+	if errors.Is(err, unix.ELOOP) || errors.Is(err, unix.ENOTDIR) {
+		var named unix.Stat_t
+		if statErr := unix.Fstatat(unix.AT_FDCWD, b.root, &named, unix.AT_SYMLINK_NOFOLLOW); statErr == nil {
+			if named.Mode&unix.S_IFMT == unix.S_IFLNK {
+				return nil, unsafe(b.root, b.root, "became a symlink during root open")
+			}
+			if !directoryMode(&named) {
+				return nil, unsafe(b.root, b.root, "repository root is not a directory")
+			}
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -414,6 +439,10 @@ func (d *Directory) CreateTemp(prefix string, perm os.FileMode) (*File, error) {
 // ReadFile reads through an opened protected file and rechecks both the file
 // and directory identities before returning bytes.
 func (d *Directory) ReadFile(name string, missingOK bool) ([]byte, bool, error) {
+	return d.ReadFileLimit(name, missingOK, -1)
+}
+
+func (d *Directory) ReadFileLimit(name string, missingOK bool, maxBytes int64) ([]byte, bool, error) {
 	file, err := d.OpenFile(name, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) && missingOK {
 		return nil, false, nil
@@ -422,7 +451,7 @@ func (d *Directory) ReadFile(name string, missingOK bool) ([]byte, bool, error) 
 		return nil, false, err
 	}
 	defer file.Close()
-	raw, err := file.ReadAll()
+	raw, err := file.ReadAllLimit(maxBytes)
 	if err != nil {
 		return nil, false, err
 	}
@@ -526,7 +555,7 @@ func (d *Directory) Remove(file *File) error {
 	if err := d.Check(); err != nil {
 		return err
 	}
-	if err := file.Check(); err != nil {
+	if _, err := file.checkIdentity(); err != nil {
 		return err
 	}
 	if err := unix.Unlinkat(int(d.file.Fd()), file.name, 0); err != nil {
@@ -562,27 +591,68 @@ func (d *Directory) namedFileStat(name string) (*unix.Stat_t, bool, error) {
 }
 
 func (f *File) Check() error {
+	stat, err := f.checkIdentity()
+	if err != nil {
+		return err
+	}
+	return checkRegularFileStat(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), stat)
+}
+
+// checkIdentity proves the opened inode is still the same named, unaliased
+// regular file. It intentionally does not enforce permissions so an owner can
+// restrict or remove its inode after an external writer changes only its mode.
+func (f *File) checkIdentity() (*unix.Stat_t, error) {
 	if f == nil || f.closed || f.file == nil || f.removed {
-		return errors.New("harness runtime path: file is closed or removed")
+		return nil, errors.New("harness runtime path: file is closed or removed")
 	}
 	if err := f.directory.Check(); err != nil {
-		return err
+		return nil, err
 	}
 	stat, found, err := f.directory.namedFileStat(f.name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !found || identityOf(stat) != f.identity {
-		return unsafe(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), "opened file does not match the named component")
+		return nil, unsafe(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), "opened file does not match the named component")
 	}
 	opened, err := fstat(f.file)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if identityOf(opened) != f.identity {
-		return unsafe(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), "opened file identity changed")
+		return nil, unsafe(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), "opened file identity changed")
 	}
-	return checkRegularFileStat(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), opened)
+	path := filepath.Join(f.directory.path, f.name)
+	if opened.Mode&unix.S_IFMT != unix.S_IFREG {
+		return nil, unsafe(f.directory.boundary.root, path, "is not a regular file")
+	}
+	if uint64(opened.Nlink) != 1 || uint64(stat.Nlink) != 1 {
+		return nil, unsafe(f.directory.boundary.root, path, "has an unexpected hard-link count")
+	}
+	return opened, nil
+}
+
+// Perm returns the current permissions of the still-named opened inode.
+func (f *File) Perm() (os.FileMode, error) {
+	stat, err := f.checkIdentity()
+	if err != nil {
+		return 0, err
+	}
+	return os.FileMode(stat.Mode).Perm(), nil
+}
+
+// Chmod changes permissions through the opened inode and then revalidates it.
+func (f *File) Chmod(mode os.FileMode) error {
+	if mode.Perm()&0o022 != 0 {
+		return unsafe(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), "requested file mode is group/world writable")
+	}
+	if _, err := f.checkIdentity(); err != nil {
+		return err
+	}
+	if err := f.file.Chmod(mode.Perm()); err != nil {
+		return err
+	}
+	return f.Check()
 }
 
 func (f *File) Write(raw []byte) (int, error) {
@@ -593,12 +663,32 @@ func (f *File) Write(raw []byte) (int, error) {
 }
 
 func (f *File) ReadAll() ([]byte, error) {
+	return f.ReadAllLimit(-1)
+}
+
+func (f *File) ReadAllLimit(maxBytes int64) ([]byte, error) {
 	if err := f.Check(); err != nil {
 		return nil, err
 	}
-	raw, err := io.ReadAll(f.file)
+	if maxBytes >= 0 {
+		stat, err := fstat(f.file)
+		if err != nil {
+			return nil, err
+		}
+		if stat.Size < 0 || stat.Size > maxBytes {
+			return nil, ErrReadLimit
+		}
+	}
+	reader := io.Reader(f.file)
+	if maxBytes >= 0 {
+		reader = io.LimitReader(f.file, maxBytes+1)
+	}
+	raw, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
+	}
+	if maxBytes >= 0 && int64(len(raw)) > maxBytes {
+		return nil, ErrReadLimit
 	}
 	if err := f.Check(); err != nil {
 		return nil, err

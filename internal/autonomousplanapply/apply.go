@@ -23,6 +23,7 @@ import (
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/commit"
 	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/supervisor"
 	"revolvr/internal/taskfile"
 )
@@ -80,10 +81,14 @@ type Result struct {
 
 func ApplyPlanningResult(ctx context.Context, cfg Config) (Result, error) {
 	result := Result{TaskID: cfg.TaskID, OperationID: cfg.OperationID}
-	root, err := repositoryRoot(cfg.RepositoryRoot)
+	if strings.TrimSpace(cfg.RepositoryRoot) == "" {
+		return reject(result, "configuration", errors.New("repository root is required"))
+	}
+	boundary, err := runtimepath.Bind(cfg.RepositoryRoot)
 	if err != nil {
 		return reject(result, "configuration", err)
 	}
+	root := boundary.Root()
 	if err := stableIdentity("task_id", cfg.TaskID); err != nil {
 		return reject(result, "configuration", err)
 	}
@@ -115,10 +120,10 @@ func ApplyPlanningResult(ctx context.Context, cfg Config) (Result, error) {
 			return reject(result, "state_store", err)
 		}
 	}
-	if err := validateCycle(root, task, cfg.Cycle); err != nil {
+	if err := validateCycle(boundary, task, cfg.Cycle); err != nil {
 		return reject(result, "cycle_evidence", err)
 	}
-	rawOutput, rawIdentity, err := readCycleArtifact(root, cfg.Cycle.Worker.Artifacts.Output)
+	rawOutput, rawIdentity, err := readCycleArtifact(boundary, cfg.Cycle.Worker.Artifacts.Output)
 	if err != nil {
 		return reject(result, "planner_raw_output", err)
 	}
@@ -210,7 +215,7 @@ func ApplyPlanningResult(ctx context.Context, cfg Config) (Result, error) {
 	}
 	previousIdentity := stateIdentity(task.AutonomousStatePath, cfg.Expected.Exists, previousBytes)
 	resultingIdentity := stateIdentity(task.AutonomousStatePath, true, nextBytes)
-	_, supervisorArtifact, err := readSupervisorArtifact(root, cfg.Cycle.Supervisor.Artifacts.Decision)
+	_, supervisorArtifact, err := readSupervisorArtifact(boundary, cfg.Cycle.Supervisor.Artifacts.Decision)
 	if err != nil {
 		return reject(result, "cycle_evidence", fmt.Errorf("reopen supervisor decision artifact: %w", err))
 	}
@@ -252,7 +257,8 @@ func ApplyPlanningResult(ctx context.Context, cfg Config) (Result, error) {
 	return committedResult(result, commitResult, record), nil
 }
 
-func validateCycle(root string, task taskfile.Task, result autonomouscycle.Result) error {
+func validateCycle(boundary runtimepath.Boundary, task taskfile.Task, result autonomouscycle.Result) error {
+	root := boundary.Root()
 	if result.Failure != nil || result.Outcome != autonomouscycle.OutcomeReadOnlyCompleted {
 		return fmt.Errorf("planner cycle outcome is %q with failure %+v", result.Outcome, result.Failure)
 	}
@@ -288,7 +294,7 @@ func validateCycle(root string, task taskfile.Task, result autonomouscycle.Resul
 	if result.Worker.Artifacts.OutputSchema == nil {
 		return errors.New("planner-only output schema artifact is missing")
 	}
-	schemaRaw, _, err := readCycleArtifact(root, *result.Worker.Artifacts.OutputSchema)
+	schemaRaw, _, err := readCycleArtifact(boundary, *result.Worker.Artifacts.OutputSchema)
 	if err != nil {
 		return fmt.Errorf("planner output schema artifact: %w", err)
 	}
@@ -327,10 +333,10 @@ func validateCycle(root string, task taskfile.Task, result autonomouscycle.Resul
 	if result.Supervisor.Dossier.TaskID != task.ID || result.Supervisor.Dossier.SchemaVersion != result.DossierManifest.SchemaVersion || result.Supervisor.Dossier.SHA256 != result.DossierManifest.DossierSHA256 || result.Supervisor.Dossier.ByteSize != result.DossierManifest.DossierByteSize {
 		return errors.New("supervisor did not consume the exact cycle dossier")
 	}
-	if _, _, err := readSupervisorArtifact(root, result.Supervisor.Artifacts.Decision); err != nil {
+	if _, _, err := readSupervisorArtifact(boundary, result.Supervisor.Artifacts.Decision); err != nil {
 		return fmt.Errorf("supervisor decision artifact: %w", err)
 	}
-	profileRaw, err := readPathNoSymlinks(root, filepath.ToSlash(result.Worker.Profile.Path))
+	profileRaw, err := readProtectedPath(boundary, filepath.ToSlash(result.Worker.Profile.Path), int64(result.Worker.Profile.ByteSize))
 	if err != nil {
 		return fmt.Errorf("planner profile artifact: %w", err)
 	}
@@ -460,11 +466,11 @@ func compareExpected(expected autonomousstate.ExpectedState, current autonomouss
 	return nil
 }
 
-func readCycleArtifact(root string, artifact autonomouscycle.Artifact) ([]byte, autonomousstate.ArtifactIdentity, error) {
+func readCycleArtifact(boundary runtimepath.Boundary, artifact autonomouscycle.Artifact) ([]byte, autonomousstate.ArtifactIdentity, error) {
 	if artifact.Path == "" || artifact.SHA256 == "" || artifact.ByteSize < 0 {
 		return nil, autonomousstate.ArtifactIdentity{}, errors.New("artifact identity is incomplete")
 	}
-	raw, err := readPathNoSymlinks(root, artifact.Path)
+	raw, err := readProtectedPath(boundary, artifact.Path, int64(artifact.ByteSize))
 	if err != nil {
 		return nil, autonomousstate.ArtifactIdentity{}, err
 	}
@@ -475,8 +481,8 @@ func readCycleArtifact(root string, artifact autonomouscycle.Artifact) ([]byte, 
 	return raw, identity, nil
 }
 
-func readSupervisorArtifact(root string, artifact supervisor.Artifact) ([]byte, autonomousstate.ArtifactIdentity, error) {
-	raw, err := readPathNoSymlinks(root, artifact.Path)
+func readSupervisorArtifact(boundary runtimepath.Boundary, artifact supervisor.Artifact) ([]byte, autonomousstate.ArtifactIdentity, error) {
+	raw, err := readProtectedPath(boundary, artifact.Path, int64(artifact.ByteSize))
 	if err != nil {
 		return nil, autonomousstate.ArtifactIdentity{}, err
 	}
@@ -487,34 +493,16 @@ func readSupervisorArtifact(root string, artifact supervisor.Artifact) ([]byte, 
 	return raw, identity, nil
 }
 
-func readPathNoSymlinks(root, rel string) ([]byte, error) {
-	abs, err := pathguard.Resolve(root, filepath.FromSlash(rel))
+func readProtectedPath(boundary runtimepath.Boundary, rel string, limit int64) ([]byte, error) {
+	abs := filepath.Join(boundary.Root(), filepath.FromSlash(rel))
+	raw, found, err := boundary.ReadFileLimit(abs, false, limit)
 	if err != nil {
 		return nil, err
 	}
-	current := root
-	for _, component := range strings.Split(filepath.Clean(filepath.FromSlash(rel)), string(filepath.Separator)) {
-		current = filepath.Join(current, component)
-		info, err := os.Lstat(current)
-		if err != nil {
-			return nil, err
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("artifact path component %q is a symbolic link", component)
-		}
+	if !found {
+		return nil, os.ErrNotExist
 	}
-	return os.ReadFile(abs)
-}
-
-func repositoryRoot(value string) (string, error) {
-	if strings.TrimSpace(value) == "" {
-		return "", errors.New("repository root is required")
-	}
-	abs, err := filepath.Abs(value)
-	if err != nil {
-		return "", err
-	}
-	return filepath.EvalSymlinks(abs)
+	return raw, nil
 }
 
 func stableIdentity(label, value string) error {

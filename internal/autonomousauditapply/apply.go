@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/commit"
 	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
@@ -85,15 +85,15 @@ type Result struct {
 
 func ApplyAuditResult(ctx context.Context, cfg ApplyConfig) (Result, error) {
 	result := Result{TaskID: cfg.TaskID, OperationID: cfg.OperationID, Kind: autonomousstate.AuditTransitionRecorded}
-	root, task, store, err := prepare(cfg.RepositoryRoot, cfg.TaskID, cfg.OperationID, cfg.Expected, cfg.CreatedAt, cfg.Store)
+	boundary, task, store, err := prepare(cfg.RepositoryRoot, cfg.TaskID, cfg.OperationID, cfg.Expected, cfg.CreatedAt, cfg.Store)
 	if err != nil {
 		return reject(result, "configuration", err)
 	}
 	result.StatePath = task.AutonomousStatePath
-	if err := validateCycle(root, task, cfg); err != nil {
+	if err := validateCycle(boundary, task, cfg); err != nil {
 		return reject(result, "cycle_evidence", err)
 	}
-	raw, rawIdentity, err := readArtifact(root, cfg.Cycle.Worker.Artifacts.Output.Path, cfg.Cycle.Worker.Artifacts.Output.SHA256, cfg.Cycle.Worker.Artifacts.Output.ByteSize)
+	raw, rawIdentity, err := readArtifact(boundary, cfg.Cycle.Worker.Artifacts.Output.Path, cfg.Cycle.Worker.Artifacts.Output.SHA256, cfg.Cycle.Worker.Artifacts.Output.ByteSize)
 	if err != nil {
 		return reject(result, "auditor_raw_output", err)
 	}
@@ -173,7 +173,7 @@ func ApplyAuditResult(ctx context.Context, cfg ApplyConfig) (Result, error) {
 	}
 	previousBytes, _ := autonomousstate.MarshalState(current.State)
 	nextBytes, _ := autonomousstate.MarshalState(change.State)
-	decisionArtifactRaw, decisionArtifact, err := readArtifact(root, cfg.Cycle.Supervisor.Artifacts.Decision.Path, cfg.Cycle.Supervisor.Artifacts.Decision.SHA256, cfg.Cycle.Supervisor.Artifacts.Decision.ByteSize)
+	decisionArtifactRaw, decisionArtifact, err := readArtifact(boundary, cfg.Cycle.Supervisor.Artifacts.Decision.Path, cfg.Cycle.Supervisor.Artifacts.Decision.SHA256, cfg.Cycle.Supervisor.Artifacts.Decision.ByteSize)
 	if err != nil || len(decisionArtifactRaw) == 0 {
 		return reject(result, "supervisor_artifact", err)
 	}
@@ -195,7 +195,7 @@ func ApplyAuditResult(ctx context.Context, cfg ApplyConfig) (Result, error) {
 
 func ApplyFindingResolution(ctx context.Context, cfg ResolutionConfig) (Result, error) {
 	result := Result{TaskID: cfg.TaskID, OperationID: cfg.OperationID}
-	root, task, store, err := prepare(cfg.RepositoryRoot, cfg.TaskID, cfg.OperationID, cfg.Expected, cfg.CreatedAt, cfg.Store)
+	boundary, task, store, err := prepare(cfg.RepositoryRoot, cfg.TaskID, cfg.OperationID, cfg.Expected, cfg.CreatedAt, cfg.Store)
 	if err != nil {
 		return reject(result, "configuration", err)
 	}
@@ -255,7 +255,7 @@ func ApplyFindingResolution(ctx context.Context, cfg ResolutionConfig) (Result, 
 	}
 	kind := kindForResolution(resolution.Status)
 	result.Kind = kind
-	canonicalRaw, canonicalIdentityRead, err := readArtifact(root, currentAudit.CanonicalOutput.Path, currentAudit.CanonicalOutput.SHA256, currentAudit.CanonicalOutput.ByteSize)
+	canonicalRaw, canonicalIdentityRead, err := readArtifact(boundary, currentAudit.CanonicalOutput.Path, currentAudit.CanonicalOutput.SHA256, currentAudit.CanonicalOutput.ByteSize)
 	if err != nil {
 		return reject(result, "audit_reopen", err)
 	}
@@ -282,31 +282,36 @@ func ApplyFindingResolution(ctx context.Context, cfg ResolutionConfig) (Result, 
 	return committed(result, persisted), nil
 }
 
-func prepare(root, taskID, operationID string, expected autonomousstate.ExpectedState, created time.Time, store *autonomousstate.Store) (string, taskfile.Task, *autonomousstate.Store, error) {
-	abs, err := filepath.Abs(strings.TrimSpace(root))
-	if err != nil || strings.TrimSpace(root) == "" {
-		return "", taskfile.Task{}, nil, errors.New("repository root is required")
+func prepare(root, taskID, operationID string, expected autonomousstate.ExpectedState, created time.Time, store *autonomousstate.Store) (runtimepath.Boundary, taskfile.Task, *autonomousstate.Store, error) {
+	if strings.TrimSpace(root) == "" {
+		return runtimepath.Boundary{}, taskfile.Task{}, nil, errors.New("repository root is required")
 	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		return runtimepath.Boundary{}, taskfile.Task{}, nil, err
+	}
+	abs := boundary.Root()
 	if strings.TrimSpace(taskID) == "" || strings.TrimSpace(operationID) == "" || created.IsZero() {
-		return "", taskfile.Task{}, nil, errors.New("task_id, operation_id, and created_at are required")
+		return runtimepath.Boundary{}, taskfile.Task{}, nil, errors.New("task_id, operation_id, and created_at are required")
 	}
 	if err := expected.Validate(); err != nil || !expected.Exists {
-		return "", taskfile.Task{}, nil, errors.New("exact existing expected state is required")
+		return runtimepath.Boundary{}, taskfile.Task{}, nil, errors.New("exact existing expected state is required")
 	}
 	task, found, err := taskfile.FindByID(abs, taskID)
 	if err != nil || !found {
-		return "", taskfile.Task{}, nil, errors.Join(err, autonomousstate.ErrTaskMissing)
+		return runtimepath.Boundary{}, taskfile.Task{}, nil, errors.Join(err, autonomousstate.ErrTaskMissing)
 	}
 	if task.Workflow != taskfile.WorkflowAutonomousV1 || task.Status != taskfile.StatusPending {
-		return "", taskfile.Task{}, nil, errors.New("canonical task is not pending autonomous-v1")
+		return runtimepath.Boundary{}, taskfile.Task{}, nil, errors.New("canonical task is not pending autonomous-v1")
 	}
 	if store == nil {
 		store, err = autonomousstate.New(autonomousstate.Config{RepositoryRoot: abs})
 	}
-	return abs, task, store, err
+	return boundary, task, store, err
 }
 
-func validateCycle(root string, task taskfile.Task, cfg ApplyConfig) error {
+func validateCycle(boundary runtimepath.Boundary, task taskfile.Task, cfg ApplyConfig) error {
+	root := boundary.Root()
 	r := cfg.Cycle
 	if r.Failure != nil || r.Outcome != autonomouscycle.OutcomeReadOnlyCompleted {
 		return errors.New("auditor cycle did not complete read-only")
@@ -344,7 +349,7 @@ func validateCycle(root string, task taskfile.Task, cfg ApplyConfig) error {
 	if r.Worker.Artifacts.Output.Path != filepath.ToSlash(filepath.Join(".revolvr", "runs", r.Worker.RunID, "auditor-output.raw.json")) {
 		return errors.New("auditor raw output path is not canonical for the worker run")
 	}
-	schema, _, err := readArtifact(root, r.Worker.Artifacts.OutputSchema.Path, r.Worker.Artifacts.OutputSchema.SHA256, r.Worker.Artifacts.OutputSchema.ByteSize)
+	schema, _, err := readArtifact(boundary, r.Worker.Artifacts.OutputSchema.Path, r.Worker.Artifacts.OutputSchema.SHA256, r.Worker.Artifacts.OutputSchema.ByteSize)
 	if err != nil {
 		return err
 	}
@@ -392,7 +397,7 @@ func validateCycle(root string, task taskfile.Task, cfg ApplyConfig) error {
 	if cfg.Verification.Tiered != nil && !cfg.Verification.Tiered.FinalSatisfied {
 		return errors.New("tiered verification does not satisfy the final gate")
 	}
-	profileRaw, _, err := readArtifact(root, filepath.ToSlash(r.Worker.Profile.Path), r.Worker.Profile.SHA256, r.Worker.Profile.ByteSize)
+	profileRaw, _, err := readArtifact(boundary, filepath.ToSlash(r.Worker.Profile.Path), r.Worker.Profile.SHA256, r.Worker.Profile.ByteSize)
 	if err != nil || len(profileRaw) == 0 {
 		return errors.New("auditor profile artifact mismatch")
 	}
@@ -434,18 +439,14 @@ func validateDossier(task taskfile.Task, state autonomous.ExecutionState, m auto
 	}
 	return nil
 }
-func readArtifact(root, path, sha string, size int) ([]byte, autonomousstate.ArtifactIdentity, error) {
-	abs, err := pathguard.Resolve(root, filepath.FromSlash(path))
+func readArtifact(boundary runtimepath.Boundary, path, sha string, size int) ([]byte, autonomousstate.ArtifactIdentity, error) {
+	abs := filepath.Join(boundary.Root(), filepath.FromSlash(path))
+	raw, found, err := boundary.ReadFileLimit(abs, false, int64(size))
 	if err != nil {
 		return nil, autonomousstate.ArtifactIdentity{}, err
 	}
-	info, err := os.Lstat(abs)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+	if !found {
 		return nil, autonomousstate.ArtifactIdentity{}, errors.New("artifact is missing or unsafe")
-	}
-	raw, err := os.ReadFile(abs)
-	if err != nil {
-		return nil, autonomousstate.ArtifactIdentity{}, err
 	}
 	identity := artifactIdentity(path, raw)
 	if identity.SHA256 != sha || identity.ByteSize != size {

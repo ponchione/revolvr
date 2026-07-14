@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"revolvr/internal/redact"
+	"revolvr/internal/runtimepath"
 )
 
 const (
@@ -31,11 +32,17 @@ const (
 type LastMessageFailureInjector func(LastMessageFailurePoint) error
 
 type lastMessageStage struct {
-	canonical string
-	raw       string
-	redacted  string
-	directory string
-	inject    LastMessageFailureInjector
+	canonical     string
+	raw           string
+	redacted      string
+	canonicalName string
+	rawName       string
+	redactedName  string
+	directory     *runtimepath.Directory
+	rawFile       *runtimepath.File
+	redactedFile  *runtimepath.File
+	published     bool
+	inject        LastMessageFailureInjector
 }
 
 func lastMessageRawPath(canonical string) string {
@@ -50,33 +57,51 @@ func prepareLastMessageStage(canonical string, inject LastMessageFailureInjector
 	if err := ensureParent(canonical); err != nil {
 		return nil, err
 	}
+	boundary, err := runtimepath.Bind(filepath.Dir(canonical))
+	if err != nil {
+		return nil, fmt.Errorf("prepare last-message artifact: bind directory: %w", err)
+	}
+	directory, found, err := boundary.OpenDir(boundary.Root(), false)
+	if err != nil || !found {
+		if err == nil {
+			err = os.ErrNotExist
+		}
+		return nil, fmt.Errorf("prepare last-message artifact: open directory: %w", err)
+	}
+	canonical = filepath.Join(boundary.Root(), filepath.Base(canonical))
 	stage := &lastMessageStage{
-		canonical: canonical,
-		raw:       lastMessageRawPath(canonical),
-		redacted:  lastMessageRedactedPath(canonical),
-		directory: filepath.Dir(canonical),
-		inject:    inject,
+		canonical:     canonical,
+		raw:           lastMessageRawPath(canonical),
+		redacted:      lastMessageRedactedPath(canonical),
+		canonicalName: filepath.Base(canonical),
+		rawName:       filepath.Base(lastMessageRawPath(canonical)),
+		redactedName:  filepath.Base(lastMessageRedactedPath(canonical)),
+		directory:     directory,
+		inject:        inject,
 	}
 	removed := false
-	for _, path := range []string{stage.canonical, stage.raw, stage.redacted} {
-		didRemove, err := removeLastMessagePath(path)
+	for _, name := range []string{stage.canonicalName, stage.rawName, stage.redactedName} {
+		didRemove, err := removeLastMessageFile(directory, name)
 		if err != nil {
-			return nil, fmt.Errorf("prepare last-message artifact: remove %s: %w", path, err)
+			_ = directory.Close()
+			return nil, fmt.Errorf("prepare last-message artifact: remove %s: %w", filepath.Join(boundary.Root(), name), err)
 		}
 		removed = removed || didRemove
 	}
 	if removed {
-		if err := syncLastMessageDirectory(stage.directory); err != nil {
+		if err := directory.Sync(); err != nil {
+			_ = directory.Close()
 			return nil, fmt.Errorf("prepare last-message artifact: sync directory: %w", err)
 		}
 	}
 
-	raw, err := os.OpenFile(stage.raw, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	raw, err := directory.OpenFile(stage.rawName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
+		_ = directory.Close()
 		return nil, fmt.Errorf("prepare last-message artifact: create raw temporary: %w", err)
 	}
 	if err := raw.Chmod(0o600); err != nil {
-		_ = raw.Close()
+		stage.rawFile = raw
 		return nil, errors.Join(
 			fmt.Errorf("prepare last-message artifact: restrict raw temporary: %w", err),
 			stage.cleanup(),
@@ -101,7 +126,7 @@ func (s *lastMessageStage) publish(redactor *redact.Redactor) (message string, f
 	if err := s.fail(LastMessageFailureRead); err != nil {
 		return "", redact.Facts{}, err
 	}
-	raw, exists, err := readRawLastMessage(s.raw)
+	raw, exists, err := s.readRawLastMessage()
 	if err != nil {
 		return "", redact.Facts{}, err
 	}
@@ -125,16 +150,11 @@ func (s *lastMessageStage) publish(redactor *redact.Redactor) (message string, f
 		}
 	}
 
-	temporary, err := os.OpenFile(s.redacted, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	temporary, err := s.directory.OpenFile(s.redactedName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: create redacted temporary: %w", err)
 	}
-	closed := false
-	defer func() {
-		if !closed {
-			err = errors.Join(err, temporary.Close())
-		}
-	}()
+	s.redactedFile = temporary
 	if err := s.fail(LastMessageFailureTempWrite); err != nil {
 		return "", redact.Facts{}, err
 	}
@@ -150,30 +170,82 @@ func (s *lastMessageStage) publish(redactor *redact.Redactor) (message string, f
 	if err := temporary.Sync(); err != nil {
 		return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: sync redacted temporary: %w", err)
 	}
-	if err := temporary.Close(); err != nil {
-		closed = true
-		return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: close redacted temporary: %w", err)
-	}
-	closed = true
 	if err := s.fail(LastMessageFailureRename); err != nil {
 		return "", redact.Facts{}, err
 	}
-	if err := os.Rename(s.redacted, s.canonical); err != nil {
-		return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: rename canonical: %w", err)
+	replaceErr := s.directory.Replace(temporary, s.canonicalName)
+	s.published = temporary.IsNamed(s.canonicalName)
+	if replaceErr != nil {
+		return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: rename canonical: %w", replaceErr)
 	}
-	if _, err := removeLastMessagePath(s.raw); err != nil {
-		return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: remove raw temporary: %w", err)
+	if s.rawFile != nil {
+		if err := s.directory.Remove(s.rawFile); err != nil {
+			return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: remove raw temporary: %w", err)
+		}
+		if err := s.rawFile.Close(); err != nil {
+			return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: close raw temporary: %w", err)
+		}
+		s.rawFile = nil
 	}
-	if err := verifyPublishedLastMessage(s.canonical); err != nil {
+	if err := verifyPublishedLastMessage(temporary); err != nil {
 		return "", redact.Facts{}, err
 	}
 	if err := s.fail(LastMessageFailureDirectorySync); err != nil {
 		return "", redact.Facts{}, err
 	}
-	if err := syncLastMessageDirectory(s.directory); err != nil {
+	if err := s.directory.Sync(); err != nil {
 		return "", redact.Facts{}, fmt.Errorf("publish last-message artifact: sync directory: %w", err)
 	}
 	return message, facts, nil
+}
+
+func (s *lastMessageStage) readRawLastMessage() ([]byte, bool, error) {
+	file, err := s.directory.OpenFile(s.rawName, os.O_RDONLY, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("read last-message raw temporary: open: %w", err)
+	}
+	s.rawFile = file
+	mode, err := file.Perm()
+	if err != nil {
+		return nil, false, fmt.Errorf("read last-message raw temporary: inspect: %w", err)
+	}
+	if mode&0o077 != 0 {
+		return nil, false, fmt.Errorf("read last-message raw temporary: unsafe mode %04o", mode)
+	}
+	raw, err := file.ReadAll()
+	if err != nil {
+		return nil, false, fmt.Errorf("read last-message raw temporary: %w", err)
+	}
+	return raw, true, nil
+}
+
+func verifyPublishedLastMessage(file *runtimepath.File) error {
+	mode, err := file.Perm()
+	if err != nil {
+		return fmt.Errorf("verify published last-message artifact: %w", err)
+	}
+	if mode != 0o644 {
+		return fmt.Errorf("verify published last-message artifact: mode is %04o, want 0644", mode)
+	}
+	return nil
+}
+
+func removeLastMessageFile(directory *runtimepath.Directory, name string) (bool, error) {
+	file, err := directory.OpenFile(name, os.O_RDONLY, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	if err := directory.Remove(file); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *lastMessageStage) fail(point LastMessageFailurePoint) error {
@@ -187,68 +259,45 @@ func (s *lastMessageStage) fail(point LastMessageFailurePoint) error {
 }
 
 func (s *lastMessageStage) cleanup() error {
+	if s == nil || s.directory == nil {
+		return nil
+	}
 	removed := false
 	var result error
-	for _, path := range []string{s.raw, s.redacted} {
-		didRemove, err := removeLastMessagePath(path)
+	if s.rawFile != nil {
+		if err := s.directory.Remove(s.rawFile); err != nil {
+			result = errors.Join(result, fmt.Errorf("cleanup last-message temporary %s: %w", s.raw, err))
+		} else {
+			removed = true
+		}
+		result = errors.Join(result, s.rawFile.Close())
+		s.rawFile = nil
+	} else {
+		didRemove, err := removeLastMessageFile(s.directory, s.rawName)
 		removed = removed || didRemove
 		if err != nil {
-			result = errors.Join(result, fmt.Errorf("cleanup last-message temporary %s: %w", path, err))
+			result = errors.Join(result, fmt.Errorf("cleanup last-message temporary %s: %w", s.raw, err))
 		}
 	}
+	if s.redactedFile != nil {
+		if !s.published {
+			if err := s.directory.Remove(s.redactedFile); err != nil {
+				result = errors.Join(result, fmt.Errorf("cleanup last-message temporary %s: %w", s.redacted, err))
+			} else {
+				removed = true
+			}
+		}
+		result = errors.Join(result, s.redactedFile.Close())
+		s.redactedFile = nil
+	}
 	if removed {
-		if err := syncLastMessageDirectory(s.directory); err != nil {
+		if err := s.directory.Sync(); err != nil {
 			result = errors.Join(result, fmt.Errorf("cleanup last-message temporaries: sync directory: %w", err))
 		}
 	}
+	result = errors.Join(result, s.directory.Close())
+	s.directory = nil
 	return result
-}
-
-func readRawLastMessage(path string) ([]byte, bool, error) {
-	info, err := os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, fmt.Errorf("read last-message raw temporary: inspect: %w", err)
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return nil, false, errors.New("read last-message raw temporary: expected regular non-symlink file")
-	}
-	if info.Mode().Perm()&0o077 != 0 {
-		return nil, false, fmt.Errorf("read last-message raw temporary: unsafe mode %04o", info.Mode().Perm())
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, false, fmt.Errorf("read last-message raw temporary: %w", err)
-	}
-	return raw, true, nil
-}
-
-func verifyPublishedLastMessage(path string) error {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return fmt.Errorf("verify published last-message artifact: %w", err)
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("verify published last-message artifact: expected regular non-symlink file")
-	}
-	if info.Mode().Perm() != 0o644 {
-		return fmt.Errorf("verify published last-message artifact: mode is %04o, want 0644", info.Mode().Perm())
-	}
-	return nil
-}
-
-func removeLastMessagePath(path string) (bool, error) {
-	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	} else if err != nil {
-		return false, err
-	}
-	if err := os.Remove(path); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 func writeLastMessageAll(writer io.Writer, content []byte) error {
@@ -263,13 +312,4 @@ func writeLastMessageAll(writer io.Writer, content []byte) error {
 		content = content[written:]
 	}
 	return nil
-}
-
-func syncLastMessageDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	return directory.Sync()
 }

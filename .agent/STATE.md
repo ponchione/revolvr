@@ -2,11 +2,37 @@
 
 ## Current Focus
 
-`AUDIT-R4-05` is complete. Autonomous finalization completion evidence,
-capsule, and manifest publication/replay now retain one descriptor-rooted
-repository and parent authority through exclusive publication, cleanup, sync,
-and exact readback. The next bounded task is `AUDIT-R4-06`; there are no
-blockers.
+`AUDIT-R4-06` is complete. Every AP-01-listed evidence reader, plus the
+directly discovered autonomous-migration orphan-state reader, now consumes
+opened, identity-checked files through one stable runtime-path boundary. The
+next bounded task is `AUDIT-R4-07`; there are no blockers.
+
+## Stable Remaining Evidence Readers (2026-07-14)
+
+- `runtimepath` now provides capped reads through opened file descriptors.
+  The limit is checked before allocation, enforced while reading, and followed
+  by the existing named/opened inode recheck. A typed limit error lets owners
+  preserve their established diagnostics.
+- Audit apply, plan apply, operator checkpoint receipts, ledger export
+  verification/replay, Codex last-message handling, and autonomous task views
+  retain one repository or parent boundary across their authoritative reads.
+  Exact hash/size validation and existing read caps remain in force.
+- The inventory also found autonomous migration's exact orphan-state reader.
+  Namespace enumeration and state comparison now share one opened directory
+  and reject substituted ancestors, unsafe modes, aliases, and wrong types.
+- Codex last-message handling retains its opened parent through raw read,
+  redacted temporary write/sync, descriptor-relative replacement, raw cleanup,
+  canonical mode readback, and directory sync. Cleanup can safely remove an
+  owned unaliased inode after an external writer changes only its mode, while
+  hard-linked or substituted files remain fail-closed.
+- Permanent owner regressions bind first, replace an evidence ancestor with an
+  outside symlink, and prove outside bytes and entries remain unchanged. The
+  Codex regression exercises the complete `Run` path and failure cleanup.
+- Verification passed: ten focused adversarial repetitions; all affected
+  package tests and race tests; complete ordinary, shuffled, and race suites;
+  `go vet ./...`; `go mod verify`; formatting and diff checks; Linux, Darwin,
+  and FreeBSD amd64 builds; and the unsupported-Windows diagnostic-stub build.
+  No dependency was added. The next task is `AUDIT-R4-07`; blockers: none.
 
 ## Stable Autonomous Finalization Artifact Boundary (2026-07-14)
 

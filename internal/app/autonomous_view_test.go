@@ -16,9 +16,46 @@ import (
 	"revolvr/internal/autonomousarchive"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/autonomousview"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskscheduler"
 )
+
+func TestReadBoundedRegularRejectsBoundAncestorSubstitution(t *testing.T) {
+	root := t.TempDir()
+	rel := "evidence/decision.json"
+	abs := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(abs, []byte("trusted decision\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := filepath.Join(root, "evidence-held")
+	outside := t.TempDir()
+	outsidePath := filepath.Join(outside, "decision.json")
+	outsideRaw := []byte("attacker decision\n")
+	if err := os.WriteFile(outsidePath, outsideRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Dir(abs), held); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Dir(abs)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readBoundedRegular(boundary, rel, 1024); !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("read bounded evidence error = %v, want unsafe boundary", err)
+	}
+	got, err := os.ReadFile(outsidePath)
+	if err != nil || !reflect.DeepEqual(got, outsideRaw) {
+		t.Fatalf("outside artifact changed: %q, %v", got, err)
+	}
+}
 
 func TestShowAutonomousTaskActiveIsReadOnlyAndDegradesMalformedOptionalHistory(t *testing.T) {
 	root := t.TempDir()

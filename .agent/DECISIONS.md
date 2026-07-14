@@ -1,5 +1,31 @@
 # Agent Decisions
 
+## AUDIT-R4-06 Stable Remaining Evidence Readers (2026-07-14)
+
+- Capped protected reads belong in `runtimepath`, not in pathname prechecks at
+  each owner. `Boundary`, `Directory`, and `File` expose one limit-preserving
+  read path that checks the opened size before allocation, bounds the stream,
+  and revalidates the named/opened identity after reading.
+- An operation that consumes multiple related artifacts retains one
+  `runtimepath.Boundary`. Audit/plan application, operator receipts, ledger
+  export verification/replay, autonomous views, and migration inspection do
+  not independently resolve the root between authoritative reads.
+- A retained `File` separates stable unaliased inode identity from safe-mode
+  policy. Ordinary reads/writes still require both. `Perm`, `Chmod`, and
+  descriptor-relative cleanup may inspect or restrict an externally changed
+  mode only while the parent/name/inode still match and link count remains one;
+  aliases and namespace substitutions remain errors.
+- Codex last-message raw output is external-writer input. The harness opens it
+  relative to the retained parent only after child completion, validates its
+  owner-only mode, and then keeps that file and the redacted temporary open
+  through read, publication, cleanup, readback, and sync. A completed replace
+  is recorded before post-publication checks so cleanup never removes the
+  canonical artifact.
+- The AP-01 inventory is defined by its named authoritative readers and exact
+  occurrences of their `Lstat`-then-by-name shape. The directly discovered
+  autonomous-migration orphan-state reader is included in this migration;
+  source-snapshot hashing remains the separately bounded `AUDIT-R4-10` task.
+
 ## AUDIT-R4-05 Stable Finalization Artifact Store (2026-07-14)
 
 - One finalization transaction owns one descriptor-rooted artifact store for

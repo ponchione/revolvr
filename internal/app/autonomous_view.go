@@ -12,14 +12,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousarchive"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/autonomousview"
-	"revolvr/internal/pathguard"
 	"revolvr/internal/redact"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskschedule"
 	"revolvr/internal/taskscheduler"
@@ -61,6 +60,11 @@ func ShowAutonomousTask(ctx context.Context, cfg Config, rawSelector string) (au
 }
 
 func loadAutonomousTaskView(ctx context.Context, root, selector string) (autonomousview.View, error) {
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		return autonomousview.View{}, fmt.Errorf("task show: bind repository boundary: %w", err)
+	}
+	root = boundary.Root()
 	tasks, err := taskfile.List(root)
 	if err != nil {
 		return autonomousview.View{}, fmt.Errorf("task show: load active tasks: %w", err)
@@ -92,12 +96,13 @@ func loadAutonomousTaskView(ctx context.Context, root, selector string) (autonom
 		return autonomousview.View{}, fmt.Errorf("task show: %q not found as an active task or archive selector", selector)
 	}
 	if active != nil {
-		return loadActiveView(ctx, root, *active)
+		return loadActiveView(ctx, boundary, *active)
 	}
-	return loadArchiveView(ctx, root, selector)
+	return loadArchiveView(ctx, boundary, selector)
 }
 
-func loadActiveView(ctx context.Context, root string, task taskfile.Task) (autonomousview.View, error) {
+func loadActiveView(ctx context.Context, boundary runtimepath.Boundary, task taskfile.Task) (autonomousview.View, error) {
+	root := boundary.Root()
 	input := autonomousview.Input{Source: autonomousview.Source{Kind: autonomousview.SourceActive, TaskID: task.ID, Title: task.Title, TaskPath: task.SourcePath, TaskSHA256: task.SourceSHA256(), TaskByteSize: task.SourceByteSize(), Workflow: task.Workflow, TaskStatus: task.Status, StatePath: task.AutonomousStatePath}, References: []autonomousview.Reference{{Kind: "task", Path: task.SourcePath, SHA256: task.SourceSHA256(), ByteSize: task.SourceByteSize(), Detail: "Canonical active task bytes."}}}
 	if task.Workflow != taskfile.WorkflowAutonomousV1 {
 		input.Diagnostics = append(input.Diagnostics, autonomousview.Diagnostic{Code: "wrong_workflow", Section: "identity", Detail: "Autonomous evidence is unavailable for mixed-pass tasks.", Reference: task.SourcePath})
@@ -132,7 +137,7 @@ func loadActiveView(ctx context.Context, root string, task taskfile.Task) (auton
 		}
 	}
 	if snapshot.State.LatestDecision != nil {
-		decision, decisionRaw, decisionErr := loadDecision(root, *snapshot.State.LatestDecision)
+		decision, decisionRaw, decisionErr := loadDecision(boundary, *snapshot.State.LatestDecision)
 		if decisionErr != nil {
 			input.Diagnostics = append(input.Diagnostics, autonomousview.Diagnostic{Code: "latest_decision_malformed", Section: "why", Detail: "The latest accepted decision payload is unavailable or malformed; current route is unknown.", Reference: snapshot.State.LatestDecision.Artifact.Reference})
 			input.Decision = &autonomousview.DecisionEvidence{Reference: *snapshot.State.LatestDecision}
@@ -162,7 +167,7 @@ func loadActiveView(ctx context.Context, root string, task taskfile.Task) (auton
 		}
 	}
 	if input.Decision != nil && input.Decision.Available {
-		currentRaw, err := readBoundedRegular(root, input.Decision.Reference.Artifact.Reference, maxAutonomousViewArtifactBytes)
+		currentRaw, err := readBoundedRegular(boundary, input.Decision.Reference.Artifact.Reference, maxAutonomousViewArtifactBytes)
 		if err != nil || hashBytes(currentRaw) != findReferenceHash(input.References, "decision") {
 			return autonomousview.View{}, errors.Join(err, errors.New("task show: latest decision artifact changed during read"))
 		}
@@ -170,7 +175,8 @@ func loadActiveView(ctx context.Context, root string, task taskfile.Task) (auton
 	return view, nil
 }
 
-func loadArchiveView(ctx context.Context, root, selector string) (autonomousview.View, error) {
+func loadArchiveView(ctx context.Context, boundary runtimepath.Boundary, selector string) (autonomousview.View, error) {
+	root := boundary.Root()
 	if err := ctx.Err(); err != nil {
 		return autonomousview.View{}, err
 	}
@@ -280,11 +286,11 @@ func projectScheduledReadiness(task taskfile.Task, result taskscheduler.Result, 
 	return string(readiness.Reason), reasons, diagnostics, nil
 }
 
-func loadDecision(root string, reference autonomous.DecisionReference) (autonomous.SupervisorDecision, []byte, error) {
+func loadDecision(boundary runtimepath.Boundary, reference autonomous.DecisionReference) (autonomous.SupervisorDecision, []byte, error) {
 	if err := reference.Validate(); err != nil {
 		return autonomous.SupervisorDecision{}, nil, err
 	}
-	raw, err := readBoundedRegular(root, reference.Artifact.Reference, maxAutonomousViewArtifactBytes)
+	raw, err := readBoundedRegular(boundary, reference.Artifact.Reference, maxAutonomousViewArtifactBytes)
 	if err != nil {
 		return autonomous.SupervisorDecision{}, nil, err
 	}
@@ -307,22 +313,13 @@ func loadDecision(root string, reference autonomous.DecisionReference) (autonomo
 	return decision, raw, nil
 }
 
-func readBoundedRegular(root, rel string, limit int64) ([]byte, error) {
-	abs, err := pathguard.Resolve(root, filepath.FromSlash(rel))
+func readBoundedRegular(boundary runtimepath.Boundary, rel string, limit int64) ([]byte, error) {
+	abs := filepath.Join(boundary.Root(), filepath.FromSlash(rel))
+	raw, _, err := boundary.ReadFileLimit(abs, false, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("evidence path is not a bounded safe regular file: %w", err)
 	}
-	info, err := os.Lstat(abs)
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0o022 != 0 || info.Size() > limit {
-		return nil, errors.New("evidence path is not a bounded safe regular file")
-	}
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink != 1 {
-		return nil, errors.New("evidence path has an unsafe hard-link count")
-	}
-	return os.ReadFile(abs)
+	return raw, nil
 }
 
 func lifecycleAdmits(lifecycle autonomous.LifecycleState, action autonomous.Action) bool {

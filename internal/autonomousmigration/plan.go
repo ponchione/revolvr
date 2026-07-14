@@ -15,7 +15,7 @@ import (
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousstate"
-	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskschedule"
 	"revolvr/internal/taskscheduler"
@@ -90,6 +90,11 @@ func Build(repositoryRoot string, snapshot taskschedule.Snapshot, request Reques
 	if err != nil {
 		return Plan{}, fmt.Errorf("plan autonomous migration: %w", err)
 	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		return Plan{}, fmt.Errorf("plan autonomous migration: bind repository boundary: %w", err)
+	}
+	root = boundary.Root()
 	if request.All && len(request.TaskIDs) != 0 {
 		return Plan{}, errors.New("plan autonomous migration: --all cannot be combined with task IDs")
 	}
@@ -115,7 +120,7 @@ func Build(repositoryRoot string, snapshot taskschedule.Snapshot, request Reques
 	entries := make([]Entry, 0, len(selected))
 	rejections := make([]Rejection, 0)
 	for _, task := range selected {
-		taskRejections := validateEligibility(root, task, request.AllowExactOrphanState)
+		taskRejections := validateEligibility(boundary, task, request.AllowExactOrphanState)
 		if len(taskRejections) != 0 {
 			rejections = append(rejections, taskRejections...)
 			continue
@@ -131,7 +136,7 @@ func Build(repositoryRoot string, snapshot taskschedule.Snapshot, request Reques
 			return Plan{}, fmt.Errorf("plan autonomous migration: marshal state for %q: %w", task.ID, stateErr)
 		}
 		if request.AllowExactOrphanState {
-			if code, detail := inspectExactOrphanState(root, projected.AutonomousStatePath, stateBytes); code != "" {
+			if code, detail := inspectExactOrphanState(boundary, projected.AutonomousStatePath, stateBytes); code != "" {
 				rejections = append(rejections, taskRejection(task, code, detail))
 				continue
 			}
@@ -200,7 +205,7 @@ func selectTasks(tasks []taskfile.Task, request Request) ([]taskfile.Task, []Rej
 	return selected, rejections
 }
 
-func validateEligibility(root string, task taskfile.Task, allowExactOrphanState bool) []Rejection {
+func validateEligibility(boundary runtimepath.Boundary, task taskfile.Task, allowExactOrphanState bool) []Rejection {
 	rejections := make([]Rejection, 0)
 	if task.Workflow != taskfile.WorkflowMixedPassV1 {
 		rejections = append(rejections, taskRejection(task, "workflow_not_mixed_pass", fmt.Sprintf("workflow is %q; only %q can be migrated", task.Workflow, taskfile.WorkflowMixedPassV1)))
@@ -216,45 +221,35 @@ func validateEligibility(root string, task taskfile.Task, allowExactOrphanState 
 	}
 	if !allowExactOrphanState {
 		statePath := path.Join(".revolvr", "autonomous", "tasks", task.ID, "state.json")
-		if code, detail := inspectStateNamespace(root, statePath); code != "" {
+		if code, detail := inspectStateNamespace(boundary, statePath); code != "" {
 			rejections = append(rejections, taskRejection(task, code, detail))
 		}
 	}
 	return rejections
 }
 
-func inspectExactOrphanState(root, statePath string, expected []byte) (string, string) {
-	code, detail := inspectStateNamespace(root, statePath)
-	if code == "" {
-		return "", ""
-	}
-	if code != "autonomous_state_exists" && code != "autonomous_namespace_exists" {
-		return code, detail
-	}
-	absState, err := pathguard.Resolve(root, filepath.FromSlash(statePath))
-	if err != nil {
-		return "autonomous_state_path_unsafe", err.Error()
-	}
+func inspectExactOrphanState(boundary runtimepath.Boundary, statePath string, expected []byte) (string, string) {
+	absState := filepath.Join(boundary.Root(), filepath.FromSlash(statePath))
 	namespace := filepath.Dir(absState)
-	info, err := os.Lstat(namespace)
+	dir, found, err := boundary.OpenDir(namespace, true)
 	if err != nil {
 		return "autonomous_state_path_unsafe", fmt.Sprintf("inspect %s: %v", filepath.ToSlash(namespace), err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		return "autonomous_state_path_unsafe", fmt.Sprintf("autonomous task namespace %q is not a non-symlink directory", filepath.ToSlash(filepath.Dir(statePath)))
+	if !found {
+		return "", ""
 	}
-	entries, err := os.ReadDir(namespace)
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return "autonomous_state_path_unsafe", fmt.Sprintf("read autonomous task namespace %q: %v", filepath.ToSlash(filepath.Dir(statePath)), err)
 	}
 	if len(entries) != 1 || entries[0].Name() != filepath.Base(absState) {
 		return "autonomous_namespace_exists", fmt.Sprintf("autonomous task namespace %q contains evidence other than the exact orphan state", filepath.ToSlash(filepath.Dir(statePath)))
 	}
-	stateInfo, err := os.Lstat(absState)
-	if err != nil || stateInfo.Mode()&os.ModeSymlink != 0 || !stateInfo.Mode().IsRegular() {
-		return "autonomous_state_path_unsafe", fmt.Sprintf("autonomous state %q is not a regular non-symlink file", statePath)
+	raw, _, err := dir.ReadFileLimit(filepath.Base(absState), false, int64(len(expected)))
+	if errors.Is(err, runtimepath.ErrReadLimit) {
+		return "autonomous_state_conflict", fmt.Sprintf("autonomous state %q contains different bytes", statePath)
 	}
-	raw, err := os.ReadFile(absState)
 	if err != nil {
 		return "autonomous_state_path_unsafe", fmt.Sprintf("read autonomous state %q: %v", statePath, err)
 	}
@@ -264,47 +259,24 @@ func inspectExactOrphanState(root, statePath string, expected []byte) (string, s
 	return "", ""
 }
 
-func inspectStateNamespace(root, statePath string) (string, string) {
-	absState, err := pathguard.Resolve(root, filepath.FromSlash(statePath))
+func inspectStateNamespace(boundary runtimepath.Boundary, statePath string) (string, string) {
+	absState := filepath.Join(boundary.Root(), filepath.FromSlash(statePath))
+	dir, found, err := boundary.OpenDir(filepath.Dir(absState), true)
 	if err != nil {
-		return "autonomous_state_path_unsafe", err.Error()
+		return "autonomous_state_path_unsafe", fmt.Sprintf("inspect %s: %v", statePath, err)
 	}
-	rel, err := filepath.Rel(root, absState)
+	if !found {
+		return "", ""
+	}
+	defer dir.Close()
+	_, stateFound, err := dir.ReadFile(filepath.Base(absState), true)
 	if err != nil {
-		return "autonomous_state_path_unsafe", err.Error()
+		return "autonomous_state_path_unsafe", fmt.Sprintf("inspect autonomous state %q: %v", statePath, err)
 	}
-	current := root
-	components := strings.Split(rel, string(filepath.Separator))
-	namespaceExists := false
-	for i, component := range components {
-		current = filepath.Join(current, component)
-		info, statErr := os.Lstat(current)
-		if errors.Is(statErr, os.ErrNotExist) {
-			if namespaceExists {
-				return "autonomous_namespace_exists", fmt.Sprintf("autonomous task namespace %q already exists", filepath.ToSlash(filepath.Dir(statePath)))
-			}
-			return "", ""
-		}
-		if statErr != nil {
-			return "autonomous_state_path_unsafe", fmt.Sprintf("inspect %s: %v", filepath.ToSlash(current), statErr)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return "autonomous_state_path_unsafe", fmt.Sprintf("path component %q is a symbolic link", filepath.ToSlash(filepath.Join(components[:i+1]...)))
-		}
-		if i < len(components)-1 && !info.IsDir() {
-			return "autonomous_state_path_unsafe", fmt.Sprintf("path component %q is not a directory", filepath.ToSlash(filepath.Join(components[:i+1]...)))
-		}
-		if i == len(components)-2 {
-			namespaceExists = true
-		}
-		if i == len(components)-1 {
-			return "autonomous_state_exists", fmt.Sprintf("autonomous state %q already exists", statePath)
-		}
+	if stateFound {
+		return "autonomous_state_exists", fmt.Sprintf("autonomous state %q already exists", statePath)
 	}
-	if namespaceExists {
-		return "autonomous_namespace_exists", fmt.Sprintf("autonomous task namespace %q already exists", filepath.ToSlash(filepath.Dir(statePath)))
-	}
-	return "", ""
+	return "autonomous_namespace_exists", fmt.Sprintf("autonomous task namespace %q already exists", filepath.ToSlash(filepath.Dir(statePath)))
 }
 
 func initialState(taskID string) autonomous.ExecutionState {

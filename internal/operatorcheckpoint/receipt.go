@@ -11,14 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 )
 
 const (
@@ -178,23 +177,27 @@ func Marshal(receipt Receipt) ([]byte, error) {
 // Load validates the canonical path, reads a non-symlink regular file, and
 // returns the exact receipt identity used by repository scheduling.
 func Load(repositoryRoot, receiptPath, expectedTaskID string) (Snapshot, error) {
-	absPath, err := ValidateCanonicalReceiptPath(repositoryRoot, expectedTaskID, receiptPath)
+	boundary, err := runtimepath.Bind(repositoryRoot)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("load operator checkpoint receipt %s: bind repository root: %w", receiptPath, err)
+	}
+	return load(boundary, receiptPath, expectedTaskID)
+}
+
+func load(boundary runtimepath.Boundary, receiptPath, expectedTaskID string) (Snapshot, error) {
+	absPath, err := validateCanonicalReceiptPath(boundary, expectedTaskID, receiptPath)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	info, err := os.Lstat(absPath)
-	if err != nil {
-		return Snapshot{}, fmt.Errorf("load operator checkpoint receipt %s: %w", receiptPath, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return Snapshot{}, fmt.Errorf("load operator checkpoint receipt %s: expected a non-symlink regular file", receiptPath)
-	}
-	if info.Size() > maxReceiptBytes {
+	raw, found, err := boundary.ReadFileLimit(absPath, false, maxReceiptBytes)
+	if errors.Is(err, runtimepath.ErrReadLimit) {
 		return Snapshot{}, fmt.Errorf("load operator checkpoint receipt %s: file exceeds %d bytes", receiptPath, maxReceiptBytes)
 	}
-	raw, err := os.ReadFile(absPath)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("load operator checkpoint receipt %s: %w", receiptPath, err)
+	}
+	if !found {
+		return Snapshot{}, fmt.Errorf("load operator checkpoint receipt %s: file is missing", receiptPath)
 	}
 	receipt, err := Decode(raw, expectedTaskID)
 	if err != nil {
@@ -207,6 +210,14 @@ func Load(repositoryRoot, receiptPath, expectedTaskID string) (Snapshot, error) 
 // existing symlink component. The receipt may be absent while a checkpoint is
 // still awaiting operator fulfillment.
 func ValidateCanonicalReceiptPath(repositoryRoot, taskID, receiptPath string) (string, error) {
+	boundary, err := runtimepath.Bind(repositoryRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve operator checkpoint repository root: %w", err)
+	}
+	return validateCanonicalReceiptPath(boundary, taskID, receiptPath)
+}
+
+func validateCanonicalReceiptPath(boundary runtimepath.Boundary, taskID, receiptPath string) (string, error) {
 	if !validIdentity(taskID) {
 		return "", fmt.Errorf("invalid operator checkpoint task id %q", taskID)
 	}
@@ -214,27 +225,9 @@ func ValidateCanonicalReceiptPath(repositoryRoot, taskID, receiptPath string) (s
 	if receiptPath != expected {
 		return "", fmt.Errorf("invalid checkpoint_receipt_path %q for task %q: must be %q", receiptPath, taskID, expected)
 	}
-	root, err := filepath.Abs(repositoryRoot)
-	if err != nil {
-		return "", fmt.Errorf("resolve operator checkpoint repository root: %w", err)
-	}
-	absPath, err := pathguard.Resolve(root, filepath.FromSlash(receiptPath))
-	if err != nil {
+	absPath := filepath.Join(boundary.Root(), filepath.FromSlash(receiptPath))
+	if err := boundary.CheckFile(absPath, true); err != nil {
 		return "", fmt.Errorf("invalid checkpoint_receipt_path %q for task %q: %w", receiptPath, taskID, err)
-	}
-	current := root
-	for _, component := range strings.Split(filepath.FromSlash(receiptPath), string(filepath.Separator)) {
-		current = filepath.Join(current, component)
-		info, statErr := os.Lstat(current)
-		if errors.Is(statErr, os.ErrNotExist) {
-			break
-		}
-		if statErr != nil {
-			return "", fmt.Errorf("invalid checkpoint_receipt_path %q for task %q: inspect path component: %w", receiptPath, taskID, statErr)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("invalid checkpoint_receipt_path %q for task %q: path component %s is a symbolic link", receiptPath, taskID, component)
-		}
 	}
 	return absPath, nil
 }

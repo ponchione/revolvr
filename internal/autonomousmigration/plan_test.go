@@ -11,10 +11,50 @@ import (
 	"testing"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskschedule"
 	"revolvr/internal/taskscheduler"
 )
+
+func TestInspectExactOrphanStateRejectsBoundAncestorSubstitution(t *testing.T) {
+	root := t.TempDir()
+	statePath := ".revolvr/autonomous/tasks/task-1/state.json"
+	abs := filepath.Join(root, filepath.FromSlash(statePath))
+	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("trusted state\n")
+	if err := os.WriteFile(abs, want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespace := filepath.Dir(abs)
+	held := namespace + "-held"
+	outside := t.TempDir()
+	outsidePath := filepath.Join(outside, "state.json")
+	outsideRaw := []byte("attacker state\n")
+	if err := os.WriteFile(outsidePath, outsideRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(namespace, held); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, namespace); err != nil {
+		t.Fatal(err)
+	}
+	code, detail := inspectExactOrphanState(boundary, statePath, want)
+	if code != "autonomous_state_path_unsafe" || !strings.Contains(detail, runtimepath.ErrUnsafe.Error()) {
+		t.Fatalf("inspection = %q, %q", code, detail)
+	}
+	got, err := os.ReadFile(outsidePath)
+	if err != nil || !bytes.Equal(got, outsideRaw) {
+		t.Fatalf("outside state changed: %q, %v", got, err)
+	}
+}
 
 func TestBuildProducesDeterministicByteExactMigrationPlan(t *testing.T) {
 	root := t.TempDir()

@@ -277,6 +277,16 @@ func TestProtectedReadHelpersUseNamedOpenedIdentities(t *testing.T) {
 	if _, found, err := ReadFile(root, filepath.Join(dir, "missing"), true); err != nil || found {
 		t.Fatalf("missing ReadFile found=%t err=%v", found, err)
 	}
+	boundary, err := Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, found, err := boundary.ReadFileLimit(path, false, int64(len(want))); err != nil || !found || !reflect.DeepEqual(got, want) {
+		t.Fatalf("ReadFileLimit = %q found=%t err=%v", got, found, err)
+	}
+	if _, _, err := boundary.ReadFileLimit(path, false, int64(len(want)-1)); !errors.Is(err, ErrReadLimit) {
+		t.Fatalf("ReadFileLimit error = %v, want ErrReadLimit", err)
+	}
 	if _, found, err := ReadDir(root, filepath.Join(dir, "missing"), true); err != nil || found {
 		t.Fatalf("missing ReadDir found=%t err=%v", found, err)
 	}

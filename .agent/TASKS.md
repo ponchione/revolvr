@@ -63,7 +63,7 @@
   removal away from its bespoke check-then-use path helpers.
 - [x] AUDIT-R4-05 — Bind autonomous finalization artifact publication and
   readback to stable parent, temporary-file, and destination identities.
-- [ ] AUDIT-R4-06 — Inventory and migrate the remaining authoritative
+- [x] AUDIT-R4-06 — Inventory and migrate the remaining authoritative
   `Lstat`-then-by-name evidence readers identified by AP-01.
 - [ ] AUDIT-R4-07 — Poll for bounded process-group settlement after `SIGKILL`
   and close cancellation/identity-reuse races in the runner.

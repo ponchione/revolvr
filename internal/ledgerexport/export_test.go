@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,43 @@ import (
 	"time"
 
 	"revolvr/internal/ledger"
+	"revolvr/internal/runtimepath"
 )
+
+func TestSafeReadRejectsBoundAncestorSubstitution(t *testing.T) {
+	root := t.TempDir()
+	abs := filepath.Join(root, "exports", "manifest.json")
+	if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(abs, []byte("trusted manifest\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := filepath.Join(root, "exports-held")
+	outside := t.TempDir()
+	outsidePath := filepath.Join(outside, "manifest.json")
+	outsideRaw := []byte("attacker manifest\n")
+	if err := os.WriteFile(outsidePath, outsideRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Dir(abs), held); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Dir(abs)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := safeRead(boundary, abs, 1024); !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("safe read error = %v, want unsafe boundary", err)
+	}
+	got, err := os.ReadFile(outsidePath)
+	if err != nil || string(got) != string(outsideRaw) {
+		t.Fatalf("outside manifest changed: %q, %v", got, err)
+	}
+}
 
 func TestExportVerifyReplayDeterministicAndExact(t *testing.T) {
 	root := t.TempDir()
