@@ -22,7 +22,7 @@
   same hardened flock primitive and substitution tests.
 - [x] AUDIT-FIX-05 — Open all app read projections through the live read-only
   ledger API and prove byte/sidecar immutability.
-- [ ] AUDIT-FIX-06 — Declare and enforce the supported-platform contract with a
+- [x] AUDIT-FIX-06 — Declare and enforce the supported-platform contract with a
   matching cross-build matrix.
 - [ ] AUDIT-FIX-07 — Repair and rerun the stale local CLI smoke-test header
   assertion.

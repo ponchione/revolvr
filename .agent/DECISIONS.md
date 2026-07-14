@@ -1,5 +1,19 @@
 # Agent Decisions
 
+## AUDIT-FIX-06 Supported Platform Contract (2026-07-14)
+
+- Revolvr's operational CLI supports Linux, macOS, and FreeBSD. These are the
+  platforms whose Unix process-group, advisory-flock, no-follow-open, inode,
+  link-count, and directory-sync semantics the current safety model relies on.
+- `cmd/revolvr/main.go` is compiled only for those three operating systems.
+  Other operating systems compile a dependency-free diagnostic command that
+  names the unsupported platform and exits unsuccessfully before importing or
+  running any Revolvr workflow package.
+- GitHub Actions runs the full suite on Linux and cross-builds the CLI for
+  Linux, Darwin, and FreeBSD on amd64. A separate Windows cross-build and
+  message check preserves the intentional unsupported-platform stub without
+  representing Windows as an operationally supported target.
+
 ## AUDIT-FIX-05 App Live Ledger Read Boundary (2026-07-14)
 
 - `internal/app.openReadOnlyLedger` is the sole production app boundary for

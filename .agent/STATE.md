@@ -2,32 +2,28 @@
 
 ## Current Focus
 
-Resolve `AUDIT-FIX-06`, the first unchecked task in `.agent/TASKS.md`. App read
-projections now share the live read-only ledger boundary and preserve database
-and sidecar evidence; the next pass must declare and enforce the supported-
-platform contract with a matching cross-build matrix.
+Resolve `AUDIT-FIX-07`, the first unchecked task in `.agent/TASKS.md`. Platform
+support is now explicit, build-enforced, and covered by CI; the next pass must
+repair and rerun the stale local CLI smoke-test header assertion.
 
 ## Latest Completed Audit Fix (2026-07-14)
 
-- Task selected: `AUDIT-FIX-05`.
-- `Status`, `ShowRun`, and `ValidateReceipt` now open the live ledger through
-  the read-only API. The app-level `openReadOnlyLedger` boundary is also the
-  sole production live-reader opener for task scheduling, archive verification,
-  metrics, and autonomous archive scheduling evidence; writable `ledger.Open`
-  remains only in the archive mutation configuration path.
-- App regressions run all three audited projections against a valid ledger whose
-  database file and parent directory are permission-read-only. Each operation
-  preserves the state-directory entry set and the database, journal, WAL, and
-  shared-memory existence, mode, size, modification time, and SHA-256 identity.
-- Empty, deliberately old-schema, and malformed ledgers produce diagnostics
-  through every audited projection without initialization, migration, sidecar
-  creation, or any byte/filesystem identity change.
-- Files changed: `internal/app/app.go`, `archive.go`, `autonomous_run.go`,
-  `metrics.go`, `app_test.go`, and the durable agent-state files.
-- Verification passed: focused app read-projection tests, `go test ./...`,
-  `go run ./cmd/revolvr status`, and `git diff --check`.
-- Remaining audit work: `AUDIT-FIX-06` and `AUDIT-FIX-07`. No blocker is
-  recorded.
+- Task selected: `AUDIT-FIX-06`.
+- The operational CLI now explicitly supports Linux, macOS, and FreeBSD. Its
+  full entry point is build-constrained to those systems; every other operating
+  system receives a dependency-free command that reports the unsupported OS
+  and exits before any workflow can run.
+- GitHub Actions runs the full suite on Linux, cross-builds Linux, Darwin, and
+  FreeBSD amd64 binaries, and separately proves that the Windows diagnostic
+  stub builds and contains its controlled failure message.
+- Files changed: `README.md`, `cmd/revolvr/main.go`,
+  `cmd/revolvr/main_unsupported.go`, `.github/workflows/ci.yml`, and the durable
+  agent-state files.
+- Verification passed: `gofmt` on both command entry points; Linux, Darwin, and
+  FreeBSD amd64 CLI cross-builds; a Windows amd64 stub build and message check;
+  `go test ./...`; `go run ./cmd/revolvr --help`; ephemeral `actionlint`; and
+  `git diff --check` plus explicit new-file whitespace checks.
+- Remaining audit work: `AUDIT-FIX-07`. No blocker is recorded.
 
 ## Wide-Sweep Audit (2026-07-14)
 
@@ -88,6 +84,8 @@ remained unchanged.
 - `go vet ./...`, `go mod verify`, and `govulncheck ./...` pass; no reachable
   vulnerabilities were reported.
 - `git diff --check` passes.
+- Linux, Darwin, and FreeBSD amd64 CLI cross-builds pass; the unsupported
+  Windows diagnostic stub also cross-builds and retains its failure message.
 - Root help, config check, and both fake-Codex run-once smokes pass.
 - `scripts/smoke-local.sh` fails at an outdated task-list header assertion.
 - No live Codex execution was started through Revolvr during the final
@@ -121,8 +119,9 @@ above. Detailed historical prose remains available through Git history.
 ## Verification Gaps
 
 See `AUDIT_PROBLEMS.md` and the remaining `AUDIT-FIX-*` backlog. The documented
-local smoke is red, and Windows is not a buildable target under the currently
-unstated platform contract.
+local smoke remains red at its stale task-list header assertion. Remote GitHub
+Actions execution of the newly linted workflow has not occurred in this local
+pass.
 
 ## Notes For Next Fresh Session
 

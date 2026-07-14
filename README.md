@@ -9,9 +9,15 @@ verifies the resulting work, records run history, and commits verified changes.
 
 Requirements:
 
+- Linux, macOS, or FreeBSD
 - Go 1.22 or newer
 - Git
 - Codex CLI available as `codex`
+
+The operational CLI is supported only on those three operating systems because
+Revolvr relies on Unix process-tree, advisory-lock, and filesystem identity
+semantics. Building for another operating system produces a diagnostic-only
+command that exits without running Revolvr workflows.
 
 Build or run from the repository root:
 

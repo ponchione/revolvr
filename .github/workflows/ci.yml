@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+
+  cross-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos:
+          - linux
+          - darwin
+          - freebsd
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build ${{ matrix.goos }}/amd64
+        env:
+          CGO_ENABLED: "0"
+          GOARCH: amd64
+          GOOS: ${{ matrix.goos }}
+        run: go build -trimpath -o "${RUNNER_TEMP}/revolvr-${GOOS}-${GOARCH}" ./cmd/revolvr
+
+  unsupported-platform-stub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build Windows diagnostic stub
+        env:
+          CGO_ENABLED: "0"
+          GOARCH: amd64
+          GOOS: windows
+        run: |
+          go build -trimpath -o "${RUNNER_TEMP}/revolvr-${GOOS}-${GOARCH}.exe" ./cmd/revolvr
+          strings "${RUNNER_TEMP}/revolvr-${GOOS}-${GOARCH}.exe" | grep -F "unsupported operating system"
