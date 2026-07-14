@@ -2845,38 +2845,90 @@ func TestRunPreservesCancellationRacingWithHeartbeatFailure(t *testing.T) {
 	parent, cancel := context.WithCancel(context.Background())
 	env := newTestEnv(t)
 	selected := writeRunTask(t, env, "task-cancel-lock-race", "Preserve cancellation and lock failure")
+	taskPath := filepath.Join(env.workDir, filepath.FromSlash(selected.SourcePath))
+	taskBefore, readErr := os.ReadFile(taskPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
 	started := make(chan struct{})
+	heartbeatCanceled := make(chan struct{})
+	allowHeartbeatReturn := make(chan struct{})
+	codexReturned := make(chan struct{})
 	var startedOnce sync.Once
+	var canceledOnce sync.Once
 	persistenceErr := errors.New("heartbeat persistence failed during cancellation")
 	lease := &scriptedSourceLease{heartbeatFunc: func(ctx context.Context) error {
 		startedOnce.Do(func() { close(started) })
 		<-ctx.Done()
+		canceledOnce.Do(func() { close(heartbeatCanceled) })
+		<-allowHeartbeatReturn
 		return errors.Join(ctx.Err(), persistenceErr)
 	}}
-	result, err := Run(parent, Config{
-		WorkingDir: env.workDir, LedgerStore: env.ledger, Clock: env.clock,
-		DirtyCapture: cleanDirtyCapture, ChangedCapture: emptyChangedCapture,
-		CodexVersionDiscoverer:            testCodexVersionDiscoverer,
-		SourceWriterLockHeartbeatInterval: time.Millisecond,
-		SourceLockAcquirer:                func(context.Context, lock.Config) (lock.SourceLease, error) { return lease, nil },
-		CodexRunner: func(ctx context.Context, _ codexexec.Config) (codexexec.Result, error) {
-			select {
-			case <-started:
-			case <-time.After(time.Second):
-				return codexexec.Result{}, errors.New("heartbeat did not start")
-			}
-			cancel()
-			<-ctx.Done()
-			return codexexec.Result{ExitCode: -1, Err: ctx.Err()}, ctx.Err()
-		},
-	})
+	type runReturn struct {
+		result Result
+		err    error
+	}
+	returned := make(chan runReturn, 1)
+	go func() {
+		result, err := Run(parent, Config{
+			WorkingDir: env.workDir, LedgerStore: env.ledger, Clock: env.clock,
+			DirtyCapture: cleanDirtyCapture, ChangedCapture: emptyChangedCapture,
+			CodexVersionDiscoverer:            testCodexVersionDiscoverer,
+			SourceWriterLockHeartbeatInterval: time.Millisecond,
+			SourceLockAcquirer:                func(context.Context, lock.Config) (lock.SourceLease, error) { return lease, nil },
+			CodexRunner: func(ctx context.Context, _ codexexec.Config) (codexexec.Result, error) {
+				select {
+				case <-started:
+				case <-time.After(time.Second):
+					return codexexec.Result{}, errors.New("heartbeat did not start")
+				}
+				cancel()
+				<-heartbeatCanceled
+				close(codexReturned)
+				return codexexec.Result{ExitCode: -1, Err: ctx.Err()}, ctx.Err()
+			},
+		})
+		returned <- runReturn{result: result, err: err}
+	}()
+	select {
+	case <-codexReturned:
+	case <-time.After(time.Second):
+		t.Fatal("Codex runner did not return")
+	}
+	select {
+	case premature := <-returned:
+		t.Fatalf("Run returned before the in-flight heartbeat published its failure: %+v %v", premature.result, premature.err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	if taskDuringSettlement, err := os.ReadFile(taskPath); err != nil || string(taskDuringSettlement) != string(taskBefore) {
+		t.Fatalf("canonical task changed before heartbeat settlement: err=%v\nbefore=%q\nafter=%q", err, taskBefore, taskDuringSettlement)
+	}
+	close(allowHeartbeatReturn)
+	completed := <-returned
+	result, err := completed.result, completed.err
 	for _, want := range []error{context.Canceled, lock.ErrOwnershipLost, persistenceErr} {
 		if !errors.Is(err, want) {
 			t.Fatalf("Run error = %v, missing %v", err, want)
 		}
 	}
-	if result.Outcome != OutcomeBlocked || loadRunTask(t, env, selected.SourcePath).Status != taskfile.StatusPending {
+	if result.Outcome != OutcomeBlocked || result.Run.Status != ledger.StatusFailed || result.Receipt.Verdict != receipt.VerdictSafetyLimit || loadRunTask(t, env, selected.SourcePath).Status != taskfile.StatusPending {
 		t.Fatalf("result=%+v task=%+v", result, loadRunTask(t, env, selected.SourcePath))
+	}
+	if taskAfter, err := os.ReadFile(taskPath); err != nil || string(taskAfter) != string(taskBefore) {
+		t.Fatalf("canonical task bytes changed after ownership failure: err=%v\nbefore=%q\nafter=%q", err, taskBefore, taskAfter)
+	}
+	history, ok, historyErr := env.ledger.GetRunWithEvents(context.Background(), result.Run.ID)
+	if historyErr != nil || !ok || history.Run.Status != ledger.StatusFailed {
+		t.Fatalf("terminal ledger history ok=%t err=%v history=%+v", ok, historyErr, history)
+	}
+	var terminal struct {
+		Outcome              Outcome         `json:"outcome"`
+		Stage                string          `json:"stage"`
+		ReceiptVerdict       receipt.Verdict `json:"receipt_verdict"`
+		ReceiptActualVerdict receipt.Verdict `json:"receipt_actual_verdict"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) || terminal.Outcome != OutcomeBlocked || terminal.Stage != "source_lock" || terminal.ReceiptVerdict != receipt.VerdictSafetyLimit || terminal.ReceiptActualVerdict != receipt.VerdictSafetyLimit {
+		t.Fatalf("terminal ownership evidence = %+v", terminal)
 	}
 }
 

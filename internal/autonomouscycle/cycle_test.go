@@ -206,6 +206,97 @@ func TestRunHeartbeatFailureCancelsWorkerAndPreventsVerification(t *testing.T) {
 	}
 }
 
+func TestRunSettlesCancellationRacingWithHeartbeatFailureBeforeTerminalEvidence(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	fixture := newCycleFixture(t, autonomous.ActionImplement)
+	taskPath := filepath.Join(fixture.root, filepath.FromSlash(fixture.task.SourcePath))
+	writeFixtureFile(t, taskPath, fixture.task.SourceBytes)
+	taskBefore, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	armHeartbeat := make(chan struct{})
+	heartbeatStarted := make(chan struct{})
+	heartbeatCanceled := make(chan struct{})
+	allowHeartbeatReturn := make(chan struct{})
+	codexReturned := make(chan struct{})
+	var startedOnce sync.Once
+	var canceledOnce sync.Once
+	persistenceErr := errors.New("autonomous heartbeat persistence failed during cancellation")
+	fixture.lock.heartbeatFunc = func(ctx context.Context) error {
+		select {
+		case <-armHeartbeat:
+		default:
+			return nil
+		}
+		startedOnce.Do(func() { close(heartbeatStarted) })
+		<-ctx.Done()
+		canceledOnce.Do(func() { close(heartbeatCanceled) })
+		<-allowHeartbeatReturn
+		return errors.Join(ctx.Err(), persistenceErr)
+	}
+	fixture.cfg.SourceWriterLockHeartbeatInterval = time.Millisecond
+	fixture.cfg.CodexRunner = func(ctx context.Context, _ codexexec.Config) (codexexec.Result, error) {
+		fixture.codexCalls++
+		close(armHeartbeat)
+		select {
+		case <-heartbeatStarted:
+		case <-time.After(time.Second):
+			return codexexec.Result{}, errors.New("heartbeat did not start")
+		}
+		cancel()
+		<-heartbeatCanceled
+		close(codexReturned)
+		return codexexec.Result{ExitCode: -1, Err: ctx.Err()}, ctx.Err()
+	}
+	type cycleReturn struct {
+		result Result
+		err    error
+	}
+	returned := make(chan cycleReturn, 1)
+	go func() {
+		result, runErr := Run(parent, fixture.cfg)
+		returned <- cycleReturn{result: result, err: runErr}
+	}()
+	select {
+	case <-codexReturned:
+	case <-time.After(time.Second):
+		t.Fatal("Codex runner did not return")
+	}
+	select {
+	case premature := <-returned:
+		t.Fatalf("Run returned before the heartbeat published its failure: %+v %v", premature.result, premature.err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	if taskDuringSettlement, err := os.ReadFile(taskPath); err != nil || string(taskDuringSettlement) != string(taskBefore) {
+		t.Fatalf("canonical task changed before heartbeat settlement: err=%v\nbefore=%q\nafter=%q", err, taskBefore, taskDuringSettlement)
+	}
+	close(allowHeartbeatReturn)
+	completed := <-returned
+	result, err := completed.result, completed.err
+	for _, want := range []error{context.Canceled, lock.ErrOwnershipLost, persistenceErr} {
+		if !errors.Is(err, want) {
+			t.Fatalf("Run error = %v, missing %v", err, want)
+		}
+	}
+	if result.Outcome != OutcomeWorkerFailed || result.Failure == nil || result.Failure.Stage != "source_lock_after_worker" {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.Worker.Run.Status != ledger.StatusFailed || result.Worker.Receipt.Receipt.Verdict != receipt.VerdictSafetyLimit {
+		t.Fatalf("worker terminal evidence run=%+v receipt=%+v", result.Worker.Run, result.Worker.Receipt)
+	}
+	if fixture.verificationCalls != 0 || fixture.commitCalls != 0 || fixture.lock.releaseCount() != 1 {
+		t.Fatalf("verification=%d commit=%d releases=%d, want 0/0/1", fixture.verificationCalls, fixture.commitCalls, fixture.lock.releaseCount())
+	}
+	if taskAfter, err := os.ReadFile(taskPath); err != nil || string(taskAfter) != string(taskBefore) {
+		t.Fatalf("canonical task bytes changed after ownership failure: err=%v\nbefore=%q\nafter=%q", err, taskBefore, taskAfter)
+	}
+	events := fixture.ledger.events[result.Worker.RunID]
+	if len(events) == 0 || events[len(events)-1].Type != ledger.EventRunFailed || !strings.Contains(string(events[len(events)-1].Payload), string(OutcomeWorkerFailed)) || !strings.Contains(string(events[len(events)-1].Payload), persistenceErr.Error()) {
+		t.Fatalf("terminal worker ledger events = %+v", events)
+	}
+}
+
 func TestRunOwnershipReplacementBeforeCommitFailsClosed(t *testing.T) {
 	fixture := newCycleFixture(t, autonomous.ActionImplement)
 	fixture.withChangedWorker()
@@ -1531,18 +1622,26 @@ type fakeSourceLock struct {
 	mu             sync.Mutex
 	acquired       bool
 	released       bool
+	releases       int
 	heartbeats     int
 	heartbeatErrAt int
 	heartbeatErr   error
+	heartbeatFunc  func(context.Context) error
 	releaseErr     error
 }
 
-func (l *fakeSourceLock) Heartbeat(context.Context) error {
+func (l *fakeSourceLock) Heartbeat(ctx context.Context) error {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	l.heartbeats++
 	if l.heartbeatErrAt > 0 && l.heartbeats >= l.heartbeatErrAt {
-		return l.heartbeatErr
+		err := l.heartbeatErr
+		l.mu.Unlock()
+		return err
+	}
+	fn := l.heartbeatFunc
+	l.mu.Unlock()
+	if fn != nil {
+		return fn(ctx)
 	}
 	return nil
 }
@@ -1550,7 +1649,14 @@ func (l *fakeSourceLock) Release(context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.released = true
+	l.releases++
 	return l.releaseErr
+}
+
+func (l *fakeSourceLock) releaseCount() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.releases
 }
 
 type memoryLedger struct {

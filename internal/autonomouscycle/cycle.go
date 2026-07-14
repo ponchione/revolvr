@@ -240,7 +240,7 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		releaseCtx, cancel := context.WithTimeout(context.Background(), defaultReleaseTimeout)
 		defer cancel()
 		if lockErr := sourceGuard.Close(releaseCtx); lockErr != nil {
-			if runErr == nil {
+			if runErr == nil || (errors.Is(lockErr, lock.ErrOwnershipLost) && !errors.Is(runErr, lock.ErrOwnershipLost)) {
 				result.Outcome = OutcomeSourceChanged
 				result.Failure = &Failure{Stage: "worker_lock", Reason: lockErr.Error()}
 			}
@@ -293,7 +293,7 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 
 	switch route.Kind {
 	case autonomouspolicy.RouteKindComplete:
-		if err := sourceOwnershipError(ctx, n); err != nil {
+		if err := settleSourceOwnership(ctx, n); err != nil {
 			return failed(result, OutcomeSourceChanged, "worker_lock_final", err)
 		}
 		result.Source.Final = &admission
@@ -301,7 +301,7 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		result.Outcome = OutcomeCompleteAuthorized
 		return result, nil
 	case autonomouspolicy.RouteKindBlock:
-		if err := sourceOwnershipError(ctx, n); err != nil {
+		if err := settleSourceOwnership(ctx, n); err != nil {
 			return failed(result, OutcomeSourceChanged, "worker_lock_final", err)
 		}
 		result.Source.Final = &admission
@@ -309,7 +309,7 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		result.Outcome = OutcomeBlockAuthorized
 		return result, nil
 	case autonomouspolicy.RouteKindNeedsInput:
-		if err := sourceOwnershipError(ctx, n); err != nil {
+		if err := settleSourceOwnership(ctx, n); err != nil {
 			return failed(result, OutcomeSourceChanged, "worker_lock_final", err)
 		}
 		result.Source.Final = &admission
@@ -733,7 +733,25 @@ func sourceOwnershipError(ctx context.Context, n normalizedConfig) error {
 		return nil
 	}
 	if failure := n.sourceGuard.Failure(); failure != nil {
-		return failure
+		return errors.Join(operationContextError(ctx), failure)
+	}
+	if ctx != nil && ctx.Err() != nil {
+		if failure := n.sourceGuard.Settle(); failure != nil {
+			return errors.Join(operationContextError(ctx), failure)
+		}
+		return nil
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, defaultReleaseTimeout)
+	defer cancel()
+	return n.sourceGuard.Check(checkCtx)
+}
+
+func settleSourceOwnership(ctx context.Context, n normalizedConfig) error {
+	if n.sourceGuard == nil {
+		return nil
+	}
+	if failure := n.sourceGuard.Settle(); failure != nil {
+		return errors.Join(operationContextError(ctx), failure)
 	}
 	if ctx != nil && ctx.Err() != nil {
 		return nil
@@ -741,6 +759,16 @@ func sourceOwnershipError(ctx context.Context, n normalizedConfig) error {
 	checkCtx, cancel := context.WithTimeout(ctx, defaultReleaseTimeout)
 	defer cancel()
 	return n.sourceGuard.Check(checkCtx)
+}
+
+func operationContextError(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	return ctx.Err()
 }
 
 func workspaceID(workspace *autonomous.TaskWorkspace) string {

@@ -465,21 +465,14 @@ func runWorker(
 }
 
 func finishWorker(ctx context.Context, n normalizedConfig, task taskfile.Task, route autonomouspolicy.Route, preRunDirty gitstate.Capture, result *Result, outcome Outcome, stage string, cause error, verdict receipt.Verdict, verificationStatus string, commitSHA string) (Result, error) {
-	if failure := n.sourceGuard.Failure(); failure != nil {
-		cause = errors.Join(cause, failure)
-		if stage == "" {
-			stage = "source_lock"
-			outcome = OutcomeWorkerFailed
-			verdict = receipt.VerdictSafetyLimit
-		}
-	}
-	if cause == nil {
-		if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
-			cause = ownershipErr
+	hadOwnershipFailure := errors.Is(cause, lock.ErrOwnershipLost)
+	if ownershipErr := settleSourceOwnership(ctx, n); ownershipErr != nil {
+		if !hadOwnershipFailure {
+			cause = errors.Join(cause, ownershipErr)
 			stage = "source_lock_final"
 			outcome = OutcomeWorkerFailed
-			verdict = receipt.VerdictSafetyLimit
 		}
+		verdict = receipt.VerdictSafetyLimit
 	}
 	if errors.Is(cause, lock.ErrOwnershipLost) {
 		ctx = context.WithoutCancel(ctx)

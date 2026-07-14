@@ -27,11 +27,13 @@ type SourceGuard struct {
 	cancelWork   context.CancelCauseFunc
 	stopMonitor  context.CancelFunc
 	done         chan struct{}
-	stopOnce     sync.Once
+	settleOnce   sync.Once
+	releaseOnce  sync.Once
 	heartbeatMu  sync.Mutex
 
-	mu      sync.Mutex
-	failure error
+	mu         sync.Mutex
+	failure    error
+	releaseErr error
 }
 
 func MonitorSourceLease(parent context.Context, lease SourceLease, interval time.Duration) *SourceGuard {
@@ -95,23 +97,42 @@ func (g *SourceGuard) Failure() error {
 	return g.failure
 }
 
+// Settle stops and joins the heartbeat monitor without releasing the lease.
+// Callers use it before terminal persistence so an in-flight heartbeat has
+// published any independent ownership failure before outcome classification.
+func (g *SourceGuard) Settle() error {
+	if g == nil {
+		return nil
+	}
+	g.settleOnce.Do(func() {
+		g.stopMonitor()
+		<-g.done
+	})
+	return g.Failure()
+}
+
 // Close joins any heartbeat/check failure with release failure. The release
 // context should be independent from the guarded operation's cancellation.
+// Monitoring is settled and the lease is released exactly once.
 func (g *SourceGuard) Close(ctx context.Context) error {
 	if g == nil {
 		return nil
 	}
-	g.stopOnce.Do(func() {
-		g.stopMonitor()
-		<-g.done
-	})
-	var releaseErr error
-	if g.lease != nil {
-		if err := g.lease.Release(ctx); err != nil {
-			releaseErr = fmt.Errorf("release source-writer lock: %w", err)
+	settleErr := g.Settle()
+	g.releaseOnce.Do(func() {
+		if g.lease == nil {
+			return
 		}
-	}
-	return errors.Join(g.Failure(), releaseErr)
+		if err := g.lease.Release(ctx); err != nil {
+			g.mu.Lock()
+			g.releaseErr = fmt.Errorf("release source-writer lock: %w", err)
+			g.mu.Unlock()
+		}
+	})
+	g.mu.Lock()
+	releaseErr := g.releaseErr
+	g.mu.Unlock()
+	return errors.Join(settleErr, releaseErr)
 }
 
 func (g *SourceGuard) monitor(ctx context.Context, interval time.Duration) {
@@ -131,7 +152,7 @@ func (g *SourceGuard) monitor(ctx context.Context, interval time.Duration) {
 			if err == nil {
 				continue
 			}
-			if ctxErr := contextError(ctx); ctxErr != nil && err == ctxErr {
+			if ctxErr := contextError(ctx); ctxErr != nil && causedOnlyBy(err, ctxErr) {
 				return
 			}
 			g.fail(err)
@@ -161,4 +182,29 @@ func contextError(ctx context.Context) error {
 		return cause
 	}
 	return ctx.Err()
+}
+
+func causedOnlyBy(err, target error) bool {
+	if err == nil || target == nil {
+		return false
+	}
+	if err == target {
+		return true
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := joined.Unwrap()
+		if len(causes) == 0 {
+			return false
+		}
+		for _, cause := range causes {
+			if !causedOnlyBy(cause, target) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return causedOnlyBy(wrapped.Unwrap(), target)
+	}
+	return false
 }

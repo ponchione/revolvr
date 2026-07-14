@@ -181,7 +181,7 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		defer cancel()
 		if lockErr := sourceGuard.Close(releaseCtx); lockErr != nil {
 			runErr = errors.Join(runErr, lockErr)
-			if result.Outcome == "" {
+			if result.Outcome == "" || errors.Is(lockErr, lock.ErrOwnershipLost) {
 				result.Outcome = OutcomeBlocked
 			}
 			if result.Message == "" {
@@ -843,7 +843,7 @@ func applyPolicyTransition(repositoryRoot string, task taskfile.Task, policy pas
 }
 
 func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, outcome Outcome, verdict receipt.Verdict, verificationStatus string, commitSHA string) (Result, error) {
-	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
+	if ownershipErr := settleSourceOwnership(ctx, cfg); ownershipErr != nil {
 		return finishSourceOwnership(cfg, runs, result, ownershipErr)
 	}
 	result.Outcome = outcome
@@ -973,7 +973,25 @@ func sourceOwnershipError(ctx context.Context, cfg Config) error {
 		return nil
 	}
 	if failure := cfg.sourceGuard.Failure(); failure != nil {
-		return failure
+		return errors.Join(operationContextError(ctx), failure)
+	}
+	if ctx != nil && ctx.Err() != nil {
+		if failure := cfg.sourceGuard.Settle(); failure != nil {
+			return errors.Join(operationContextError(ctx), failure)
+		}
+		return nil
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, defaultLockReleaseTimeout)
+	defer cancel()
+	return cfg.sourceGuard.Check(checkCtx)
+}
+
+func settleSourceOwnership(ctx context.Context, cfg Config) error {
+	if cfg.sourceGuard == nil {
+		return nil
+	}
+	if failure := cfg.sourceGuard.Settle(); failure != nil {
+		return errors.Join(operationContextError(ctx), failure)
 	}
 	if ctx != nil && ctx.Err() != nil {
 		return nil
@@ -981,6 +999,16 @@ func sourceOwnershipError(ctx context.Context, cfg Config) error {
 	checkCtx, cancel := context.WithTimeout(ctx, defaultLockReleaseTimeout)
 	defer cancel()
 	return cfg.sourceGuard.Check(checkCtx)
+}
+
+func operationContextError(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	return ctx.Err()
 }
 
 func finishSourceOwnership(cfg Config, runs *ledger.Store, result *Result, cause error) (Result, error) {
@@ -992,6 +1020,7 @@ func finishSourceOwnership(cfg Config, runs *ledger.Store, result *Result, cause
 	evidenceCtx, cancel := context.WithTimeout(context.Background(), defaultLockReleaseTimeout)
 	defer cancel()
 	completedAt := cfg.Clock()
+	finalizeRunReceipt(evidenceCtx, cfg, runs, result, receipt.VerdictSafetyLimit, "not_run", verificationEntries(result.Verification), "", result.Message, completedAt)
 	exitCode := result.Codex.ExitCode
 	updated, ok, completionErr := runs.CompleteRun(evidenceCtx, result.Run.ID, ledger.RunCompletion{
 		Status: ledger.StatusFailed, Summary: result.Message, CompletedAt: completedAt,
@@ -1005,9 +1034,13 @@ func finishSourceOwnership(cfg Config, runs *ledger.Store, result *Result, cause
 		result.Run = updated
 	}
 	appendEvent(evidenceCtx, result, runs, result.Run.ID, ledger.EventRunFailed, map[string]any{
-		"outcome": OutcomeBlocked,
-		"stage":   "source_lock",
-		"message": result.Message,
+		"outcome":                OutcomeBlocked,
+		"stage":                  "source_lock",
+		"message":                result.Message,
+		"receipt_verdict":        receipt.VerdictSafetyLimit,
+		"receipt_actual_verdict": result.Receipt.Verdict,
+		"receipt_synthesized":    result.ReceiptSynthesized,
+		"receipt_error":          result.ReceiptError,
 	})
 	return *result, errors.Join(cause, result.LedgerError)
 }

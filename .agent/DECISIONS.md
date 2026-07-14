@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## AUDIT-FIX-01 Source-Lease Terminal Settlement (2026-07-14)
+
+- `lock.SourceGuard.Settle` is the shared terminal ownership boundary. It stops
+  and joins the asynchronous heartbeat monitor without releasing the lease, so
+  an in-flight persistence or ownership failure is published before any task,
+  receipt, ledger, or externally consumed outcome classification is finalized.
+- Cancellation-only heartbeat shutdown is not ownership loss, including a
+  wrapped cancellation error. A joined independent heartbeat error remains
+  ownership loss and is retained alongside the cancellation cause.
+- Terminal code settles first and, while the operation remains active, performs
+  one final synchronous ownership check. Nonterminal checks settle only when
+  cancellation requires joining a possibly in-flight heartbeat; healthy active
+  work retains periodic monitoring.
+- Mixed-pass ownership failure never transitions the canonical task. It writes
+  `safety_limit` receipt evidence and matching failed-run ledger evidence under
+  an independent bounded context. Autonomous worker finalization applies the
+  same settlement rule before receipt and ledger completion, and a failure
+  first discovered during deferred close replaces any unsafe success outcome.
+- `SourceGuard.Close` retains settlement and release errors across calls and
+  invokes lease release exactly once. Normal execution keeps the lease until
+  terminal persistence is complete, then the outer defer releases it.
+
 ## AM-02 Autonomous Migration Transaction Authority (2026-07-14)
 
 - `internal/autonomousmigration.Apply` is the sole migration publication and

@@ -11,7 +11,21 @@
 
 ## Current Backlog
 
-None.
+- [x] AUDIT-FIX-01 — Settle source-lease monitor failures before terminal task,
+  receipt, and ledger mutation in mixed and autonomous runs; make the race tests
+  deterministic.
+- [ ] AUDIT-FIX-02 — Remove unsafe mixed-pass dirty-worktree commits or isolate
+  and prove the exact run-owned delta with real-Git overlap coverage.
+- [ ] AUDIT-FIX-03 — Harden source-writer and retention lock files with
+  canonical roots, no-follow opens, and named/opened inode checks.
+- [ ] AUDIT-FIX-04 — Migrate the remaining predictable coordinator locks to the
+  same hardened flock primitive and substitution tests.
+- [ ] AUDIT-FIX-05 — Open all app read projections through the live read-only
+  ledger API and prove byte/sidecar immutability.
+- [ ] AUDIT-FIX-06 — Declare and enforce the supported-platform contract with a
+  matching cross-build matrix.
+- [ ] AUDIT-FIX-07 — Repair and rerun the stale local CLI smoke-test header
+  assertion.
 
 ## Completed Programs
 
@@ -32,6 +46,9 @@ None.
   atomic application, and restart recovery.
 - [x] QA-01 — cross-surface regression closure, operator documentation, and
   read-only Cyber-ARPG readiness assessment.
+- [x] AUDIT-2026-07-14 — evidence-based wide-sweep audit recorded in
+  `AUDIT_PROBLEMS.md`; six problems found and converted into bounded follow-up
+  tasks.
 
 Detailed behavior is captured in `.agent/DECISIONS.md`; current verification
 and readiness evidence is summarized in `.agent/STATE.md`; implementation and

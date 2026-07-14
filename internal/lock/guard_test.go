@@ -3,6 +3,7 @@ package lock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -68,6 +69,77 @@ func TestSourceGuardPreservesSimultaneousCancellationAndHeartbeatFailure(t *test
 	cancel()
 	if err := guard.Close(context.Background()); !errors.Is(err, context.Canceled) || !errors.Is(err, persistenceErr) || !errors.Is(err, ErrOwnershipLost) {
 		t.Fatalf("Close error = %v, want cancellation plus ownership persistence failure", err)
+	}
+}
+
+func TestSourceGuardSettleWaitsForInFlightFailureWithoutReleasing(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	allowReturn := make(chan struct{})
+	persistenceErr := errors.New("heartbeat failed while settling")
+	lease := &testSourceLease{heartbeat: func(ctx context.Context) error {
+		close(started)
+		<-ctx.Done()
+		<-allowReturn
+		return errors.Join(ctx.Err(), persistenceErr)
+	}}
+	guard := MonitorSourceLease(parent, lease, time.Millisecond)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat did not start")
+	}
+	cancel()
+
+	settled := make(chan error, 1)
+	go func() { settled <- guard.Settle() }()
+	select {
+	case err := <-settled:
+		t.Fatalf("Settle returned before heartbeat completed: %v", err)
+	case <-time.After(10 * time.Millisecond):
+	}
+	if lease.releaseCount() != 0 {
+		t.Fatal("Settle released the source lease")
+	}
+
+	close(allowReturn)
+	if err := <-settled; !errors.Is(err, ErrOwnershipLost) || !errors.Is(err, persistenceErr) {
+		t.Fatalf("Settle error = %v, want ownership and persistence failures", err)
+	}
+	if lease.releaseCount() != 0 {
+		t.Fatal("Settle released the source lease")
+	}
+	if err := guard.Close(context.Background()); !errors.Is(err, persistenceErr) {
+		t.Fatalf("Close error = %v, want persistence failure", err)
+	}
+	if err := guard.Close(context.Background()); !errors.Is(err, persistenceErr) {
+		t.Fatalf("second Close error = %v, want retained persistence failure", err)
+	}
+	if lease.releaseCount() != 1 {
+		t.Fatalf("release count = %d, want 1", lease.releaseCount())
+	}
+}
+
+func TestSourceGuardSettleIgnoresWrappedCancellationOnly(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	lease := &testSourceLease{heartbeat: func(ctx context.Context) error {
+		close(started)
+		<-ctx.Done()
+		return fmt.Errorf("heartbeat stopped: %w", ctx.Err())
+	}}
+	guard := MonitorSourceLease(parent, lease, time.Millisecond)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat did not start")
+	}
+	cancel()
+	if err := guard.Settle(); err != nil {
+		t.Fatalf("Settle error = %v, want ordinary cancellation", err)
+	}
+	if err := guard.Close(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 }
 
