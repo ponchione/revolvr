@@ -2,27 +2,35 @@
 
 ## Current Focus
 
-Resolve `AUDIT-CLOSE-01`, the first unchecked task in `.agent/TASKS.md`.
-`AUDIT-FIX-07` repaired the local CLI smoke test's stale task-list header
-assertion; the next pass must independently re-audit every recorded finding,
-run final verification, and remove `AUDIT_PROBLEMS.md` only after full closure.
+No unchecked tasks remain in `.agent/TASKS.md`. `AUDIT-CLOSE-01` independently
+confirmed all six 2026-07-14 audit findings are resolved, passed the complete
+local verification matrix, and removed the closed `AUDIT_PROBLEMS.md` report.
 
-## Latest Completed Audit Fix (2026-07-14)
+## Final Audit Closure (2026-07-14)
 
-- Task selected: `AUDIT-FIX-07`.
-- The local CLI smoke test now checks the stable leading task-list columns
-  `ID`, `STATUS`, `WORKFLOW`, and `PHASE`; its separate task-text and summary
-  assertions remain intact.
-- Files changed: `scripts/smoke-local.sh`, `.agent/TASKS.md`, and
-  `.agent/STATE.md`.
-- Verification commands run: `bash -n scripts/smoke-local.sh`,
-  `./scripts/smoke-local.sh`, and `git diff --check`.
-- Verification result: the shell syntax check and complete local CLI smoke
-  passed; the diff whitespace check passed.
-- What remains: final re-audit, verification, and conditional removal of
-  `AUDIT_PROBLEMS.md` under `AUDIT-CLOSE-01`. Blockers: none.
+- Task selected: `AUDIT-CLOSE-01`.
+- Re-audit result: the source-lease settlement race, dirty-worktree commit
+  escape, predictable coordinator lock identities, writable app ledger reads,
+  inconsistent platform contract, and stale smoke header are all closed by
+  their committed production boundaries and regression tests.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, and deletion of
+  `AUDIT_PROBLEMS.md`.
+- Focused verification commands run: 25 repeated source-guard/run-once/
+  autonomous-cycle race tests; real-Git dirty-worktree refusal; shared,
+  source-writer, retention, Git-admin, and delivery lock path/substitution
+  tests; immutable app-ledger projection tests; shell syntax and local smoke.
+- Final verification commands run: tracked-Go `gofmt -l`, `git diff --check`,
+  `go mod verify`, `go vet ./...`, `govulncheck ./...`, syntax checks for every
+  tracked shell script, `go test -count=1 ./...`,
+  `go test -race -count=1 ./...`, `go test -shuffle=on -count=1 ./...`, root
+  help, config check, all three smoke scripts, Linux/Darwin/FreeBSD amd64
+  cross-builds, and the Windows diagnostic-stub build/message check.
+- Verification result: every focused and final check passed; `govulncheck`
+  reported no reachable vulnerabilities. No live Codex execution was started
+  through Revolvr.
+- What remains: no backlog task. Blockers: none.
 
-## Wide-Sweep Audit (2026-07-14)
+## Closed Wide-Sweep Audit (2026-07-14)
 
 - Six evidence-backed problems were found: a cancellation/source-lease race,
   unsafe staging when pre-existing dirty work is allowed, unprotected
@@ -30,13 +38,13 @@ run final verification, and remove `AUDIT_PROBLEMS.md` only after full closure.
   an unstated/inconsistent non-Unix build contract, and a stale local smoke-test
   assertion.
 - No speculative performance or line-count cleanup was recorded.
-- The ordinary full suite exposed the ownership race once. The race-enabled and
-  shuffled suites passed, which is consistent with an intermittent terminal
-  ordering defect rather than a broad data race.
-- The local smoke failed only at its stale header assertion. Both fake-Codex
-  run-once smokes passed.
-- Linux, Darwin, and FreeBSD builds passed; the Windows build failed on untagged
-  Unix syscall usage.
+- Final closure re-audited every finding against production code and focused
+  regressions. Twenty-five repeated deterministic race tests passed, including
+  canonical task, receipt, ledger, result, and single-release assertions.
+- Final ordinary, race-enabled, and shuffled suites passed. The local smoke and
+  both fake-Codex run-once smokes passed.
+- Linux, Darwin, and FreeBSD builds passed. The intentional Windows diagnostic
+  stub built successfully and retained its unsupported-platform message.
 
 ## Latest Completed Program (2026-07-14)
 
@@ -97,12 +105,11 @@ remained unchanged.
 - `.agent/LOOP_PROMPT.md`: reusable fresh-session pass instructions.
 - `.agent/CYBER_ARPG_READINESS_ASSESSMENT.md`: bounded external readiness
   evidence.
-- `AUDIT_PROBLEMS.md`: current wide-sweep audit findings and remediation
-  guidance.
 
 Obsolete setup handoffs, design-target drafts, and completed-program kickoff
-notes were removed after their durable content was incorporated into the files
-above. Detailed historical prose remains available through Git history.
+notes and the resolved wide-sweep audit report were removed after their durable
+content was incorporated into the files above. Detailed historical prose
+remains available through Git history.
 
 ## Current Repository Understanding
 
@@ -116,7 +123,7 @@ above. Detailed historical prose remains available through Git history.
 ## Verification Gaps
 
 Remote GitHub Actions execution of the newly linted workflow has not occurred
-in a local pass. The final local closure audit remains.
+in a local pass. The matching local test and cross-build matrix passes.
 
 ## Notes For Next Fresh Session
 

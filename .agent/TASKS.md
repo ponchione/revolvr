@@ -26,7 +26,7 @@
   matching cross-build matrix.
 - [x] AUDIT-FIX-07 — Repair and rerun the stale local CLI smoke-test header
   assertion.
-- [ ] AUDIT-CLOSE-01 — Re-audit every `AUDIT_PROBLEMS.md` finding against the
+- [x] AUDIT-CLOSE-01 — Re-audit every `AUDIT_PROBLEMS.md` finding against the
   committed fixes, run the final verification matrix, and delete the audit
   file only if all findings are resolved.
 
