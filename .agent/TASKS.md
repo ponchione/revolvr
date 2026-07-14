@@ -14,7 +14,7 @@
 - [x] AUDIT-FIX-01 — Settle source-lease monitor failures before terminal task,
   receipt, and ledger mutation in mixed and autonomous runs; make the race tests
   deterministic.
-- [ ] AUDIT-FIX-02 — Remove unsafe mixed-pass dirty-worktree commits or isolate
+- [x] AUDIT-FIX-02 — Remove unsafe mixed-pass dirty-worktree commits or isolate
   and prove the exact run-owned delta with real-Git overlap coverage.
 - [ ] AUDIT-FIX-03 — Harden source-writer and retention lock files with
   canonical roots, no-follow opens, and named/opened inode checks.

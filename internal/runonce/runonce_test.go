@@ -802,43 +802,21 @@ func TestRunImplementTaskFileOnlyChangeIsNotMeaningful(t *testing.T) {
 	}
 }
 
-func TestRunImplementPreExistingDirtyFileDoesNotCountAsNewMeaningfulChange(t *testing.T) {
-	ctx := context.Background()
-	env := newTestEnv(t)
-	selected := writeRunTask(t, env, "task-preexisting-only", "Do not reuse pre-existing changes")
-	commitCalled := false
-	result, err := Run(ctx, Config{
-		WorkingDir:            env.workDir,
-		LedgerStore:           env.ledger,
+func TestRunRejectsRemovedDirtyWorktreeOptionBeforeSideEffects(t *testing.T) {
+	lockCalled := false
+	result, err := Run(context.Background(), Config{
+		WorkingDir:            t.TempDir(),
 		AllowPreExistingDirty: true,
-		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
-			return gitstate.Capture{Kind: gitstate.CaptureKindDirty, DirtyFiles: []string{"internal/already-dirty.go"}, Paths: []string{"internal/already-dirty.go"}}, nil
+		SourceLockAcquirer: func(context.Context, lock.Config) (lock.SourceLease, error) {
+			lockCalled = true
+			return nil, errors.New("must not acquire source lock")
 		},
-		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
-			return gitstate.Capture{Kind: gitstate.CaptureKindChanged, ChangedFiles: []string{"internal/already-dirty.go", selected.SourcePath}, Paths: []string{"internal/already-dirty.go", selected.SourcePath}}, nil
-		},
-		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
-			return codexexec.Result{ExitCode: 0}, nil
-		},
-		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
-			return passedVerificationResult("go test ./..."), nil
-		},
-		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
-			commitCalled = true
-			return commit.Result{}, nil
-		},
-		Clock:                  env.clock,
-		CodexVersionDiscoverer: testCodexVersionDiscoverer,
 	})
-	if err != nil {
-		t.Fatalf("run once: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "allow_pre_existing_dirty is unsupported") || !strings.Contains(err.Error(), "clean worktree") {
+		t.Fatalf("Run error = %v, want removed dirty-worktree option error", err)
 	}
-	if result.Outcome != OutcomeNoChanges || commitCalled {
-		t.Fatalf("outcome=%s commitCalled=%v, want no_changes without commit", result.Outcome, commitCalled)
-	}
-	updated := loadRunTask(t, env, selected.SourcePath)
-	if updated.Status != taskfile.StatusBlocked || updated.Phase != taskfile.PhaseImplement {
-		t.Fatalf("task status/phase = %s/%s, want blocked/implement", updated.Status, updated.Phase)
+	if lockCalled || !reflect.DeepEqual(result, Result{}) {
+		t.Fatalf("side effects started: lockCalled=%t result=%+v", lockCalled, result)
 	}
 }
 
@@ -2404,89 +2382,6 @@ func TestRunBlocksWhenPreRunDirtyCaptureReportsFailure(t *testing.T) {
 	}
 	if !decodeTestEventPayload(t, history.Events, ledger.EventRunFailed, &terminal) || !strings.Contains(terminal.PreRunCaptureError, "128") {
 		t.Fatalf("terminal pre-run capture error = %q, want captured failure", terminal.PreRunCaptureError)
-	}
-}
-
-func TestRunAllowsPreExistingDirtyWhenConfigured(t *testing.T) {
-	ctx := context.Background()
-	env := newTestEnv(t)
-	selected := writeRunTask(t, env, "task-allow-dirty", "Proceed with dirty worktree")
-
-	codexCalled := false
-	verificationCalled := false
-	commitCalled := false
-	result, err := Run(ctx, Config{
-		WorkingDir:                env.workDir,
-		LedgerStore:               env.ledger,
-		AllowPreExistingDirty:     true,
-		VerificationCommands:      []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
-		MissingVerificationPolicy: verification.MissingCommandsFail,
-		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
-			return gitstate.Capture{
-				Kind:       gitstate.CaptureKindDirty,
-				DirtyFiles: []string{"internal/dirty.go"},
-				Paths:      []string{"internal/dirty.go"},
-			}, nil
-		},
-		ChangedCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
-			return gitstate.Capture{
-				Kind:         gitstate.CaptureKindChanged,
-				ChangedFiles: []string{"internal/feature.go"},
-				Paths:        []string{"internal/feature.go"},
-			}, nil
-		},
-		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
-			codexCalled = true
-			return codexexec.Result{ExitCode: 0}, nil
-		},
-		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
-			verificationCalled = true
-			return verification.Result{
-				Status:             verification.StatusPassed,
-				Passed:             true,
-				FailedCommandIndex: -1,
-				Commands: []verification.CommandResult{{
-					Command:  "go test ./...",
-					Name:     "go",
-					Args:     []string{"test", "./..."},
-					Status:   verification.StatusPassed,
-					Passed:   true,
-					ExitCode: 0,
-				}},
-			}, nil
-		},
-		CommitRunner: func(_ context.Context, cfg commit.Config) (commit.Result, error) {
-			commitCalled = true
-			if !cfg.AllowPreExistingDirty {
-				t.Fatal("commit config AllowPreExistingDirty = false, want true")
-			}
-			return commit.Result{Status: commit.StatusCommitted, CommitSHA: "abc123", Message: "commit created"}, nil
-		},
-		Clock:                  env.clock,
-		CodexVersionDiscoverer: testCodexVersionDiscoverer,
-	})
-	if err != nil {
-		t.Fatalf("run once: %v", err)
-	}
-
-	if result.Outcome != OutcomeCommitted {
-		t.Fatalf("outcome = %s, want committed; message=%s", result.Outcome, result.Message)
-	}
-	if !codexCalled || !verificationCalled || !commitCalled {
-		t.Fatalf("called codex=%v verification=%v commit=%v, want all true", codexCalled, verificationCalled, commitCalled)
-	}
-	if result.Run.CommitSHA != "abc123" {
-		t.Fatalf("run commit sha = %q, want abc123", result.Run.CommitSHA)
-	}
-	if result.Task.Status != taskmodel.StatusPending {
-		t.Fatalf("task status = %q, want pending", result.Task.Status)
-	}
-	updated := loadRunTask(t, env, selected.SourcePath)
-	if got := updated.Status; got != taskfile.StatusPending {
-		t.Fatalf("file task status = %q, want pending", got)
-	}
-	if got := updated.Phase; got != taskfile.PhaseAudit {
-		t.Fatalf("file task phase = %q, want audit", got)
 	}
 }
 

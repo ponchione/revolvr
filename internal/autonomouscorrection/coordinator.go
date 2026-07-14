@@ -129,7 +129,6 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	correctionCfg.RepositoryRoot, correctionCfg.Workspace, correctionCfg.TaskID, correctionCfg.State = n.RepositoryRoot, n.Workspace, n.TaskID, snapshot.State
 	correctionCfg.SourceSafety = autonomouspolicy.SourceSafetySafe
 	correctionCfg.Verification, correctionCfg.Audit, correctionCfg.CorrectionFailure = verification, audit, failureTarget
-	correctionCfg.AllowPreExistingDirty = false
 	correction, correctionErr := n.CycleRunner(ctx, correctionCfg)
 	result.Correction = correction
 	if correctionErr != nil {

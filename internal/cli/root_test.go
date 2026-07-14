@@ -1500,7 +1500,7 @@ verification:
       dir: internal
       timeout_seconds: 9
 commit:
-  allow_pre_existing_dirty: true
+  allow_pre_existing_dirty: false
   allow_missing_verification: true
   timeout_seconds: 30
 output:
@@ -1551,7 +1551,7 @@ output:
 	if !reflect.DeepEqual(got.VerificationCommands, wantCommands) {
 		t.Fatalf("verification commands = %#v, want %#v", got.VerificationCommands, wantCommands)
 	}
-	if !got.AllowPreExistingDirty || !got.AllowMissingVerification || got.CommitTimeout != 30*time.Second {
+	if got.AllowPreExistingDirty || !got.AllowMissingVerification || got.CommitTimeout != 30*time.Second {
 		t.Fatalf("commit config = %+v, want config overrides", got)
 	}
 	if got.CodexStdoutCap != 101 || got.CodexStderrCap != 102 ||
@@ -1747,7 +1747,7 @@ verification:
       dir: internal
       timeout_seconds: 9
 commit:
-  allow_pre_existing_dirty: true
+  allow_pre_existing_dirty: false
   allow_missing_verification: true
   timeout_seconds: 30
 output:
@@ -1805,7 +1805,7 @@ output:
 		"Verification missing policy: pass\n" +
 		"Verification command count: 1\n" +
 		"Verification command 0: name=go args=[\"test\", \"./...\"] dir=internal timeout=9s\n" +
-		"Commit allow pre-existing dirty: true\n" +
+		"Commit allow pre-existing dirty: false\n" +
 		"Commit allow missing verification: true\n" +
 		"Commit timeout: 30s\n" +
 		"Output caps bytes: codex_stdout=101 codex_stderr=102 git_stdout=103 git_stderr=104 verification_stdout=105 verification_stderr=106 commit_stdout=107 commit_stderr=108\n"
@@ -1827,6 +1827,19 @@ codex:
 	}
 	if !strings.Contains(out, "Codex dangerously bypass approvals and sandbox: false\n") {
 		t.Fatalf("config check output = %q, want yolo false", out)
+	}
+}
+
+func TestConfigCheckRejectsPreExistingDirtyOption(t *testing.T) {
+	workDir := t.TempDir()
+	writeCLIFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+commit:
+  allow_pre_existing_dirty: true
+`)
+
+	_, err := executeCLI(t, workDir, "config", "check")
+	if err == nil || !strings.Contains(err.Error(), "allow_pre_existing_dirty must be false") || !strings.Contains(err.Error(), "clean worktree") {
+		t.Fatalf("config check error = %v, want removed dirty-worktree option error", err)
 	}
 }
 

@@ -292,7 +292,7 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		result.Message = "capture pre-run dirty state failed: " + result.PreRunDirty.CaptureError
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
-	if !cfg.AllowPreExistingDirty && hasPreExistingDirty(result.PreRunDirty) {
+	if hasPreExistingDirty(result.PreRunDirty) {
 		appendEvent(ctx, &result, ledgerStore, run.ID, ledger.EventChangedFilesCaptured, map[string]any{
 			"pre_run_dirty_files": dirtyFileList(result.PreRunDirty),
 			"changed_files":       []string{},
@@ -496,7 +496,7 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		result.Message = result.Commit.Message
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, verificationStatus, "")
 	}
-	if !policy.AllowNoChangeSuccess && !hasMeaningfulPreTransitionChanges(result.PreRunDirty, result.PostRunChanged, result.selectedFileTask.SourcePath) {
+	if !policy.AllowNoChangeSuccess && !hasMeaningfulPreTransitionChanges(result.PostRunChanged, result.selectedFileTask.SourcePath) {
 		result.Commit = commit.Result{
 			Status:        commit.StatusRefused,
 			RefusalReason: commit.ReasonNoChanges,
@@ -536,7 +536,6 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		VerificationResult:       &result.Verification,
 		PreRunDirty:              &result.PreRunDirty,
 		PostRunChanged:           &result.PostRunChanged,
-		AllowPreExistingDirty:    cfg.AllowPreExistingDirty,
 		AllowMissingVerification: cfg.AllowMissingVerification,
 		GitExecutable:            cfg.GitExecutable,
 		Timeout:                  cfg.CommitTimeout,
@@ -587,6 +586,9 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 		return Config{}, "", fmt.Errorf("resolve working directory: %w", err)
 	}
 	cfg.WorkingDir = workDir
+	if cfg.AllowPreExistingDirty {
+		return Config{}, "", errors.New("run once: allow_pre_existing_dirty is unsupported; mixed-pass runs require a clean worktree")
+	}
 	if cfg.SafetyDeclaration.SchemaVersion == "" {
 		cfg.SafetyDeclaration = autonomoussafety.DefaultDeclaration()
 	}
@@ -799,20 +801,14 @@ func selectedTaskSnapshotUnchanged(repositoryRoot string, snapshot taskfile.Task
 	return bytes.Equal(current.SourceBytes, snapshot.SourceBytes), nil
 }
 
-func hasMeaningfulPreTransitionChanges(preRun gitstate.Capture, postRun gitstate.Capture, selectedTaskPath string) bool {
+func hasMeaningfulPreTransitionChanges(postRun gitstate.Capture, selectedTaskPath string) bool {
 	selectedTaskPath = filepath.Clean(selectedTaskPath)
-	preExisting := make(map[string]struct{})
-	for _, path := range dirtyFileList(preRun) {
-		preExisting[filepath.Clean(path)] = struct{}{}
-	}
 	for _, path := range changedFiles(postRun) {
 		path = filepath.Clean(path)
 		if path == selectedTaskPath {
 			continue
 		}
-		if _, existedBeforeRun := preExisting[path]; !existedBeforeRun {
-			return true
-		}
+		return true
 	}
 	return false
 }

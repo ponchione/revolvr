@@ -139,10 +139,9 @@ type Config struct {
 	VerificationStdoutCap     int
 	VerificationStderrCap     int
 
-	AllowPreExistingDirty bool
-	CommitTimeout         time.Duration
-	CommitStdoutCap       int
-	CommitStderrCap       int
+	CommitTimeout   time.Duration
+	CommitStdoutCap int
+	CommitStderrCap int
 
 	SourceWriterLockTimeout           time.Duration
 	SourceWriterLockHeartbeatInterval time.Duration

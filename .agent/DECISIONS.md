@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## AUDIT-FIX-02 Clean Mixed-Pass Commit Contract (2026-07-14)
+
+- A source-changing pass requires a clean pre-run worktree. The legacy
+  `commit.allow_pre_existing_dirty` YAML key remains parseable only for a
+  precise migration error: explicit `false` is accepted, while `true` is
+  rejected before source locking, Codex, verification, staging, or commit work.
+  Direct run-once configuration receives the same pre-side-effect rejection.
+- `internal/commit` is the final staging boundary and exposes no bypass. Any
+  path in the supplied pre-run capture refuses the commit. Mixed-pass and
+  autonomous callers apply the same invariant before source-changing work.
+- Filename subtraction and whole-file comparison cannot prove byte ownership
+  when operator and run edits overlap. Revolvr therefore does not infer an
+  owned delta from a dirty worktree; unrelated and overlapping edits both fail
+  closed unless a future design introduces exact isolation authority.
+- Real-Git regression coverage captures operator edits, applies simulated run
+  and task-metadata edits, and invokes the actual commit boundary. Refusal must
+  leave HEAD and the index unchanged and preserve every resulting worktree byte.
+- The effective-run projection retains the existing false-valued field and
+  schema for valid configurations. Removing an unsafe true setting therefore
+  does not churn effective identities for operators already using the required
+  clean-worktree contract.
+
 ## AUDIT-FIX-01 Source-Lease Terminal Settlement (2026-07-14)
 
 - `lock.SourceGuard.Settle` is the shared terminal ownership boundary. It stops

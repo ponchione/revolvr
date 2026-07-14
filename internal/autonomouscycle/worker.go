@@ -63,7 +63,7 @@ func runWorker(
 	if preRunDirty.CaptureError != "" {
 		return failed(result, OutcomeWorkerFailed, "pre_worker_dirty_capture", errors.New(preRunDirty.CaptureError))
 	}
-	if sourceChangingAction(route.Action) && !n.AllowPreExistingDirty && captureHasPaths(preRunDirty) {
+	if sourceChangingAction(route.Action) && captureHasPaths(preRunDirty) {
 		return failed(result, OutcomeWorkerFailed, "pre_worker_source_safety", fmt.Errorf("pre-existing dirty files are present: %q", capturePaths(preRunDirty)))
 	}
 
@@ -427,7 +427,6 @@ func runWorker(
 		VerificationResult:       &verificationResult,
 		PreRunDirty:              &preRunDirty,
 		PostRunChanged:           &workerChanges,
-		AllowPreExistingDirty:    n.AllowPreExistingDirty,
 		AllowMissingVerification: false,
 		GitExecutable:            n.GitExecutable,
 		Timeout:                  n.CommitTimeout,

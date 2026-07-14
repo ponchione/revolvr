@@ -3,6 +3,7 @@ package runonce
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,7 +64,6 @@ func TestFingerprintEffectiveConfigChangesForMaterialSettings(t *testing.T) {
 		{name: "verification", mutate: func(cfg *Config) { cfg.VerificationCommands[0].Args = []string{"test", "./internal/..."} }},
 		{name: "sandbox", mutate: func(cfg *Config) { cfg.CodexSandbox = "read-only" }},
 		{name: "git", mutate: func(cfg *Config) { cfg.GitTimeout = time.Second }},
-		{name: "commit", mutate: func(cfg *Config) { cfg.AllowPreExistingDirty = true }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,6 +89,16 @@ func TestFingerprintEffectiveConfigChangesForMaterialSettings(t *testing.T) {
 	}
 	if sessionHash == baseline.SHA256 {
 		t.Fatal("session change did not change hash")
+	}
+}
+
+func TestFingerprintEffectiveConfigRejectsRemovedDirtyWorktreeOption(t *testing.T) {
+	_, err := FingerprintEffectiveConfig(Config{
+		WorkingDir:            t.TempDir(),
+		AllowPreExistingDirty: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "allow_pre_existing_dirty is unsupported") {
+		t.Fatalf("FingerprintEffectiveConfig error = %v, want removed option error", err)
 	}
 }
 

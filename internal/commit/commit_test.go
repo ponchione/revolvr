@@ -623,6 +623,129 @@ func TestRunRefusesPreExistingDirtyFilesByDefault(t *testing.T) {
 	}
 }
 
+func TestRunRefusesRealPreExistingDirtyWorktreeWithoutStaging(t *testing.T) {
+	tests := []struct {
+		name          string
+		baseline      map[string]string
+		operatorEdits map[string]string
+		runEdits      map[string]string
+		wantPreRun    []string
+		wantPostRun   []string
+	}{
+		{
+			name: "unrelated paths",
+			baseline: map[string]string{
+				"operator.txt": "operator baseline\n",
+				"feature.txt":  "feature baseline\n",
+				"task.md":      "status: pending\n",
+			},
+			operatorEdits: map[string]string{"operator.txt": "operator change\n"},
+			runEdits: map[string]string{
+				"feature.txt": "run change\n",
+				"task.md":     "status: pending\nphase: audit\n",
+			},
+			wantPreRun:  []string{"operator.txt"},
+			wantPostRun: []string{"feature.txt", "operator.txt", "task.md"},
+		},
+		{
+			name: "overlapping path",
+			baseline: map[string]string{
+				"shared.txt": "baseline\n",
+				"task.md":    "status: pending\n",
+			},
+			operatorEdits: map[string]string{"shared.txt": "baseline\noperator change\n"},
+			runEdits: map[string]string{
+				"shared.txt": "baseline\noperator change\nrun change\n",
+				"task.md":    "status: pending\nphase: audit\n",
+			},
+			wantPreRun:  []string{"shared.txt"},
+			wantPostRun: []string{"shared.txt", "task.md"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			workDir := t.TempDir()
+			runCommitTestGit(t, workDir, "init", "-q")
+			runCommitTestGit(t, workDir, "config", "user.name", "Revolvr Test")
+			runCommitTestGit(t, workDir, "config", "user.email", "revolvr-test@example.invalid")
+			for path, content := range tt.baseline {
+				if err := os.WriteFile(filepath.Join(workDir, path), []byte(content), 0o644); err != nil {
+					t.Fatalf("write baseline %s: %v", path, err)
+				}
+			}
+			runCommitTestGit(t, workDir, "add", "-A")
+			runCommitTestGit(t, workDir, "commit", "-q", "-m", "Baseline")
+			baselineHEAD := strings.TrimSpace(runCommitTestGit(t, workDir, "rev-parse", "HEAD"))
+
+			for path, content := range tt.operatorEdits {
+				if err := os.WriteFile(filepath.Join(workDir, path), []byte(content), 0o644); err != nil {
+					t.Fatalf("write operator edit %s: %v", path, err)
+				}
+			}
+			preRun, err := gitstate.CaptureDirtyWorktree(ctx, gitstate.Config{WorkingDir: workDir})
+			if err != nil {
+				t.Fatalf("capture pre-run dirty worktree: %v", err)
+			}
+			if !reflect.DeepEqual(preRun.DirtyFiles, tt.wantPreRun) {
+				t.Fatalf("pre-run dirty files = %#v, want %#v", preRun.DirtyFiles, tt.wantPreRun)
+			}
+
+			for path, content := range tt.runEdits {
+				if err := os.WriteFile(filepath.Join(workDir, path), []byte(content), 0o644); err != nil {
+					t.Fatalf("write run edit %s: %v", path, err)
+				}
+			}
+			postRun, err := gitstate.CaptureChangedFiles(ctx, gitstate.Config{WorkingDir: workDir})
+			if err != nil {
+				t.Fatalf("capture post-run changed files: %v", err)
+			}
+			if !reflect.DeepEqual(postRun.ChangedFiles, tt.wantPostRun) {
+				t.Fatalf("post-run changed files = %#v, want %#v", postRun.ChangedFiles, tt.wantPostRun)
+			}
+
+			result, err := Run(ctx, Config{
+				WorkingDir:         workDir,
+				RunID:              "run-dirty-refusal",
+				TaskID:             "task-dirty-refusal",
+				TaskSummary:        "Refuse mixed dirty work",
+				CodexResult:        &codexexec.Result{ExitCode: 0},
+				VerificationResult: passedVerification(),
+				PreRunDirty:        &preRun,
+				PostRunChanged:     &postRun,
+			})
+			if err != nil {
+				t.Fatalf("run auto-commit: %v", err)
+			}
+			if result.Status != StatusRefused || result.RefusalReason != ReasonPreExistingDirty || len(result.Commands) != 0 {
+				t.Fatalf("result = %+v, want pre-existing dirty refusal before Git commands", result)
+			}
+			if head := strings.TrimSpace(runCommitTestGit(t, workDir, "rev-parse", "HEAD")); head != baselineHEAD {
+				t.Fatalf("HEAD = %s, want unchanged %s", head, baselineHEAD)
+			}
+			if staged := runCommitTestGit(t, workDir, "diff", "--cached", "--name-only"); strings.TrimSpace(staged) != "" {
+				t.Fatalf("staged paths after refusal = %q", staged)
+			}
+			expectedWorktree := make(map[string]string, len(tt.baseline))
+			for path, content := range tt.baseline {
+				expectedWorktree[path] = content
+			}
+			for path, content := range tt.operatorEdits {
+				expectedWorktree[path] = content
+			}
+			for path, content := range tt.runEdits {
+				expectedWorktree[path] = content
+			}
+			for path, content := range expectedWorktree {
+				raw, readErr := os.ReadFile(filepath.Join(workDir, path))
+				if readErr != nil || string(raw) != content {
+					t.Fatalf("worktree path %s not retained: err=%v got=%q want=%q", path, readErr, raw, content)
+				}
+			}
+		})
+	}
+}
+
 func TestRunRequiresInputs(t *testing.T) {
 	_, err := Run(context.Background(), Config{
 		WorkingDir: t.TempDir(),

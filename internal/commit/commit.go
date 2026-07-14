@@ -60,7 +60,6 @@ type Config struct {
 	VerificationResult       *verification.Result
 	PreRunDirty              *gitstate.Capture
 	PostRunChanged           *gitstate.Capture
-	AllowPreExistingDirty    bool
 	AllowMissingVerification bool
 	GitExecutable            string
 	Timeout                  time.Duration
@@ -319,7 +318,7 @@ func refusalReason(cfg Config, result Result) (RefusalReason, string) {
 	if cfg.PreRunDirty.CaptureError != "" || cfg.PostRunChanged.CaptureError != "" {
 		return ReasonGitStateCaptureFailed, "git state capture failed"
 	}
-	if len(result.PreExistingDirtyFiles) > 0 && !cfg.AllowPreExistingDirty {
+	if len(result.PreExistingDirtyFiles) > 0 {
 		return ReasonPreExistingDirty, "pre-existing dirty files are present"
 	}
 	if len(result.ChangedFiles) == 0 {

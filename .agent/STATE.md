@@ -2,35 +2,36 @@
 
 ## Current Focus
 
-Resolve `AUDIT-FIX-02`, the first unchecked task in `.agent/TASKS.md`. The
-source-lease cancellation race is closed; the next pass must remove or safely
-isolate mixed-pass dirty-worktree commits.
+Resolve `AUDIT-FIX-03`, the first unchecked task in `.agent/TASKS.md`. Mixed
+passes now require a clean worktree at every staging boundary; the next pass
+must harden the source-writer and retention lock-file identities.
 
 ## Latest Completed Audit Fix (2026-07-14)
 
-- Task selected: `AUDIT-FIX-01`.
-- `internal/lock/guard.go` now separates monitor settlement from lease release.
-  Settlement stops and joins an in-flight heartbeat without releasing the
-  lease, while close retains monitor failure evidence and releases exactly
-  once.
-- Mixed and autonomous terminal classifiers settle the monitor before task,
-  receipt, or ledger finalization. Independent heartbeat failures override an
-  ordinary cancellation classification, while cancellation-only heartbeat
-  shutdown remains ordinary cancellation.
-- Mixed ownership failures leave canonical task bytes unchanged and finalize a
-  `safety_limit` receipt plus matching failed ledger evidence. Autonomous worker
-  ownership failures likewise finalize matching outcome, receipt, ledger, and
-  returned-error evidence before the caller can apply any durable state result.
-- Files changed: `internal/lock/guard.go`, `internal/lock/guard_test.go`,
+- Task selected: `AUDIT-FIX-02`.
+- Mixed-pass run configuration rejects the legacy
+  `commit.allow_pre_existing_dirty: true` setting before source locking, runner
+  invocation, verification, staging, or commit work. Explicit `false` remains
+  accepted for configuration compatibility.
+- The commit package no longer exposes a dirty-worktree bypass. Mixed and
+  autonomous source-changing paths unconditionally refuse a nonempty pre-run
+  capture, so filename subtraction cannot misattribute operator bytes to a run.
+- Real-Git regressions cover unrelated and overlapping operator/run edits. Both
+  cases fail closed with no commit or staged paths and retain the exact operator,
+  run, and task-metadata worktree bytes.
+- Files changed: `README.md`, `internal/app/app_test.go`,
+  `internal/app/autonomous_run.go`, `internal/app/config.go`,
+  `internal/autonomouscorrection/coordinator.go`,
+  `internal/autonomouscycle/types.go`, `internal/autonomouscycle/worker.go`,
+  `internal/cli/root_test.go`, `internal/commit/commit.go`,
+  `internal/commit/commit_test.go`, `internal/runonce/effectiveconfig_test.go`,
   `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`,
-  `internal/autonomouscycle/cycle.go`, `internal/autonomouscycle/worker.go`,
-  `internal/autonomouscycle/cycle_test.go`, `.agent/TASKS.md`,
-  `.agent/STATE.md`, and `.agent/DECISIONS.md`.
+  `.agent/TASKS.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`.
 - Verification passed:
-  `go test -count=50 -run 'TestRunPreservesCancellationRacingWithHeartbeatFailure|TestRunHeartbeatFailureCancelsCodexAndPreservesTask' ./internal/runonce`,
-  `go test -count=50 -run 'TestRunSettlesCancellationRacingWithHeartbeatFailureBeforeTerminalEvidence|TestRunHeartbeatFailureCancelsWorkerAndPreventsVerification' ./internal/autonomouscycle`,
-  and `go test -count=1 ./...`.
-- Remaining audit work: `AUDIT-FIX-02` through `AUDIT-FIX-07`. No blocker is
+  `go test -count=10 -run 'TestRunRefusesRealPreExistingDirtyWorktreeWithoutStaging' ./internal/commit`,
+  focused run-once/app/CLI rejection tests, `go test -count=1 ./...`, and
+  `go run ./cmd/revolvr config check`.
+- Remaining audit work: `AUDIT-FIX-03` through `AUDIT-FIX-07`. No blocker is
   recorded.
 
 ## Wide-Sweep Audit (2026-07-14)
@@ -85,8 +86,7 @@ remained unchanged.
 ## Verification Baseline
 
 - `gofmt` reports no unformatted Go files.
-- `go test -count=1 ./...` passes after the source-lease terminal-settlement
-  fix.
+- `go test -count=1 ./...` passes after the clean mixed-pass commit contract.
 - `go test -race -count=1 ./...` and
   `go test -shuffle=on -count=1 ./...` pass.
 - `go vet ./...`, `go mod verify`, and `govulncheck ./...` pass; no reachable
@@ -126,8 +126,8 @@ above. Detailed historical prose remains available through Git history.
 
 See `AUDIT_PROBLEMS.md` and the remaining `AUDIT-FIX-*` backlog. The documented
 local smoke is red, Windows is not a buildable target under the currently
-unstated platform contract, and dirty commits, coordinator locks, and read-only
-ledger projections still require their bounded fixes.
+unstated platform contract, and coordinator locks and read-only ledger
+projections still require their bounded fixes.
 
 ## Notes For Next Fresh Session
 

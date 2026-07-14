@@ -347,6 +347,9 @@ passes; set `codex.dangerously_bypass_approvals_and_sandbox: false` or
 `codex exec` session and explicitly passes the effective model,
 `model_reasoning_effort`, and `--ephemeral`; persistent and resumed sessions
 are not supported. The defaults are `gpt-5.6-sol`, `xhigh`, and ephemeral.
+Mixed-pass runs require a clean worktree. The legacy
+`commit.allow_pre_existing_dirty` key is accepted only as `false`; setting it
+to `true` is rejected before Codex, verification, staging, or commit work.
 
 ### Unattended safety boundary
 

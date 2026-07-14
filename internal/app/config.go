@@ -520,6 +520,9 @@ func (cfg fileConfig) apply(base runonce.Config) (runonce.Config, error) {
 	}
 
 	if cfg.Commit.AllowPreExistingDirty != nil {
+		if *cfg.Commit.AllowPreExistingDirty {
+			return runonce.Config{}, errors.New("commit allow_pre_existing_dirty must be false; mixed-pass runs require a clean worktree")
+		}
 		base.AllowPreExistingDirty = *cfg.Commit.AllowPreExistingDirty
 	}
 	if cfg.Commit.AllowMissingVerification != nil {

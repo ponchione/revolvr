@@ -1155,7 +1155,7 @@ verification:
       dir: internal
       timeout_seconds: 9
 commit:
-  allow_pre_existing_dirty: true
+  allow_pre_existing_dirty: false
   allow_missing_verification: true
   timeout_seconds: 30
 output:
@@ -1216,7 +1216,7 @@ output:
 	if !reflect.DeepEqual(got.VerificationCommands, wantCommands) {
 		t.Fatalf("verification commands = %#v, want %#v", got.VerificationCommands, wantCommands)
 	}
-	if !got.AllowPreExistingDirty || !got.AllowMissingVerification || got.CommitTimeout != 30*time.Second {
+	if got.AllowPreExistingDirty || !got.AllowMissingVerification || got.CommitTimeout != 30*time.Second {
 		t.Fatalf("commit config = %+v, want config overrides", got)
 	}
 	if got.CodexStdoutCap != 101 || got.CodexStderrCap != 102 ||
@@ -1250,6 +1250,27 @@ verification:
 	}
 	if called {
 		t.Fatal("runner was called after invalid config")
+	}
+}
+
+func TestRunOnceRejectsPreExistingDirtyOptionBeforeRunner(t *testing.T) {
+	workDir := t.TempDir()
+	writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), `
+commit:
+  allow_pre_existing_dirty: true
+`)
+	called := false
+	_, err := RunOnce(context.Background(), Config{WorkDir: workDir}, RunOnceInput{
+		Runner: func(context.Context, runonce.Config) (runonce.Result, error) {
+			called = true
+			return runonce.Result{}, nil
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "allow_pre_existing_dirty must be false") || !strings.Contains(err.Error(), "clean worktree") {
+		t.Fatalf("RunOnce error = %v, want removed dirty-worktree option error", err)
+	}
+	if called {
+		t.Fatal("runner was called after removed dirty-worktree option")
 	}
 }
 
