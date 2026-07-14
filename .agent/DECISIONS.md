@@ -1,5 +1,21 @@
 # Agent Decisions
 
+## AUDIT-R4-09 Codex Usage Schema Authority (2026-07-14)
+
+- Usage authority follows one explicit precedence sequence: top-level
+  `usage`, `total_usage`, `token_usage`, and `total_token_usage`; those keys
+  under `response`, `result`, `message`, and `event` in parent/key order; then
+  metric fields on the event itself.
+- Arbitrary-depth named usage objects are a legacy compatibility schema, not
+  an ordered search. The parser enumerates metric-bearing candidates and may
+  use the recursive shape only when exactly one exists. Multiple candidates
+  fail closed; sorting exists only to make their JSON-pointer paths stable and
+  never supplies selection authority.
+- `CodexUsageAmbiguityError` records the JSONL record and candidate paths and
+  unwraps to `ErrCodexUsageAmbiguity`. It is an invalid/incomplete optional-
+  metrics diagnostic rather than an artifact read failure. Callers publish no
+  partial usage, and receipt rewriting preserves the original receipt.
+
 ## AUDIT-R4-08 TUI Quit-After-Settlement (2026-07-14)
 
 - TUI quit is a requested terminal transition while an operation is active,

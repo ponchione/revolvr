@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 var (
 	ErrMalformedCodexJSONL = errors.New("receipt: malformed Codex JSONL")
 	ErrCodexUsageOverflow  = errors.New("receipt: Codex usage metrics overflow")
+	ErrCodexUsageAmbiguity = errors.New("receipt: ambiguous Codex usage metrics")
 	ErrCodexJSONLSource    = errors.New("receipt: Codex JSONL source failure")
 )
 
@@ -49,6 +51,19 @@ func (e *CodexUsageOverflowError) Error() string {
 
 func (e *CodexUsageOverflowError) Unwrap() error {
 	return ErrCodexUsageOverflow
+}
+
+type CodexUsageAmbiguityError struct {
+	Record         int
+	CandidatePaths []string
+}
+
+func (e *CodexUsageAmbiguityError) Error() string {
+	return fmt.Sprintf("receipt: ambiguous Codex usage metrics at record %d: candidates %s", e.Record, strings.Join(e.CandidatePaths, ", "))
+}
+
+func (e *CodexUsageAmbiguityError) Unwrap() error {
+	return ErrCodexUsageAmbiguity
 }
 
 type CodexJSONLSourceError struct {
@@ -214,7 +229,10 @@ func ParseCodexUsageMetricsReader(ctx context.Context, reader io.Reader) (Metric
 			}
 			return nil
 		}
-		usage, ok := usageMap(event)
+		usage, ok, err := usageMap(event)
+		if err != nil {
+			return codexUsageAmbiguity(recordNumber, err)
+		}
 		if !ok {
 			return nil
 		}
@@ -297,6 +315,7 @@ func isCodexMetricsDiagnostic(err error) bool {
 		errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, ErrMalformedCodexJSONL) ||
 		errors.Is(err, ErrCodexUsageOverflow) ||
+		errors.Is(err, ErrCodexUsageAmbiguity) ||
 		errors.Is(err, jsonl.ErrRecordTooLarge)
 }
 
@@ -327,51 +346,107 @@ func setYAMLInt(mapping *yaml.Node, key string, value int) {
 	)
 }
 
-func usageMap(event map[string]any) (map[string]any, bool) {
+func usageMap(event map[string]any) (map[string]any, bool, error) {
+	// Supported schemas are ordered from most specific to least specific:
+	// direct usage objects, usage objects in known event envelopes, and bare
+	// metric fields. The order of both key lists is part of the precedence
+	// contract.
 	for _, key := range usageKeys {
 		if usage, ok := asMap(event[key]); ok {
-			return usage, true
+			return usage, true, nil
 		}
 	}
-	for _, key := range []string{"response", "result", "message", "event"} {
+	for _, key := range usageParentKeys {
 		if parent, ok := asMap(event[key]); ok {
 			for _, usageKey := range usageKeys {
 				if usage, ok := asMap(parent[usageKey]); ok {
-					return usage, true
+					return usage, true, nil
 				}
 			}
 		}
 	}
 	if hasUsageFields(event) {
-		return event, true
+		return event, true, nil
 	}
-	return nestedUsageMap(event)
+
+	// Preserve the legacy nested shape only when it has one unambiguous usage
+	// authority. Traversal order is used solely to produce stable diagnostics;
+	// it never chooses among multiple candidates.
+	candidates := nestedUsageCandidates(event)
+	switch len(candidates) {
+	case 0:
+		return nil, false, nil
+	case 1:
+		return candidates[0].values, true, nil
+	default:
+		paths := make([]string, len(candidates))
+		for i, candidate := range candidates {
+			paths[i] = candidate.path
+		}
+		return nil, false, &usageAmbiguityError{candidates: paths}
+	}
 }
 
-func nestedUsageMap(value any) (map[string]any, bool) {
+type usageCandidate struct {
+	path   string
+	values map[string]any
+}
+
+type usageAmbiguityError struct {
+	candidates []string
+}
+
+func (e *usageAmbiguityError) Error() string {
+	return "ambiguous nested usage candidates: " + strings.Join(e.candidates, ", ")
+}
+
+func nestedUsageCandidates(value any) []usageCandidate {
+	var candidates []usageCandidate
+	collectNestedUsageCandidates(value, "", &candidates)
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].path < candidates[j].path
+	})
+	return candidates
+}
+
+func collectNestedUsageCandidates(value any, path string, candidates *[]usageCandidate) {
 	switch typed := value.(type) {
 	case map[string]any:
-		for key, child := range typed {
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			child := typed[key]
+			childPath := jsonPointerChild(path, key)
 			if isUsageKey(key) {
 				if usage, ok := asMap(child); ok {
-					return usage, true
+					_, found, err := metricsFromMap(usage)
+					if found || err != nil {
+						*candidates = append(*candidates, usageCandidate{path: childPath, values: usage})
+					}
 				}
 			}
-			if usage, ok := nestedUsageMap(child); ok {
-				return usage, true
-			}
+			collectNestedUsageCandidates(child, childPath, candidates)
 		}
 	case []any:
-		for _, child := range typed {
-			if usage, ok := nestedUsageMap(child); ok {
-				return usage, true
-			}
+		for i, child := range typed {
+			collectNestedUsageCandidates(child, path+"/"+strconv.Itoa(i), candidates)
 		}
 	}
-	return nil, false
 }
 
-var usageKeys = []string{"usage", "total_usage", "token_usage", "total_token_usage"}
+func jsonPointerChild(path, key string) string {
+	key = strings.ReplaceAll(key, "~", "~0")
+	key = strings.ReplaceAll(key, "/", "~1")
+	return path + "/" + key
+}
+
+var (
+	usageKeys       = []string{"usage", "total_usage", "token_usage", "total_token_usage"}
+	usageParentKeys = []string{"response", "result", "message", "event"}
+)
 
 func isUsageKey(key string) bool {
 	for _, usageKey := range usageKeys {
@@ -471,6 +546,17 @@ func codexUsageOverflow(recordNumber int, err error) error {
 		return &CodexUsageOverflowError{Record: recordNumber, Field: valueErr.field}
 	}
 	return &CodexUsageOverflowError{Record: recordNumber, Field: "unknown"}
+}
+
+func codexUsageAmbiguity(recordNumber int, err error) error {
+	var ambiguityErr *usageAmbiguityError
+	if errors.As(err, &ambiguityErr) {
+		return &CodexUsageAmbiguityError{
+			Record:         recordNumber,
+			CandidatePaths: append([]string(nil), ambiguityErr.candidates...),
+		}
+	}
+	return err
 }
 
 func numberAsInt(value any) (int, bool, error) {

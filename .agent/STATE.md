@@ -2,11 +2,37 @@
 
 ## Current Focus
 
-`AUDIT-VERIFY-01` is complete. The missing-checkpoint regression now derives
-its expected text from `os.ErrNotExist`, matching the protected receipt-read
-contract instead of the former syscall-specific wording. The next bounded
-task is `AUDIT-R4-09`; its implementation remains uncommitted and ready for
-its own complete verification pass.
+`AUDIT-R4-09` is complete. Codex usage extraction follows explicit schema
+precedence, accepts a legacy recursively nested usage object only when it is
+the unique valid authority, and rejects competing nested candidates with a
+typed deterministic diagnostic. The next bounded task is `AUDIT-R4-10`; there
+are no blockers.
+
+## Codex Usage Schema Precedence (2026-07-14)
+
+- Direct `usage`, `total_usage`, `token_usage`, and `total_token_usage`
+  objects have highest authority in that order. The same key order under
+  `response`, `result`, `message`, and `event` envelopes follows in that
+  parent order, then bare event metric fields.
+- The legacy arbitrary-depth shape is compatibility-only. The parser
+  enumerates every metric-bearing named usage object, sorts RFC 6901-style
+  candidate paths for diagnostics, and accepts it only when exactly one
+  candidate remains. Traversal order never chooses among candidates.
+- Competing legacy candidates return `CodexUsageAmbiguityError` with the
+  record number and stable candidate paths and unwrap to
+  `ErrCodexUsageAmbiguity`. File parsing classifies it as a parse diagnostic,
+  not a source failure; Codex results publish no usage and receipt rewriting
+  returns the original bytes unchanged.
+- Regressions cover all 20 named usage-object paths, the bare-metrics and
+  unique-legacy shapes, every schema-precedence boundary, receipt
+  preservation, file classification, and 1,000 fresh parses of the reproduced
+  multi-candidate event per test invocation.
+- Verification passed: twenty focused repetitions, ten complete receipt-
+  package repetitions, the receipt race suite, complete ordinary/shuffled/
+  race suites, `go vet ./...`, `go mod verify`, CLI help, tracked-Go formatting
+  and diff checks, Linux/Darwin/FreeBSD amd64 builds, and the unsupported-
+  Windows diagnostic-stub build. No dependency was added. The next task is
+  `AUDIT-R4-10`; blockers: none.
 
 ## Protected Missing-Receipt Assertion Repair (2026-07-14)
 
@@ -17,25 +43,6 @@ its own complete verification pass.
 - Fifty focused repetitions, ten complete taskschedule-package repetitions,
   and `go test -count=1 ./...` passed. No production behavior or dependency
   changed. The next task is `AUDIT-R4-09`; blockers: none.
-
-## Pending Codex Usage Schema Fix (2026-07-14)
-
-- The metrics parser now gives explicit precedence to direct usage aliases,
-  the same aliases in the four supported event envelopes, and bare metric
-  fields. A single legacy nested candidate remains supported.
-- Legacy nested discovery enumerates all valid usage candidates with sorted
-  JSON-pointer paths. It selects only a unique candidate; competing candidates
-  fail closed with `CodexUsageAmbiguityError`, including the record number and
-  deterministic candidate paths.
-- Ambiguity is classified as a parse diagnostic, not an artifact source
-  failure, so existing Codex and receipt callers leave usage unpublished.
-- Tests cover all 21 explicit schema locations, the bare and unique legacy
-  shapes, each precedence boundary, file diagnostic classification, and 1,000
-  repeated parses of the reproduced ambiguous event.
-- Focused tests passed twenty repetitions and the receipt race suite passed.
-  After `AUDIT-VERIFY-01`, the ordinary full suite also passes in the current
-  combined worktree. R4-09 still requires its own complete verification pass;
-  blockers to the parser implementation itself: none.
 
 ## TUI Quit-After-Settlement (2026-07-14)
 

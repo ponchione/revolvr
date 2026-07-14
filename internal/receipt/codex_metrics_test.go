@@ -3,6 +3,7 @@ package receipt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +15,154 @@ import (
 
 	"revolvr/internal/jsonl"
 )
+
+func TestParseCodexUsageMetricsReaderSupportsExplicitSchemas(t *testing.T) {
+	type testCase struct {
+		name   string
+		record string
+		want   Metrics
+	}
+	var tests []testCase
+	nextMetrics := func() Metrics {
+		base := len(tests)*3 + 1
+		return Metrics{InputTokens: base, OutputTokens: base + 1, DurationSeconds: base + 2}
+	}
+	usageJSON := func(metrics Metrics) string {
+		return fmt.Sprintf(`{"input_tokens":%d,"output_tokens":%d,"duration_seconds":%d}`, metrics.InputTokens, metrics.OutputTokens, metrics.DurationSeconds)
+	}
+	supportedUsageKeys := []string{"usage", "total_usage", "token_usage", "total_token_usage"}
+	for _, usageKey := range supportedUsageKeys {
+		metrics := nextMetrics()
+		tests = append(tests, testCase{
+			name:   "top-level " + usageKey,
+			record: fmt.Sprintf(`{"%s":%s}`, usageKey, usageJSON(metrics)),
+			want:   metrics,
+		})
+	}
+	for _, parentKey := range []string{"response", "result", "message", "event"} {
+		for _, usageKey := range supportedUsageKeys {
+			metrics := nextMetrics()
+			tests = append(tests, testCase{
+				name:   parentKey + " " + usageKey,
+				record: fmt.Sprintf(`{"%s":{"%s":%s}}`, parentKey, usageKey, usageJSON(metrics)),
+				want:   metrics,
+			})
+		}
+	}
+	bareMetrics := nextMetrics()
+	tests = append(tests, testCase{name: "bare metrics", record: usageJSON(bareMetrics), want: bareMetrics})
+	nestedMetrics := nextMetrics()
+	tests = append(tests, testCase{
+		name:   "unique nested legacy usage",
+		record: fmt.Sprintf(`{"payload":{"details":{"usage":%s}}}`, usageJSON(nestedMetrics)),
+		want:   nestedMetrics,
+	})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metrics, found, err := ParseCodexUsageMetricsReader(context.Background(), strings.NewReader(tt.record))
+			if err != nil {
+				t.Fatalf("ParseCodexUsageMetricsReader() error = %v", err)
+			}
+			if !found || metrics != tt.want {
+				t.Fatalf("metrics/found = %+v/%t, want %+v/true", metrics, found, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseCodexUsageMetricsReaderUsesSchemaPrecedence(t *testing.T) {
+	tests := []struct {
+		name   string
+		record string
+		want   int
+	}{
+		{
+			name:   "top-level usage key order",
+			record: `{"total_token_usage":{"input_tokens":4},"token_usage":{"input_tokens":3},"total_usage":{"input_tokens":2},"usage":{"input_tokens":1}}`,
+			want:   1,
+		},
+		{
+			name:   "top-level usage before envelopes and bare metrics",
+			record: `{"input_tokens":3,"response":{"usage":{"input_tokens":2}},"usage":{"input_tokens":1}}`,
+			want:   1,
+		},
+		{
+			name:   "envelope order",
+			record: `{"event":{"usage":{"input_tokens":4}},"message":{"usage":{"input_tokens":3}},"result":{"usage":{"input_tokens":2}},"response":{"usage":{"input_tokens":1}}}`,
+			want:   1,
+		},
+		{
+			name:   "usage key order inside envelope",
+			record: `{"response":{"total_token_usage":{"input_tokens":4},"token_usage":{"input_tokens":3},"total_usage":{"input_tokens":2},"usage":{"input_tokens":1}}}`,
+			want:   1,
+		},
+		{
+			name:   "envelope before bare metrics",
+			record: `{"input_tokens":2,"response":{"usage":{"input_tokens":1}}}`,
+			want:   1,
+		},
+		{
+			name:   "bare metrics before legacy nested usage",
+			record: `{"input_tokens":1,"payload":{"usage":{"input_tokens":2}}}`,
+			want:   1,
+		},
+		{
+			name:   "explicit schema before ambiguous legacy candidates",
+			record: `{"usage":{"input_tokens":1},"alpha":{"usage":{"input_tokens":2}},"omega":{"usage":{"input_tokens":3}}}`,
+			want:   1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metrics, found, err := ParseCodexUsageMetricsReader(context.Background(), strings.NewReader(tt.record))
+			if err != nil {
+				t.Fatalf("ParseCodexUsageMetricsReader() error = %v", err)
+			}
+			if !found || metrics != (Metrics{InputTokens: tt.want}) {
+				t.Fatalf("metrics/found = %+v/%t, want input_tokens=%d/true", metrics, found, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseCodexUsageMetricsReaderRejectsAmbiguousNestedUsageDeterministically(t *testing.T) {
+	const record = `{"omega":[{"total_usage":{"input_tokens":101}}],"alpha":{"usage":{"input_tokens":1}}}`
+	const wantCandidates = "/alpha/usage,/omega/0/total_usage"
+	for i := 0; i < 1000; i++ {
+		metrics, found, err := ParseCodexUsageMetricsReader(context.Background(), strings.NewReader(record))
+		if found || metrics != (Metrics{}) || !errors.Is(err, ErrCodexUsageAmbiguity) {
+			t.Fatalf("iteration %d metrics/found/error = %+v/%t/%v, want empty/false/ambiguity", i, metrics, found, err)
+		}
+		var ambiguity *CodexUsageAmbiguityError
+		if !errors.As(err, &ambiguity) || ambiguity.Record != 1 || strings.Join(ambiguity.CandidatePaths, ",") != wantCandidates {
+			t.Fatalf("iteration %d ambiguity diagnostic = %#v", i, err)
+		}
+	}
+}
+
+func TestRewriteMetricsFromCodexJSONLReaderPreservesReceiptOnAmbiguousUsage(t *testing.T) {
+	original := []byte(validReceiptContent())
+	record := `{"alpha":{"usage":{"input_tokens":1}},"omega":{"usage":{"input_tokens":101}}}`
+	updated, parsed, changed, err := RewriteMetricsFromCodexJSONLReader(context.Background(), original, strings.NewReader(record))
+	if changed || !errors.Is(err, ErrCodexUsageAmbiguity) {
+		t.Fatalf("changed/error = %t/%v, want false/ambiguity", changed, err)
+	}
+	if string(updated) != string(original) || parsed.Metrics != (Metrics{InputTokens: 11, OutputTokens: 7, DurationSeconds: 3}) {
+		t.Fatalf("receipt changed during ambiguous metrics extraction")
+	}
+}
+
+func TestParseCodexUsageMetricsFileClassifiesAmbiguityAsParseDiagnostic(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "codex.jsonl")
+	if err := os.WriteFile(path, []byte(`{"alpha":{"usage":{"input_tokens":1}},"omega":{"usage":{"input_tokens":101}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, found, err := ParseCodexUsageMetricsFile(context.Background(), path)
+	if found || !errors.Is(err, ErrCodexUsageAmbiguity) || errors.Is(err, ErrCodexJSONLSource) {
+		t.Fatalf("found/error = %t/%v, want ambiguity parse diagnostic", found, err)
+	}
+}
 
 func TestParseCodexUsageMetricsReaderStreamsLargeGeneratedArtifactWithBoundedReads(t *testing.T) {
 	const records = 64
