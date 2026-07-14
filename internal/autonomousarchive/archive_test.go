@@ -24,6 +24,7 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/redact"
 	"revolvr/internal/runner"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
@@ -342,7 +343,7 @@ func TestArchiveRejectsSecretAndSymlinkBeforeAdmission(t *testing.T) {
 	if err := os.Symlink(outside, year); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := List(root); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+	if _, err := List(root); err == nil || !errors.Is(err, runtimepath.ErrUnsafe) {
 		t.Fatalf("symlink list err = %v", err)
 	}
 }

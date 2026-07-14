@@ -1,5 +1,35 @@
 # Agent Decisions
 
+## AUDIT-R4-04 Stable Autonomous Archive Store (2026-07-14)
+
+- One archive or reopen transaction owns one descriptor-rooted
+  `archiveStorage` and retains the actual Git-admin and archived-task state
+  flocks for the transaction. Read-only list/show/load/verify operations own
+  the same stable root authority without inventing a mutation lease.
+- Immutable archive artifacts and transition history publish an opened,
+  synced temporary inode through a descriptor-relative exclusive link.
+  Mutable journals use descriptor-relative replacement. Both paths retain the
+  opened file through stable-directory sync and strict readback, and record a
+  completed publication before post-syscall checks so cleanup cannot remove a
+  final artifact.
+- Exact active-task removal opens and validates the expected artifact, then
+  unlinks that inode relative to its retained parent. Cleanup likewise removes
+  only an unpublished opened temporary while the directory and every held
+  lease still validate; lost authority deliberately leaves local residue.
+- Archive hierarchy enumeration recursively opens child directories relative
+  to their retained parents and reads allowed files through protected file
+  descriptors. Manifest/state/frozen/journal/reopen/history reads share this
+  boundary, replacing the archive-specific symlink walker and all check-then-
+  reopen pathname helpers.
+- Reopen performs its locked revalidation through the already leased store,
+  re-reads the selected manifest and completed journal, and requires the same
+  archive/task identities observed before lock admission. This prevents a
+  valid but substituted archive selection from becoming mutation authority.
+- Deterministic fault points cover directory, temporary, and read opens;
+  enumeration; file and directory sync; pre/post publication; readback;
+  cleanup; and pre/post removal. The permanent matrix treats outside-tree
+  contents, modes, symlink targets, and link counts as the no-mutation oracle.
+
 ## AUDIT-R4-03 Stable Exact-Task-Run Store (2026-07-14)
 
 - One exact-task run owns one descriptor-rooted store and one exclusive

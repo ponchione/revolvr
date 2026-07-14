@@ -13,221 +13,454 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousfinalization"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/lock"
-	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
-func canonicalRoot(root string) (string, error) {
-	root = strings.TrimSpace(root)
-	if root == "" {
+type archiveStorage struct {
+	boundary runtimepath.Boundary
+	leases   []*lock.Flock
+	inject   func(FailurePoint) error
+}
+
+func bindArchiveStorage(root string) (*archiveStorage, error) {
+	if strings.TrimSpace(root) == "" {
 		root = "."
 	}
-	abs, err := filepath.Abs(root)
+	boundary, err := runtimepath.Bind(root)
 	if err != nil {
-		return "", fmt.Errorf("archive: resolve repository root: %w", err)
+		return nil, fmt.Errorf("archive: bind repository root: %w", err)
 	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return "", fmt.Errorf("archive: resolve repository root symlinks: %w", err)
-	}
-	return resolved, nil
+	return &archiveStorage{boundary: boundary}, nil
 }
 
-func safePath(root, rel string) (string, error) {
-	abs, err := pathguard.Resolve(root, filepath.FromSlash(rel))
-	if err != nil {
-		return "", fmt.Errorf("archive: unsafe path %q: %w", rel, err)
-	}
-	current := root
-	for _, part := range strings.Split(filepath.Clean(filepath.FromSlash(rel)), string(filepath.Separator)) {
-		if part == "." || part == "" {
-			continue
-		}
-		current = filepath.Join(current, part)
-		info, statErr := os.Lstat(current)
-		if errors.Is(statErr, os.ErrNotExist) {
-			break
-		}
-		if statErr != nil {
-			return "", statErr
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("archive: path component %q is a symbolic link", part)
+func newArchiveStorage(boundary runtimepath.Boundary, inject func(FailurePoint) error, leases ...*lock.Flock) *archiveStorage {
+	filtered := make([]*lock.Flock, 0, len(leases))
+	for _, lease := range leases {
+		if lease != nil {
+			filtered = append(filtered, lease)
 		}
 	}
-	return abs, nil
+	return &archiveStorage{boundary: boundary, leases: filtered, inject: inject}
 }
 
-func ensureDirectories(root, rel string) error {
-	clean := filepath.Clean(filepath.FromSlash(rel))
-	current := root
-	for _, part := range strings.Split(clean, string(filepath.Separator)) {
-		if part == "." || part == "" {
-			continue
-		}
-		current = filepath.Join(current, part)
-		info, err := os.Lstat(current)
-		if errors.Is(err, os.ErrNotExist) {
-			if err := os.Mkdir(current, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
-				return err
-			}
-			info, err = os.Lstat(current)
-		}
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("archive: path component %q is not a non-symlink directory", part)
+func (s *archiveStorage) root() string { return s.boundary.Root() }
+
+func (s *archiveStorage) resolve(rel string) (string, error) {
+	rel = filepath.Clean(filepath.FromSlash(strings.TrimSpace(rel)))
+	if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("archive: unsafe path %q", filepath.ToSlash(rel))
+	}
+	return filepath.Join(s.root(), rel), nil
+}
+
+func (s *archiveStorage) checkLeases() error {
+	for _, lease := range s.leases {
+		if err := lease.Check(); err != nil {
+			return fmt.Errorf("archive: validate held lease: %w", err)
 		}
 	}
 	return nil
 }
 
-func writeImmutable(root string, identity Artifact, raw []byte) error {
+func (s *archiveStorage) checkDirectory(directory *runtimepath.Directory) error {
+	if err := directory.Check(); err != nil {
+		return err
+	}
+	return s.checkLeases()
+}
+
+func (s *archiveStorage) fail(point FailurePoint) error {
+	if s.inject == nil {
+		return nil
+	}
+	return s.inject(point)
+}
+
+func (s *archiveStorage) openParent(rel string, create bool) (*runtimepath.Directory, string, error) {
+	abs, err := s.resolve(rel)
+	if err != nil {
+		return nil, "", err
+	}
+	parent := filepath.Dir(abs)
+	if create {
+		if err := s.checkLeases(); err != nil {
+			return nil, "", err
+		}
+		if err := s.boundary.EnsureDir(parent, 0o755); err != nil {
+			return nil, "", err
+		}
+		if err := s.checkLeases(); err != nil {
+			return nil, "", err
+		}
+	}
+	directory, found, err := s.boundary.OpenDir(parent, false)
+	if err != nil {
+		return nil, "", err
+	}
+	if !found {
+		return nil, "", os.ErrNotExist
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		_ = directory.Close()
+		return nil, "", err
+	}
+	return directory, filepath.Base(abs), nil
+}
+
+func (s *archiveStorage) readRegular(rel string, missingOK bool) ([]byte, bool, error) {
+	directory, name, err := s.openParent(rel, false)
+	if errors.Is(err, os.ErrNotExist) && missingOK {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	defer directory.Close()
+	if err := s.fail(FailureAfterStorageDirectoryOpen); err != nil {
+		return nil, false, err
+	}
+	return s.readDirectoryFile(directory, name, missingOK)
+}
+
+func (s *archiveStorage) readDirectoryFile(directory *runtimepath.Directory, name string, missingOK bool) ([]byte, bool, error) {
+	file, err := directory.OpenFile(name, os.O_RDONLY, 0)
+	if errors.Is(err, os.ErrNotExist) && missingOK {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	defer file.Close()
+	if err := s.fail(FailureAfterStorageReadOpen); err != nil {
+		return nil, false, err
+	}
+	if err := file.Check(); err != nil {
+		return nil, false, err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return nil, false, err
+	}
+	raw, err := file.ReadAll()
+	if err != nil {
+		return nil, false, err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return nil, false, err
+	}
+	return raw, true, nil
+}
+
+func (s *archiveStorage) readArtifact(identity Artifact) ([]byte, error) {
+	raw, found, err := s.readRegular(identity.Path, false)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, os.ErrNotExist
+	}
+	if artifact(identity.Path, raw) != identity {
+		return nil, fmt.Errorf("archive task: artifact %s identity mismatch", identity.Path)
+	}
+	return raw, nil
+}
+
+func (s *archiveStorage) writeImmutable(identity Artifact, raw []byte) (err error) {
 	if got := artifact(identity.Path, raw); got != identity {
 		return errors.New("archive: immutable write identity does not match bytes")
 	}
-	abs, err := safePath(root, identity.Path)
-	if err != nil {
-		return err
-	}
-	if existing, err := readRegular(abs); err == nil {
+	if existing, found, readErr := s.readRegular(identity.Path, true); readErr != nil {
+		return readErr
+	} else if found {
 		if bytes.Equal(existing, raw) {
 			return nil
 		}
 		return fmt.Errorf("archive: immutable path %q already exists with different bytes", identity.Path)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
 	}
-	if err := ensureDirectories(root, filepath.ToSlash(filepath.Dir(identity.Path))); err != nil {
-		return err
-	}
-	temp, err := os.CreateTemp(filepath.Dir(abs), ".archive.tmp-*")
+	directory, name, err := s.openParent(identity.Path, true)
 	if err != nil {
 		return err
 	}
-	tempPath := temp.Name()
-	defer os.Remove(tempPath)
-	if err := temp.Chmod(0o644); err != nil {
-		_ = temp.Close()
+	defer directory.Close()
+	if err := s.fail(FailureAfterStorageDirectoryOpen); err != nil {
+		return err
+	}
+	if existing, found, readErr := s.readDirectoryFile(directory, name, true); readErr != nil {
+		return readErr
+	} else if found {
+		if bytes.Equal(existing, raw) {
+			return nil
+		}
+		return fmt.Errorf("archive: immutable path %q already exists with different bytes", identity.Path)
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	temp, err := directory.CreateTemp(".archive.tmp-", 0o644)
+	if err != nil {
+		return err
+	}
+	published := false
+	defer func() {
+		if !published {
+			err = errors.Join(err, s.cleanupTemp(directory, temp))
+		}
+		err = errors.Join(err, temp.Close())
+	}()
+	if err := s.fail(FailureAfterStorageOpen); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
 		return err
 	}
 	if _, err := temp.Write(raw); err != nil {
-		_ = temp.Close()
+		return err
+	}
+	if err := s.fail(FailureBeforeStorageFileSync); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
 		return err
 	}
 	if err := temp.Sync(); err != nil {
-		_ = temp.Close()
 		return err
 	}
-	if err := temp.Close(); err != nil {
+	if err := s.fail(FailureBeforeStoragePublish); err != nil {
 		return err
 	}
-	// A same-directory hard link is an atomic no-overwrite publication. The
-	// temporary name is immediately removed and target link count is checked.
-	if err := os.Link(tempPath, abs); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			existing, readErr := readRegular(abs)
-			if readErr == nil && bytes.Equal(existing, raw) {
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	linkErr := directory.Link(temp, name)
+	published = temp.IsNamed(name)
+	if linkErr != nil {
+		if errors.Is(linkErr, os.ErrExist) {
+			existing, found, readErr := s.readDirectoryFile(directory, name, false)
+			if readErr == nil && found && bytes.Equal(existing, raw) {
 				return nil
 			}
 		}
+		return linkErr
+	}
+	if err := s.fail(FailureAfterStoragePublish); err != nil {
 		return err
 	}
-	if err := os.Remove(tempPath); err != nil {
+	if err := temp.Check(); err != nil {
 		return err
 	}
-	if err := syncDir(filepath.Dir(abs)); err != nil {
+	if err := s.checkDirectory(directory); err != nil {
 		return err
 	}
-	return verifyArtifact(root, identity)
+	if err := s.fail(FailureBeforeStorageDirectorySync); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	if err := directory.Sync(); err != nil {
+		return err
+	}
+	if err := s.fail(FailureBeforeStorageReadback); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	observed, found, err := s.readDirectoryFile(directory, name, false)
+	if err != nil {
+		return err
+	}
+	if !found || artifact(identity.Path, observed) != identity {
+		return fmt.Errorf("archive: artifact %q identity mismatch", identity.Path)
+	}
+	return s.checkDirectory(directory)
 }
 
-func writeMutable(root, rel string, raw []byte) error {
-	abs, err := safePath(root, rel)
+func (s *archiveStorage) writeMutable(rel string, raw []byte) (err error) {
+	directory, name, err := s.openParent(rel, true)
 	if err != nil {
 		return err
 	}
-	if err := ensureDirectories(root, filepath.ToSlash(filepath.Dir(rel))); err != nil {
+	defer directory.Close()
+	if err := s.fail(FailureAfterStorageDirectoryOpen); err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(abs), ".journal.tmp-*")
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	temp, err := directory.CreateTemp(".journal.tmp-", 0o644)
 	if err != nil {
 		return err
 	}
-	name := temp.Name()
-	defer os.Remove(name)
-	if err := temp.Chmod(0o644); err != nil {
+	published := false
+	defer func() {
+		if !published {
+			err = errors.Join(err, s.cleanupTemp(directory, temp))
+		}
+		err = errors.Join(err, temp.Close())
+	}()
+	if err := s.fail(FailureAfterStorageOpen); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
 		return err
 	}
 	if _, err := temp.Write(raw); err != nil {
 		return err
 	}
+	if err := s.fail(FailureBeforeStorageFileSync); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
 	if err := temp.Sync(); err != nil {
 		return err
 	}
-	if err := temp.Close(); err != nil {
+	if err := s.fail(FailureBeforeStoragePublish); err != nil {
 		return err
 	}
-	if err := os.Rename(name, abs); err != nil {
+	if err := temp.Check(); err != nil {
 		return err
 	}
-	return syncDir(filepath.Dir(abs))
-}
-
-func verifyArtifact(root string, identity Artifact) error {
-	abs, err := safePath(root, identity.Path)
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	replaceErr := directory.Replace(temp, name)
+	published = temp.IsNamed(name)
+	if replaceErr != nil {
+		return replaceErr
+	}
+	if err := s.fail(FailureAfterStoragePublish); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	if err := s.fail(FailureBeforeStorageDirectorySync); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	if err := directory.Sync(); err != nil {
+		return err
+	}
+	if err := s.fail(FailureBeforeStorageReadback); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	observed, found, err := s.readDirectoryFile(directory, name, false)
 	if err != nil {
 		return err
 	}
-	raw, err := readRegular(abs)
+	if !found || !bytes.Equal(observed, raw) {
+		return errors.New("archive: mutable file strict readback failed")
+	}
+	return s.checkDirectory(directory)
+}
+
+func (s *archiveStorage) removeExact(identity Artifact) error {
+	directory, name, err := s.openParent(identity.Path, false)
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	if err := s.fail(FailureAfterStorageDirectoryOpen); err != nil {
+		return err
+	}
+	file, err := directory.OpenFile(name, os.O_RDONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if err := s.fail(FailureAfterStorageReadOpen); err != nil {
+		return err
+	}
+	raw, err := file.ReadAll()
 	if err != nil {
 		return err
 	}
 	if artifact(identity.Path, raw) != identity {
 		return fmt.Errorf("archive: artifact %q identity mismatch", identity.Path)
 	}
-	return nil
+	if err := s.fail(FailureBeforeStorageRemove); err != nil {
+		return err
+	}
+	if err := file.Check(); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	if err := directory.Remove(file); err != nil {
+		return err
+	}
+	if err := s.fail(FailureAfterStorageRemove); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	if err := s.fail(FailureBeforeStorageDirectorySync); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	return directory.Sync()
 }
 
-func readRegular(abs string) ([]byte, error) {
-	info, err := os.Lstat(abs)
+func (s *archiveStorage) cleanupTemp(directory *runtimepath.Directory, temp *runtimepath.File) error {
+	faultErr := s.fail(FailureBeforeStorageCleanup)
+	if err := temp.Check(); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	if err := directory.Remove(temp); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	return errors.Join(faultErr, directory.Sync())
+}
+
+// writeImmutable remains a package test/setup entry point. Production archive
+// and reopen operations use one retained archiveStorage with their held leases.
+func writeImmutable(root string, identity Artifact, raw []byte) error {
+	storage, err := bindArchiveStorage(root)
 	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0o022 != 0 {
-		return nil, errors.New("archive: expected a non-symlink, non-group/world-writable regular file")
-	}
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink != 1 {
-		return nil, errors.New("archive: regular file has an unsafe hard-link count")
-	}
-	return os.ReadFile(abs)
-}
-
-func removeExact(root string, identity Artifact) error {
-	if err := verifyArtifact(root, identity); err != nil {
 		return err
 	}
-	abs, _ := safePath(root, identity.Path)
-	if err := os.Remove(abs); err != nil {
-		return err
-	}
-	return syncDir(filepath.Dir(abs))
-}
-
-func syncDir(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
+	return storage.writeImmutable(identity, raw)
 }
 
 func decodeCanonical(raw []byte, target any) error {
@@ -253,14 +486,13 @@ func decodeCanonical(raw []byte, target any) error {
 	return nil
 }
 
-func loadManifest(root, rel string) (Manifest, []byte, error) {
-	abs, err := safePath(root, rel)
+func (s *archiveStorage) loadManifest(rel string) (Manifest, []byte, error) {
+	raw, found, err := s.readRegular(rel, false)
 	if err != nil {
 		return Manifest{}, nil, err
 	}
-	raw, err := readRegular(abs)
-	if err != nil {
-		return Manifest{}, nil, err
+	if !found {
+		return Manifest{}, nil, os.ErrNotExist
 	}
 	var manifest Manifest
 	if err := decodeCanonical(raw, &manifest); err != nil {
@@ -272,99 +504,149 @@ func loadManifest(root, rel string) (Manifest, []byte, error) {
 	return manifest, raw, nil
 }
 
+type archiveManifestCandidate struct {
+	path string
+	raw  []byte
+}
+
 func List(root string) ([]Entry, error) {
-	canonical, err := canonicalRoot(root)
+	storage, err := bindArchiveStorage(root)
 	if err != nil {
 		return nil, err
 	}
-	base, err := safePath(canonical, ArchiveRoot)
+	return storage.list()
+}
+
+func (s *archiveStorage) list() ([]Entry, error) {
+	basePath, err := s.resolve(ArchiveRoot)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Lstat(base); errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	} else if err != nil {
+	if err := s.checkLeases(); err != nil {
 		return nil, err
 	}
-	var manifests []string
-	err = filepath.WalkDir(base, func(current string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("archive: symbolic link in archive hierarchy: %s", current)
-		}
-		if entry.IsDir() {
-			rel, _ := filepath.Rel(base, current)
-			if rel == "." {
-				return nil
-			}
-			parts := strings.Split(filepath.ToSlash(rel), "/")
-			switch len(parts) {
-			case 1:
-				if len(parts[0]) != 4 || strings.Trim(parts[0], "0123456789") != "" {
-					return fmt.Errorf("archive: malformed UTC year directory %q", rel)
-				}
-			case 2:
-				if parts[1] < "01" || parts[1] > "12" || len(parts[1]) != 2 {
-					return fmt.Errorf("archive: malformed UTC month directory %q", rel)
-				}
-			case 3:
-				if !validIdentity(parts[2]) {
-					return fmt.Errorf("archive: malformed task directory %q", rel)
-				}
-			default:
-				return fmt.Errorf("archive: unexpected directory depth %q", rel)
-			}
-			return nil
-		}
-		rel, _ := filepath.Rel(canonical, current)
-		rel = filepath.ToSlash(rel)
-		parts := strings.Split(rel, "/")
-		if len(parts) != 6 || parts[0] != ".agent" || parts[1] != "archive" || parts[5] != "archive.json" {
-			if len(parts) == 6 && (parts[5] == "task.md" || parts[5] == "completion.md") {
-				return nil
-			}
-			return fmt.Errorf("archive: foreign file in canonical hierarchy: %s", rel)
-		}
-		manifests = append(manifests, rel)
-		return nil
-	})
-	if err != nil {
+	base, found, err := s.boundary.OpenDir(basePath, true)
+	if err != nil || !found {
 		return nil, err
 	}
-	sort.Strings(manifests)
-	entries := make([]Entry, 0, len(manifests))
+	defer base.Close()
+	if err := s.fail(FailureAfterStorageDirectoryOpen); err != nil {
+		return nil, err
+	}
+	if err := s.checkDirectory(base); err != nil {
+		return nil, err
+	}
+	var candidates []archiveManifestCandidate
+	if err := s.walkArchive(base, nil, &candidates); err != nil {
+		return nil, err
+	}
+	if err := s.checkDirectory(base); err != nil {
+		return nil, err
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].path < candidates[j].path })
+	entries := make([]Entry, 0, len(candidates))
 	archiveIDs := map[string]string{}
 	taskIDs := map[string]string{}
-	for _, rel := range manifests {
-		manifest, raw, err := loadManifest(canonical, rel)
-		if err != nil {
-			return nil, err
+	for _, candidate := range candidates {
+		var manifest Manifest
+		if err := decodeCanonical(candidate.raw, &manifest); err != nil {
+			return nil, fmt.Errorf("archive: decode manifest %s: %w", candidate.path, err)
+		}
+		if err := manifest.Validate(); err != nil {
+			return nil, fmt.Errorf("archive: validate manifest %s: %w", candidate.path, err)
 		}
 		if previous := archiveIDs[manifest.ArchiveID]; previous != "" {
-			return nil, fmt.Errorf("archive: duplicate archive id %q in %s and %s", manifest.ArchiveID, previous, rel)
+			return nil, fmt.Errorf("archive: duplicate archive id %q in %s and %s", manifest.ArchiveID, previous, candidate.path)
 		}
 		if previous := taskIDs[manifest.TaskID]; previous != "" {
-			return nil, fmt.Errorf("archive: duplicate archived task id %q in %s and %s", manifest.TaskID, previous, rel)
+			return nil, fmt.Errorf("archive: duplicate archived task id %q in %s and %s", manifest.TaskID, previous, candidate.path)
 		}
-		archiveIDs[manifest.ArchiveID] = rel
-		taskIDs[manifest.TaskID] = rel
-		entries = append(entries, Entry{Manifest: manifest, ManifestBytes: raw, ManifestPath: rel})
+		archiveIDs[manifest.ArchiveID] = candidate.path
+		taskIDs[manifest.TaskID] = candidate.path
+		entries = append(entries, Entry{Manifest: manifest, ManifestBytes: candidate.raw, ManifestPath: candidate.path})
 	}
 	return entries, nil
 }
 
+func (s *archiveStorage) walkArchive(directory *runtimepath.Directory, parts []string, candidates *[]archiveManifestCandidate) error {
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	if err := s.fail(FailureBeforeStorageEnumeration); err != nil {
+		return err
+	}
+	if err := s.checkDirectory(directory); err != nil {
+		return err
+	}
+	entries, err := directory.ReadDir()
+	if err != nil {
+		return err
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	if len(parts) < 3 {
+		for _, entry := range entries {
+			name := entry.Name()
+			switch len(parts) {
+			case 0:
+				if len(name) != 4 || strings.Trim(name, "0123456789") != "" {
+					return fmt.Errorf("archive: malformed UTC year directory %q", filepath.ToSlash(filepath.Join(append(parts, name)...)))
+				}
+			case 1:
+				if name < "01" || name > "12" || len(name) != 2 {
+					return fmt.Errorf("archive: malformed UTC month directory %q", filepath.ToSlash(filepath.Join(append(parts, name)...)))
+				}
+			case 2:
+				if !validIdentity(name) {
+					return fmt.Errorf("archive: malformed task directory %q", filepath.ToSlash(filepath.Join(append(parts, name)...)))
+				}
+			}
+			child, found, err := directory.OpenDir(name, false)
+			if err != nil || !found {
+				return errors.Join(err, fmt.Errorf("archive: expected directory %q", name))
+			}
+			if err := s.fail(FailureAfterStorageDirectoryOpen); err != nil {
+				_ = child.Close()
+				return err
+			}
+			err = s.walkArchive(child, append(append([]string(nil), parts...), name), candidates)
+			closeErr := child.Close()
+			if err != nil || closeErr != nil {
+				return errors.Join(err, closeErr)
+			}
+		}
+		return s.checkDirectory(directory)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if name != "archive.json" && name != "task.md" && name != "completion.md" {
+			return fmt.Errorf("archive: foreign file in canonical hierarchy: %s", filepath.ToSlash(filepath.Join(append(parts, name)...)))
+		}
+		raw, found, err := s.readDirectoryFile(directory, name, false)
+		if err != nil || !found {
+			return errors.Join(err, fmt.Errorf("archive: protected archive file %q is missing", name))
+		}
+		if name == "archive.json" {
+			rel := filepath.ToSlash(filepath.Join(append([]string{ArchiveRoot}, append(parts, name)...)...))
+			*candidates = append(*candidates, archiveManifestCandidate{path: rel, raw: raw})
+		}
+	}
+	return s.checkDirectory(directory)
+}
+
 func Show(root, selector string) (Entry, error) {
+	storage, err := bindArchiveStorage(root)
+	if err != nil {
+		return Entry{}, err
+	}
+	return storage.show(selector)
+}
+
+func (s *archiveStorage) show(selector string) (Entry, error) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
 		return Entry{}, errors.New("archive show: archive or task id is required")
 	}
-	entries, err := List(root)
+	entries, err := s.list()
 	if err != nil {
 		return Entry{}, err
 	}
@@ -388,33 +670,30 @@ func Show(root, selector string) (Entry, error) {
 // LoadEvidence performs strict Show loading plus exact archived task and
 // terminal-state reads. It does not perform the separate full Verify operation.
 func LoadEvidence(root, selector string) (EvidenceSnapshot, error) {
-	canonical, err := canonicalRoot(root)
+	storage, err := bindArchiveStorage(root)
 	if err != nil {
 		return EvidenceSnapshot{}, err
 	}
-	entry, err := Show(canonical, selector)
+	return storage.loadEvidence(selector)
+}
+
+func (s *archiveStorage) loadEvidence(selector string) (EvidenceSnapshot, error) {
+	entry, err := s.show(selector)
 	if err != nil {
 		return EvidenceSnapshot{}, err
 	}
-	taskAbs, err := safePath(canonical, entry.Manifest.ArchivedTask.Path)
-	if err != nil {
-		return EvidenceSnapshot{}, err
-	}
-	taskRaw, err := readRegular(taskAbs)
+	taskRaw, err := s.readArtifact(entry.Manifest.ArchivedTask)
 	if err != nil {
 		return EvidenceSnapshot{}, fmt.Errorf("archive evidence: read archived task: %w", err)
 	}
-	if artifact(entry.Manifest.ArchivedTask.Path, taskRaw) != entry.Manifest.ArchivedTask {
-		return EvidenceSnapshot{}, errors.New("archive evidence: archived task identity mismatch")
-	}
-	task, err := taskfile.ParseArchivedTask(canonical, entry.Manifest.OriginalTask.Path, taskRaw)
+	task, err := taskfile.ParseArchivedTask(s.root(), entry.Manifest.OriginalTask.Path, taskRaw)
 	if err != nil {
 		return EvidenceSnapshot{}, fmt.Errorf("archive evidence: parse archived task: %w", err)
 	}
 	if task.ID != entry.Manifest.TaskID || task.Workflow != taskfile.WorkflowAutonomousV1 {
 		return EvidenceSnapshot{}, errors.New("archive evidence: archived task identity or workflow mismatch")
 	}
-	state, stateRaw, err := readState(canonical, entry.Manifest.State.Path, entry.Manifest.TaskID)
+	state, stateRaw, err := s.readState(entry.Manifest.State.Path, entry.Manifest.TaskID)
 	if err != nil {
 		return EvidenceSnapshot{}, fmt.Errorf("archive evidence: load terminal state: %w", err)
 	}
@@ -423,7 +702,7 @@ func LoadEvidence(root, selector string) (EvidenceSnapshot, error) {
 	}
 	result := EvidenceSnapshot{Entry: entry, Task: task, State: state, StateBytes: append([]byte(nil), stateRaw...)}
 	if entry.Manifest.FrozenEvidence != nil {
-		frozen, _, err := readFrozen(canonical, *entry.Manifest.FrozenEvidence)
+		frozen, _, err := s.readFrozen(*entry.Manifest.FrozenEvidence)
 		if err != nil {
 			return EvidenceSnapshot{}, fmt.Errorf("archive evidence: load frozen completion evidence: %w", err)
 		}
@@ -432,30 +711,30 @@ func LoadEvidence(root, selector string) (EvidenceSnapshot, error) {
 	return result, nil
 }
 
-func readState(root, rel, taskID string) (autonomous.ExecutionState, []byte, error) {
-	abs, err := safePath(root, rel)
+func (s *archiveStorage) readState(rel, taskID string) (autonomous.ExecutionState, []byte, error) {
+	raw, found, err := s.readRegular(rel, false)
 	if err != nil {
 		return autonomous.ExecutionState{}, nil, err
 	}
-	raw, err := readRegular(abs)
-	if err != nil {
-		return autonomous.ExecutionState{}, nil, err
+	if !found {
+		return autonomous.ExecutionState{}, nil, os.ErrNotExist
 	}
 	state, err := autonomousstate.DecodeState(raw, taskID)
 	return state, raw, err
 }
 
-func readFrozen(root string, identity Artifact) (autonomousfinalization.FrozenEvidence, []byte, error) {
-	abs, err := safePath(root, identity.Path)
+func readState(root, rel, taskID string) (autonomous.ExecutionState, []byte, error) {
+	storage, err := bindArchiveStorage(root)
+	if err != nil {
+		return autonomous.ExecutionState{}, nil, err
+	}
+	return storage.readState(rel, taskID)
+}
+
+func (s *archiveStorage) readFrozen(identity Artifact) (autonomousfinalization.FrozenEvidence, []byte, error) {
+	raw, err := s.readArtifact(identity)
 	if err != nil {
 		return autonomousfinalization.FrozenEvidence{}, nil, err
-	}
-	raw, err := readRegular(abs)
-	if err != nil {
-		return autonomousfinalization.FrozenEvidence{}, nil, err
-	}
-	if artifact(identity.Path, raw) != identity {
-		return autonomousfinalization.FrozenEvidence{}, nil, errors.New("archive: frozen evidence identity mismatch")
 	}
 	frozen, err := autonomousfinalization.DecodeFrozen(raw)
 	if err != nil {
@@ -464,8 +743,19 @@ func readFrozen(root string, identity Artifact) (autonomousfinalization.FrozenEv
 	return frozen, raw, nil
 }
 
-func acquireFileLock(ctx context.Context, root, rel string) (func(), error) {
-	lease, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+func readFrozen(root string, identity Artifact) (autonomousfinalization.FrozenEvidence, []byte, error) {
+	storage, err := bindArchiveStorage(root)
+	if err != nil {
+		return autonomousfinalization.FrozenEvidence{}, nil, err
+	}
+	return storage.readFrozen(identity)
+}
+
+func acquireFileLock(ctx context.Context, boundary runtimepath.Boundary, rel string) (*lock.Flock, error) {
+	if err := boundary.CheckDir(boundary.Root(), false); err != nil {
+		return nil, err
+	}
+	lease, err := lock.AcquireFlock(ctx, boundary.Root(), lock.FlockConfig{
 		RelativePath: rel,
 		Mode:         lock.FlockExclusive,
 		Wait:         true,
@@ -474,7 +764,15 @@ func acquireFileLock(ctx context.Context, root, rel string) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	return func() { _ = lease.Close() }, nil
+	if err := lease.Check(); err != nil {
+		_ = lease.Close()
+		return nil, err
+	}
+	if err := boundary.CheckDir(boundary.Root(), false); err != nil {
+		_ = lease.Close()
+		return nil, err
+	}
+	return lease, nil
 }
 
 func operationHash(value string) string {

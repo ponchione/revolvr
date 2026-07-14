@@ -59,7 +59,7 @@
   cleanup, sync, and lease checks to the stable runtime-path boundary.
 - [x] AUDIT-R4-03 — Repair task-run protected reads and bind history/checkpoint
   publication and cleanup to stable parent and file identities.
-- [ ] AUDIT-R4-04 — Migrate autonomous archive immutable/mutable storage and
+- [x] AUDIT-R4-04 — Migrate autonomous archive immutable/mutable storage and
   removal away from its bespoke check-then-use path helpers.
 - [ ] AUDIT-R4-05 — Bind autonomous finalization artifact publication and
   readback to stable parent, temporary-file, and destination identities.

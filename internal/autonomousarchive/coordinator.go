@@ -18,27 +18,40 @@ import (
 	"revolvr/internal/ledger"
 	revolvrlock "revolvr/internal/lock"
 	"revolvr/internal/runner"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
 type FailurePoint string
 
 const (
-	FailureBeforeHistory         FailurePoint = "before_history"
-	FailureAfterHistory          FailurePoint = "after_history"
-	FailureBeforeJournalRename   FailurePoint = "before_journal_rename"
-	FailureAfterJournalRename    FailurePoint = "after_journal_rename"
-	FailureBeforeTaskPublish     FailurePoint = "before_task_publish"
-	FailureBeforeCapsulePublish  FailurePoint = "before_capsule_publish"
-	FailureBeforeManifestPublish FailurePoint = "before_manifest_publish"
-	FailureBeforeActiveRemoval   FailurePoint = "before_active_task_removal"
-	FailureAfterActiveRemoval    FailurePoint = "after_active_task_removal"
-	FailureBeforeStage           FailurePoint = "before_git_stage"
-	FailureBeforeCommit          FailurePoint = "before_git_commit"
-	FailureAfterCommit           FailurePoint = "after_git_commit"
-	FailureBeforeLedgerEffect    FailurePoint = "before_ledger_effect"
-	FailureAfterLedgerEffect     FailurePoint = "after_ledger_effect"
-	FailureAfterReturnEvidence   FailurePoint = "after_return_evidence"
+	FailureBeforeHistory              FailurePoint = "before_history"
+	FailureAfterHistory               FailurePoint = "after_history"
+	FailureBeforeJournalRename        FailurePoint = "before_journal_rename"
+	FailureAfterJournalRename         FailurePoint = "after_journal_rename"
+	FailureBeforeTaskPublish          FailurePoint = "before_task_publish"
+	FailureBeforeCapsulePublish       FailurePoint = "before_capsule_publish"
+	FailureBeforeManifestPublish      FailurePoint = "before_manifest_publish"
+	FailureBeforeActiveRemoval        FailurePoint = "before_active_task_removal"
+	FailureAfterActiveRemoval         FailurePoint = "after_active_task_removal"
+	FailureBeforeStage                FailurePoint = "before_git_stage"
+	FailureBeforeCommit               FailurePoint = "before_git_commit"
+	FailureAfterCommit                FailurePoint = "after_git_commit"
+	FailureBeforeLedgerEffect         FailurePoint = "before_ledger_effect"
+	FailureAfterLedgerEffect          FailurePoint = "after_ledger_effect"
+	FailureAfterReturnEvidence        FailurePoint = "after_return_evidence"
+	FailureAfterStorageOpen           FailurePoint = "after_storage_open"
+	FailureAfterStorageDirectoryOpen  FailurePoint = "after_storage_directory_open"
+	FailureAfterStorageReadOpen       FailurePoint = "after_storage_read_open"
+	FailureBeforeStorageEnumeration   FailurePoint = "before_storage_enumeration"
+	FailureBeforeStorageFileSync      FailurePoint = "before_storage_file_sync"
+	FailureBeforeStoragePublish       FailurePoint = "before_storage_publish"
+	FailureAfterStoragePublish        FailurePoint = "after_storage_publish"
+	FailureBeforeStorageDirectorySync FailurePoint = "before_storage_directory_sync"
+	FailureBeforeStorageReadback      FailurePoint = "before_storage_readback"
+	FailureBeforeStorageCleanup       FailurePoint = "before_storage_cleanup"
+	FailureBeforeStorageRemove        FailurePoint = "before_storage_remove"
+	FailureAfterStorageRemove         FailurePoint = "after_storage_remove"
 )
 
 type Ledger interface {
@@ -74,10 +87,11 @@ type ArchiveResult struct {
 }
 
 func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveResult, error) {
-	root, git, err := normalizeConfig(cfg)
+	boundary, git, err := normalizeConfig(cfg)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
+	root := boundary.Root()
 	request.TaskID = strings.TrimSpace(request.TaskID)
 	request.OperationID = strings.TrimSpace(request.OperationID)
 	request.ArchiveRunID = strings.TrimSpace(request.ArchiveRunID)
@@ -101,19 +115,20 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 		return ArchiveResult{}, fmt.Errorf("archive task: %w", err)
 	}
 	defer releaseExecution()
-	releaseAdmin, err := acquireFileLock(ctx, root, ".revolvr/locks/git-admin.lock")
+	adminLease, err := acquireFileLock(ctx, boundary, ".revolvr/locks/git-admin.lock")
 	if err != nil {
 		return ArchiveResult{}, err
 	}
-	defer releaseAdmin()
-	releaseState, err := acquireFileLock(ctx, root, filepath.ToSlash(filepath.Join(".revolvr", "autonomous", "tasks", request.TaskID, "state.lock")))
+	defer adminLease.Close()
+	stateLease, err := acquireFileLock(ctx, boundary, filepath.ToSlash(filepath.Join(".revolvr", "autonomous", "tasks", request.TaskID, "state.lock")))
 	if err != nil {
 		return ArchiveResult{}, err
 	}
-	defer releaseState()
+	defer stateLease.Close()
+	storage := newArchiveStorage(boundary, func(point FailurePoint) error { return fail(cfg, point) }, adminLease, stateLease)
 
 	journalPath := archiveJournalPath(request.TaskID, request.OperationID)
-	journal, journalFound, err := loadJournal(root, journalPath)
+	journal, journalFound, err := storage.loadJournal(journalPath)
 	if err != nil {
 		return ArchiveResult{}, err
 	}
@@ -124,7 +139,7 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 		if journal.ArchiveID != archiveID || journal.OperationID != request.OperationID || journal.TaskID != request.TaskID {
 			return ArchiveResult{}, errors.New("archive task: existing journal conflicts with operation identity")
 		}
-		manifest, manifestBytes, err = loadManifest(root, journal.Manifest.Path)
+		manifest, manifestBytes, err = storage.loadManifest(journal.Manifest.Path)
 		if err != nil {
 			return ArchiveResult{}, err
 		}
@@ -132,7 +147,7 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 			return ArchiveResult{}, errors.New("archive task: journal manifest identity mismatch")
 		}
 	} else {
-		manifest, manifestBytes, err = prepareManifest(ctx, root, cfg.Ledger, request, archiveID)
+		manifest, manifestBytes, err = prepareManifest(ctx, storage, cfg.Ledger, request, archiveID)
 		if err != nil {
 			return ArchiveResult{}, err
 		}
@@ -146,10 +161,10 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 		if err := validateOperationStatus(gitEntries, []string{manifest.OriginalTask.Path}, false); err != nil {
 			return ArchiveResult{}, fmt.Errorf("archive task: pre-admission Git state: %w", err)
 		}
-		if err := rejectForbiddenPersistent(root, manifest, manifestBytes, cfg.ForbiddenValues); err != nil {
+		if err := rejectForbiddenPersistent(storage, manifest, manifestBytes, cfg.ForbiddenValues); err != nil {
 			return ArchiveResult{}, err
 		}
-		existingEntries, err := List(root)
+		existingEntries, err := storage.list()
 		if err != nil {
 			return ArchiveResult{}, err
 		}
@@ -159,7 +174,7 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 			}
 		}
 		journal = Journal{SchemaVersion: JournalSchemaVersion, ArchiveID: archiveID, OperationID: request.OperationID, TaskID: request.TaskID, Stage: StageAdmitted, Manifest: artifact(archiveManifestPath(request.ArchivedAt, request.TaskID), manifestBytes), UpdatedAt: request.ArchivedAt}
-		if err := persistStage(root, cfg, journal, 1); err != nil {
+		if err := persistStage(storage, cfg, journal, 1); err != nil {
 			return ArchiveResult{}, err
 		}
 	}
@@ -172,12 +187,12 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 		return ArchiveResult{}, err
 	}
 
-	taskBytes, err := readArtifactBytes(root, manifest.OriginalTask)
+	taskBytes, err := storage.readArtifact(manifest.OriginalTask)
 	if err != nil {
 		if stageOrder(journal.Stage) < stageOrder(StageFilesPublished) {
 			return ArchiveResult{}, err
 		}
-		taskBytes, err = readArtifactBytes(root, manifest.ArchivedTask)
+		taskBytes, err = storage.readArtifact(manifest.ArchivedTask)
 		if err != nil || artifact(manifest.OriginalTask.Path, taskBytes).SHA256 != manifest.OriginalTask.SHA256 || len(taskBytes) != manifest.OriginalTask.ByteSize {
 			return ArchiveResult{}, errors.Join(err, errors.New("archive task: neither exact active nor archived task bytes are recoverable"))
 		}
@@ -189,7 +204,7 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 		if len(taskBytes) == 0 {
 			return ArchiveResult{}, errors.New("archive task: active task bytes are unavailable before publication")
 		}
-		if err := writeImmutable(root, manifest.ArchivedTask, taskBytes); err != nil {
+		if err := storage.writeImmutable(manifest.ArchivedTask, taskBytes); err != nil {
 			return ArchiveResult{}, err
 		}
 		if manifest.CompletionCapsule != nil {
@@ -197,23 +212,23 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 				return ArchiveResult{}, err
 			}
 			activeCapsule := Artifact{Path: manifest.FinalizationCapsuleSource(), SHA256: manifest.CompletionCapsule.SHA256, ByteSize: manifest.CompletionCapsule.ByteSize}
-			capsuleBytes, err := readArtifactBytes(root, activeCapsule)
+			capsuleBytes, err := storage.readArtifact(activeCapsule)
 			if err != nil {
 				return ArchiveResult{}, err
 			}
-			if err := writeImmutable(root, *manifest.CompletionCapsule, capsuleBytes); err != nil {
+			if err := storage.writeImmutable(*manifest.CompletionCapsule, capsuleBytes); err != nil {
 				return ArchiveResult{}, err
 			}
 		}
 		if err := fail(cfg, FailureBeforeManifestPublish); err != nil {
 			return ArchiveResult{}, err
 		}
-		if err := writeImmutable(root, journal.Manifest, manifestBytes); err != nil {
+		if err := storage.writeImmutable(journal.Manifest, manifestBytes); err != nil {
 			return ArchiveResult{}, err
 		}
 		journal.Stage = StageFilesPublished
 		journal.UpdatedAt = request.ArchivedAt
-		if err := persistStage(root, cfg, journal, 2); err != nil {
+		if err := persistStage(storage, cfg, journal, 2); err != nil {
 			return ArchiveResult{}, err
 		}
 		if err := ensureArchiveEvent(persistCtx, cfg.Ledger, manifest.ArchiveRunID, ledger.EventArchiveFilesPublished, archiveEvent(manifest, journal.Stage, "")); err != nil {
@@ -225,7 +240,7 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 		if err := fail(cfg, FailureBeforeActiveRemoval); err != nil {
 			return ArchiveResult{}, err
 		}
-		if err := removeExact(root, manifest.OriginalTask); err != nil {
+		if err := storage.removeExact(manifest.OriginalTask); err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				return ArchiveResult{}, err
 			}
@@ -234,7 +249,7 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 			return ArchiveResult{}, err
 		}
 		journal.Stage = StageActiveRemoved
-		if err := persistStage(root, cfg, journal, 3); err != nil {
+		if err := persistStage(storage, cfg, journal, 3); err != nil {
 			return ArchiveResult{}, err
 		}
 		if err := ensureArchiveEvent(persistCtx, cfg.Ledger, manifest.ArchiveRunID, ledger.EventArchiveActiveRemoved, archiveEvent(manifest, journal.Stage, "")); err != nil {
@@ -243,13 +258,13 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 	}
 
 	if stageOrder(journal.Stage) < stageOrder(StageCommitted) {
-		commitSHA, err := commitArchive(persistCtx, cfg, git, manifest, manifestBytes)
+		commitSHA, err := commitArchive(persistCtx, cfg, git, storage, manifest, manifestBytes)
 		if err != nil {
 			return ArchiveResult{}, err
 		}
 		journal.Stage = StageCommitted
 		journal.CommitSHA = commitSHA
-		if err := persistStage(root, cfg, journal, 4); err != nil {
+		if err := persistStage(storage, cfg, journal, 4); err != nil {
 			return ArchiveResult{}, err
 		}
 		if err := ensureArchiveEvent(persistCtx, cfg.Ledger, manifest.ArchiveRunID, ledger.EventArchiveCommitReconciled, archiveEvent(manifest, journal.Stage, commitSHA)); err != nil {
@@ -271,7 +286,7 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 			return ArchiveResult{}, err
 		}
 		journal.Stage = StageLedgerComplete
-		if err := persistStage(root, cfg, journal, 5); err != nil {
+		if err := persistStage(storage, cfg, journal, 5); err != nil {
 			return ArchiveResult{}, err
 		}
 	}
@@ -281,7 +296,8 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 	return ArchiveResult{Entry: Entry{Manifest: manifest, ManifestBytes: manifestBytes, ManifestPath: journal.Manifest.Path, CommitSHA: journal.CommitSHA}, Journal: journal, CommitSHA: journal.CommitSHA, Replayed: replayed}, nil
 }
 
-func prepareManifest(ctx context.Context, root string, archiveLedger Ledger, request ArchiveRequest, archiveID string) (Manifest, []byte, error) {
+func prepareManifest(ctx context.Context, storage *archiveStorage, archiveLedger Ledger, request ArchiveRequest, archiveID string) (Manifest, []byte, error) {
+	root := storage.root()
 	task, found, err := taskfile.FindByID(root, request.TaskID)
 	if err != nil || !found {
 		return Manifest{}, nil, errors.Join(err, errors.New("archive task: canonical active task is missing"))
@@ -289,7 +305,7 @@ func prepareManifest(ctx context.Context, root string, archiveLedger Ledger, req
 	if task.Workflow != taskfile.WorkflowAutonomousV1 || task.Status != string(request.Authority.Disposition) {
 		return Manifest{}, nil, fmt.Errorf("archive task: task workflow/status %s/%s does not match autonomous terminal disposition %s", task.Workflow, task.Status, request.Authority.Disposition)
 	}
-	state, stateBytes, err := readState(root, task.AutonomousStatePath, task.ID)
+	state, stateBytes, err := storage.readState(task.AutonomousStatePath, task.ID)
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("archive task: terminal state: %w", err)
 	}
@@ -308,7 +324,7 @@ func prepareManifest(ctx context.Context, root string, archiveLedger Ledger, req
 			return Manifest{}, nil, errors.New("archive task: completed state lacks ledger-completed AW-20 finalization")
 		}
 		frozenID := Artifact{Path: state.Finalization.FrozenEvidence.Path, SHA256: state.Finalization.FrozenEvidence.SHA256, ByteSize: state.Finalization.FrozenEvidence.ByteSize}
-		frozen, _, err := readFrozen(root, frozenID)
+		frozen, _, err := storage.readFrozen(frozenID)
 		if err != nil {
 			return Manifest{}, nil, fmt.Errorf("archive task: frozen evidence: %w", err)
 		}
@@ -316,12 +332,12 @@ func prepareManifest(ctx context.Context, root string, archiveLedger Ledger, req
 			return Manifest{}, nil, errors.New("archive task: frozen task/finalization identity does not match terminal task and state")
 		}
 		capsuleSource := Artifact{Path: state.Finalization.Capsule.Path, SHA256: state.Finalization.Capsule.SHA256, ByteSize: state.Finalization.Capsule.ByteSize}
-		capsuleBytes, err := readArtifactBytes(root, capsuleSource)
+		capsuleBytes, err := storage.readArtifact(capsuleSource)
 		if err != nil {
 			return Manifest{}, nil, err
 		}
 		completionManifest := Artifact{Path: state.Finalization.Manifest.Path, SHA256: state.Finalization.Manifest.SHA256, ByteSize: state.Finalization.Manifest.ByteSize}
-		completionBytes, err := readArtifactBytes(root, completionManifest)
+		completionBytes, err := storage.readArtifact(completionManifest)
 		if err != nil {
 			return Manifest{}, nil, err
 		}
@@ -395,7 +411,7 @@ func terminalLedgerIdentity(ctx context.Context, store Ledger, frozen autonomous
 	return LedgerIdentity{RunID: frozen.FinalizationRunID, TerminalEventID: foundEvent.ID, TerminalEventType: string(foundEvent.Type)}, nil
 }
 
-func commitArchive(ctx context.Context, cfg Config, git gitConfig, manifest Manifest, manifestBytes []byte) (string, error) {
+func commitArchive(ctx context.Context, cfg Config, git gitConfig, storage *archiveStorage, manifest Manifest, manifestBytes []byte) (string, error) {
 	paths := append([]string(nil), manifest.ExpectedPaths...)
 	paths = append(paths, manifest.OriginalTask.Path)
 	sort.Strings(paths)
@@ -408,14 +424,14 @@ func commitArchive(ctx context.Context, cfg Config, git gitConfig, manifest Mani
 	}
 	expectedFiles := map[string][]byte{}
 	for _, identity := range []Artifact{manifest.ArchivedTask, {Path: archiveManifestPath(manifest.ArchivedAt, manifest.TaskID), SHA256: artifact(archiveManifestPath(manifest.ArchivedAt, manifest.TaskID), manifestBytes).SHA256, ByteSize: len(manifestBytes)}} {
-		bytes, err := readArtifactBytes(git.root, identity)
+		bytes, err := storage.readArtifact(identity)
 		if err != nil {
 			return "", err
 		}
 		expectedFiles[identity.Path] = bytes
 	}
 	if manifest.CompletionCapsule != nil {
-		bytes, err := readArtifactBytes(git.root, *manifest.CompletionCapsule)
+		bytes, err := storage.readArtifact(*manifest.CompletionCapsule)
 		if err != nil {
 			return "", err
 		}
@@ -538,7 +554,7 @@ func completeArchiveRun(ctx context.Context, store Ledger, m Manifest, commitSHA
 	return nil
 }
 
-func persistStage(root string, cfg Config, journal Journal, sequence int64) error {
+func persistStage(storage *archiveStorage, cfg Config, journal Journal, sequence int64) error {
 	if err := fail(cfg, FailureBeforeHistory); err != nil {
 		return err
 	}
@@ -548,7 +564,7 @@ func persistStage(root string, cfg Config, journal Journal, sequence int64) erro
 		return err
 	}
 	historyPath := filepath.ToSlash(filepath.Join(".revolvr", "autonomous", "tasks", journal.TaskID, "archive", "history", fmt.Sprintf("%020d-%s.json", sequence, operationHash(journal.OperationID))))
-	if err := writeImmutable(root, artifact(historyPath, raw), raw); err != nil {
+	if err := storage.writeImmutable(artifact(historyPath, raw), raw); err != nil {
 		return err
 	}
 	if err := fail(cfg, FailureAfterHistory); err != nil {
@@ -561,23 +577,22 @@ func persistStage(root string, cfg Config, journal Journal, sequence int64) erro
 	if err := fail(cfg, FailureBeforeJournalRename); err != nil {
 		return err
 	}
-	if err := writeMutable(root, archiveJournalPath(journal.TaskID, journal.OperationID), journalRaw); err != nil {
+	if err := storage.writeMutable(archiveJournalPath(journal.TaskID, journal.OperationID), journalRaw); err != nil {
 		return err
 	}
 	return fail(cfg, FailureAfterJournalRename)
 }
 
-func loadJournal(root, rel string) (Journal, bool, error) {
-	abs, err := safePath(root, rel)
-	if err != nil {
-		return Journal{}, false, err
-	}
-	raw, err := readRegular(abs)
+func (s *archiveStorage) loadJournal(rel string) (Journal, bool, error) {
+	raw, found, err := s.readRegular(rel, true)
 	if errors.Is(err, os.ErrNotExist) {
 		return Journal{}, false, nil
 	}
 	if err != nil {
 		return Journal{}, false, err
+	}
+	if !found {
+		return Journal{}, false, nil
 	}
 	var journal Journal
 	if err := decodeCanonical(raw, &journal); err != nil {
@@ -589,11 +604,16 @@ func loadJournal(root, rel string) (Journal, bool, error) {
 	return journal, true, nil
 }
 
-func normalizeConfig(cfg Config) (string, gitConfig, error) {
-	root, err := canonicalRoot(cfg.RepositoryRoot)
-	if err != nil {
-		return "", gitConfig{}, err
+func normalizeConfig(cfg Config) (runtimepath.Boundary, gitConfig, error) {
+	root := strings.TrimSpace(cfg.RepositoryRoot)
+	if root == "" {
+		root = "."
 	}
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		return runtimepath.Boundary{}, gitConfig{}, err
+	}
+	root = boundary.Root()
 	executable := strings.TrimSpace(cfg.GitExecutable)
 	if executable == "" {
 		executable = "git"
@@ -606,7 +626,7 @@ func normalizeConfig(cfg Config) (string, gitConfig, error) {
 	if commandRunner == nil {
 		commandRunner = runner.Run
 	}
-	return root, gitConfig{root: root, executable: executable, timeout: timeout, runner: commandRunner}, nil
+	return boundary, gitConfig{root: root, executable: executable, timeout: timeout, runner: commandRunner}, nil
 }
 
 func archiveManifestPath(at time.Time, taskID string) string {
@@ -662,18 +682,11 @@ func attemptInFlight(state autonomous.ExecutionState) bool {
 }
 
 func readArtifactBytes(root string, identity Artifact) ([]byte, error) {
-	abs, err := safePath(root, identity.Path)
+	storage, err := bindArchiveStorage(root)
 	if err != nil {
 		return nil, err
 	}
-	raw, err := readRegular(abs)
-	if err != nil {
-		return nil, err
-	}
-	if artifact(identity.Path, raw) != identity {
-		return nil, fmt.Errorf("archive task: artifact %s identity mismatch", identity.Path)
-	}
-	return raw, nil
+	return storage.readArtifact(identity)
 }
 
 func fail(cfg Config, point FailurePoint) error {
@@ -730,16 +743,16 @@ func rejectActiveWriters(ctx context.Context, root string) error {
 	return nil
 }
 
-func rejectForbiddenPersistent(root string, manifest Manifest, manifestBytes []byte, forbidden []string) error {
+func rejectForbiddenPersistent(storage *archiveStorage, manifest Manifest, manifestBytes []byte, forbidden []string) error {
 	materials := [][]byte{manifestBytes}
-	taskBytes, err := readArtifactBytes(root, manifest.OriginalTask)
+	taskBytes, err := storage.readArtifact(manifest.OriginalTask)
 	if err != nil {
 		return err
 	}
 	materials = append(materials, taskBytes)
 	if manifest.CompletionCapsule != nil {
 		source := Artifact{Path: manifest.FinalizationCapsuleSource(), SHA256: manifest.CompletionCapsule.SHA256, ByteSize: manifest.CompletionCapsule.ByteSize}
-		capsule, err := readArtifactBytes(root, source)
+		capsule, err := storage.readArtifact(source)
 		if err != nil {
 			return err
 		}

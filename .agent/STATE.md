@@ -2,10 +2,47 @@
 
 ## Current Focus
 
-`AUDIT-R4-03` is complete. Exact-task-run evidence and persistence retain one
-stable operation/history namespace and the actual operation flock through
-protected reads, publication, cleanup, sync, and readback. The next bounded
-task is `AUDIT-R4-04`; there are no blockers.
+`AUDIT-R4-04` is complete. Autonomous archive reads, enumeration, immutable
+publication, mutable journal replacement, exact removal, cleanup, sync, and
+readback now share one stable repository authority and revalidate the held
+Git-admin/task-state leases. The next bounded task is `AUDIT-R4-05`; there are
+no blockers.
+
+## Stable Autonomous Archive Storage Boundary (2026-07-14)
+
+- `Archive` and `Reopen` bind one `runtimepath.Boundary`, retain the actual
+  Git-admin and archived-task state flocks, and route archive/runtime evidence
+  through one `archiveStorage`. Locked reopen verification reuses that same
+  store and proves the selected archive/task identity did not change during
+  admission. Read-only list/show/load/verify operations retain one root
+  authority for their complete traversal.
+- Archive manifests, archived tasks/capsules, canonical state, frozen evidence,
+  journals, history, and reopen records use protected descriptor reads.
+  Archive enumeration recursively opens and reads children relative to
+  retained directories; the bespoke symlink walker, `Lstat`/by-name reads,
+  and `filepath.WalkDir` authority are removed.
+- Immutable artifacts/history are written and synced through an opened
+  temporary inode, published with a descriptor-relative exclusive link, then
+  directory-synced and identity-read back. Mutable journals use retained-temp
+  descriptor-relative replacement. Active-task removal unlinks only the
+  opened, identity-matched file from its stable parent.
+- Every directory/file open, enumeration, file/directory sync, publication,
+  removal, cleanup, and readback boundary rechecks the stable namespace and
+  held leases. Cleanup removes only an unpublished opened temporary; a
+  completed metadata publication is never mistaken for cleanup authority, and
+  namespace/lease loss cannot redirect cleanup outside the repository.
+- Permanent regressions reject final symlinks, hard links, unsafe modes,
+  ancestor replacement at every immutable/mutable/removal metadata boundary,
+  enumeration substitution, and held-lock inode replacement. They install
+  same-named attacker temporaries and prove exact outside entries, bytes,
+  modes, symlink targets, and link counts remain unchanged. A full `Archive`
+  regression also proves no active-task or Git-HEAD mutation after rejected
+  persistence substitution.
+- Focused adversarial tests passed ten repetitions and the package race suite.
+  The complete ordinary, shuffled, and race suites, `go vet`, module
+  verification, formatting/diff checks, CLI help, and Linux/Darwin/FreeBSD plus
+  Windows-stub cross-builds passed. No dependency was added. The next task is
+  `AUDIT-R4-05`; blockers: none.
 
 ## Stable Exact-Task-Run Persistence Boundary (2026-07-14)
 
