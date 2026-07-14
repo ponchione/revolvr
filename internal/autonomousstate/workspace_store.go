@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"syscall"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/taskfile"
@@ -80,15 +79,11 @@ func (s *Store) CommitWorkspace(ctx context.Context, request WorkspaceCommitRequ
 	if err := s.ensureDirectory(namespace, 0o755); err != nil {
 		return WorkspaceCommitResult{}, err
 	}
-	lockFile, err := s.openLock(filepath.ToSlash(filepath.Join(namespace, "state.lock")))
+	lockLease, err := s.acquireLock(ctx, filepath.ToSlash(filepath.Join(namespace, "state.lock")))
 	if err != nil {
 		return WorkspaceCommitResult{}, err
 	}
-	defer lockFile.Close()
-	if err := flockContext(ctx, lockFile); err != nil {
-		return WorkspaceCommitResult{}, err
-	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer lockLease.Close()
 	existing, historyFound, err := s.readWorkspaceOperation(task, request.History.OperationID)
 	if err != nil {
 		return WorkspaceCommitResult{}, err

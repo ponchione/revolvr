@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"revolvr/internal/ledger"
@@ -529,7 +528,7 @@ func safeOperationDir(id string) string { return hash([]byte(strings.TrimSpace(i
 
 type mutationLeases struct {
 	retention *lock.Flock
-	inner     []*os.File
+	inner     []*lock.Flock
 }
 
 func (l *mutationLeases) Check() error {
@@ -539,6 +538,11 @@ func (l *mutationLeases) Check() error {
 	if err := l.retention.Check(); err != nil {
 		return fmt.Errorf("artifact GC apply: retention lease identity changed: %w", err)
 	}
+	for _, lease := range l.inner {
+		if err := lease.Check(); err != nil {
+			return fmt.Errorf("artifact GC apply: coordination lease identity changed: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -547,7 +551,7 @@ func (l *mutationLeases) Close() {
 		return
 	}
 	for i := len(l.inner) - 1; i >= 0; i-- {
-		releaseFlock(l.inner[i])
+		_ = l.inner[i].Close()
 	}
 	l.inner = nil
 	if l.retention != nil {
@@ -570,19 +574,34 @@ func acquireMutationLeases(ctx context.Context, root string, clock func() time.T
 	if err != nil {
 		return nil, err
 	}
-	leases := &mutationLeases{retention: retention, inner: make([]*os.File, 0, 3)}
-	dir := filepath.Dir(retention.Path())
-	autonomous, err := openFlock(ctx, filepath.Join(dir, "autonomous-execution.lock"), false)
+	leases := &mutationLeases{retention: retention, inner: make([]*lock.Flock, 0, 3)}
+	autonomous, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: ".revolvr/locks/autonomous-execution.lock",
+		Mode:         lock.FlockExclusive,
+		Wait:         false,
+		Create:       true,
+	})
 	if err != nil {
 		leases.Close()
-		return nil, errors.New("artifact GC apply: autonomous execution is active")
+		if errors.Is(err, lock.ErrFlockContended) {
+			return nil, errors.New("artifact GC apply: autonomous execution is active")
+		}
+		return nil, err
 	}
 	leases.inner = append(leases.inner, autonomous)
 	for _, name := range []string{"git-admin.lock", "child-publication.lock"} {
-		lease, lockErr := openFlock(ctx, filepath.Join(dir, name), false)
+		lease, lockErr := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+			RelativePath: filepath.ToSlash(filepath.Join(".revolvr", "locks", name)),
+			Mode:         lock.FlockExclusive,
+			Wait:         false,
+			Create:       true,
+		})
 		if lockErr != nil {
 			leases.Close()
-			return nil, fmt.Errorf("artifact GC apply: active %s", name)
+			if errors.Is(lockErr, lock.ErrFlockContended) {
+				return nil, fmt.Errorf("artifact GC apply: active %s", name)
+			}
+			return nil, lockErr
 		}
 		leases.inner = append(leases.inner, lease)
 	}
@@ -628,38 +647,4 @@ func rejectActiveSourceWriters(ctx context.Context, root string, now time.Time) 
 		}
 	}
 	return nil
-}
-
-func openFlock(ctx context.Context, path string, wait bool) (*os.File, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	for {
-		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			return f, nil
-		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
-			f.Close()
-			return nil, err
-		}
-		if !wait {
-			f.Close()
-			return nil, err
-		}
-		select {
-		case <-ctx.Done():
-			f.Close()
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
-}
-func releaseFlock(f *os.File) {
-	if f == nil {
-		return
-	}
-	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-	_ = f.Close()
 }

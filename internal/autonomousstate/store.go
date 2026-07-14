@@ -15,10 +15,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/lock"
 	"revolvr/internal/pathguard"
 	"revolvr/internal/taskfile"
 )
@@ -176,15 +176,11 @@ func (s *Store) ReplayPlanning(ctx context.Context, taskID, operationID, applica
 		return CommitResult{}, false, errors.New("replay planning transition: application SHA-256 is invalid")
 	}
 	namespace := filepath.ToSlash(filepath.Dir(task.AutonomousStatePath))
-	lockFile, err := s.openLock(filepath.ToSlash(filepath.Join(namespace, "state.lock")))
+	lockLease, err := s.acquireLock(ctx, filepath.ToSlash(filepath.Join(namespace, "state.lock")))
 	if err != nil {
 		return CommitResult{}, false, err
 	}
-	defer lockFile.Close()
-	if err := flockContext(ctx, lockFile); err != nil {
-		return CommitResult{}, false, err
-	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer lockLease.Close()
 	history, found, err := s.readOperation(task, operationID)
 	if err != nil || !found {
 		return CommitResult{}, false, err
@@ -264,15 +260,11 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 		return CommitResult{}, err
 	}
 	lockPath := filepath.ToSlash(filepath.Join(namespace, "state.lock"))
-	lockFile, err := s.openLock(lockPath)
+	lockLease, err := s.acquireLock(ctx, lockPath)
 	if err != nil {
-		return CommitResult{}, err
-	}
-	defer lockFile.Close()
-	if err := flockContext(ctx, lockFile); err != nil {
 		return CommitResult{}, fmt.Errorf("commit planning transition: acquire compare-and-swap lock: %w", err)
 	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer lockLease.Close()
 
 	existingHistory, historyFound, err := s.readOperation(task, request.History.OperationID)
 	if err != nil {
@@ -692,16 +684,17 @@ func (s *Store) safePath(rel string) (string, error) {
 	return abs, nil
 }
 
-func (s *Store) openLock(rel string) (*os.File, error) {
-	abs, err := s.safePath(rel)
-	if err != nil {
+func (s *Store) acquireLock(ctx context.Context, rel string) (*lock.Flock, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(abs, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("open autonomous state lock: %w", err)
-	}
-	return file, nil
+	return lock.AcquireFlock(ctx, s.root, lock.FlockConfig{
+		RelativePath:  rel,
+		Mode:          lock.FlockExclusive,
+		Wait:          true,
+		Create:        true,
+		PollIntervals: []time.Duration{time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond, 8 * time.Millisecond, 16 * time.Millisecond, 20 * time.Millisecond},
+	})
 }
 
 func (s *Store) fail(point FailurePoint) error {
@@ -755,44 +748,6 @@ func decodeStrict(raw []byte, target any) error {
 		return fmt.Errorf("trailing JSON content: %w", err)
 	}
 	return nil
-}
-
-func flockContext(ctx context.Context, file *os.File) error {
-	const (
-		initialRetryDelay = time.Millisecond
-		maximumRetryDelay = 20 * time.Millisecond
-	)
-	retryDelay := initialRetryDelay
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			return nil
-		}
-		if err != syscall.EWOULDBLOCK && err != syscall.EAGAIN {
-			return err
-		}
-		timer := time.NewTimer(retryDelay)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			return ctx.Err()
-		case <-timer.C:
-		}
-		if retryDelay < maximumRetryDelay {
-			retryDelay *= 2
-			if retryDelay > maximumRetryDelay {
-				retryDelay = maximumRetryDelay
-			}
-		}
-	}
 }
 
 func syncDirectory(path string) error {

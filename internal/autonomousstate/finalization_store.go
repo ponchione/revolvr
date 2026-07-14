@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/taskfile"
@@ -63,15 +62,11 @@ func (s *Store) CommitFinalization(ctx context.Context, request FinalizationComm
 	if err := s.ensureDirectory(namespace, 0o755); err != nil {
 		return FinalizationCommitResult{}, err
 	}
-	lockFile, err := s.openLock(filepath.ToSlash(filepath.Join(namespace, "state.lock")))
+	lockLease, err := s.acquireLock(ctx, filepath.ToSlash(filepath.Join(namespace, "state.lock")))
 	if err != nil {
 		return FinalizationCommitResult{}, err
 	}
-	defer lockFile.Close()
-	if err := flockContext(ctx, lockFile); err != nil {
-		return FinalizationCommitResult{}, err
-	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer lockLease.Close()
 	existing, foundHistory, err := s.readFinalizationOperation(task, request.History.OperationID, request.History.Stage)
 	if err != nil {
 		return FinalizationCommitResult{}, err

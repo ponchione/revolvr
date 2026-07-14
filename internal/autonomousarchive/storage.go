@@ -14,11 +14,11 @@ import (
 	"sort"
 	"strings"
 	"syscall"
-	"time"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousfinalization"
 	"revolvr/internal/autonomousstate"
+	"revolvr/internal/lock"
 	"revolvr/internal/pathguard"
 	"revolvr/internal/taskfile"
 )
@@ -465,31 +465,16 @@ func readFrozen(root string, identity Artifact) (autonomousfinalization.FrozenEv
 }
 
 func acquireFileLock(ctx context.Context, root, rel string) (func(), error) {
-	if err := ensureDirectories(root, filepath.ToSlash(filepath.Dir(rel))); err != nil {
-		return nil, err
-	}
-	abs, err := safePath(root, rel)
+	lease, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: rel,
+		Mode:         lock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(abs, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	for {
-		if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-			return func() {
-				_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
-				_ = file.Close()
-			}, nil
-		}
-		select {
-		case <-ctx.Done():
-			_ = file.Close()
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	return func() { _ = lease.Close() }, nil
 }
 
 func operationHash(value string) string {

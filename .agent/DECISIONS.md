@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## AUDIT-FIX-04 Complete Coordinator Flock Migration (2026-07-14)
+
+- `internal/lock.AcquireFlock` is now the only production boundary that invokes
+  advisory flock. Autonomous execution, archive Git/state coordination, child
+  publication, autonomous migration, notification delivery, queue and task-run
+  operations, autonomous state compare-and-swap, workspace Git administration,
+  and artifact-GC inner admission probes all use it. Direct `syscall.Flock`
+  remains only in `internal/lock/flock_unix.go`.
+- A nonwaiting would-block result is wrapped with `ErrFlockContended` while
+  retaining the platform error. Callers map only that sentinel to their public
+  active-owner result; unsafe paths and other acquisition failures remain
+  visible instead of being mislabeled as contention.
+- `FlockConfig.AfterOpen` is the deterministic fault/substitution seam shared by
+  owner integrations. The primitive always validates the opened descriptor
+  before the seam and validates named/opened identity again after flock, so a
+  rename and replacement during that window cannot establish authority.
+- `FlockConfig.PollIntervals` defines a finite retry sequence whose last value
+  repeats. Autonomous state uses it to retain the audited immediate acquire and
+  1/2/4/8/16/20ms capped retry contract; its store helper also checks context
+  before acquisition so a pre-canceled transition creates no runtime state.
+- Notification delivery passes its actual repository root into the lock owner;
+  it no longer infers a root from a nested delivery directory. Git-admin locks
+  now use the shared restrictive `0700` directory and `0600` file defaults.
+- Artifact GC holds shared-primitive handles for all four admission barriers,
+  rechecks inner identities with the retention identity, and reports an active
+  coordinator only for `ErrFlockContended`.
+- Shared and integration regressions prove final-component symlink rejection
+  without sentinel mutation, hard-link rejection, symlinked-ancestor rejection,
+  and open-to-flock path substitution for Git administration and delivery in
+  addition to the existing source-writer, retention, child, and queue paths.
+  Path-test link counts explicitly convert platform `Stat_t.Nlink` widths so
+  the same suites compile on Darwin and FreeBSD.
+
 ## AUDIT-FIX-03 Hardened Flock Foundation (2026-07-14)
 
 - `internal/lock.AcquireFlock` is the shared predictable-lock acquisition

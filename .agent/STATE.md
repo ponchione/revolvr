@@ -2,41 +2,40 @@
 
 ## Current Focus
 
-Resolve `AUDIT-FIX-04`, the first unchecked task in `.agent/TASKS.md`. The
-source-writer and outer retention locks now use one hardened flock primitive;
-the next pass must migrate the remaining predictable coordinator locks.
+Resolve `AUDIT-FIX-05`, the first unchecked task in `.agent/TASKS.md`. Every
+predictable flock-based coordinator now uses the hardened shared primitive; the
+next pass must make app read projections use the live read-only ledger API and
+prove ledger bytes and sidecars remain immutable.
 
 ## Latest Completed Audit Fix (2026-07-14)
 
-- Task selected: `AUDIT-FIX-03`.
-- `internal/lock.AcquireFlock` now owns canonical-root resolution, safe
-  component-by-component directory creation, final-file validation, a
-  platform-tagged no-follow open/flock implementation, restrictive creation
-  modes, and named/opened identity checks before and after acquisition.
-- Source-writer metadata and the shared artifact-retention admission gate use
-  that primitive. A writer binds its initially acquired source-lock inode and
-  rechecks both held lock identities before heartbeat or release truncation, so
-  a byte-identical path replacement cannot inherit ownership.
-- Artifact GC holds the hardened retention lock exclusively and rechecks its
-  identity after inner admission/source scans and immediately before export,
-  artifact, journal, and cleanup mutations. Remaining inner coordinator lock
-  owners are intentionally reserved for `AUDIT-FIX-04`.
-- Regression tests cover final-component symlinks to unchanged outside
-  sentinels, hard-link aliases, symlinked ancestors, substitution between open
-  and flock, replacement after acquisition, and source inode replacement across
-  heartbeat/release operations for the primitive, source-writer, and retention
-  integration paths.
-- Files changed: `internal/lock/flock.go`, `internal/lock/flock_unix.go`,
-  `internal/lock/flock_unsupported.go`, `internal/lock/flock_test.go`,
-  `internal/lock/source_writer.go`, `internal/lock/source_writer_test.go`,
-  `internal/artifactretention/apply.go`,
-  `internal/artifactretention/retention_test.go`, `.agent/TASKS.md`,
-  `.agent/STATE.md`, and `.agent/DECISIONS.md`.
-- Verification passed: focused substitution tests at count 5,
-  `go test -race -count=1 ./internal/lock ./internal/artifactretention`,
-  `go test -count=1 ./...`, focused `go vet`, and Darwin/FreeBSD compile-only
-  tests for the changed packages.
-- Remaining audit work: `AUDIT-FIX-04` through `AUDIT-FIX-07`. No blocker is
+- Task selected: `AUDIT-FIX-04`.
+- Autonomous execution, archive Git/state coordination, child publication,
+  autonomous migration, notification delivery, queue operations, autonomous
+  state compare-and-swap, task-run operations, workspace Git administration,
+  and artifact-GC inner admissions now all acquire `internal/lock.Flock`.
+  Production `syscall.Flock` calls exist only in the build-tagged lock backend.
+- The primitive now reports nonwaiting contention through
+  `ErrFlockContended`, supports deterministic after-open substitution testing,
+  and accepts a bounded retry schedule. The state store preserves its immediate
+  attempt plus 1/2/4/8/16/20ms capped backoff and rejects pre-canceled callers
+  before creating runtime paths.
+- Retention maps only genuine contention to an active-coordinator result and
+  propagates unsafe lock identities. Its held inner leases also participate in
+  identity checks. Delivery receives the actual repository root instead of
+  reconstructing one from its nested directory.
+- Git-admin and delivery integration tests each cover final symlinks to an
+  unchanged outside sentinel, hard-link aliases, symlinked ancestors, and
+  deterministic pathname substitution between open and flock. Existing child
+  and queue substitution tests continue through the shared after-open seam.
+- Files changed: the shared flock primitive/tests; artifact retention;
+  autonomous archive, child, execution, migration, notification, queue, state,
+  task-run, and workspace lock owners/tests; and the durable agent-state files.
+- Verification passed: all focused migrated-owner suites,
+  `go test -race` for every migrated owner, Darwin and FreeBSD
+  `go test -exec=true ./...` cross-compilation, `go test -count=1 ./...`, and
+  `git diff --check`.
+- Remaining audit work: `AUDIT-FIX-05` through `AUDIT-FIX-07`. No blocker is
   recorded.
 
 ## Wide-Sweep Audit (2026-07-14)
@@ -91,8 +90,8 @@ remained unchanged.
 ## Verification Baseline
 
 - `gofmt` reports no unformatted Go files.
-- `go test -count=1 ./...` passes after the source-writer and retention lock
-  hardening.
+- `go test -count=1 ./...` passes after every predictable flock coordinator was
+  migrated to the hardened shared primitive.
 - `go test -race -count=1 ./...` and
   `go test -shuffle=on -count=1 ./...` pass.
 - `go vet ./...`, `go mod verify`, and `govulncheck ./...` pass; no reachable

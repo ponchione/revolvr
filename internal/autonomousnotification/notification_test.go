@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"revolvr/internal/runner"
+	"revolvr/internal/runtimepath"
 )
 
 var fixedTime = time.Date(2026, 7, 12, 16, 0, 0, 123456789, time.UTC)
@@ -407,6 +408,96 @@ func TestDeliveryRejectsSymlinkedRuntimeNamespace(t *testing.T) {
 	entries, _ := os.ReadDir(outside)
 	if len(entries) != 0 {
 		t.Fatalf("outside namespace mutated: %v", entries)
+	}
+}
+
+func TestDeliveryLockRejectsUnsafePathsAndOpenSubstitution(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, root, outside, sentinel, dir, lockPath string)
+		afterOpen func(root, path string) error
+	}{
+		{
+			name: "final symlink",
+			setup: func(t *testing.T, _, _, sentinel, dir, lockPath string) {
+				t.Helper()
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(sentinel, lockPath); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "hard link alias",
+			setup: func(t *testing.T, _, _, sentinel, dir, lockPath string) {
+				t.Helper()
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Link(sentinel, lockPath); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "symlinked ancestor",
+			setup: func(t *testing.T, root, outside, _, _, _ string) {
+				t.Helper()
+				if err := os.Mkdir(filepath.Join(root, ".revolvr"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, filepath.Join(root, ".revolvr", "autonomous")); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "substitution after open",
+			afterOpen: func(_, path string) error {
+				if err := os.Rename(path, path+".opened"); err != nil {
+					return err
+				}
+				return os.WriteFile(path, []byte("replacement\n"), 0o600)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root, outside := t.TempDir(), t.TempDir()
+			sentinel := filepath.Join(outside, "sentinel.txt")
+			const sentinelBytes = "outside sentinel\n"
+			if err := os.WriteFile(sentinel, []byte(sentinelBytes), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			dir := deliveryDir(root, "delivery-lock-test")
+			lockPath := filepath.Join(dir, "delivery.lock")
+			if tt.setup != nil {
+				tt.setup(t, root, outside, sentinel, dir, lockPath)
+			}
+			unlock, err := acquireDeliveryLock(context.Background(), root, dir, tt.afterOpen)
+			if err == nil {
+				unlock()
+				t.Fatal("unsafe delivery lock path was acquired")
+			}
+			if !errors.Is(err, runtimepath.ErrUnsafe) {
+				t.Fatalf("acquire error = %v, want runtimepath.ErrUnsafe", err)
+			}
+			raw, readErr := os.ReadFile(sentinel)
+			if readErr != nil || string(raw) != sentinelBytes {
+				t.Fatalf("outside sentinel changed: err=%v bytes=%q", readErr, raw)
+			}
+			entries, readErr := os.ReadDir(outside)
+			if readErr != nil || len(entries) != 1 || entries[0].Name() != "sentinel.txt" {
+				t.Fatalf("outside directory changed: err=%v entries=%v", readErr, entries)
+			}
+			if tt.afterOpen != nil {
+				if raw, readErr := os.ReadFile(lockPath); readErr != nil || string(raw) != "replacement\n" {
+					t.Fatalf("replacement changed: err=%v bytes=%q", readErr, raw)
+				}
+			}
+		})
 	}
 }
 

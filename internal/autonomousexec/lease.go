@@ -6,12 +6,8 @@ package autonomousexec
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
-	"syscall"
-	"time"
 
-	"revolvr/internal/runtimepath"
+	"revolvr/internal/lock"
 )
 
 var ErrActive = errors.New("autonomous execution: another coordinator is active")
@@ -27,44 +23,17 @@ func TryAcquire(repositoryRoot string) (func(), error) {
 }
 
 func acquire(ctx context.Context, repositoryRoot string, wait bool) (func(), error) {
-	root, err := runtimepath.CanonicalRoot(repositoryRoot)
+	lease, err := lock.AcquireFlock(ctx, repositoryRoot, lock.FlockConfig{
+		RelativePath: ".revolvr/locks/autonomous-execution.lock",
+		Mode:         lock.FlockExclusive,
+		Wait:         wait,
+		Create:       true,
+	})
+	if errors.Is(err, lock.ErrFlockContended) {
+		return nil, ErrActive
+	}
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(root, ".revolvr", "locks")
-	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
-		return nil, err
-	}
-	path := filepath.Join(dir, "autonomous-execution.lock")
-	if err := runtimepath.CheckFile(root, path, true); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-		_ = f.Close()
-		return nil, err
-	}
-	for {
-		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-				_ = f.Close()
-				return nil, err
-			}
-			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
-		}
-		if !wait {
-			_ = f.Close()
-			return nil, ErrActive
-		}
-		select {
-		case <-ctx.Done():
-			_ = f.Close()
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	return func() { _ = lease.Close() }, nil
 }

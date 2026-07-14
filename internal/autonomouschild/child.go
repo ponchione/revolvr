@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"revolvr/internal/autonomous"
@@ -23,6 +22,7 @@ import (
 	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/ledger"
+	revolvrlock "revolvr/internal/lock"
 	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
@@ -493,42 +493,19 @@ func loadChildren(root string, projected []taskfile.Task, states []autonomous.Ex
 	return result, nil
 }
 func lock(ctx context.Context, root string, inject func(FailurePoint) error) (func(), error) {
-	path := filepath.Join(root, ".revolvr", "locks", "child-publication.lock")
-	if err := runtimepath.EnsureDir(root, filepath.Dir(path), 0o700); err != nil {
-		return nil, err
-	}
-	if err := runtimepath.CheckFile(root, path, true); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
+	lease, err := revolvrlock.AcquireFlock(ctx, root, revolvrlock.FlockConfig{
+		RelativePath: ".revolvr/locks/child-publication.lock",
+		Mode:         revolvrlock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+		AfterOpen: func(_, _ string) error {
+			return injectChild(inject, FailureAfterLockOpen)
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := injectChild(inject, FailureAfterLockOpen); err != nil {
-		_ = f.Close()
-		return nil, err
-	}
-	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-		_ = f.Close()
-		return nil, err
-	}
-	for {
-		if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-				_ = f.Close()
-				return nil, err
-			}
-			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
-		}
-		select {
-		case <-ctx.Done():
-			_ = f.Close()
-			return nil, ctx.Err()
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
+	return func() { _ = lease.Close() }, nil
 }
 
 func removeProtectedTemp(root, path string) {

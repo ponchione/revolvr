@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"revolvr/internal/runtimepath"
 )
@@ -93,17 +95,18 @@ func TestAcquireFlockRejectsPathSubstitutionBetweenOpenAndFlock(t *testing.T) {
 	root := t.TempDir()
 	rel := ".revolvr/locks/substituted.lock"
 	var originalPath string
-	lease, err := acquireFlock(context.Background(), root, FlockConfig{
+	lease, err := AcquireFlock(context.Background(), root, FlockConfig{
 		RelativePath: rel,
 		Mode:         FlockExclusive,
 		Wait:         false,
 		Create:       true,
-	}, func(_, path string, _ *os.File) error {
-		originalPath = path + ".opened"
-		if err := os.Rename(path, originalPath); err != nil {
-			return err
-		}
-		return os.WriteFile(path, []byte("replacement\n"), 0o600)
+		AfterOpen: func(_, path string) error {
+			originalPath = path + ".opened"
+			if err := os.Rename(path, originalPath); err != nil {
+				return err
+			}
+			return os.WriteFile(path, []byte("replacement\n"), 0o600)
+		},
 	})
 	if err == nil {
 		_ = lease.Close()
@@ -144,5 +147,44 @@ func TestFlockCheckRejectsReplacementAfterAcquisition(t *testing.T) {
 	}
 	if err := lease.Check(); !errors.Is(err, runtimepath.ErrUnsafe) {
 		t.Fatalf("Check error = %v, want runtimepath.ErrUnsafe", err)
+	}
+}
+
+func TestAcquireFlockReportsPortableContention(t *testing.T) {
+	root := t.TempDir()
+	cfg := FlockConfig{
+		RelativePath: ".revolvr/locks/contended.lock",
+		Mode:         FlockExclusive,
+		Wait:         false,
+		Create:       true,
+	}
+	owner, err := AcquireFlock(context.Background(), root, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	contender, err := AcquireFlock(context.Background(), root, cfg)
+	if contender != nil {
+		_ = contender.Close()
+		t.Fatal("contended lock was acquired")
+	}
+	if !errors.Is(err, ErrFlockContended) {
+		t.Fatalf("contended acquire error = %v, want ErrFlockContended", err)
+	}
+}
+
+func TestAcquireFlockRejectsInvalidPollSchedule(t *testing.T) {
+	lease, err := AcquireFlock(context.Background(), t.TempDir(), FlockConfig{
+		RelativePath:  ".revolvr/locks/invalid-poll.lock",
+		Mode:          FlockExclusive,
+		Wait:          true,
+		Create:        true,
+		PollIntervals: []time.Duration{time.Millisecond, 0},
+	})
+	if lease != nil {
+		_ = lease.Close()
+	}
+	if err == nil || !strings.Contains(err.Error(), "poll intervals") {
+		t.Fatalf("invalid poll schedule error = %v", err)
 	}
 }

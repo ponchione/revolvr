@@ -360,7 +360,7 @@ func childOutsideSnapshot(t *testing.T, outside string) string {
 	}
 	links := uint64(0)
 	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		links = stat.Nlink
+		links = uint64(stat.Nlink)
 	}
 	return fmt.Sprintf("%v|%04o|%d|%x", names, info.Mode().Perm(), links, raw)
 }

@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"revolvr/internal/autonomous"
@@ -15,6 +13,7 @@ import (
 	"revolvr/internal/autonomousscheduler"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/ledger"
+	"revolvr/internal/lock"
 	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskscheduler"
@@ -452,36 +451,18 @@ func emit(progress Progress, op Operation) {
 	}
 }
 func lockOperation(ctx context.Context, root, id string) (func(), error) {
-	dir := operationDir(root, id)
-	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
-		return nil, err
-	}
-	path := filepath.Join(dir, "operation.lock")
-	if err := runtimepath.CheckFile(root, path, true); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	rel, err := filepath.Rel(root, filepath.Join(operationDir(root, id), "operation.lock"))
 	if err != nil {
 		return nil, err
 	}
-	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-		_ = f.Close()
+	lease, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: filepath.ToSlash(rel),
+		Mode:         lock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+	})
+	if err != nil {
 		return nil, err
 	}
-	for {
-		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-				_ = f.Close()
-				return nil, err
-			}
-			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
-		}
-		select {
-		case <-ctx.Done():
-			_ = f.Close()
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	return func() { _ = lease.Close() }, nil
 }

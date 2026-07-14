@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"revolvr/internal/lock"
 	"revolvr/internal/runtimepath"
 )
 
@@ -454,44 +455,25 @@ func equalWorkerSlots(left, right []WorkerSlot) bool {
 }
 
 func lockOperation(ctx context.Context, root, operationID string, injectors ...FailureInjector) (func(), error) {
-	dir := queueDir(root, operationID)
-	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
-		return nil, err
+	var afterOpen func(string, string) error
+	if len(injectors) > 0 {
+		afterOpen = func(_, _ string) error { return injectAt(injectors[0], FailureAfterLockOpen) }
 	}
-	path := filepath.Join(dir, "operation.lock")
-	if err := runtimepath.CheckFile(root, path, true); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
+	rel, err := filepath.Rel(root, filepath.Join(queueDir(root, operationID), "operation.lock"))
 	if err != nil {
 		return nil, err
 	}
-	if len(injectors) > 0 {
-		if err := injectAt(injectors[0], FailureAfterLockOpen); err != nil {
-			_ = f.Close()
-			return nil, err
-		}
-	}
-	if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-		_ = f.Close()
+	lease, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: filepath.ToSlash(rel),
+		Mode:         lock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+		AfterOpen:    afterOpen,
+	})
+	if err != nil {
 		return nil, err
 	}
-	for {
-		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-			if err := runtimepath.CheckOpenedFile(root, path, f); err != nil {
-				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-				_ = f.Close()
-				return nil, err
-			}
-			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
-		}
-		select {
-		case <-ctx.Done():
-			_ = f.Close()
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	return func() { _ = lease.Close() }, nil
 }
 
 func queueDir(root, operationID string) string {

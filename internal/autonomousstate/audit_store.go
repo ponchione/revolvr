@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"syscall"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousaudit"
@@ -250,15 +249,11 @@ func (s *Store) ReplayAudit(ctx context.Context, taskID, operationID, applicatio
 		return AuditCommitResult{}, false, err
 	}
 	namespace := filepath.ToSlash(filepath.Dir(task.AutonomousStatePath))
-	lockFile, err := s.openLock(filepath.ToSlash(filepath.Join(namespace, "state.lock")))
+	lockLease, err := s.acquireLock(ctx, filepath.ToSlash(filepath.Join(namespace, "state.lock")))
 	if err != nil {
 		return AuditCommitResult{}, false, err
 	}
-	defer lockFile.Close()
-	if err := flockContext(ctx, lockFile); err != nil {
-		return AuditCommitResult{}, false, err
-	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer lockLease.Close()
 	history, found, err := s.readAuditOperation(task, operationID)
 	if err != nil || !found {
 		return AuditCommitResult{}, false, err
@@ -323,15 +318,11 @@ func (s *Store) CommitAudit(ctx context.Context, request AuditCommitRequest) (Au
 	if err := s.ensureDirectory(namespace, 0o755); err != nil {
 		return AuditCommitResult{}, err
 	}
-	lockFile, err := s.openLock(filepath.ToSlash(filepath.Join(namespace, "state.lock")))
+	lockLease, err := s.acquireLock(ctx, filepath.ToSlash(filepath.Join(namespace, "state.lock")))
 	if err != nil {
 		return AuditCommitResult{}, err
 	}
-	defer lockFile.Close()
-	if err := flockContext(ctx, lockFile); err != nil {
-		return AuditCommitResult{}, err
-	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer lockLease.Close()
 	existing, historyFound, err := s.readAuditOperation(task, request.History.OperationID)
 	if err != nil {
 		return AuditCommitResult{}, err

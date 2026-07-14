@@ -16,10 +16,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"revolvr/internal/autonomousstate"
+	"revolvr/internal/lock"
 	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
@@ -868,33 +868,16 @@ func validateRecord(operation string, record Record) error {
 }
 
 func acquireMigrationLock(ctx context.Context, root string) (func(), error) {
-	dir := filepath.Join(root, ".revolvr", "locks")
-	if err := runtimepath.EnsureDir(root, dir, 0o700); err != nil {
-		return nil, err
-	}
-	target := filepath.Join(dir, "autonomous-migration.lock")
-	if err := runtimepath.CheckFile(root, target, true); err != nil {
-		return nil, err
-	}
-	file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
+	lease, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: ".revolvr/locks/autonomous-migration.lock",
+		Mode:         lock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := runtimepath.CheckOpenedFile(root, target, file); err != nil {
-		_ = file.Close()
-		return nil, err
-	}
-	for {
-		if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-			return func() { _ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN); _ = file.Close() }, nil
-		}
-		select {
-		case <-ctx.Done():
-			_ = file.Close()
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	return func() { _ = lease.Close() }, nil
 }
 
 func marshalCanonical(value any) ([]byte, error) {

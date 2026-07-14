@@ -9,11 +9,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
+	"revolvr/internal/lock"
 	"revolvr/internal/redact"
 	"revolvr/internal/runner"
+	"revolvr/internal/runtimepath"
 )
 
 type Stage string
@@ -157,7 +158,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	}
 
 	dir := deliveryDir(root, cfg.Payload.DeliveryID)
-	unlock, err := acquireDeliveryLock(ctx, dir)
+	unlock, err := acquireDeliveryLock(ctx, root, dir)
 	if err != nil {
 		return Result{}, err
 	}
@@ -320,31 +321,27 @@ func waitContext(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func acquireDeliveryLock(ctx context.Context, dir string) (func(), error) {
-	root := filepath.Clean(filepath.Join(dir, "..", "..", "..", ".."))
+func acquireDeliveryLock(ctx context.Context, root, dir string, afterOpen ...func(root, path string) error) (func(), error) {
 	if err := ensureSafeDirectory(root, dir); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", runtimepath.ErrUnsafe, err)
 	}
-	file, err := os.OpenFile(filepath.Join(dir, "delivery.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	rel, err := filepath.Rel(root, filepath.Join(dir, "delivery.lock"))
 	if err != nil {
 		return nil, err
 	}
-	for {
-		err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			return func() { _ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN); _ = file.Close() }, nil
-		}
-		if err := ctx.Err(); err != nil {
-			_ = file.Close()
-			return nil, err
-		}
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			_ = file.Close()
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
+	var hook func(root, path string) error
+	if len(afterOpen) > 0 {
+		hook = afterOpen[0]
 	}
+	lease, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: filepath.ToSlash(rel),
+		Mode:         lock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+		AfterOpen:    hook,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return func() { _ = lease.Close() }, nil
 }

@@ -18,7 +18,7 @@
   and prove the exact run-owned delta with real-Git overlap coverage.
 - [x] AUDIT-FIX-03 — Harden source-writer and retention lock files with
   canonical roots, no-follow opens, and named/opened inode checks.
-- [ ] AUDIT-FIX-04 — Migrate the remaining predictable coordinator locks to the
+- [x] AUDIT-FIX-04 — Migrate the remaining predictable coordinator locks to the
   same hardened flock primitive and substitution tests.
 - [ ] AUDIT-FIX-05 — Open all app read projections through the live read-only
   ledger API and prove byte/sidecar immutability.

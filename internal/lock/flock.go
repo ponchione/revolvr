@@ -15,7 +15,10 @@ import (
 
 const defaultFlockPollInterval = 10 * time.Millisecond
 
-var ErrFlockUnsupported = errors.New("file locking is unsupported on this platform")
+var (
+	ErrFlockContended   = errors.New("file lock is contended")
+	ErrFlockUnsupported = errors.New("file locking is unsupported on this platform")
+)
 
 type FlockMode uint8
 
@@ -32,6 +35,8 @@ type FlockConfig struct {
 	DirectoryMode os.FileMode
 	FileMode      os.FileMode
 	PollInterval  time.Duration
+	PollIntervals []time.Duration
+	AfterOpen     func(root, path string) error
 }
 
 // Flock is an identity-checked advisory lock below one canonical repository
@@ -49,12 +54,6 @@ type Flock struct {
 // created ancestors, the named final component, and the opened descriptor are
 // validated before the lock is attempted and again after it succeeds.
 func AcquireFlock(ctx context.Context, repositoryRoot string, cfg FlockConfig) (*Flock, error) {
-	return acquireFlock(ctx, repositoryRoot, cfg, nil)
-}
-
-type afterFlockOpenHook func(root, path string, file *os.File) error
-
-func acquireFlock(ctx context.Context, repositoryRoot string, cfg FlockConfig, afterOpen afterFlockOpenHook) (*Flock, error) {
 	root, err := runtimepath.CanonicalRoot(repositoryRoot)
 	if err != nil {
 		return nil, fmt.Errorf("acquire file lock: canonical root: %w", err)
@@ -90,11 +89,12 @@ func acquireFlock(ctx context.Context, repositoryRoot string, cfg FlockConfig, a
 	if err := runtimepath.CheckOpenedFile(root, path, file); err != nil {
 		return nil, fmt.Errorf("acquire file lock %q: validate opened file: %w", filepath.ToSlash(rel), err)
 	}
-	if afterOpen != nil {
-		if err := afterOpen(root, path, file); err != nil {
+	if cfg.AfterOpen != nil {
+		if err := cfg.AfterOpen(root, path); err != nil {
 			return nil, err
 		}
 	}
+	attempt := 0
 	for {
 		err = tryFlock(file, cfg.Mode)
 		if err == nil {
@@ -105,10 +105,19 @@ func acquireFlock(ctx context.Context, repositoryRoot string, cfg FlockConfig, a
 			closeFile = false
 			return &Flock{root: root, path: path, file: file}, nil
 		}
-		if !flockWouldBlock(err) || !cfg.Wait {
+		if !flockWouldBlock(err) {
 			return nil, fmt.Errorf("acquire file lock %q: flock: %w", filepath.ToSlash(rel), err)
 		}
-		timer := time.NewTimer(cfg.PollInterval)
+		if !cfg.Wait {
+			return nil, fmt.Errorf("acquire file lock %q: %w: %w", filepath.ToSlash(rel), ErrFlockContended, err)
+		}
+		pollInterval := cfg.PollInterval
+		if len(cfg.PollIntervals) > 0 {
+			index := min(attempt, len(cfg.PollIntervals)-1)
+			pollInterval = cfg.PollIntervals[index]
+		}
+		attempt++
+		timer := time.NewTimer(pollInterval)
 		select {
 		case <-ctx.Done():
 			if !timer.Stop() {
@@ -142,6 +151,14 @@ func normalizeFlockConfig(cfg FlockConfig) (FlockConfig, string, error) {
 	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = defaultFlockPollInterval
+	}
+	if len(cfg.PollIntervals) > 0 {
+		cfg.PollIntervals = append([]time.Duration(nil), cfg.PollIntervals...)
+		for _, interval := range cfg.PollIntervals {
+			if interval <= 0 {
+				return FlockConfig{}, "", errors.New("acquire file lock: poll intervals must be positive")
+			}
+		}
 	}
 	return cfg, rel, nil
 }

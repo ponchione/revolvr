@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"revolvr/internal/autonomous"
@@ -859,29 +858,22 @@ func sourcePaths(paths []string) []string {
 	return out
 }
 
-func acquireAdminLock(ctx context.Context, root string) (func(), error) {
-	path := filepath.Join(root, ".revolvr", "locks", "git-admin.lock")
-	if err := ensureSafeParents(root, filepath.Dir(path)); err != nil {
-		return nil, err
+func acquireAdminLock(ctx context.Context, root string, afterOpen ...func(root, path string) error) (func(), error) {
+	var hook func(root, path string) error
+	if len(afterOpen) > 0 {
+		hook = afterOpen[0]
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	lease, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: ".revolvr/locks/git-admin.lock",
+		Mode:         lock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+		AfterOpen:    hook,
+	})
 	if err != nil {
 		return nil, err
 	}
-	for {
-		if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-			return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
-		}
-		select {
-		case <-ctx.Done():
-			_ = f.Close()
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	return func() { _ = lease.Close() }, nil
 }
 
 func syncDir(path string) error {
