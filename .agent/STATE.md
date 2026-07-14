@@ -2,9 +2,29 @@
 
 ## Current Focus
 
-`AUDIT-R3-02` closes initialization and task-creation filesystem escapes. The
-first unchecked follow-up is `AUDIT-R3-03`, which retains SQLite busy evidence
-across live-reader retries and makes its cancellation regression deterministic.
+`AUDIT-R3-03` closes loss of SQLite busy evidence across live-reader retries.
+The first unchecked follow-up is `AUDIT-R3-04`, which makes task-import and
+receipt structural parsing ignore headings inside Markdown fences.
+
+## Live-Reader Busy Evidence Retention (2026-07-14)
+
+- A live-read retry now retains the most recent SQLite busy/locked error for
+  the full operation. If a later attempt returns cancellation/deadline or the
+  context terminates around another error, the read returns its type's zero
+  value and joins the context cause with that retained SQLite evidence.
+- An ordinary non-context error still returns directly, and a context failure
+  with no preceding busy attempt contains no fabricated SQLite evidence. Busy
+  retry exhaustion continues to return the latest SQLite error.
+- The former 50ms scheduling-dependent regression now captures one real
+  rollback-journal busy error, then scripts later deadline, cancellation, and
+  no-busy outcomes through the retry operation seam. It checks zero results,
+  `errors.Is` context causes, `errors.As` SQLite evidence, latest-only busy
+  retention, and successful same-reader and reopened-reader snapshots.
+- Verification passed: the focused regression once and twenty consecutive
+  times, the original shuffled seed across `./...`, twenty race-enabled
+  focused runs, `go test ./...`, `go vet ./...`, formatting, and
+  `git diff --check`.
+- No dependency was added. The next task is `AUDIT-R3-04`; blockers: none.
 
 ## Initialization Filesystem Trust Boundary (2026-07-14)
 

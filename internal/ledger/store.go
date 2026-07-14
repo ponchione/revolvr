@@ -752,18 +752,31 @@ func retryLiveRead[T any](ctx context.Context, enabled bool, operation func() (T
 		return operation()
 	}
 	deadline := time.Now().Add(liveBusyLimit)
+	var lastBusy error
 	for {
 		value, err := operation()
-		if err == nil || !isSQLiteBusy(err) {
+		if err == nil {
 			return value, err
 		}
+		if !isSQLiteBusy(err) {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				var zero T
+				return zero, errors.Join(err, ctxErr, lastBusy)
+			}
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				var zero T
+				return zero, errors.Join(err, lastBusy)
+			}
+			return value, err
+		}
+		lastBusy = err
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			var zero T
-			return zero, errors.Join(ctxErr, err)
+			return zero, errors.Join(ctxErr, lastBusy)
 		}
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return value, err
+			return value, lastBusy
 		}
 		pause := liveBusySlice
 		if remaining < pause {
@@ -774,7 +787,7 @@ func retryLiveRead[T any](ctx context.Context, enabled bool, operation func() (T
 		case <-ctx.Done():
 			timer.Stop()
 			var zero T
-			return zero, errors.Join(ctx.Err(), err)
+			return zero, errors.Join(ctx.Err(), lastBusy)
 		case <-timer.C:
 		}
 	}

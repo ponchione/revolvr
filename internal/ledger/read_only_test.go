@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"modernc.org/sqlite"
 )
 
 func TestLiveReadOnlySnapshotsStayCoherentAndCurrentAcrossJournalModes(t *testing.T) {
@@ -204,19 +206,72 @@ func TestLiveReadOnlyCancellationInterruptsBusyRollbackReaderAndReopens(t *testi
 		}
 	}()
 
-	readCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-	started := time.Now()
-	_, readErr := reader.ReadSnapshot(readCtx)
-	cancel()
-	if !errors.Is(readErr, context.DeadlineExceeded) {
-		t.Fatalf("busy read error = %v, want context deadline exceeded", readErr)
+	var runCount int
+	busyErr := reader.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs`).Scan(&runCount)
+	if !isSQLiteBusy(busyErr) {
+		t.Fatalf("locked read error = %v, want SQLite busy evidence", busyErr)
 	}
-	if !isSQLiteBusy(readErr) {
-		t.Fatalf("busy read error = %v, want retained SQLite busy evidence", readErr)
-	}
-	if elapsed := time.Since(started); elapsed > time.Second {
-		t.Fatalf("cancelled busy read took %s", elapsed)
-	}
+
+	t.Run("later operation deadline", func(t *testing.T) {
+		calls := 0
+		result, retryErr := retryLiveRead(ctx, true, func() (int, error) {
+			calls++
+			if calls == 1 {
+				return 1, fmt.Errorf("first busy attempt: %w", busyErr)
+			}
+			return 2, fmt.Errorf("second attempt: %w", context.DeadlineExceeded)
+		})
+		assertRetainedBusyCancellation(t, result, retryErr, context.DeadlineExceeded)
+		if calls != 2 {
+			t.Fatalf("operation calls = %d, want 2", calls)
+		}
+	})
+
+	t.Run("later context cancellation retains latest busy", func(t *testing.T) {
+		readCtx, cancel := context.WithCancel(ctx)
+		calls := 0
+		result, retryErr := retryLiveRead(readCtx, true, func() (int, error) {
+			calls++
+			switch calls {
+			case 1:
+				return 1, fmt.Errorf("superseded busy attempt: %w", busyErr)
+			case 2:
+				return 2, fmt.Errorf("latest busy attempt: %w", busyErr)
+			default:
+				cancel()
+				return 3, errors.New("query interrupted")
+			}
+		})
+		assertRetainedBusyCancellation(t, result, retryErr, context.Canceled)
+		if calls != 3 {
+			t.Fatalf("operation calls = %d, want 3", calls)
+		}
+		if !strings.Contains(retryErr.Error(), "latest busy attempt") {
+			t.Fatalf("retry error = %v, want latest busy attempt", retryErr)
+		}
+		if strings.Contains(retryErr.Error(), "superseded busy attempt") {
+			t.Fatalf("retry error = %v, retained superseded busy attempt", retryErr)
+		}
+	})
+
+	t.Run("cancellation without busy evidence", func(t *testing.T) {
+		readCtx, cancel := context.WithCancel(ctx)
+		result, retryErr := retryLiveRead(readCtx, true, func() (int, error) {
+			cancel()
+			return 4, errors.New("query interrupted")
+		})
+		if result != 0 {
+			t.Fatalf("retry result = %d, want zero", result)
+		}
+		if !errors.Is(retryErr, context.Canceled) {
+			t.Fatalf("retry error = %v, want context cancellation", retryErr)
+		}
+		var sqliteErr *sqlite.Error
+		if errors.As(retryErr, &sqliteErr) {
+			t.Fatalf("retry error = %v, unexpectedly contains SQLite evidence", retryErr)
+		}
+	})
+
 	if _, err := connection.ExecContext(ctx, `ROLLBACK`); err != nil {
 		t.Fatal(err)
 	}
@@ -236,6 +291,23 @@ func TestLiveReadOnlyCancellationInterruptsBusyRollbackReaderAndReopens(t *testi
 	defer reopened.Close()
 	if snapshot, err := reopened.ReadSnapshot(ctx); err != nil || len(snapshot.Runs) != 1 {
 		t.Fatalf("reopened reader = %#v, %v", snapshot, err)
+	}
+}
+
+func assertRetainedBusyCancellation(t *testing.T, result int, err, contextErr error) {
+	t.Helper()
+	if result != 0 {
+		t.Fatalf("retry result = %d, want zero", result)
+	}
+	if !errors.Is(err, contextErr) {
+		t.Fatalf("retry error = %v, want %v", err, contextErr)
+	}
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		t.Fatalf("retry error = %v, want retained SQLite error", err)
+	}
+	if !isSQLiteBusy(err) {
+		t.Fatalf("retry error = %v, want retained SQLite busy evidence", err)
 	}
 }
 

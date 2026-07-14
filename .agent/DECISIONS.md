@@ -1,5 +1,21 @@
 # Agent Decisions
 
+## AUDIT-R3-03 Live-Reader Busy Evidence Retention (2026-07-14)
+
+- `retryLiveRead` retains the most recent SQLite busy/locked error across the
+  complete retry operation. A later cancellation/deadline operation result or
+  observed context termination returns the result type's zero value and joins
+  that context cause with the retained SQLite evidence.
+- Busy evidence is causal, not ambient: no preceding busy attempt means no
+  SQLite error is attached, and a later ordinary non-context failure returns
+  normally. When the bounded busy retry window itself expires, the latest busy
+  error remains the result.
+- The rollback-journal regression uses a real SQLite busy error but scripts the
+  retry sequence rather than depending on a 50ms deadline race. It proves
+  deadline and cancellation cause discovery, newest-error retention, zero
+  results, absence of invented busy evidence, and healthy reads through both
+  the existing and a reopened live reader after rollback.
+
 ## AUDIT-R3-02 Initialization Filesystem Trust Boundary (2026-07-14)
 
 - Initialization resolves one canonical worktree identity and completes a

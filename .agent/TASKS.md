@@ -35,7 +35,7 @@
   and prove that no descendant can mutate after return.
 - [x] AUDIT-R3-02 — Make initialization and task-directory creation no-follow
   and identity-safe without breaking legitimate linked worktrees.
-- [ ] AUDIT-R3-03 — Retain SQLite busy evidence across live-reader retries and
+- [x] AUDIT-R3-03 — Retain SQLite busy evidence across live-reader retries and
   make the cancellation regression deterministic.
 - [ ] AUDIT-R3-04 — Make task-import and receipt structural parsing ignore
   headings inside Markdown fences.
