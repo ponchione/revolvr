@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	markdownscan "revolvr/internal/markdown"
 )
 
 type HarnessFields struct {
@@ -66,7 +68,11 @@ func replaceSectionLines(body string, section string, replacement []string) stri
 	lines := strings.Split(body, "\n")
 	start := -1
 	end := len(lines)
+	var fence markdownscan.Fence
 	for i, line := range lines {
+		if fence.Scan(line) != markdownscan.LineOutsideFence {
+			continue
+		}
 		if !isSecondLevelHeading(line) {
 			continue
 		}

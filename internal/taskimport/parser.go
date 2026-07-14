@@ -16,6 +16,8 @@ package taskimport
 import (
 	"fmt"
 	"strings"
+
+	markdownscan "revolvr/internal/markdown"
 )
 
 // TaskSpec is a parsed task ready to map to internal/app.AddTaskInput.
@@ -91,38 +93,41 @@ func parseTaskSections(lines []string) ([]taskSection, error) {
 		sections    []taskSection
 		current     *taskSection
 		activeIndex = -1
+		fence       markdownscan.Fence
 	)
 
 	for i, line := range lines {
 		lineNumber := i + 1
-		if h, ok := parseHeading(line); ok {
-			if h.level == 2 && isTaskHeading(h.text) {
-				if current != nil {
-					sections = append(sections, *current)
-				}
-				current = &taskSection{
-					startLine:      lineNumber,
-					headingSummary: taskHeadingSummary(h.text),
-				}
-				activeIndex = -1
-				continue
-			}
-
-			if current == nil {
-				if h.level == 1 {
+		if fence.Scan(line) == markdownscan.LineOutsideFence {
+			if h, ok := parseHeading(line); ok {
+				if h.level == 2 && isTaskHeading(h.text) {
+					if current != nil {
+						sections = append(sections, *current)
+					}
+					current = &taskSection{
+						startLine:      lineNumber,
+						headingSummary: taskHeadingSummary(h.text),
+					}
+					activeIndex = -1
 					continue
 				}
-				return nil, parseError(lineNumber, "expected a task section heading like %q, got %q", "## Task: <summary>", strings.TrimSpace(line))
-			}
 
-			if h.level == 2 || h.level == 3 {
-				current.subsections = append(current.subsections, subsection{
-					startLine:   lineNumber,
-					headingLine: strings.TrimSpace(line),
-					title:       h.text,
-				})
-				activeIndex = len(current.subsections) - 1
-				continue
+				if current == nil {
+					if h.level == 1 {
+						continue
+					}
+					return nil, parseError(lineNumber, "expected a task section heading like %q, got %q", "## Task: <summary>", strings.TrimSpace(line))
+				}
+
+				if h.level == 2 || h.level == 3 {
+					current.subsections = append(current.subsections, subsection{
+						startLine:   lineNumber,
+						headingLine: strings.TrimSpace(line),
+						title:       h.text,
+					})
+					activeIndex = len(current.subsections) - 1
+					continue
+				}
 			}
 		}
 

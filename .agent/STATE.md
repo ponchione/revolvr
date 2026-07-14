@@ -2,9 +2,34 @@
 
 ## Current Focus
 
-`AUDIT-R3-03` closes loss of SQLite busy evidence across live-reader retries.
-The first unchecked follow-up is `AUDIT-R3-04`, which makes task-import and
-receipt structural parsing ignore headings inside Markdown fences.
+`AUDIT-R3-04` closes structural interpretation of headings inside fenced
+Markdown examples. The first unchecked follow-up is `AUDIT-R3-05`, which makes
+Git object-ID validation consistent for SHA-1 and SHA-256 repositories.
+
+## Fence-Aware Markdown Structure (2026-07-14)
+
+- `internal/markdown.Fence` is the shared fence state machine for task imports
+  and receipts. It recognizes backtick and tilde fences with up to three
+  leading spaces, requires a same-marker closing fence at least as long as the
+  opener, accepts longer closers and CRLF, and keeps an unclosed fence active
+  through EOF.
+- Task-import headings are structural only outside a fence. Fence markers and
+  contents remain in the imported task text, while a real heading immediately
+  after a valid closer is recognized normally.
+- Receipt required-section discovery, claim-section extraction, and
+  harness-owned section rewriting use the same fence state. Fenced `## Changed
+  Files` and `## Verification` examples cannot satisfy required sections,
+  redirect claims, or receive harness rewrites; code-block claim extraction
+  retains its existing behavior for actual receipt sections.
+- Regressions cover both marker types, 0–3-space indentation, shorter inert
+  closers, longer valid closers, unclosed fences, CRLF, headings immediately
+  after closure, exact fenced-example preservation, and an actual CLI import
+  that creates exactly one task from the original reproducer shape.
+- Verification passed: focused tests, all affected-package tests, shuffled
+  affected-package tests, ten race-enabled focused repetitions,
+  `go test -count=1 ./...`, `go vet ./...`, `go mod verify`, root help,
+  formatting, and `git diff --check`.
+- No dependency was added. The next task is `AUDIT-R3-05`; blockers: none.
 
 ## Live-Reader Busy Evidence Retention (2026-07-14)
 

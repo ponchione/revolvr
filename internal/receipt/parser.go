@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	markdownscan "revolvr/internal/markdown"
 )
 
 var (
@@ -227,7 +229,11 @@ func HasSection(body string, section string) bool {
 
 func receiptSections(body string) map[string]struct{} {
 	out := map[string]struct{}{}
+	var fence markdownscan.Fence
 	for _, line := range strings.Split(body, "\n") {
+		if fence.Scan(line) != markdownscan.LineOutsideFence {
+			continue
+		}
 		trimmed := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmed, "## ") || strings.HasPrefix(trimmed, "### ") {
 			continue

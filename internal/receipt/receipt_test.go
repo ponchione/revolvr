@@ -63,6 +63,97 @@ func TestParseRejectsMissingRequiredSection(t *testing.T) {
 	}
 }
 
+func TestRequiredSectionsIgnoreFencedHeadings(t *testing.T) {
+	body := strings.Join([]string{
+		"## Summary",
+		"Actual summary.",
+		"",
+		"   ````markdown",
+		"## Changed Files",
+		"- fake-backtick.go",
+		"```",
+		"## Verification",
+		"- `go test ./fake-backtick`",
+		"   `````",
+		"",
+		"  ~~~~markdown",
+		"## Changed Files",
+		"- fake-tilde.go",
+		"~~~",
+		"## Verification",
+		"- `go test ./fake-tilde`",
+		"  ~~~~~",
+		"## Concerns",
+		"None.",
+		"",
+		"## Next Steps",
+		"None.",
+	}, "\n")
+
+	err := ValidateRequiredSections(body, RequiredSections)
+	if !errors.Is(err, ErrMissingSection) {
+		t.Fatalf("required sections error = %v, want ErrMissingSection", err)
+	}
+	for _, section := range []string{"Changed Files", "Verification"} {
+		if !strings.Contains(err.Error(), section) {
+			t.Fatalf("required sections error = %v, want missing %s", err, section)
+		}
+		if HasSection(body, section) {
+			t.Fatalf("HasSection(%q) = true for fenced heading", section)
+		}
+	}
+}
+
+func TestReceiptClaimsIgnoreFencedStructuralHeadings(t *testing.T) {
+	body := strings.Join([]string{
+		"## Summary",
+		"Examples are structurally inert.",
+		"",
+		"   ````markdown",
+		"## Changed Files",
+		"- fake-backtick.go",
+		"```",
+		"## Verification",
+		"- `go test ./fake-backtick`",
+		"   `````",
+		"",
+		"  ~~~~markdown",
+		"## Changed Files",
+		"- fake-tilde.go",
+		"~~~",
+		"## Verification",
+		"- `go test ./fake-tilde`",
+		"  ~~~~~",
+		"## Changed Files",
+		"- `real.go`",
+		"",
+		"## Verification",
+		"- `go test ./...` (passed, exit 0)",
+		"",
+		"## Concerns",
+		"None.",
+		"",
+		"## Next Steps",
+		"None.",
+		"",
+		"```markdown",
+		"## Changed Files",
+		"- fake-unclosed.go",
+		"## Verification",
+		"- `go test ./fake-unclosed`",
+	}, "\n")
+
+	if err := ValidateRequiredSections(body, RequiredSections); err != nil {
+		t.Fatalf("validate required sections: %v", err)
+	}
+	if got, want := ParseChangedFiles(body), []string{"real.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("changed files = %#v, want %#v", got, want)
+	}
+	if got, want := ParseVerificationCommands(body), []string{"go test ./..."}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("verification commands = %#v, want %#v", got, want)
+	}
+}
+
 func TestParseChangedFiles(t *testing.T) {
 	body := `## Changed Files
 - ` + "`internal/receipt/types.go`" + `
@@ -218,6 +309,43 @@ func TestRewriteHarnessFieldsRefreshesHarnessOwnedBodySections(t *testing.T) {
 	}
 	if !parsed.Timestamp.Equal(timestamp) {
 		t.Fatalf("timestamp = %s, want %s", parsed.Timestamp, timestamp)
+	}
+	if got, want := ParseVerificationCommands(parsed.RawBody), []string{"go test ./..."}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("verification commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestRewriteHarnessFieldsPreservesFencedSectionExamples(t *testing.T) {
+	example := strings.Join([]string{
+		"Example remains unchanged:",
+		"",
+		"````markdown",
+		"## Changed Files",
+		"- fake.go",
+		"## Verification",
+		"- `go test ./fake`",
+		"`````",
+		"",
+	}, "\n")
+	content := strings.Replace(validReceiptContent(), "Implemented the receipt package.\n", "Implemented the receipt package.\n\n"+example, 1)
+	updated, parsed, _, err := RewriteHarnessFields([]byte(content), HarnessFields{
+		Verdict:            VerdictCompleted,
+		VerificationStatus: "passed",
+		ChangedFiles:       []string{"real.go"},
+		Verification: []VerificationEntry{{
+			Command:  "go test ./...",
+			ExitCode: 0,
+			Status:   "passed",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("rewrite harness fields: %v", err)
+	}
+	if !strings.Contains(string(updated), example) {
+		t.Fatalf("updated receipt changed fenced example:\n%s", updated)
+	}
+	if got, want := parsed.ChangedFileClaims, []string{"real.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("changed file claims = %#v, want %#v", got, want)
 	}
 	if got, want := ParseVerificationCommands(parsed.RawBody), []string{"go test ./..."}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("verification commands = %#v, want %#v", got, want)

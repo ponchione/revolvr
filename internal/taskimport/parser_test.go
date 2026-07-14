@@ -112,6 +112,54 @@ Add an app-level dry-run import operation.
 	}
 }
 
+func TestParseTreatsFencedTaskHeadingsAsInertContent(t *testing.T) {
+	input := strings.Join([]string{
+		"## Task",
+		"Keep examples intact.",
+		"",
+		"   ````markdown",
+		"## Task: fenced backtick heading",
+		"```",
+		"## Task: still fenced after a short closer",
+		"   `````",
+		"",
+		"  ~~~~markdown",
+		"## Task: fenced tilde heading",
+		"~~~",
+		"## Task: still fenced after a short closer",
+		"  ~~~~~",
+		"### Summary",
+		"One real task",
+		"",
+		"### Examples",
+		"Unclosed sample:",
+		"```markdown",
+		"## Task: fenced until EOF",
+		"example body",
+	}, "\n")
+
+	specs, err := ParseString(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got, want := len(specs), 1; got != want {
+		t.Fatalf("len(specs) = %d, want %d", got, want)
+	}
+	if got, want := specs[0].Summary, "One real task"; got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	for _, want := range []string{
+		"## Task: fenced backtick heading",
+		"## Task: still fenced after a short closer",
+		"## Task: fenced tilde heading",
+		"## Task: fenced until EOF",
+	} {
+		if !strings.Contains(specs[0].Task, want) {
+			t.Fatalf("task lost fenced content %q:\n%s", want, specs[0].Task)
+		}
+	}
+}
+
 func TestParseEmptyTaskTextReportsTaskLine(t *testing.T) {
 	_, err := ParseString(`## Task: Empty
 

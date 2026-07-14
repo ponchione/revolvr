@@ -1188,6 +1188,37 @@ Create second task.
 	}
 }
 
+func TestTaskImportIgnoresFencedTaskHeading(t *testing.T) {
+	workDir := t.TempDir()
+	importPath := filepath.Join(workDir, "tasks.md")
+	writeCLIFile(t, importPath, strings.Join([]string{
+		"## Task: Parser documentation",
+		"Document this example:",
+		"",
+		"```markdown",
+		"## Task: not a real task",
+		"example body",
+		"```",
+		"",
+	}, "\n"))
+
+	out, err := executeCLI(t, workDir, "task", "import", importPath)
+	if err != nil {
+		t.Fatalf("execute task import: %v", err)
+	}
+	tasks := readTasks(t, workDir)
+	if got, want := len(tasks), 1; got != want {
+		t.Fatalf("imported task count = %d, want %d", got, want)
+	}
+	if !strings.Contains(tasks[0].Task, "## Task: not a real task") {
+		t.Fatalf("imported task lost fenced example:\n%s", tasks[0].Task)
+	}
+	want := fmt.Sprintf("Imported 1 task(s).\n1. %s\n", tasks[0].ID)
+	if out != want {
+		t.Fatalf("task import output = %q, want %q", out, want)
+	}
+}
+
 func TestTaskImportParseErrorReturnsClearErrorWithoutMutatingState(t *testing.T) {
 	workDir := t.TempDir()
 	importPath := filepath.Join(workDir, "invalid.md")

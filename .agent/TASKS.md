@@ -37,7 +37,7 @@
   and identity-safe without breaking legitimate linked worktrees.
 - [x] AUDIT-R3-03 — Retain SQLite busy evidence across live-reader retries and
   make the cancellation regression deterministic.
-- [ ] AUDIT-R3-04 — Make task-import and receipt structural parsing ignore
+- [x] AUDIT-R3-04 — Make task-import and receipt structural parsing ignore
   headings inside Markdown fences.
 - [ ] AUDIT-R3-05 — Make Git object-ID validation consistent for SHA-1 and
   SHA-256 repositories across workspace, cache, map, and dossier boundaries.

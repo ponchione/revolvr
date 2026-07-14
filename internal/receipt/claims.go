@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	markdownscan "revolvr/internal/markdown"
 )
 
 var exitCodePattern = regexp.MustCompile(`(?i)\b(?:exit(?:_code)?|code)\s*[:= ]\s*(-?\d+)\b`)
@@ -24,18 +26,18 @@ func ParseChangedFiles(body string) []string {
 		paths = append(paths, value)
 	}
 
-	inCodeBlock := false
+	var fence markdownscan.Fence
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
-			inCodeBlock = !inCodeBlock
+		lineKind := fence.Scan(line)
+		if lineKind == markdownscan.LineFenceBoundary {
 			continue
 		}
 		if strings.HasPrefix(trimmed, "- ") {
 			addChangedFileClaim(add, strings.TrimSpace(strings.TrimPrefix(trimmed, "- ")))
 			continue
 		}
-		if inCodeBlock {
+		if lineKind == markdownscan.LineInsideFence {
 			addChangedFileClaim(add, trimmed)
 		}
 	}
@@ -67,18 +69,18 @@ func ParseVerificationClaims(body string) []VerificationClaim {
 		claims = append(claims, claim)
 	}
 
-	inCodeBlock := false
+	var fence markdownscan.Fence
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
-			inCodeBlock = !inCodeBlock
+		lineKind := fence.Scan(line)
+		if lineKind == markdownscan.LineFenceBoundary {
 			continue
 		}
 		if strings.HasPrefix(trimmed, "- ") {
 			add(strings.TrimSpace(strings.TrimPrefix(trimmed, "- ")))
 			continue
 		}
-		if inCodeBlock || looksLikeVerificationCommand(trimmed) {
+		if lineKind == markdownscan.LineInsideFence || looksLikeVerificationCommand(trimmed) {
 			add(trimmed)
 		}
 	}
@@ -181,12 +183,15 @@ func sectionContent(body string, section string) []string {
 	section = normalizeSection(section)
 	var lines []string
 	inSection := false
+	var fence markdownscan.Fence
 	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "## ") && !strings.HasPrefix(trimmed, "### ") {
-			name := strings.TrimSpace(strings.TrimPrefix(trimmed, "## "))
-			inSection = normalizeSection(name) == section
-			continue
+		if fence.Scan(line) == markdownscan.LineOutsideFence {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "## ") && !strings.HasPrefix(trimmed, "### ") {
+				name := strings.TrimSpace(strings.TrimPrefix(trimmed, "## "))
+				inSection = normalizeSection(name) == section
+				continue
+			}
 		}
 		if inSection {
 			lines = append(lines, line)

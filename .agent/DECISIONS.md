@@ -1,5 +1,20 @@
 # Agent Decisions
 
+## AUDIT-R3-04 Fence-Aware Markdown Structure (2026-07-14)
+
+- `internal/markdown.Fence` owns the small shared fence grammar used by task
+  import and receipt structure. Backtick and tilde openers accept zero through
+  three leading spaces; only a same-marker, whitespace-only closer at least as
+  long as the opener ends the fence. An unclosed fence remains active to EOF.
+- Structural task and receipt headings are recognized only on lines classified
+  outside a fence. Scanning does not rewrite the line, so fence boundaries and
+  contents stay in imported tasks and receipt bodies byte-for-byte within the
+  existing line-ending behavior.
+- Receipt required-section discovery, claim-section selection, and harness
+  body rewriting share that classification. Claim parsers still accept claims
+  inside code blocks belonging to a real Changed Files or Verification
+  section, but a fenced heading cannot start, end, or redirect such a section.
+
 ## AUDIT-R3-03 Live-Reader Busy Evidence Retention (2026-07-14)
 
 - `retryLiveRead` retains the most recent SQLite busy/locked error across the
