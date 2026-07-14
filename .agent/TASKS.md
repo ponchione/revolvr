@@ -61,7 +61,7 @@
   publication and cleanup to stable parent and file identities.
 - [x] AUDIT-R4-04 — Migrate autonomous archive immutable/mutable storage and
   removal away from its bespoke check-then-use path helpers.
-- [ ] AUDIT-R4-05 — Bind autonomous finalization artifact publication and
+- [x] AUDIT-R4-05 — Bind autonomous finalization artifact publication and
   readback to stable parent, temporary-file, and destination identities.
 - [ ] AUDIT-R4-06 — Inventory and migrate the remaining authoritative
   `Lstat`-then-by-name evidence readers identified by AP-01.

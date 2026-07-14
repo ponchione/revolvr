@@ -8,17 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/autonomousstate"
 	"revolvr/internal/ledger"
-	"revolvr/internal/pathguard"
 	"revolvr/internal/redact"
 	"revolvr/internal/taskfile"
 )
@@ -26,13 +23,23 @@ import (
 type FailurePoint string
 
 const (
-	FailureBeforeFrozenWrite      FailurePoint = "before_frozen_write"
-	FailureBeforeCapsuleRename    FailurePoint = "before_capsule_rename"
-	FailureAfterCapsuleRename     FailurePoint = "after_capsule_rename"
-	FailureBeforeTaskUpdate       FailurePoint = "before_task_update"
-	FailureAfterTaskUpdate        FailurePoint = "after_task_update"
-	FailureBeforeLedgerCompletion FailurePoint = "before_ledger_completion"
-	FailureAfterLedgerCompletion  FailurePoint = "after_ledger_completion"
+	FailureBeforeFrozenWrite           FailurePoint = "before_frozen_write"
+	FailureBeforeCapsuleRename         FailurePoint = "before_capsule_rename"
+	FailureAfterCapsuleRename          FailurePoint = "after_capsule_rename"
+	FailureBeforeTaskUpdate            FailurePoint = "before_task_update"
+	FailureAfterTaskUpdate             FailurePoint = "after_task_update"
+	FailureBeforeLedgerCompletion      FailurePoint = "before_ledger_completion"
+	FailureAfterLedgerCompletion       FailurePoint = "after_ledger_completion"
+	FailureBeforeArtifactDirectoryOpen FailurePoint = "before_artifact_directory_open"
+	FailureAfterArtifactDirectoryOpen  FailurePoint = "after_artifact_directory_open"
+	FailureAfterArtifactTemporaryOpen  FailurePoint = "after_artifact_temporary_open"
+	FailureAfterArtifactReadOpen       FailurePoint = "after_artifact_read_open"
+	FailureBeforeArtifactFileSync      FailurePoint = "before_artifact_file_sync"
+	FailureBeforeArtifactPublish       FailurePoint = "before_artifact_publish"
+	FailureAfterArtifactPublish        FailurePoint = "after_artifact_publish"
+	FailureBeforeArtifactDirectorySync FailurePoint = "before_artifact_directory_sync"
+	FailureBeforeArtifactReadback      FailurePoint = "before_artifact_readback"
+	FailureBeforeArtifactCleanup       FailurePoint = "before_artifact_cleanup"
 )
 
 type StateStore interface {
@@ -70,10 +77,11 @@ type Result struct {
 }
 
 func Finalize(ctx context.Context, cfg Config) (Result, error) {
-	root, err := canonicalRoot(cfg.RepositoryRoot)
+	storage, err := bindFinalizationStorage(cfg.RepositoryRoot, func(point FailurePoint) error { return fail(cfg, point) })
 	if err != nil {
 		return Result{}, err
 	}
+	root := storage.root()
 	if cfg.StateStore == nil || cfg.Ledger == nil || cfg.RevalidateEvidence == nil {
 		return Result{}, errors.New("finalize autonomous task: state store, ledger, and live evidence revalidator are required")
 	}
@@ -126,7 +134,7 @@ func Finalize(ctx context.Context, cfg Config) (Result, error) {
 		if err := fail(cfg, FailureBeforeFrozenWrite); err != nil {
 			return Result{}, err
 		}
-		if err := writeImmutable(root, frozenIdentity, frozenBytes); err != nil {
+		if err := storage.writeImmutable(frozenIdentity, frozenBytes); err != nil {
 			return Result{}, err
 		}
 		next := current.State
@@ -142,7 +150,7 @@ func Finalize(ctx context.Context, cfg Config) (Result, error) {
 		if d.OperationID != e.OperationID || d.RunID != e.FinalizationRunID || d.FrozenEvidence != frozenIdentity || d.OriginalTaskSHA256 != e.Task.SHA256 {
 			return Result{}, errors.New("finalize autonomous task: material operation reuse conflicts with frozen transaction")
 		}
-		if err := verifyArtifact(root, frozenIdentity, frozenBytes); err != nil {
+		if err := storage.verifyArtifact(frozenIdentity, frozenBytes); err != nil {
 			return Result{}, err
 		}
 	}
@@ -174,13 +182,13 @@ func Finalize(ctx context.Context, cfg Config) (Result, error) {
 		if err := fail(cfg, FailureBeforeCapsuleRename); err != nil {
 			return Result{}, err
 		}
-		if err := writeImmutable(root, capsuleIdentity, capsuleBytes); err != nil {
+		if err := storage.writeImmutable(capsuleIdentity, capsuleBytes); err != nil {
 			return Result{}, err
 		}
 		if err := fail(cfg, FailureAfterCapsuleRename); err != nil {
 			return Result{}, err
 		}
-		if err := writeImmutable(root, manifestIdentity, manifestBytes); err != nil {
+		if err := storage.writeImmutable(manifestIdentity, manifestBytes); err != nil {
 			return Result{}, err
 		}
 		next := current.State
@@ -196,10 +204,10 @@ func Finalize(ctx context.Context, cfg Config) (Result, error) {
 			return Result{}, err
 		}
 	}
-	if err := verifyArtifact(root, capsuleIdentity, capsuleBytes); err != nil {
+	if err := storage.verifyArtifact(capsuleIdentity, capsuleBytes); err != nil {
 		return Result{}, err
 	}
-	if err := verifyArtifact(root, manifestIdentity, manifestBytes); err != nil {
+	if err := storage.verifyArtifact(manifestIdentity, manifestBytes); err != nil {
 		return Result{}, err
 	}
 	if err := ensureEvent(context.WithoutCancel(ctx), cfg.Ledger, e.FinalizationRunID, ledger.EventFinalizationMaterialized, stageEvent(e, autonomous.FinalizationStageMaterialized, &manifestIdentity)); err != nil {
@@ -423,17 +431,6 @@ func artifact(path string, raw []byte) autonomous.FinalizationArtifact {
 	sum := sha256.Sum256(raw)
 	return autonomous.FinalizationArtifact{Path: path, SHA256: fmt.Sprintf("%x", sum), ByteSize: len(raw)}
 }
-func canonicalRoot(root string) (string, error) {
-	abs, err := filepath.Abs(strings.TrimSpace(root))
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return "", err
-	}
-	return resolved, nil
-}
 func loadExactTask(root string, source TaskSource, status string) (taskfile.Task, error) {
 	task, ok, err := taskfile.FindByID(root, source.TaskID)
 	if err != nil || !ok {
@@ -453,103 +450,6 @@ func fail(cfg Config, point FailurePoint) error {
 func stageLess(got, want autonomous.FinalizationStage) bool {
 	order := map[autonomous.FinalizationStage]int{autonomous.FinalizationStageAdmitted: 1, autonomous.FinalizationStageMaterialized: 2, autonomous.FinalizationStageTaskCompleted: 3, autonomous.FinalizationStageStateCompleted: 4, autonomous.FinalizationStageLedgerCompleted: 5}
 	return order[got] < order[want]
-}
-
-func writeImmutable(root string, id autonomous.FinalizationArtifact, raw []byte) error {
-	abs, err := pathguard.Resolve(root, filepath.FromSlash(id.Path))
-	if err != nil {
-		return err
-	}
-	if err := ensureSafeParents(root, filepath.Dir(abs)); err != nil {
-		return err
-	}
-	if existing, err := os.ReadFile(abs); err == nil {
-		if bytes.Equal(existing, raw) {
-			return verifyArtifact(root, id, raw)
-		}
-		return fmt.Errorf("completion artifact %q already exists with different bytes", id.Path)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return err
-	}
-	temp, err := os.CreateTemp(filepath.Dir(abs), ".completion.tmp-*")
-	if err != nil {
-		return err
-	}
-	name := temp.Name()
-	defer os.Remove(name)
-	if err := temp.Chmod(0o644); err != nil {
-		return err
-	}
-	if _, err := temp.Write(raw); err != nil {
-		return err
-	}
-	if err := temp.Sync(); err != nil {
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(name, abs); err != nil {
-		return err
-	}
-	dir, err := os.Open(filepath.Dir(abs))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	if err := dir.Sync(); err != nil {
-		return err
-	}
-	return verifyArtifact(root, id, raw)
-}
-func verifyArtifact(root string, id autonomous.FinalizationArtifact, want []byte) error {
-	abs, err := pathguard.Resolve(root, filepath.FromSlash(id.Path))
-	if err != nil {
-		return err
-	}
-	info, err := os.Lstat(abs)
-	if err != nil {
-		return err
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("completion artifact is not a regular non-symlink file")
-	}
-	raw, err := os.ReadFile(abs)
-	if err != nil {
-		return err
-	}
-	got := artifact(id.Path, raw)
-	if got != id || !bytes.Equal(raw, want) {
-		return errors.New("completion artifact readback identity mismatch")
-	}
-	return nil
-}
-func ensureSafeParents(root, dir string) error {
-	rel, err := filepath.Rel(root, dir)
-	if err != nil {
-		return err
-	}
-	current := root
-	for _, part := range strings.Split(rel, string(filepath.Separator)) {
-		if part == "." || part == "" {
-			continue
-		}
-		current = filepath.Join(current, part)
-		info, err := os.Lstat(current)
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-			return errors.New("completion artifact path has unsafe parent component")
-		}
-	}
-	return nil
 }
 
 func redactBytes(redactor *redact.Redactor, raw []byte) []byte {

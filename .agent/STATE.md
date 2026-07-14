@@ -2,11 +2,44 @@
 
 ## Current Focus
 
-`AUDIT-R4-04` is complete. Autonomous archive reads, enumeration, immutable
-publication, mutable journal replacement, exact removal, cleanup, sync, and
-readback now share one stable repository authority and revalidate the held
-Git-admin/task-state leases. The next bounded task is `AUDIT-R4-05`; there are
-no blockers.
+`AUDIT-R4-05` is complete. Autonomous finalization completion evidence,
+capsule, and manifest publication/replay now retain one descriptor-rooted
+repository and parent authority through exclusive publication, cleanup, sync,
+and exact readback. The next bounded task is `AUDIT-R4-06`; there are no
+blockers.
+
+## Stable Autonomous Finalization Artifact Boundary (2026-07-14)
+
+- `Finalize` binds one `runtimepath.Boundary` for its complete transaction and
+  routes frozen completion evidence, `completion.md`, and the completion
+  manifest through one `finalizationStorage`. Replay verification uses the
+  same retained root authority instead of re-resolving paths independently.
+- Immutable completion artifacts are written and synced through an opened
+  temporary inode and published with a descriptor-relative exclusive link.
+  A racing destination is never overwritten: exact bytes are accepted as
+  replay, conflicting or unsafe destinations fail closed.
+- Publication retains the opened parent and temporary through post-link
+  namespace checks, directory sync, and strict descriptor readback. Cleanup
+  removes only an unpublished opened temporary from that parent; once the link
+  syscall has completed the final name is recorded before later validation,
+  so a published artifact is never treated as cleanup residue.
+- Protected descriptor reads replace the finalization-specific parent walker,
+  `Lstat`/`ReadFile`, `MkdirAll`, `CreateTemp`, pathname rename/removal,
+  directory reopen/sync, and readback helpers. Canonical task and state changes
+  remain with their already-hardened `taskfile` and `autonomousstate` owners.
+- Permanent regressions reject final symlinks, hard links, unsafe modes,
+  competing unsafe destinations, and renamed ancestors at every directory,
+  temporary, sync, publication, readback, and cleanup boundary. They prove
+  published-vs-unpublished state and exact outside entries, bytes, modes,
+  symlink targets, and link counts.
+- A full `Finalize` regression substitutes the completion namespace with
+  same-named attacker temporary/final files and proves no outside mutation and
+  no task, canonical-state, or ledger advancement. Focused adversarial tests
+  passed ten repetitions and the package race suite.
+- The complete ordinary, shuffled, and race suites, `go vet`, module
+  verification, formatting/diff checks, CLI help, and Linux/Darwin/FreeBSD plus
+  Windows-stub cross-builds passed. No dependency was added. The next task is
+  `AUDIT-R4-06`; blockers: none.
 
 ## Stable Autonomous Archive Storage Boundary (2026-07-14)
 

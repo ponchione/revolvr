@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## AUDIT-R4-05 Stable Finalization Artifact Store (2026-07-14)
+
+- One finalization transaction owns one descriptor-rooted artifact store for
+  frozen evidence, capsule, and manifest publication and replay. Canonical
+  task and state mutation stay with `taskfile` and `autonomousstate`; this
+  store does not duplicate or weaken those owners' locking/CAS contracts.
+- Completion artifacts are immutable. Publication uses an opened, synced
+  temporary inode and descriptor-relative exclusive link rather than an
+  overwrite-capable rename. An exact existing artifact is replay; a
+  conflicting, aliased, unsafe-mode, or substituted destination is an error.
+- The store retains the opened parent and temporary identity through
+  publication, directory sync, and exact descriptor readback. It records a
+  completed link before post-publication checks, distinguishing a durable
+  final name from an unpublished temporary even when later validation fails.
+- Cleanup unlinks only the still-opened unpublished temporary relative to its
+  retained parent. If namespace authority is lost, leaving the temporary in
+  the displaced harness directory is preferable to following a replacement
+  pathname and mutating an attacker-selected outside entry.
+- Replay and verification read through protected file descriptors and require
+  exact path/hash/size/bytes. The finalization-specific parent walker and all
+  check-then-reopen publication, cleanup, sync, and readback helpers are
+  removed.
+- Deterministic fault points cover before/after directory open, temporary and
+  read open, file sync, pre/post publication, directory sync, readback, and
+  cleanup. The permanent end-to-end oracle includes transaction state and the
+  complete outside-tree contents, modes, symlink targets, and link counts.
+
 ## AUDIT-R4-04 Stable Autonomous Archive Store (2026-07-14)
 
 - One archive or reopen transaction owns one descriptor-rooted
