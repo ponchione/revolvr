@@ -185,7 +185,11 @@ func verifyCommit(ctx context.Context, g gitConfig, sha string, expectedPaths []
 	if !equalStrings(paths, want) {
 		return fmt.Errorf("archive git: commit paths %v do not match exact operation paths %v", paths, want)
 	}
-	for path, bytes := range expectedFiles {
+	for _, path := range want {
+		bytes, verifyBytes := expectedFiles[path]
+		if !verifyBytes {
+			continue
+		}
 		got, found, err := g.fileAt(ctx, sha, path)
 		if err != nil || !found {
 			return errors.Join(err, fmt.Errorf("archive git: expected committed file %q is missing", path))

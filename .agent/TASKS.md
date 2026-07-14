@@ -75,8 +75,11 @@
   schema precedence and fail-closed ambiguity handling.
 - [x] AUDIT-R4-10 — Bind source-snapshot bytes to the opened file identity and
   reject regular-file and symlink ABA substitutions.
-- [ ] AUDIT-R4-11 — Make action-budget and archive-file first-error diagnostics
+- [x] AUDIT-R4-11 — Make action-budget and archive-file first-error diagnostics
   deterministic under multiple simultaneous failures.
+- [ ] AUDIT-R4-CLOSE-01 — Re-audit AP-01 through AP-06 against committed
+  source and regressions, run the final verification matrix, and delete
+  `AUDIT_PROBLEMS.md` only when every finding is proven closed.
 
 ## Completed Programs
 

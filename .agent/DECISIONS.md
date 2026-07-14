@@ -1,5 +1,19 @@
 # Agent Decisions
 
+## AUDIT-R4-11 Deterministic Residual Diagnostics (2026-07-14)
+
+- When several action-budget authorities regress in one transition, action
+  string order is the diagnostic precedence. Transition validation sorts a
+  copy of the prior budget slice and never lets a map traversal choose the
+  reported action.
+- Archive commit paths are the canonical order for expected byte checks. The
+  same sorted path slice first proves the exact committed path set and then
+  selects each expected payload for object read and comparison; entries that
+  intentionally have no byte payload remain exact path-only evidence.
+- Determinism regressions are multi-invalid by construction and assert exact
+  errors repeatedly. They also assert archive object-read order so stable text
+  cannot mask nondeterministic command execution.
+
 ## AUDIT-R4-10 Descriptor-Bound Source Snapshot Identity (2026-07-14)
 
 - Source-entry evidence belongs to the opened filesystem object, not merely

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -1653,11 +1654,12 @@ func validateAttemptTransition(previous, next AttemptState) error {
 			return fmt.Errorf("action %q attempt counter decreased", counter.Action)
 		}
 	}
-	previousBudgets := make(map[Action]CountBudget, len(previous.ActionBudgets))
-	for _, budget := range previous.ActionBudgets {
-		previousBudgets[budget.Action] = budget.Budget
-	}
-	for action, prior := range previousBudgets {
+	previousBudgets := append([]ActionBudget(nil), previous.ActionBudgets...)
+	sort.Slice(previousBudgets, func(i, j int) bool {
+		return previousBudgets[i].Action < previousBudgets[j].Action
+	})
+	for _, previousBudget := range previousBudgets {
+		action, prior := previousBudget.Action, previousBudget.Budget
 		found := false
 		for _, current := range next.ActionBudgets {
 			if current.Action != action {

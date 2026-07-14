@@ -36,6 +36,47 @@ func TestAttemptTransitionRejectsCounterBudgetAndEventRewrites(t *testing.T) {
 	}
 }
 
+func TestAttemptTransitionReportsFirstInvalidActionBudgetDeterministically(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*ExecutionState)
+		want   string
+	}{
+		{
+			name: "missing",
+			mutate: func(next *ExecutionState) {
+				next.Attempts.ActionBudgets = nil
+			},
+			want: `validate execution state transition: attempts: action "audit" budget disappeared`,
+		},
+		{
+			name: "changed",
+			mutate: func(next *ExecutionState) {
+				for i := range next.Attempts.ActionBudgets {
+					next.Attempts.ActionBudgets[i].Budget.Limit++
+				}
+			},
+			want: `validate execution state transition: attempts: action "audit" budget authority changed or consumption decreased`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previous := attemptTransitionState()
+			previous.Attempts.ActionBudgets = []ActionBudget{
+				{Action: ActionPlan, Budget: CountBudget{Mode: BudgetModeLimited, Limit: 1}},
+				{Action: ActionAudit, Budget: CountBudget{Mode: BudgetModeLimited, Limit: 1}},
+			}
+			for i := 0; i < 1_000; i++ {
+				next := cloneAttemptTransitionState(previous)
+				tt.mutate(&next)
+				if err := ValidateExecutionStateTransition(previous, next); err == nil || err.Error() != tt.want {
+					t.Fatalf("iteration %d: error = %v, want %q", i, err, tt.want)
+				}
+			}
+		})
+	}
+}
+
 func TestDossierRendersDurableAttemptAndBreakerAuthority(t *testing.T) {
 	state := attemptTransitionState()
 	evidence := EvidenceReference{Kind: EvidenceKindLedger, Reference: "attempt-control:stop", Detail: "Exact breaker evidence."}

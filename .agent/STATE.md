@@ -2,10 +2,31 @@
 
 ## Current Focus
 
-`AUDIT-R4-10` is complete. Source snapshots bind regular-file bytes and
-symlink targets to opened filesystem identities and reject final-component,
-inode-replacement, and A-to-B-to-A substitutions. The next bounded task is
-`AUDIT-R4-11`; there are no blockers.
+`AUDIT-R4-11` is complete. Action-budget transition diagnostics and archive
+commit file diagnostics now have explicit canonical first-error order under
+multiple simultaneous failures. The next bounded task is
+`AUDIT-R4-CLOSE-01`; there are no blockers.
+
+## Deterministic Remaining First-Error Diagnostics (2026-07-14)
+
+- Attempt-transition validation copies and sorts prior action budgets by
+  action before checking authority, consumption, and disappearance. This
+  matches the action-budget canonicalization used by the attempt controller
+  and removes map iteration from diagnostic selection.
+- Archive commit verification already sorts the exact expected path set for
+  commit comparison. Expected file bytes are now checked in that same order,
+  while paths without an expected byte payload remain path-only evidence.
+- Multi-invalid regressions supply action budgets in reverse order and assert
+  the exact first error for two missing and two changed budgets. Archive
+  regressions supply reverse paths with two missing or two byte-mismatched
+  files and assert both the exact error and the first Git object read. Every
+  case executes 1,000 times per test invocation.
+- Verification passed: twenty focused repetitions, ten complete repetitions
+  of both owner packages, owner race tests, complete ordinary/shuffled/race
+  suites, `go vet ./...`, `go mod verify`, CLI help, formatting and diff
+  checks, Linux/Darwin/FreeBSD amd64 builds, and the unsupported-Windows
+  diagnostic-stub build. No dependency was added. The next task is
+  `AUDIT-R4-CLOSE-01`; blockers: none.
 
 ## Descriptor-Bound Source Snapshot Entries (2026-07-14)
 
