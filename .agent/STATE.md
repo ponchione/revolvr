@@ -2,9 +2,30 @@
 
 ## Current Focus
 
-No unchecked tasks remain in `.agent/TASKS.md`. `AUDIT-CLOSE-01` independently
-confirmed all six 2026-07-14 audit findings are resolved, passed the complete
-local verification matrix, and removed the closed `AUDIT_PROBLEMS.md` report.
+`AUDIT-R3-00` completed an independent wide-sweep audit. Eight evidence-backed
+problems or cleanup opportunities are recorded in `AUDIT_PROBLEMS.md`; the
+first unchecked follow-up is `AUDIT-R3-01`, which closes the successful-command
+descendant-process lifecycle gap.
+
+## Independent Wide-Sweep Audit (2026-07-14)
+
+- Two high-severity boundary problems were reproduced: successful runner
+  leaders can leave mutation-capable descendants alive, and `revolvr init` can
+  follow repository-controlled symlinks and write outside the repository.
+- A shuffled run and a focused invocation configured for twenty repetitions
+  exposed loss of SQLite busy evidence when a live-reader context expires
+  during a later retry.
+- A CLI fixture proved that a task heading inside a fenced Markdown example is
+  persisted as a second task. Receipt section scanners share the same issue.
+- Direct code and Git probes found partial SHA-256-repository support, rejection
+  of safe names beginning with `..`, three map-order-dependent diagnostics, and
+  a small set of confirmed no-caller production code.
+- Ordinary tests, race tests, `go vet`, module verification, formatting, shell
+  syntax, local smokes, supported cross-builds, and CLI help passed.
+  `govulncheck` found no reachable vulnerability. The shuffled/focused ledger
+  failure is retained as audit evidence rather than hidden.
+- No production code was changed, no dependency was added, and no commit was
+  created during the audit.
 
 ## Final Audit Closure (2026-07-14)
 

@@ -29,6 +29,24 @@
 - [x] AUDIT-CLOSE-01 — Re-audit every `AUDIT_PROBLEMS.md` finding against the
   committed fixes, run the final verification matrix, and delete the audit
   file only if all findings are resolved.
+- [x] AUDIT-R3-00 — Conduct an independent wide-sweep audit and record only
+  reproduced or directly evidenced findings in `AUDIT_PROBLEMS.md`.
+- [ ] AUDIT-R3-01 — Settle runner process groups after successful leader exit
+  and prove that no descendant can mutate after return.
+- [ ] AUDIT-R3-02 — Make initialization and task-directory creation no-follow
+  and identity-safe without breaking legitimate linked worktrees.
+- [ ] AUDIT-R3-03 — Retain SQLite busy evidence across live-reader retries and
+  make the cancellation regression deterministic.
+- [ ] AUDIT-R3-04 — Make task-import and receipt structural parsing ignore
+  headings inside Markdown fences.
+- [ ] AUDIT-R3-05 — Make Git object-ID validation consistent for SHA-1 and
+  SHA-256 repositories across workspace, cache, map, and dossier boundaries.
+- [ ] AUDIT-R3-06 — Accept safe tracked names beginning with `..` while still
+  rejecting path traversal.
+- [ ] AUDIT-R3-07 — Replace map-order-dependent validation diagnostics with
+  explicit deterministic ordering.
+- [ ] AUDIT-R3-08 — Remove the confirmed no-caller wrappers and obsolete
+  admitted-cycle orchestration path if it is not intentionally reserved.
 
 ## Completed Programs
 
