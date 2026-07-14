@@ -2,10 +2,41 @@
 
 ## Current Focus
 
-`AUDIT-R4-01` is complete. The shared runtime-path boundary is descriptor-
-rooted, canonical autonomous-state persistence uses it throughout, and the
-outside-rename reproducer now fails before outside publication. The next
-bounded task is `AUDIT-R4-02`; there are no blockers.
+`AUDIT-R4-02` is complete. Notification evidence and persistence retain stable
+delivery/history directory handles and the actual delivery flock through
+publication, sync, cleanup, and readback. The next bounded task is
+`AUDIT-R4-03`; there are no blockers.
+
+## Stable Notification Persistence Boundary (2026-07-14)
+
+- Notification delivery binds one `runtimepath.Boundary`, retains the opened
+  delivery directory, and retains the hardened `lock.Flock` instead of
+  converting it to an unlock closure. Every write, immutable link, journal
+  replacement, cleanup unlink, sync, and readback acceptance rechecks the
+  namespace and the held lease.
+- Intent, payload, and transition history now write through opened temporary
+  inodes and publish immutably with descriptor-relative exclusive links.
+  `journal.json` uses a descriptor-relative atomic replacement. Both paths
+  retain the opened temporary identity through post-publication checks and
+  safely distinguish a completed metadata syscall from a pre-publication
+  failure.
+- History creation/opening is relative to the retained delivery directory.
+  `Inspect`, `List`, journal reconstruction, and exact-content replay read and
+  enumerate through stable directories and protected file descriptors; the
+  notification-specific path walkers and `Lstat`/by-name reads are removed.
+- Cleanup is fail-closed: it removes only the still-opened temporary from its
+  stable parent while the original delivery lease remains valid. Namespace or
+  lease loss preserves local residue and cannot unlink an attacker-selected
+  outside entry.
+- Deterministic before-open, after-open, before/after-publication, sync, and
+  cleanup seams exercise intent, payload, history, and journal boundaries.
+  Permanent regressions cover final symlinks, hard links, unsafe modes,
+  renamed ancestors with same-named attacker temporaries, exact outside-tree
+  contents/modes/link counts, and delivery-lock inode replacement.
+- Focused tests passed repeatedly and under the race detector. The complete
+  ordinary and race suites, `go vet`, module verification, diff/format checks,
+  CLI help, and Linux/Darwin/FreeBSD plus Windows-stub cross-builds passed. No
+  dependency was added. The next task is `AUDIT-R4-03`; blockers: none.
 
 ## Descriptor-Rooted Runtime And Autonomous-State Boundary (2026-07-14)
 

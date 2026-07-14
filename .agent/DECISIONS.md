@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## AUDIT-R4-02 Stable Notification Persistence Boundary (2026-07-14)
+
+- One notification delivery owns one descriptor-rooted store for its complete
+  operation. The store retains the stable delivery directory and the actual
+  exclusive `Flock`; a closure that can only unlock is insufficient because
+  persistence must prove the named lease inode immediately before metadata
+  mutation and before accepting authority.
+- Immutable notification intent, payload, and history use opened temporary
+  inodes plus descriptor-relative exclusive link publication. Mutable
+  `journal.json` uses an opened temporary plus descriptor-relative atomic
+  replacement. The opened file records its published name before post-syscall
+  validation so cleanup never mistakes a completed publication for an
+  unpublished temporary.
+- The runtime-path boundary supports direct child-directory open and creation
+  from a retained parent. Notification history and list traversal use that
+  operation so a transaction does not re-resolve child authority through a
+  substituted ancestor pathname.
+- Protected reads and enumeration retain the same delivery/history handles
+  through journal reconstruction, intent/payload identity checks, and list
+  projection. Notification-local `Lstat`/read walkers, by-name publication,
+  rename, removal, and sync helpers are removed.
+- Cleanup requires both the stable namespace and original lease. If either is
+  lost, leaving a harness-owned temporary in the displaced directory is safer
+  than risking removal of an attacker-selected entry. Fault seams bracket
+  open, write/sync, publication, post-publication, directory sync, and cleanup
+  so this rule remains permanently testable.
+
 ## AUDIT-R4-01 Descriptor-Rooted Runtime State Boundary (2026-07-14)
 
 - `runtimepath.Boundary` is a value authority over one canonical repository

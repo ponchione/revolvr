@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -145,6 +146,10 @@ func TestDeliveryRetryReplayExactInputEnvironmentAndRedaction(t *testing.T) {
 	_, _, journal, found, err := Inspect(root, payload.DeliveryID)
 	if err != nil || !found || strings.Contains(journal.Attempts[0].Stdout+journal.Attempts[0].Stderr, "secret-value") {
 		t.Fatalf("journal=%+v found=%v err=%v", journal, found, err)
+	}
+	summaries, err := List(root)
+	if err != nil || len(summaries) != 1 || summaries[0].DeliveryID != payload.DeliveryID || summaries[0].Stage != StageSucceeded || summaries[0].Attempts != 2 {
+		t.Fatalf("summaries=%+v err=%v", summaries, err)
 	}
 	replay, err := Deliver(context.Background(), cfg)
 	if err != nil || !replay.Replayed || calls != 2 {
@@ -476,9 +481,13 @@ func TestDeliveryLockRejectsUnsafePathsAndOpenSubstitution(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(t, root, outside, sentinel, dir, lockPath)
 			}
-			unlock, err := acquireDeliveryLock(context.Background(), root, dir, tt.afterOpen)
+			boundary, bindErr := runtimepath.Bind(root)
+			if bindErr != nil {
+				t.Fatal(bindErr)
+			}
+			lease, err := acquireDeliveryLock(context.Background(), boundary, dir, tt.afterOpen)
 			if err == nil {
-				unlock()
+				_ = lease.Close()
 				t.Fatal("unsafe delivery lock path was acquired")
 			}
 			if !errors.Is(err, runtimepath.ErrUnsafe) {
@@ -501,6 +510,177 @@ func TestDeliveryLockRejectsUnsafePathsAndOpenSubstitution(t *testing.T) {
 	}
 }
 
+func TestNotificationEvidenceRejectsUnsafeFinalComponents(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, dir, outside, sentinel string)
+	}{
+		{
+			name: "intent symlink",
+			setup: func(t *testing.T, dir, _, sentinel string) {
+				t.Helper()
+				path := filepath.Join(dir, "intent.json")
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(sentinel, path); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "payload hard link",
+			setup: func(t *testing.T, dir, _, sentinel string) {
+				t.Helper()
+				path := filepath.Join(dir, "payload.json")
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Link(sentinel, path); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "journal unsafe mode",
+			setup: func(t *testing.T, dir, _, _ string) {
+				t.Helper()
+				if err := os.Chmod(filepath.Join(dir, "journal.json"), 0o666); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "history symlink",
+			setup: func(t *testing.T, dir, _, sentinel string) {
+				t.Helper()
+				path := filepath.Join(dir, "history", "00000000000000000001-admitted.json")
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(sentinel, path); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "delivery directory unsafe mode",
+			setup: func(t *testing.T, dir, _, _ string) {
+				t.Helper()
+				if err := os.Chmod(dir, 0o777); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root, payload, _, _ := admittedDeliveryFixture(t, EventQueueDrained)
+			dir := deliveryDir(root, payload.DeliveryID)
+			outside := t.TempDir()
+			sentinel := filepath.Join(outside, "sentinel")
+			if err := os.WriteFile(sentinel, []byte("outside authority\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			test.setup(t, dir, outside, sentinel)
+			before := notificationTreeSnapshot(t, outside)
+			if _, _, _, _, err := Inspect(root, payload.DeliveryID); !errors.Is(err, runtimepath.ErrUnsafe) {
+				t.Fatalf("Inspect error = %v, want runtimepath.ErrUnsafe", err)
+			}
+			if after := notificationTreeSnapshot(t, outside); !reflect.DeepEqual(after, before) {
+				t.Fatalf("outside tree changed\nbefore: %v\nafter:  %v", before, after)
+			}
+		})
+	}
+}
+
+func TestDeliveryPersistenceRejectsAncestorSubstitutionWithoutOutsideMutation(t *testing.T) {
+	tests := []struct {
+		name       string
+		point      persistencePoint
+		pathMatch  func(string) bool
+		failBefore bool
+	}{
+		{name: "intent before open", point: persistenceBeforeOpen, pathMatch: func(path string) bool { return filepath.Base(path) == "intent.json" }},
+		{name: "payload after open", point: persistenceAfterOpen, pathMatch: func(path string) bool { return filepath.Base(path) == "payload.json" }},
+		{name: "history before publication", point: persistenceBeforePublication, pathMatch: func(path string) bool { return filepath.Base(path) == "00000000000000000001-admitted.json" }},
+		{name: "journal before publication", point: persistenceBeforePublication, pathMatch: func(path string) bool { return filepath.Base(path) == "journal.json" }},
+		{name: "journal after publication", point: persistenceAfterPublication, pathMatch: func(path string) bool { return filepath.Base(path) == "journal.json" }},
+		{name: "history directory sync", point: persistenceDirectorySync, pathMatch: func(path string) bool { return filepath.Base(path) == "history" }},
+		{name: "history cleanup", point: persistenceCleanup, pathMatch: func(path string) bool { return filepath.Base(path) == "00000000000000000001-admitted.json" }, failBefore: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			payload, cfg := notificationTestDelivery(t, root, EventSafetyStop)
+			dir := deliveryDir(root, payload.DeliveryID)
+			outside := t.TempDir()
+			if err := os.WriteFile(filepath.Join(outside, "sentinel"), []byte("outside authority\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			injectedFailure := errors.New("injected history failure")
+			injected := false
+			var outsideBefore []string
+			cfg.persistenceFault = func(point persistencePoint, path string) error {
+				if test.failBefore && point == persistenceHistoryWrite && test.pathMatch(path) {
+					return injectedFailure
+				}
+				if injected || point != test.point || !test.pathMatch(path) {
+					return nil
+				}
+				injected = true
+				var err error
+				outsideBefore, err = substituteNotificationDirectory(t, dir, outside)
+				return err
+			}
+
+			if _, err := Deliver(context.Background(), cfg); !errors.Is(err, runtimepath.ErrUnsafe) {
+				t.Fatalf("Deliver error = %v, want runtimepath.ErrUnsafe", err)
+			} else if test.failBefore && !errors.Is(err, injectedFailure) {
+				t.Fatalf("Deliver error = %v, want injected history failure", err)
+			}
+			if !injected || outsideBefore == nil {
+				t.Fatal("substitution hook did not run")
+			}
+			if after := notificationTreeSnapshot(t, outside); !reflect.DeepEqual(after, outsideBefore) {
+				t.Fatalf("outside tree changed\nbefore: %v\nafter:  %v", outsideBefore, after)
+			}
+		})
+	}
+}
+
+func TestDeliveryPersistenceChecksHeldLeaseBeforeJournalReplacement(t *testing.T) {
+	root := t.TempDir()
+	payload, cfg := notificationTestDelivery(t, root, EventDaemonFailed)
+	dir := deliveryDir(root, payload.DeliveryID)
+	injected := false
+	cfg.persistenceFault = func(point persistencePoint, path string) error {
+		if injected || point != persistenceBeforePublication || filepath.Base(path) != "journal.json" {
+			return nil
+		}
+		injected = true
+		lockPath := filepath.Join(dir, "delivery.lock")
+		if err := os.Rename(lockPath, lockPath+".held"); err != nil {
+			return err
+		}
+		return os.WriteFile(lockPath, []byte("replacement lock\n"), 0o600)
+	}
+
+	if _, err := Deliver(context.Background(), cfg); !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("Deliver error = %v, want runtimepath.ErrUnsafe", err)
+	}
+	if !injected {
+		t.Fatal("lease substitution hook did not run")
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "journal.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("journal was replaced after lease substitution: %v", err)
+	}
+	_, _, journal, found, err := Inspect(root, payload.DeliveryID)
+	if err != nil || !found || journal.Sequence != 1 || journal.Stage != StageAdmitted {
+		t.Fatalf("recovered journal = %+v found=%t error=%v", journal, found, err)
+	}
+}
+
 func TestDeliveryRestartRecoversRunningAttemptAndHistoryAhead(t *testing.T) {
 	root := t.TempDir()
 	executable := filepath.Join(root, "hook")
@@ -512,19 +692,18 @@ func TestDeliveryRestartRecoversRunningAttemptAndHistoryAhead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ensureSafeDirectory(root, deliveryDir(root, payload.DeliveryID)); err != nil {
-		t.Fatal(err)
-	}
+	store, closeStore := openNotificationTestStore(t, root, payload.DeliveryID)
 	policyID, _ := policy.Identity([]string{"HOOK_SECRET"})
 	intent := Intent{SchemaVersion: IntentSchemaVersion, DeliveryID: payload.DeliveryID, EventID: payload.EventID, Event: payload.Event, PayloadSHA256: hash(raw), PayloadSize: len(raw), Policy: policy, PolicySHA256: policyID, ConfigSchema: payload.EffectiveConfigSchema, ConfigSHA256: payload.EffectiveConfigSHA256, AdmittedAt: fixedTime}
-	journal, _, err := admit(deliveryDir(root, payload.DeliveryID), intent, raw, fixedTime)
+	journal, _, err := store.admit(intent, raw, fixedTime)
 	if err != nil {
 		t.Fatal(err)
 	}
-	journal, err = transition(deliveryDir(root, payload.DeliveryID), journal, StageRunning, "attempt 1 running", nil, fixedTime.Add(time.Second))
+	journal, err = store.transition(journal, StageRunning, "attempt 1 running", nil, fixedTime.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
+	closeStore()
 	if err := os.Remove(filepath.Join(deliveryDir(root, payload.DeliveryID), "journal.json")); err != nil {
 		t.Fatal(err)
 	}
@@ -552,19 +731,17 @@ func admittedDeliveryFixture(t *testing.T, event Event) (string, Payload, Delive
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := deliveryDir(root, payload.DeliveryID)
-	if err := ensureSafeDirectory(root, dir); err != nil {
-		t.Fatal(err)
-	}
+	store, closeStore := openNotificationTestStore(t, root, payload.DeliveryID)
 	policyID, err := policy.Identity([]string{"HOOK_SECRET"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	intent := Intent{SchemaVersion: IntentSchemaVersion, DeliveryID: payload.DeliveryID, EventID: payload.EventID, Event: payload.Event, PayloadSHA256: hash(raw), PayloadSize: len(raw), Policy: policy, PolicySHA256: policyID, ConfigSchema: payload.EffectiveConfigSchema, ConfigSHA256: payload.EffectiveConfigSHA256, AdmittedAt: payload.OccurredAt}
-	journal, _, err := admit(dir, intent, raw, fixedTime)
+	journal, _, err := store.admit(intent, raw, fixedTime)
 	if err != nil {
 		t.Fatal(err)
 	}
+	closeStore()
 	now := fixedTime
 	cfg := DeliveryConfig{
 		RepositoryRoot: root,
@@ -583,7 +760,7 @@ func admittedDeliveryFixture(t *testing.T, event Event) (string, Payload, Delive
 
 func readNotificationTestJournal(t *testing.T, path string) Journal {
 	t.Helper()
-	raw, err := readRegular(path, 4<<20)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -592,4 +769,133 @@ func readNotificationTestJournal(t *testing.T, path string) Journal {
 		t.Fatal(err)
 	}
 	return journal
+}
+
+func openNotificationTestStore(t *testing.T, root, deliveryID string) (*deliveryStore, func()) {
+	t.Helper()
+	boundary, err := runtimepath.Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := deliveryDir(boundary.Root(), deliveryID)
+	lease, err := acquireDeliveryLock(context.Background(), boundary, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, found, err := openDeliveryStore(boundary, deliveryID, lease, nil)
+	if err != nil || !found {
+		_ = lease.Close()
+		t.Fatalf("open delivery store: found=%t error=%v", found, err)
+	}
+	return store, func() {
+		t.Helper()
+		if err := errors.Join(store.Close(), lease.Close()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func notificationTestDelivery(t *testing.T, root string, event Event) (Payload, DeliveryConfig) {
+	t.Helper()
+	executable := filepath.Join(root, "hook")
+	if err := os.WriteFile(executable, []byte("#!/bin/sh\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	policy := enabledPolicy(executable)
+	payload, raw, err := BuildPayload(payloadInput(event, policy), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := fixedTime
+	return payload, DeliveryConfig{
+		RepositoryRoot: root,
+		Payload:        payload,
+		PayloadBytes:   raw,
+		Policy:         policy,
+		RedactionNames: []string{"HOOK_SECRET"},
+		Clock:          func() time.Time { now = now.Add(time.Second); return now },
+		Runner: func(context.Context, runner.Command) runner.Result {
+			t.Fatal("notification runner reached after persistence substitution")
+			return runner.Result{}
+		},
+		LookPath:  func(string) (string, error) { return executable, nil },
+		LookupEnv: func(string) (string, bool) { return "secret-value", true },
+		Wait:      func(context.Context, time.Duration) error { return nil },
+	}
+}
+
+func substituteNotificationDirectory(t *testing.T, dir, outside string) ([]string, error) {
+	t.Helper()
+	moved := dir + ".moved"
+	if err := os.Rename(dir, moved); err != nil {
+		return nil, err
+	}
+	if err := filepath.WalkDir(moved, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), ".immutable-") && !strings.HasPrefix(entry.Name(), ".journal-") {
+			return nil
+		}
+		rel, err := filepath.Rel(moved, path)
+		if err != nil {
+			return err
+		}
+		attackerPath := filepath.Join(outside, rel)
+		if err := os.MkdirAll(filepath.Dir(attackerPath), 0o700); err != nil {
+			return err
+		}
+		return os.WriteFile(attackerPath, []byte("attacker temporary\n"), 0o600)
+	}); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(outside, "delivery.lock"), []byte("attacker lock\n"), 0o600); err != nil {
+		return nil, err
+	}
+	if err := os.Symlink(outside, dir); err != nil {
+		return nil, err
+	}
+	return notificationTreeSnapshot(t, outside), nil
+}
+
+func notificationTreeSnapshot(t *testing.T, root string) []string {
+	t.Helper()
+	var result []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			return err
+		}
+		nlink := uint64(0)
+		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+			nlink = uint64(stat.Nlink)
+		}
+		value := fmt.Sprintf("%s|%s|%04o|%d", filepath.ToSlash(rel), info.Mode().Type(), info.Mode().Perm(), nlink)
+		if info.Mode().IsRegular() {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			value += "|" + string(raw)
+		} else if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			value += "|" + target
+		}
+		result = append(result, value)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
 }

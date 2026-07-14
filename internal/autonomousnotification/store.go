@@ -11,38 +11,94 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
+
+	"revolvr/internal/lock"
+	"revolvr/internal/runtimepath"
 )
 
 type persistencePoint string
 
 const (
-	persistenceHistoryWrite   persistencePoint = "history_write"
-	persistenceJournalReplace persistencePoint = "journal_replace"
-	persistenceFileSync       persistencePoint = "file_sync"
-	persistenceDirectorySync  persistencePoint = "directory_sync"
+	persistenceBeforeOpen        persistencePoint = "before_open"
+	persistenceAfterOpen         persistencePoint = "after_open"
+	persistenceHistoryWrite      persistencePoint = "history_write"
+	persistenceFileSync          persistencePoint = "file_sync"
+	persistenceBeforePublication persistencePoint = "before_publication"
+	persistenceJournalReplace    persistencePoint = "journal_replace"
+	persistenceAfterPublication  persistencePoint = "after_publication"
+	persistenceDirectorySync     persistencePoint = "directory_sync"
+	persistenceCleanup           persistencePoint = "cleanup"
 )
 
 type persistenceFault func(persistencePoint, string) error
+
+type deliveryStore struct {
+	directory *runtimepath.Directory
+	lease     *lock.Flock
+	path      string
+	fault     persistenceFault
+}
 
 func deliveryDir(root, id string) string {
 	return filepath.Join(root, ".revolvr", "autonomous", "notifications", id)
 }
 
-func admit(dir string, intent Intent, payload []byte, now time.Time) (Journal, bool, error) {
-	return admitWithFault(dir, intent, payload, now, nil)
+func openDeliveryStore(boundary runtimepath.Boundary, deliveryID string, lease *lock.Flock, fault persistenceFault) (*deliveryStore, bool, error) {
+	if !safeID(deliveryID) {
+		return nil, false, errors.New("notification delivery: invalid delivery ID")
+	}
+	path := deliveryDir(boundary.Root(), deliveryID)
+	directory, found, err := boundary.OpenDir(path, true)
+	if err != nil || !found {
+		return nil, found, err
+	}
+	store := &deliveryStore{directory: directory, lease: lease, path: path, fault: fault}
+	if err := store.check(); err != nil {
+		_ = directory.Close()
+		return nil, false, err
+	}
+	return store, true, nil
 }
 
-func admitWithFault(dir string, intent Intent, payload []byte, now time.Time, fault persistenceFault) (Journal, bool, error) {
+func (s *deliveryStore) Close() error {
+	if s == nil || s.directory == nil {
+		return nil
+	}
+	return s.directory.Close()
+}
+
+func (s *deliveryStore) check() error {
+	if s == nil || s.directory == nil {
+		return errors.New("notification delivery: store is closed")
+	}
+	if err := s.directory.Check(); err != nil {
+		return err
+	}
+	if s.lease != nil {
+		if err := s.lease.Check(); err != nil {
+			return fmt.Errorf("notification delivery: validate delivery lease: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *deliveryStore) requireMutation() error {
+	if s.lease == nil {
+		return errors.New("notification delivery: mutation requires the delivery lease")
+	}
+	return s.check()
+}
+
+func (s *deliveryStore) admit(intent Intent, payload []byte, now time.Time) (Journal, bool, error) {
 	intentRaw, _ := canonical(intent)
-	if err := publishExact(filepath.Join(dir, "intent.json"), intentRaw); err != nil {
+	if err := s.publishExact(s.directory, "intent.json", intentRaw, false); err != nil {
 		return Journal{}, false, err
 	}
-	if err := publishExact(filepath.Join(dir, "payload.json"), payload); err != nil {
+	if err := s.publishExact(s.directory, "payload.json", payload, false); err != nil {
 		return Journal{}, false, err
 	}
-	journal, found, err := inspectDir(dir)
+	journal, found, err := s.inspect()
 	if err != nil {
 		return Journal{}, false, err
 	}
@@ -53,15 +109,11 @@ func admitWithFault(dir string, intent Intent, payload []byte, now time.Time, fa
 		return journal, true, nil
 	}
 	journal = Journal{SchemaVersion: JournalSchemaVersion, DeliveryID: intent.DeliveryID, Sequence: 1, Stage: StageAdmitted, Detail: "intent admitted", UpdatedAt: now}
-	journal, err = persistTransitionWithFault(dir, Journal{}, journal, nil, fault)
+	journal, err = s.persistTransition(Journal{}, journal, nil)
 	return journal, false, err
 }
 
-func transition(dir string, current Journal, stage Stage, detail string, attempt *Attempt, now time.Time) (Journal, error) {
-	return transitionWithFault(dir, current, stage, detail, attempt, now, nil)
-}
-
-func transitionWithFault(dir string, current Journal, stage Stage, detail string, attempt *Attempt, now time.Time, fault persistenceFault) (Journal, error) {
+func (s *deliveryStore) transition(current Journal, stage Stage, detail string, attempt *Attempt, now time.Time) (Journal, error) {
 	next := current
 	next.Sequence++
 	next.Stage = stage
@@ -70,10 +122,10 @@ func transitionWithFault(dir string, current Journal, stage Stage, detail string
 	if attempt != nil {
 		next.Attempts = append(append([]Attempt(nil), current.Attempts...), *attempt)
 	}
-	return persistTransitionWithFault(dir, current, next, attempt, fault)
+	return s.persistTransition(current, next, attempt)
 }
 
-func persistTransitionWithFault(dir string, prior, next Journal, attempt *Attempt, fault persistenceFault) (Journal, error) {
+func (s *deliveryStore) persistTransition(prior, next Journal, attempt *Attempt) (Journal, error) {
 	if err := validateJournal(next); err != nil {
 		return prior, err
 	}
@@ -83,27 +135,34 @@ func persistTransitionWithFault(dir string, prior, next Journal, attempt *Attemp
 		history.Attempt = &clone
 	}
 	historyRaw, _ := canonical(history)
-	historyDir := filepath.Join(dir, "history")
-	if err := os.MkdirAll(historyDir, 0o700); err != nil {
+	historyDir, err := s.ensureHistoryDir()
+	if err != nil {
 		return prior, err
 	}
-	historyPath := filepath.Join(historyDir, fmt.Sprintf("%020d-%s.json", next.Sequence, next.Stage))
-	if err := publishExactWithFault(historyPath, historyRaw, fault); err != nil {
-		return reconcileTransitionFailure(dir, prior, next, err)
+	defer historyDir.Close()
+	historyName := fmt.Sprintf("%020d-%s.json", next.Sequence, next.Stage)
+	if err := s.publishExact(historyDir, historyName, historyRaw, true); err != nil {
+		return s.reconcileTransitionFailure(prior, next, err)
 	}
 	journalRaw, _ := canonical(next)
-	if err := replaceFileWithFault(filepath.Join(dir, "journal.json"), journalRaw, fault); err != nil {
-		return reconcileTransitionFailure(dir, prior, next, err)
+	if err := s.replaceJournal(journalRaw); err != nil {
+		return s.reconcileTransitionFailure(prior, next, err)
 	}
-	observed, found, err := inspectDir(dir)
+	if err := s.check(); err != nil {
+		return s.reconcileTransitionFailure(prior, next, err)
+	}
+	observed, found, err := s.inspect()
 	if err != nil || !found || observed.Sequence != next.Sequence || observed.Stage != next.Stage {
-		return reconcileTransitionFailure(dir, prior, next, errors.Join(err, errors.New("notification delivery: strict journal readback failed")))
+		return s.reconcileTransitionFailure(prior, next, errors.Join(err, errors.New("notification delivery: strict journal readback failed")))
+	}
+	if err := s.check(); err != nil {
+		return s.reconcileTransitionFailure(prior, next, err)
 	}
 	return observed, nil
 }
 
-func reconcileTransitionFailure(dir string, prior, next Journal, persistErr error) (Journal, error) {
-	observed, found, inspectErr := inspectDir(dir)
+func (s *deliveryStore) reconcileTransitionFailure(prior, next Journal, persistErr error) (Journal, error) {
+	observed, found, inspectErr := s.inspect()
 	if inspectErr == nil && found {
 		switch {
 		case prior.Sequence > 0 && reflect.DeepEqual(observed, prior):
@@ -121,38 +180,17 @@ func Inspect(repositoryRoot, deliveryID string) (Intent, Payload, Journal, bool,
 	if !safeID(deliveryID) {
 		return Intent{}, Payload{}, Journal{}, false, errors.New("notification delivery: invalid delivery ID")
 	}
-	root, err := filepath.Abs(repositoryRoot)
+	boundary, err := runtimepath.Bind(repositoryRoot)
 	if err != nil {
 		return Intent{}, Payload{}, Journal{}, false, err
 	}
-	dir := deliveryDir(root, deliveryID)
-	if err := ensureSafeExistingParents(root, dir); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Intent{}, Payload{}, Journal{}, false, nil
-		}
-		return Intent{}, Payload{}, Journal{}, false, err
-	}
-	journal, found, err := inspectDir(dir)
+	store, found, err := openDeliveryStore(boundary, deliveryID, nil, nil)
 	if err != nil || !found {
 		return Intent{}, Payload{}, Journal{}, found, err
 	}
-	intentRaw, err := readRegular(filepath.Join(dir, "intent.json"), 1<<20)
-	if err != nil {
-		return Intent{}, Payload{}, Journal{}, false, err
-	}
-	var intent Intent
-	if err := decodeCanonical(intentRaw, &intent); err != nil || intent.SchemaVersion != IntentSchemaVersion || intent.DeliveryID != deliveryID {
-		return Intent{}, Payload{}, Journal{}, false, errors.Join(err, errors.New("notification delivery: invalid intent"))
-	}
-	payloadRaw, err := readRegular(filepath.Join(dir, "payload.json"), 1<<20)
-	if err != nil {
-		return Intent{}, Payload{}, Journal{}, false, err
-	}
-	payload, err := DecodePayload(payloadRaw)
-	if err != nil || payload.DeliveryID != deliveryID || hash(payloadRaw) != intent.PayloadSHA256 || len(payloadRaw) != intent.PayloadSize {
-		return Intent{}, Payload{}, Journal{}, false, errors.Join(err, errors.New("notification delivery: payload identity conflict"))
-	}
-	return intent, payload, journal, true, nil
+	defer store.Close()
+	intent, payload, journal, err := store.inspectEvidence(deliveryID)
+	return intent, payload, journal, err == nil, err
 }
 
 type Summary struct {
@@ -164,38 +202,79 @@ type Summary struct {
 }
 
 func List(repositoryRoot string) ([]Summary, error) {
-	root, err := filepath.Abs(repositoryRoot)
+	boundary, err := runtimepath.Bind(repositoryRoot)
 	if err != nil {
 		return nil, err
 	}
-	base := filepath.Join(root, ".revolvr", "autonomous", "notifications")
-	if err := ensureSafeExistingParents(root, base); err != nil && !errors.Is(err, os.ErrNotExist) {
+	basePath := filepath.Join(boundary.Root(), ".revolvr", "autonomous", "notifications")
+	base, found, err := boundary.OpenDir(basePath, true)
+	if err != nil || !found {
 		return nil, err
 	}
-	entries, err := os.ReadDir(base)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
+	defer base.Close()
+	entries, err := base.ReadDir()
 	if err != nil {
 		return nil, err
 	}
 	result := make([]Summary, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() || !safeID(entry.Name()) {
+		if !safeID(entry.Name()) {
 			return nil, errors.New("notification delivery: foreign notification entry")
 		}
-		_, payload, journal, found, readErr := Inspect(root, entry.Name())
-		if readErr != nil || !found {
-			return nil, readErr
+		directory, childFound, err := base.OpenDir(entry.Name(), false)
+		if err != nil || !childFound {
+			return nil, errors.Join(err, errors.New("notification delivery: foreign notification entry"))
+		}
+		store := &deliveryStore{directory: directory, path: filepath.Join(basePath, entry.Name())}
+		_, payload, journal, readErr := store.inspectEvidence(entry.Name())
+		closeErr := store.Close()
+		if readErr != nil || closeErr != nil {
+			return nil, errors.Join(readErr, closeErr)
 		}
 		result = append(result, Summary{DeliveryID: entry.Name(), Event: payload.Event, Stage: journal.Stage, Attempts: len(journal.Attempts), UpdatedAt: journal.UpdatedAt})
+	}
+	if err := base.Check(); err != nil {
+		return nil, err
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].DeliveryID < result[j].DeliveryID })
 	return result, nil
 }
 
-func inspectDir(dir string) (Journal, bool, error) {
-	raw, err := readRegular(filepath.Join(dir, "journal.json"), 4<<20)
+func (s *deliveryStore) inspectEvidence(deliveryID string) (Intent, Payload, Journal, error) {
+	journal, found, err := s.inspect()
+	if err != nil {
+		return Intent{}, Payload{}, Journal{}, err
+	}
+	if !found {
+		return Intent{}, Payload{}, Journal{}, errors.New("notification delivery: durable journal is missing")
+	}
+	intentRaw, err := s.readFile(s.directory, "intent.json", 1<<20, false)
+	if err != nil {
+		return Intent{}, Payload{}, Journal{}, err
+	}
+	var intent Intent
+	if err := decodeCanonical(intentRaw, &intent); err != nil || intent.SchemaVersion != IntentSchemaVersion || intent.DeliveryID != deliveryID {
+		return Intent{}, Payload{}, Journal{}, errors.Join(err, errors.New("notification delivery: invalid intent"))
+	}
+	payloadRaw, err := s.readFile(s.directory, "payload.json", 1<<20, false)
+	if err != nil {
+		return Intent{}, Payload{}, Journal{}, err
+	}
+	payload, err := DecodePayload(payloadRaw)
+	if err != nil || payload.DeliveryID != deliveryID || hash(payloadRaw) != intent.PayloadSHA256 || len(payloadRaw) != intent.PayloadSize {
+		return Intent{}, Payload{}, Journal{}, errors.Join(err, errors.New("notification delivery: payload identity conflict"))
+	}
+	if err := s.check(); err != nil {
+		return Intent{}, Payload{}, Journal{}, err
+	}
+	return intent, payload, journal, nil
+}
+
+func (s *deliveryStore) inspect() (Journal, bool, error) {
+	if err := s.check(); err != nil {
+		return Journal{}, false, err
+	}
+	raw, err := s.readFile(s.directory, "journal.json", 4<<20, true)
 	journalFound := !errors.Is(err, os.ErrNotExist)
 	if err != nil && journalFound {
 		return Journal{}, false, err
@@ -209,7 +288,7 @@ func inspectDir(dir string) (Journal, bool, error) {
 			return Journal{}, false, err
 		}
 	}
-	history, historyFound, err := journalFromHistory(filepath.Join(dir, "history"))
+	history, historyFound, err := s.journalFromHistory()
 	if err != nil {
 		return Journal{}, false, err
 	}
@@ -227,14 +306,19 @@ func inspectDir(dir string) (Journal, bool, error) {
 			return Journal{}, false, errors.New("notification delivery: journal/history conflict")
 		}
 	}
+	if err := s.check(); err != nil {
+		return Journal{}, false, err
+	}
 	return history, true, nil
 }
 
-func journalFromHistory(historyDir string) (Journal, bool, error) {
-	entries, err := os.ReadDir(historyDir)
-	if errors.Is(err, os.ErrNotExist) {
-		return Journal{}, false, nil
+func (s *deliveryStore) journalFromHistory() (Journal, bool, error) {
+	historyDir, found, err := s.directory.OpenDir("history", true)
+	if err != nil || !found {
+		return Journal{}, false, err
 	}
+	defer historyDir.Close()
+	entries, err := historyDir.ReadDir()
 	if err != nil {
 		return Journal{}, false, err
 	}
@@ -244,7 +328,7 @@ func journalFromHistory(historyDir string) (Journal, bool, error) {
 		if entry.IsDir() {
 			return Journal{}, false, errors.New("notification delivery: foreign history entry")
 		}
-		raw, readErr := readRegular(filepath.Join(historyDir, entry.Name()), 1<<20)
+		raw, readErr := s.readFile(historyDir, entry.Name(), 1<<20, false)
 		if readErr != nil {
 			return Journal{}, false, readErr
 		}
@@ -266,7 +350,251 @@ func journalFromHistory(historyDir string) (Journal, bool, error) {
 			return Journal{}, false, err
 		}
 	}
+	if err := historyDir.Check(); err != nil {
+		return Journal{}, false, err
+	}
 	return result, len(entries) > 0, nil
+}
+
+func (s *deliveryStore) ensureHistoryDir() (*runtimepath.Directory, error) {
+	if err := s.requireMutation(); err != nil {
+		return nil, err
+	}
+	historyDir, err := s.directory.EnsureDir("history", 0o700)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireMutation(); err != nil {
+		_ = historyDir.Close()
+		return nil, err
+	}
+	return historyDir, nil
+}
+
+func (s *deliveryStore) readFile(directory *runtimepath.Directory, name string, limit int, missingOK bool) ([]byte, error) {
+	if err := s.check(); err != nil {
+		return nil, err
+	}
+	raw, found, err := directory.ReadFile(name, missingOK)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, os.ErrNotExist
+	}
+	if len(raw) > limit {
+		return nil, errors.New("notification delivery: evidence file exceeds size limit")
+	}
+	if err := s.check(); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func (s *deliveryStore) publishExact(directory *runtimepath.Directory, name string, raw []byte, transitionHistory bool) (err error) {
+	path := filepath.Join(s.path, name)
+	if transitionHistory {
+		path = filepath.Join(s.path, "history", name)
+	}
+	if prior, readErr := s.readFile(directory, name, max(len(raw), 1<<20), true); readErr == nil {
+		if bytes.Equal(prior, raw) {
+			return nil
+		}
+		return errors.New("notification delivery: immutable content conflict")
+	} else if !errors.Is(readErr, os.ErrNotExist) {
+		return readErr
+	}
+	if err := injectPersistenceFault(s.fault, persistenceBeforeOpen, path); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	temp, err := directory.CreateTemp(".immutable-", 0o600)
+	if err != nil {
+		return err
+	}
+	published := false
+	defer func() {
+		if !published {
+			err = errors.Join(err, s.cleanupTemp(directory, temp, path))
+		}
+		err = errors.Join(err, temp.Close())
+	}()
+	if err := injectPersistenceFault(s.fault, persistenceAfterOpen, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if transitionHistory {
+		if err := injectPersistenceFault(s.fault, persistenceHistoryWrite, path); err != nil {
+			return err
+		}
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if _, err := temp.Write(raw); err != nil {
+		return err
+	}
+	if err := injectPersistenceFault(s.fault, persistenceFileSync, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		return err
+	}
+	if err := injectPersistenceFault(s.fault, persistenceBeforePublication, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	linkErr := directory.Link(temp, name)
+	published = temp.IsNamed(name)
+	if linkErr != nil {
+		return linkErr
+	}
+	if err := injectPersistenceFault(s.fault, persistenceAfterPublication, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if err := injectPersistenceFault(s.fault, persistenceDirectorySync, filepath.Dir(path)); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if err := directory.Sync(); err != nil {
+		return err
+	}
+	return s.requireMutation()
+}
+
+func (s *deliveryStore) replaceJournal(raw []byte) (err error) {
+	const name = "journal.json"
+	path := filepath.Join(s.path, name)
+	if err := injectPersistenceFault(s.fault, persistenceBeforeOpen, path); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	temp, err := s.directory.CreateTemp(".journal-", 0o600)
+	if err != nil {
+		return err
+	}
+	published := false
+	defer func() {
+		if !published {
+			err = errors.Join(err, s.cleanupTemp(s.directory, temp, path))
+		}
+		err = errors.Join(err, temp.Close())
+	}()
+	if err := injectPersistenceFault(s.fault, persistenceAfterOpen, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if _, err := temp.Write(raw); err != nil {
+		return err
+	}
+	if err := injectPersistenceFault(s.fault, persistenceFileSync, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		return err
+	}
+	if err := injectPersistenceFault(s.fault, persistenceJournalReplace, path); err != nil {
+		return err
+	}
+	if err := injectPersistenceFault(s.fault, persistenceBeforePublication, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	replaceErr := s.directory.Replace(temp, name)
+	published = temp.IsNamed(name)
+	if replaceErr != nil {
+		return replaceErr
+	}
+	if err := injectPersistenceFault(s.fault, persistenceAfterPublication, path); err != nil {
+		return err
+	}
+	if err := temp.Check(); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if err := injectPersistenceFault(s.fault, persistenceDirectorySync, s.path); err != nil {
+		return err
+	}
+	if err := s.requireMutation(); err != nil {
+		return err
+	}
+	if err := s.directory.Sync(); err != nil {
+		return err
+	}
+	return s.requireMutation()
+}
+
+func (s *deliveryStore) cleanupTemp(directory *runtimepath.Directory, temp *runtimepath.File, path string) error {
+	faultErr := injectPersistenceFault(s.fault, persistenceCleanup, path)
+	if err := temp.Check(); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	if err := s.requireMutation(); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	if err := directory.Remove(temp); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	if err := s.requireMutation(); err != nil {
+		return errors.Join(faultErr, err)
+	}
+	return errors.Join(faultErr, directory.Sync())
+}
+
+func injectPersistenceFault(fault persistenceFault, point persistencePoint, path string) error {
+	if fault == nil {
+		return nil
+	}
+	return fault(point, path)
 }
 
 func validateJournal(j Journal) error {
@@ -304,158 +632,6 @@ func decodeCanonical(raw []byte, value any) error {
 	}
 	if !bytes.Equal(raw, canonicalRaw) {
 		return errors.New("non-canonical JSON")
-	}
-	return nil
-}
-
-func readRegular(path string, limit int64) ([]byte, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Mode().Perm()&0o022 != 0 || info.Sys().(*syscall.Stat_t).Nlink != 1 || info.Size() > limit {
-		return nil, errors.New("notification delivery: unsafe evidence file")
-	}
-	return os.ReadFile(path)
-}
-
-func publishExact(path string, raw []byte) error {
-	return publishExactWithFault(path, raw, nil)
-}
-
-func publishExactWithFault(path string, raw []byte, fault persistenceFault) error {
-	if prior, err := os.ReadFile(path); err == nil {
-		if bytes.Equal(prior, raw) {
-			return nil
-		}
-		return errors.New("notification delivery: immutable content conflict")
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return err
-	}
-	if err = injectPersistenceFault(fault, persistenceHistoryWrite, path); err == nil {
-		_, err = file.Write(raw)
-	}
-	if err == nil {
-		err = injectPersistenceFault(fault, persistenceFileSync, path)
-	}
-	if err == nil {
-		err = file.Sync()
-	}
-	closeErr := file.Close()
-	err = errors.Join(err, closeErr)
-	if err != nil {
-		removeErr := os.Remove(path)
-		syncErr := syncDir(filepath.Dir(path))
-		return errors.Join(err, removeErr, syncErr)
-	}
-	if err = injectPersistenceFault(fault, persistenceDirectorySync, filepath.Dir(path)); err == nil {
-		err = syncDir(filepath.Dir(path))
-	}
-	return err
-}
-
-func replaceFileWithFault(path string, raw []byte, fault persistenceFault) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".journal-*")
-	if err != nil {
-		return err
-	}
-	name := tmp.Name()
-	defer os.Remove(name)
-	if err = tmp.Chmod(0o600); err == nil {
-		_, err = tmp.Write(raw)
-	}
-	if err == nil {
-		err = injectPersistenceFault(fault, persistenceFileSync, path)
-	}
-	if err == nil {
-		err = tmp.Sync()
-	}
-	closeErr := tmp.Close()
-	err = errors.Join(err, closeErr)
-	if err == nil {
-		err = injectPersistenceFault(fault, persistenceJournalReplace, path)
-	}
-	if err == nil {
-		err = os.Rename(name, path)
-	}
-	if err == nil {
-		err = injectPersistenceFault(fault, persistenceDirectorySync, filepath.Dir(path))
-	}
-	if err == nil {
-		err = syncDir(filepath.Dir(path))
-	}
-	return err
-}
-
-func injectPersistenceFault(fault persistenceFault, point persistencePoint, path string) error {
-	if fault == nil {
-		return nil
-	}
-	return fault(point, path)
-}
-func syncDir(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
-}
-
-func ensureSafeDirectory(root, target string) error {
-	root = filepath.Clean(root)
-	target = filepath.Clean(target)
-	rel, err := filepath.Rel(root, target)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return errors.New("notification delivery: path escapes repository")
-	}
-	current := root
-	if info, statErr := os.Lstat(current); statErr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.Join(statErr, errors.New("notification delivery: repository root is unsafe"))
-	}
-	for _, part := range strings.Split(rel, string(filepath.Separator)) {
-		if part == "" || part == "." {
-			continue
-		}
-		current = filepath.Join(current, part)
-		info, statErr := os.Lstat(current)
-		if errors.Is(statErr, os.ErrNotExist) {
-			if err := os.Mkdir(current, 0o700); err != nil {
-				return err
-			}
-			continue
-		}
-		if statErr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return errors.Join(statErr, errors.New("notification delivery: unsafe directory or symlink"))
-		}
-	}
-	return nil
-}
-
-func ensureSafeExistingParents(root, target string) error {
-	root = filepath.Clean(root)
-	target = filepath.Clean(target)
-	rel, err := filepath.Rel(root, target)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return errors.New("notification delivery: path escapes repository")
-	}
-	current := root
-	for _, part := range strings.Split(rel, string(filepath.Separator)) {
-		if part == "" || part == "." {
-			continue
-		}
-		current = filepath.Join(current, part)
-		info, statErr := os.Lstat(current)
-		if statErr != nil {
-			return statErr
-		}
-		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return errors.New("notification delivery: unsafe directory or symlink")
-		}
 	}
 	return nil
 }

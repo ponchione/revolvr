@@ -289,6 +289,68 @@ func (d *Directory) Close() error {
 	return d.file.Close()
 }
 
+// OpenDir opens one protected child relative to this stable directory. The
+// returned handle remains bound to the child inode even if an ancestor name is
+// replaced later.
+func (d *Directory) OpenDir(name string, missingOK bool) (*Directory, bool, error) {
+	if err := finalName(name); err != nil {
+		return nil, false, unsafe(d.boundary.root, filepath.Join(d.path, name), err.Error())
+	}
+	if err := d.Check(); err != nil {
+		return nil, false, err
+	}
+	path := filepath.Join(d.path, name)
+	file, stat, err := openDirectoryAt(d.file, name, d.boundary.root, path)
+	if errors.Is(err, os.ErrNotExist) && missingOK {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if err := checkDirectoryStat(d.boundary.root, path, stat); err != nil {
+		_ = file.Close()
+		return nil, false, err
+	}
+	result := &Directory{boundary: d.boundary, path: path, file: file, identity: identityOf(stat)}
+	if err := result.Check(); err != nil {
+		_ = file.Close()
+		return nil, false, err
+	}
+	return result, true, nil
+}
+
+// EnsureDir creates one missing child relative to this stable directory and
+// returns an identity-checked handle to it.
+func (d *Directory) EnsureDir(name string, mode os.FileMode) (*Directory, error) {
+	if mode.Perm()&0o022 != 0 {
+		return nil, unsafe(d.boundary.root, filepath.Join(d.path, name), "requested directory mode is group/world writable")
+	}
+	child, found, err := d.OpenDir(name, true)
+	if err != nil || found {
+		return child, err
+	}
+	if err := d.Check(); err != nil {
+		return nil, err
+	}
+	if err := finalName(name); err != nil {
+		return nil, unsafe(d.boundary.root, filepath.Join(d.path, name), err.Error())
+	}
+	if err := unix.Mkdirat(int(d.file.Fd()), name, uint32(mode.Perm())); err != nil && !errors.Is(err, unix.EEXIST) {
+		return nil, err
+	}
+	if err := d.Check(); err != nil {
+		return nil, err
+	}
+	child, found, err = d.OpenDir(name, true)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, unsafe(d.boundary.root, filepath.Join(d.path, name), "created directory is no longer named")
+	}
+	return child, nil
+}
+
 // OpenFile opens a protected regular file relative to the stable directory.
 func (d *Directory) OpenFile(name string, flag int, perm os.FileMode) (*File, error) {
 	if err := finalName(name); err != nil {
@@ -560,6 +622,13 @@ func (f *File) Close() error {
 	}
 	f.closed = true
 	return f.file.Close()
+}
+
+// IsNamed reports whether the opened inode is bound to the requested final
+// component. Link and Replace update the binding immediately after their
+// metadata syscall, before performing post-publication identity checks.
+func (f *File) IsNamed(name string) bool {
+	return f != nil && f.name == name
 }
 
 func (f *File) release() *os.File {

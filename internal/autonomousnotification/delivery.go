@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"revolvr/internal/lock"
@@ -129,10 +128,11 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	if parsed, err := DecodePayload(cfg.PayloadBytes); err != nil || parsed.DeliveryID != cfg.Payload.DeliveryID {
 		return Result{}, errors.Join(err, errors.New("notification delivery: payload bytes do not match payload authority"))
 	}
-	root, err := filepath.Abs(cfg.RepositoryRoot)
-	if err != nil || strings.TrimSpace(cfg.RepositoryRoot) == "" {
+	boundary, err := runtimepath.Bind(cfg.RepositoryRoot)
+	if err != nil {
 		return Result{}, errors.Join(err, errors.New("notification delivery: repository root is required"))
 	}
+	root := boundary.Root()
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
 	}
@@ -158,14 +158,19 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	}
 
 	dir := deliveryDir(root, cfg.Payload.DeliveryID)
-	unlock, err := acquireDeliveryLock(ctx, root, dir)
+	lease, err := acquireDeliveryLock(ctx, boundary, dir)
 	if err != nil {
 		return Result{}, err
 	}
-	defer unlock()
+	defer lease.Close()
+	store, found, err := openDeliveryStore(boundary, cfg.Payload.DeliveryID, lease, cfg.persistenceFault)
+	if err != nil || !found {
+		return Result{}, errors.Join(err, errors.New("notification delivery: prepared delivery directory is missing"))
+	}
+	defer store.Close()
 	policyID, _ := policy.Identity(cfg.RedactionNames)
 	intent := Intent{SchemaVersion: IntentSchemaVersion, DeliveryID: cfg.Payload.DeliveryID, EventID: cfg.Payload.EventID, Event: cfg.Payload.Event, PayloadSHA256: hash(cfg.PayloadBytes), PayloadSize: len(cfg.PayloadBytes), Policy: policy, PolicySHA256: policyID, ConfigSchema: cfg.Payload.EffectiveConfigSchema, ConfigSHA256: cfg.Payload.EffectiveConfigSHA256, AdmittedAt: cfg.Payload.OccurredAt}
-	journal, replayed, err := admitWithFault(dir, intent, cfg.PayloadBytes, cfg.Clock().UTC(), cfg.persistenceFault)
+	journal, replayed, err := store.admit(intent, cfg.PayloadBytes, cfg.Clock().UTC())
 	if err != nil {
 		return Result{}, err
 	}
@@ -176,13 +181,13 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 		return resultFrom(cfg.Payload.Event, journal, true), errors.New(journal.Detail)
 	}
 	if err := ctx.Err(); err != nil {
-		journal, persistErr := transitionWithFault(dir, journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC(), cfg.persistenceFault)
+		journal, persistErr := store.transition(journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC())
 		return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(err, persistErr)
 	}
 	resolved, err := cfg.LookPath(policy.Executable)
 	if err != nil {
 		detail := redactor.String(fmt.Sprintf("notification executable %q unavailable: %v", policy.Executable, err))
-		journal, persistErr := transitionWithFault(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC(), cfg.persistenceFault)
+		journal, persistErr := store.transition(journal, StageFailed, detail, nil, cfg.Clock().UTC())
 		return resultFrom(cfg.Payload.Event, journal, replayed), errors.Join(errors.New(detail), persistErr)
 	}
 	if resolved, err = filepath.Abs(resolved); err != nil {
@@ -191,7 +196,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	info, err := os.Stat(resolved)
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
 		detail := redactor.String("notification executable is not an executable regular file")
-		journal, persistErr := transitionWithFault(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC(), cfg.persistenceFault)
+		journal, persistErr := store.transition(journal, StageFailed, detail, nil, cfg.Clock().UTC())
 		return resultFrom(cfg.Payload.Event, journal, replayed), errors.Join(errors.New(detail), err, persistErr)
 	}
 	env := make([]string, 0, len(policy.EnvironmentNames))
@@ -199,7 +204,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 		value, ok := cfg.LookupEnv(name)
 		if !ok || value == "" {
 			detail := fmt.Sprintf("notification environment variable %q is missing or empty", name)
-			journal, persistErr := transitionWithFault(dir, journal, StageFailed, detail, nil, cfg.Clock().UTC(), cfg.persistenceFault)
+			journal, persistErr := store.transition(journal, StageFailed, detail, nil, cfg.Clock().UTC())
 			return resultFrom(cfg.Payload.Event, journal, replayed), errors.Join(errors.New(detail), persistErr)
 		}
 		env = append(env, name+"="+value)
@@ -211,7 +216,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 		if number >= policy.MaximumAttempts {
 			stage, detail = StageFailed, "interrupted hook attempt exhausted delivery attempts"
 		}
-		journal, err = transitionWithFault(dir, journal, stage, detail, &recovered, recovered.CompletedAt, cfg.persistenceFault)
+		journal, err = store.transition(journal, stage, detail, &recovered, recovered.CompletedAt)
 		if err != nil {
 			return resultFrom(cfg.Payload.Event, journal, replayed), err
 		}
@@ -221,12 +226,12 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 	}
 	for len(journal.Attempts) < policy.MaximumAttempts {
 		if err := ctx.Err(); err != nil {
-			journal, persistErr := transitionWithFault(dir, journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC(), cfg.persistenceFault)
+			journal, persistErr := store.transition(journal, StageResumable, "cancelled before hook start", nil, cfg.Clock().UTC())
 			return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(err, persistErr)
 		}
 		number := len(journal.Attempts) + 1
 		started := cfg.Clock().UTC()
-		journal, err = transitionWithFault(dir, journal, StageRunning, fmt.Sprintf("attempt %d running", number), nil, started, cfg.persistenceFault)
+		journal, err = store.transition(journal, StageRunning, fmt.Sprintf("attempt %d running", number), nil, started)
 		if err != nil {
 			return resultFrom(cfg.Payload.Event, journal, replayed), err
 		}
@@ -255,7 +260,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 		if stage == StageResumable {
 			cancelErr = deliveryCancellationError(ctx, commandResult.Err)
 		}
-		journal, err = transitionWithFault(dir, journal, stage, detail, &attempt, completed, cfg.persistenceFault)
+		journal, err = store.transition(journal, stage, detail, &attempt, completed)
 		if err != nil {
 			if stage == StageResumable {
 				return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(cancelErr, err)
@@ -272,7 +277,7 @@ func Deliver(ctx context.Context, cfg DeliveryConfig) (Result, error) {
 			return resultFrom(cfg.Payload.Event, journal, replayed), errors.New(detail)
 		}
 		if err := cfg.Wait(ctx, policy.RetryDelay); err != nil {
-			journal, persistErr := transitionWithFault(dir, journal, StageResumable, "cancelled during retry delay", nil, cfg.Clock().UTC(), cfg.persistenceFault)
+			journal, persistErr := store.transition(journal, StageResumable, "cancelled during retry delay", nil, cfg.Clock().UTC())
 			return resultFrom(cfg.Payload.Event, journal, replayed), joinCancellationPersistence(err, persistErr)
 		}
 	}
@@ -321,10 +326,11 @@ func waitContext(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func acquireDeliveryLock(ctx context.Context, root, dir string, afterOpen ...func(root, path string) error) (func(), error) {
-	if err := ensureSafeDirectory(root, dir); err != nil {
+func acquireDeliveryLock(ctx context.Context, boundary runtimepath.Boundary, dir string, afterOpen ...func(root, path string) error) (*lock.Flock, error) {
+	if err := boundary.EnsureDir(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("%w: %w", runtimepath.ErrUnsafe, err)
 	}
+	root := boundary.Root()
 	rel, err := filepath.Rel(root, filepath.Join(dir, "delivery.lock"))
 	if err != nil {
 		return nil, err
@@ -343,5 +349,9 @@ func acquireDeliveryLock(ctx context.Context, root, dir string, afterOpen ...fun
 	if err != nil {
 		return nil, err
 	}
-	return func() { _ = lease.Close() }, nil
+	if err := lease.Check(); err != nil {
+		_ = lease.Close()
+		return nil, err
+	}
+	return lease, nil
 }

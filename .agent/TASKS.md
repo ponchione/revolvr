@@ -55,7 +55,7 @@
 - [x] AUDIT-R4-01 — Make the shared runtime-path boundary descriptor-rooted
   across ancestor substitution and migrate canonical autonomous-state
   persistence with the reproduced outside-rename regression.
-- [ ] AUDIT-R4-02 — Migrate notification intent, payload, history, journal,
+- [x] AUDIT-R4-02 — Migrate notification intent, payload, history, journal,
   cleanup, sync, and lease checks to the stable runtime-path boundary.
 - [ ] AUDIT-R4-03 — Repair task-run protected reads and bind history/checkpoint
   publication and cleanup to stable parent and file identities.
