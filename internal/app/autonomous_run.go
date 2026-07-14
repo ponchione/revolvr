@@ -983,5 +983,3 @@ func revalidateFrozen(ctx context.Context, p productionStepConfig, e autonomousf
 	}
 	return nil
 }
-
-func bytesSHA(raw []byte) string { sum := sha256.Sum256(raw); return hex.EncodeToString(sum[:]) }

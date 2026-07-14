@@ -73,10 +73,6 @@ func transitionWithFault(dir string, current Journal, stage Stage, detail string
 	return persistTransitionWithFault(dir, current, next, attempt, fault)
 }
 
-func persistTransition(dir string, prior, next Journal, attempt *Attempt) (Journal, error) {
-	return persistTransitionWithFault(dir, prior, next, attempt, nil)
-}
-
 func persistTransitionWithFault(dir string, prior, next Journal, attempt *Attempt, fault persistenceFault) (Journal, error) {
 	if err := validateJournal(next); err != nil {
 		return prior, err
@@ -360,10 +356,6 @@ func publishExactWithFault(path string, raw []byte, fault persistenceFault) erro
 		err = syncDir(filepath.Dir(path))
 	}
 	return err
-}
-
-func replaceFile(path string, raw []byte) error {
-	return replaceFileWithFault(path, raw, nil)
 }
 
 func replaceFileWithFault(path string, raw []byte, fault persistenceFault) error {

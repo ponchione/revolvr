@@ -2,8 +2,27 @@
 
 ## Current Focus
 
-`AUDIT-R3-07` closes map-order-dependent validation diagnostics. The first
-unchecked follow-up is `AUDIT-R3-08`, which removes confirmed no-caller code.
+`AUDIT-R3-08` removes confirmed no-caller code. Every individual R3 finding
+now has a committed remediation; `AUDIT-R3-CLOSE-01` remains to re-audit all
+eight findings as one set, run final verification, and delete the audit file.
+
+## Confirmed No-Caller Code Removal (2026-07-14)
+
+- Repository-wide Go references prove `bytesSHA`, `persistTransition`, and
+  `replaceFile` had definitions but no calls. Their three thin wrappers were
+  removed; active notification paths continue to use the fault-aware
+  persistence functions directly.
+- `AdmittedCycleConfig`, `AdmittedCycleResult`, and `RunAdmittedCycle` had no
+  source, test, documentation, or historical caller. The internal-only
+  `admitted_cycle.go` prototype was removed; current app orchestration retains
+  the live worker admission and completion path.
+- Verification passed: affected packages once, five shuffled repetitions,
+  affected-package race tests, `go test -count=1 ./...`, `go vet ./...`,
+  `go mod verify`, formatting, `git diff --check`, a repository-wide absence
+  check for every deleted symbol, Linux/Darwin/FreeBSD amd64 cross-builds, and
+  the Windows diagnostic-stub cross-build.
+- No dependency was added. The next task is `AUDIT-R3-CLOSE-01`; blockers:
+  none. `AUDIT_PROBLEMS.md` remains until that independent closure pass.
 
 ## Deterministic Validation Diagnostics (2026-07-14)
 

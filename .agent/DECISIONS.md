@@ -1,5 +1,16 @@
 # Agent Decisions
 
+## AUDIT-R3-08 No-Caller Surface Removal (2026-07-14)
+
+- Private wrappers with no caller are not retained as speculative convenience
+  APIs. Notification persistence keeps the fault-aware primitives as the sole
+  implementation path, with ordinary production calls passing `nil` through
+  the existing admission and transition wrappers.
+- The uncalled admitted-cycle composition is not a reserved contract. It is
+  internal-only, had no test or documented consumer, and duplicated the
+  admission/completion orchestration now owned by the production app path, so
+  its config, result, and runner were deleted together.
+
 ## AUDIT-R3-07 Deterministic Validation Diagnostics (2026-07-14)
 
 - Validation error precedence is part of Revolvr's deterministic contract.
