@@ -46,7 +46,7 @@ assert_contains "$TMP_ROOT/task-add.out" "Exercise local CLI smoke test"
 assert_contains "$TMP_ROOT/task-add.out" "summary: Smoke task"
 
 run_revolvr task-list task list
-assert_contains "$TMP_ROOT/task-list.out" $'ID\tSTATUS\tTASK\tSUMMARY'
+assert_contains "$TMP_ROOT/task-list.out" $'ID\tSTATUS\tWORKFLOW\tPHASE'
 assert_contains "$TMP_ROOT/task-list.out" "pending"
 assert_contains "$TMP_ROOT/task-list.out" "Exercise local CLI smoke test"
 assert_contains "$TMP_ROOT/task-list.out" "Smoke task"
