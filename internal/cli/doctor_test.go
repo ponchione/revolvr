@@ -229,6 +229,7 @@ func newDoctorGitRepo(t *testing.T) string {
 	runDoctorGitTestCommand(t, workDir, "init", "-q")
 	runDoctorGitTestCommand(t, workDir, "config", "user.name", "Revolvr Doctor")
 	runDoctorGitTestCommand(t, workDir, "config", "user.email", "doctor@example.invalid")
+	hardenCLIGitMetadata(t, filepath.Join(workDir, ".git"))
 	return workDir
 }
 

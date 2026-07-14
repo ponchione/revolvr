@@ -2,10 +2,43 @@
 
 ## Current Focus
 
-`AUDIT-R3-01` closes the successful-command descendant-process lifecycle gap.
-The first unchecked follow-up is `AUDIT-R3-02`, which makes initialization and
-task-directory creation no-follow and identity-safe without breaking genuine
-linked worktrees.
+`AUDIT-R3-02` closes initialization and task-creation filesystem escapes. The
+first unchecked follow-up is `AUDIT-R3-03`, which retains SQLite busy evidence
+across live-reader retries and makes its cancellation regression deterministic.
+
+## Initialization Filesystem Trust Boundary (2026-07-14)
+
+- CLI state paths canonicalize the worktree once. Init performs a read-only
+  preflight of every existing `.revolvr`, `.agent`, profile, task, ledger, and
+  Git component before its first repository mutation; symlinks, wrong types,
+  group/other-writable paths, hard links, and escaping identities fail closed.
+- `runtimepath.OpenFile` is the shared writable-open primitive. It validates
+  ancestors and the final component, opens with no-follow/nonblocking flags,
+  proves the opened/named regular-file identity, and forbids pre-validation
+  truncation. Profiles, the guarded ledger identity, Git exclude updates, and
+  new task files use this boundary and recheck identity after writes.
+- Git administrative paths come from bounded `git rev-parse` output. The
+  reported top-level, Git directory, common directory, and common
+  `info/exclude` must agree with the canonical worktree and protected path
+  identities. External gitdir files are accepted only for genuine linked
+  worktrees with a canonical `worktrees/<name>` admin path and matching
+  backlink; forged pointers and per-worktree pseudo-excludes are rejected.
+- The exclude updater appends through an already identity-checked descriptor.
+  A path replacement after open is detected before use and cannot modify the
+  outside replacement target.
+- `writeNewTaskFile` validates containment through `runtimepath.EnsureDir`
+  before creating missing directories and uses exclusive no-follow creation
+  plus file sync and opened/named identity revalidation.
+- Regressions cover `.revolvr`, `.agent`, profile/task directories, the final
+  profile/task and ledger files, `.git` symlinks and forged gitdir files,
+  `info/exclude`, unsafe modes/types, opened-file substitution, and a genuine
+  linked worktree. Rejected init fixtures leave both repository and outside
+  tree snapshots unchanged.
+- Verification passed: five repeated focused runs, focused race tests, package
+  tests, `go test -count=1 ./...`, focused `go vet`, tracked-Go formatting,
+  `git diff --check`, root help, config check, status, supported Unix
+  cross-builds, and the unsupported Windows diagnostic-stub build.
+- No dependency was added. The next task is `AUDIT-R3-03`; blockers: none.
 
 ## Runner Process-Group Settlement (2026-07-14)
 

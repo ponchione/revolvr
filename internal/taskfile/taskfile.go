@@ -15,6 +15,7 @@ import (
 	"revolvr/internal/id"
 	"revolvr/internal/operatorcheckpoint"
 	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 )
 
 const TasksDir = ".agent/tasks"
@@ -772,8 +773,13 @@ func updateMetadataFromBytes(root string, sourcePath string, absPath string, raw
 }
 
 func writeNewTaskFile(root string, taskID string, title string, body string, dependsOn, tags, conflicts []string, generated bool) (Task, error) {
+	canonicalRoot, err := runtimepath.CanonicalRoot(root)
+	if err != nil {
+		return Task{}, fmt.Errorf("create task file: resolve repository root: %w", err)
+	}
+	root = canonicalRoot
 	dir := filepath.Join(root, TasksDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := runtimepath.EnsureDir(root, dir, 0o755); err != nil {
 		return Task{}, fmt.Errorf("create task file: create %s: %w", TasksDir, err)
 	}
 
@@ -782,7 +788,7 @@ func writeNewTaskFile(root string, taskID string, title string, body string, dep
 		return Task{}, fmt.Errorf("create task file: %w", err)
 	}
 	content := createTaskMarkdown(taskID, title, body, dependsOn, tags, conflicts)
-	file, err := os.OpenFile(absPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	file, err := runtimepath.OpenFile(root, absPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) && generated {
 			return Task{}, err
@@ -790,9 +796,17 @@ func writeNewTaskFile(root string, taskID string, title string, body string, dep
 		return Task{}, fmt.Errorf("create task file %s: %w", sourcePath, err)
 	}
 	_, writeErr := file.Write(content)
+	syncErr := file.Sync()
+	identityErr := runtimepath.CheckOpenedFile(root, absPath, file)
 	closeErr := file.Close()
 	if writeErr != nil {
 		return Task{}, fmt.Errorf("create task file %s: %w", sourcePath, writeErr)
+	}
+	if syncErr != nil {
+		return Task{}, fmt.Errorf("create task file %s: %w", sourcePath, syncErr)
+	}
+	if identityErr != nil {
+		return Task{}, fmt.Errorf("create task file %s: %w", sourcePath, identityErr)
 	}
 	if closeErr != nil {
 		return Task{}, fmt.Errorf("create task file %s: %w", sourcePath, closeErr)

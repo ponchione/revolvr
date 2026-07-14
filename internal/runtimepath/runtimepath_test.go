@@ -210,6 +210,53 @@ func TestCheckOpenedDirRejectsFinalSubstitutionBeforeUse(t *testing.T) {
 	}
 }
 
+func TestOpenFileCreatesAndReopensOnlyIdentityCheckedFiles(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	dir := filepath.Join(root, ".revolvr", "protected")
+	if err := EnsureDir(root, dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "state.json")
+	file, err := OpenFile(root, path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write([]byte("protected\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckOpenedFile(root, path, file); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	file, err = OpenFile(root, path, os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenFile(root, path, os.O_RDWR|os.O_TRUNC, 0); !errors.Is(err, ErrUnsafe) {
+		t.Fatalf("truncating open error = %v, want ErrUnsafe", err)
+	}
+
+	sentinel := filepath.Join(outside, "sentinel")
+	mustRuntimeWrite(t, sentinel, []byte("outside-authority\n"), 0o600)
+	link := filepath.Join(dir, "linked")
+	if err := os.Symlink(sentinel, link); err != nil {
+		t.Fatal(err)
+	}
+	before := runtimeTreeSnapshot(t, outside)
+	if _, err := OpenFile(root, link, os.O_RDWR|os.O_CREATE, 0o600); !errors.Is(err, ErrUnsafe) {
+		t.Fatalf("symlink open error = %v, want ErrUnsafe", err)
+	}
+	if after := runtimeTreeSnapshot(t, outside); !reflect.DeepEqual(after, before) {
+		t.Fatalf("outside tree changed\nbefore: %v\nafter:  %v", before, after)
+	}
+}
+
 func TestProtectedReadHelpersUseNamedOpenedIdentities(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, ".revolvr", "protected")

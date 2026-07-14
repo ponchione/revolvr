@@ -1,5 +1,33 @@
 # Agent Decisions
 
+## AUDIT-R3-02 Initialization Filesystem Trust Boundary (2026-07-14)
+
+- Initialization resolves one canonical worktree identity and completes a
+  read-only validation plan before creating state, agent, profile, task, or
+  ledger material. Every existing protected component must be a no-follow,
+  repository-contained directory or single-link regular file with no
+  group/other write permission.
+- `runtimepath.OpenFile` is the writable protected-file entry point. It refuses
+  truncation before validation, opens with `O_NOFOLLOW`, and proves the opened
+  descriptor still names the validated file. Callers revalidate after their
+  write; replacement can invalidate the operation but cannot redirect the
+  opened descriptor to an outside target.
+- Init securely creates the ledger file before SQLite initialization and keeps
+  an identity-checked descriptor open across the writable ledger open/close.
+  Profile creation is exclusive and never overwrites an existing validated
+  profile. Task creation validates/creates `.agent/tasks` through the same
+  protected directory boundary and exclusively creates the final task file.
+- A repository-controlled `.git` file is not itself Git-admin authority.
+  Bounded Git queries provide the top-level, per-worktree admin directory,
+  common directory, and effective `info/exclude`; all four are cross-checked.
+  An external admin directory is accepted only for Git's real linked-worktree
+  shape and reciprocal `.git` backlink. Normal repositories update
+  `<worktree>/.git/info/exclude`; linked worktrees update the common exclude.
+- Git exclude content is read and appended through one opened descriptor with
+  identity checks before read, before write, and after sync. Symlink, hard-link,
+  unsafe-mode, wrong-type, and opened-path substitution cases fail without
+  writing the attacker-selected target.
+
 ## AUDIT-R3-01 Natural-Exit Process-Group Settlement (2026-07-14)
 
 - A direct command's exit is not the process-tree completion boundary.

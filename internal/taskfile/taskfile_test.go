@@ -3,12 +3,15 @@ package taskfile
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"revolvr/internal/runtimepath"
 )
 
 func TestLoadValidTaskFile(t *testing.T) {
@@ -429,6 +432,50 @@ func TestCreateRejectsTasksDirectorySymlinkOutsideRepository(t *testing.T) {
 	}
 	if entries, readErr := os.ReadDir(outside); readErr != nil || len(entries) != 0 {
 		t.Fatalf("outside directory entries = %v err=%v, want empty", entries, readErr)
+	}
+}
+
+func TestWriteNewTaskFileRejectsAgentSymlinkBeforeCreatingTasksDirectory(t *testing.T) {
+	repo := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "sentinel"), []byte("outside-authority\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(repo, ".agent")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := writeNewTaskFile(repo, "outside-task", "Outside Task", "Do not write outside.", nil, nil, nil, false)
+	if !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("create error = %v, want unsafe .agent symlink rejection", err)
+	}
+	entries, readErr := os.ReadDir(outside)
+	if readErr != nil || len(entries) != 1 || entries[0].Name() != "sentinel" {
+		t.Fatalf("outside entries = %v err=%v, want unchanged sentinel only", entries, readErr)
+	}
+}
+
+func TestWriteNewTaskFileRejectsFinalSymlinkWithoutOutsideMutation(t *testing.T) {
+	repo := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "sentinel")
+	want := []byte("outside-authority\n")
+	if err := os.WriteFile(outside, want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tasksDir := filepath.Join(repo, TasksDir)
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(tasksDir, "outside-task.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := writeNewTaskFile(repo, "outside-task", "Outside Task", "Do not write outside.", nil, nil, nil, false)
+	if err == nil || !strings.Contains(err.Error(), "is a symbolic link") {
+		t.Fatalf("create error = %v, want final symlink rejection", err)
+	}
+	if got, readErr := os.ReadFile(outside); readErr != nil || !bytes.Equal(got, want) {
+		t.Fatalf("outside bytes = %q err=%v, want %q", got, readErr, want)
 	}
 }
 

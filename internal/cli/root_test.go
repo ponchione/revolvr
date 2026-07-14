@@ -3,9 +3,12 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -24,6 +27,7 @@ import (
 	"revolvr/internal/receipt"
 	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskmodel"
 	"revolvr/internal/taskscheduler"
@@ -834,8 +838,12 @@ func TestInitCreatesOnlyMissingProfileFiles(t *testing.T) {
 
 func TestInitAddsStateDirToLocalGitExclude(t *testing.T) {
 	workDir := t.TempDir()
+	runCLIGitCommand(t, workDir, "init", "-q")
+	hardenCLIGitMetadata(t, filepath.Join(workDir, ".git"))
 	excludePath := filepath.Join(workDir, ".git", "info", "exclude")
-	writeCLIFile(t, excludePath, "# local excludes\n")
+	if err := os.WriteFile(excludePath, []byte("# local excludes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -851,6 +859,185 @@ func TestInitAddsStateDirToLocalGitExclude(t *testing.T) {
 	if got := strings.Count(string(content), revolvrGitExcludePattern); got != 1 {
 		t.Fatalf("exclude pattern count = %d, want 1; content:\n%s", got, content)
 	}
+}
+
+func TestInitPreflightRejectsUnsafeComponentsWithoutSideEffects(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*testing.T, string, string)
+	}{
+		{name: "state directory symlink", setup: func(t *testing.T, repo, outside string) {
+			if err := os.Symlink(outside, filepath.Join(repo, ".revolvr")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "agent directory symlink", setup: func(t *testing.T, repo, outside string) {
+			if err := os.Symlink(outside, filepath.Join(repo, ".agent")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "profiles directory symlink", setup: func(t *testing.T, repo, outside string) {
+			if err := os.Mkdir(filepath.Join(repo, ".agent"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outside, filepath.Join(repo, ".agent", "profiles")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "tasks directory symlink", setup: func(t *testing.T, repo, outside string) {
+			if err := os.Mkdir(filepath.Join(repo, ".agent"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outside, filepath.Join(repo, taskfile.TasksDir)); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "profile file symlink", setup: func(t *testing.T, repo, outside string) {
+			if err := os.MkdirAll(filepath.Join(repo, ".agent", "profiles"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Join(outside, "sentinel"), filepath.Join(repo, prompt.RunProfileSourcePath("supervisor"))); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "ledger file symlink", setup: func(t *testing.T, repo, outside string) {
+			if err := os.Mkdir(filepath.Join(repo, ".revolvr"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Join(outside, "sentinel"), filepath.Join(repo, ".revolvr", "ledger.sqlite")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "git symlink", setup: func(t *testing.T, repo, outside string) {
+			if err := os.Symlink(outside, filepath.Join(repo, ".git")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "forged gitdir pointer", setup: func(t *testing.T, repo, outside string) {
+			if err := os.WriteFile(filepath.Join(repo, ".git"), []byte("gitdir: "+outside+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "git exclude symlink", setup: func(t *testing.T, repo, outside string) {
+			runCLIGitCommand(t, repo, "init", "-q")
+			exclude := filepath.Join(repo, ".git", "info", "exclude")
+			if err := os.Remove(exclude); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Join(outside, "sentinel"), exclude); err != nil {
+				t.Fatal(err)
+			}
+			hardenCLIGitMetadata(t, filepath.Join(repo, ".git"))
+		}},
+		{name: "state path wrong type", setup: func(t *testing.T, repo, _ string) {
+			if err := os.WriteFile(filepath.Join(repo, ".revolvr"), []byte("not-a-directory\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "unsafe agent mode", setup: func(t *testing.T, repo, _ string) {
+			path := filepath.Join(repo, ".agent")
+			if err := os.Mkdir(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(path, 0o777); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, outside := t.TempDir(), t.TempDir()
+			if err := os.WriteFile(filepath.Join(outside, "sentinel"), []byte("outside-authority\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			test.setup(t, repo, outside)
+			repoBefore := snapshotCLITree(t, repo)
+			outsideBefore := snapshotCLITree(t, outside)
+
+			if _, err := executeCLI(t, repo, "init"); err == nil {
+				t.Fatal("execute init succeeded, want unsafe preflight failure")
+			}
+			if after := snapshotCLITree(t, repo); !reflect.DeepEqual(after, repoBefore) {
+				t.Fatalf("repository changed after rejected init\nbefore: %v\nafter:  %v", repoBefore, after)
+			}
+			if after := snapshotCLITree(t, outside); !reflect.DeepEqual(after, outsideBefore) {
+				t.Fatalf("outside tree changed after rejected init\nbefore: %v\nafter:  %v", outsideBefore, after)
+			}
+		})
+	}
+}
+
+func TestEnsureExcludePatternRejectsOpenedPathSubstitutionWithoutOutsideMutation(t *testing.T) {
+	repo, outside := t.TempDir(), t.TempDir()
+	runCLIGitCommand(t, repo, "init", "-q")
+	hardenCLIGitMetadata(t, filepath.Join(repo, ".git"))
+	target, err := resolveGitExcludeTarget(context.Background(), repo)
+	if err != nil || target == nil {
+		t.Fatalf("resolve Git exclude target = %+v, %v", target, err)
+	}
+	sentinel := filepath.Join(outside, "sentinel")
+	if err := os.WriteFile(sentinel, []byte("outside-authority\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outsideBefore := snapshotCLITree(t, outside)
+	moved := target.Path + ".opened"
+	err = ensureExcludePattern(target.Root, target.Path, revolvrGitExcludePattern, func() {
+		if renameErr := os.Rename(target.Path, moved); renameErr != nil {
+			t.Fatal(renameErr)
+		}
+		if linkErr := os.Symlink(sentinel, target.Path); linkErr != nil {
+			t.Fatal(linkErr)
+		}
+	})
+	if !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("exclude update error = %v, want substituted identity rejection", err)
+	}
+	if after := snapshotCLITree(t, outside); !reflect.DeepEqual(after, outsideBefore) {
+		t.Fatalf("outside tree changed after exclude substitution\nbefore: %v\nafter:  %v", outsideBefore, after)
+	}
+}
+
+func TestInitUsesCommonExcludeForGenuineLinkedWorktree(t *testing.T) {
+	parent := t.TempDir()
+	mainWorktree := filepath.Join(parent, "main")
+	linkedWorktree := filepath.Join(parent, "linked")
+	if err := os.Mkdir(mainWorktree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runCLIGitCommand(t, mainWorktree, "init", "-q")
+	runCLIGitCommand(t, mainWorktree, "config", "user.name", "Revolvr Init")
+	runCLIGitCommand(t, mainWorktree, "config", "user.email", "init@example.invalid")
+	if err := os.WriteFile(filepath.Join(mainWorktree, "README.md"), []byte("# fixture\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runCLIGitCommand(t, mainWorktree, "add", "README.md")
+	runCLIGitCommand(t, mainWorktree, "commit", "-q", "-m", "fixture")
+	runCLIGitCommand(t, mainWorktree, "worktree", "add", "-q", linkedWorktree)
+	hardenCLIGitMetadata(t, filepath.Join(mainWorktree, ".git"))
+	if err := os.Chmod(filepath.Join(linkedWorktree, ".git"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := executeCLI(t, linkedWorktree, "init"); err != nil {
+		t.Fatalf("execute linked-worktree init: %v", err)
+	}
+	if _, err := executeCLI(t, linkedWorktree, "init"); err != nil {
+		t.Fatalf("execute linked-worktree init again: %v", err)
+	}
+	commonExclude := filepath.Join(mainWorktree, ".git", "info", "exclude")
+	raw, err := os.ReadFile(commonExclude)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(raw), revolvrGitExcludePattern); got != 1 {
+		t.Fatalf("common exclude pattern count = %d, want 1; content:\n%s", got, raw)
+	}
+	gitDir := strings.TrimSpace(runCLIGitCommand(t, linkedWorktree, "rev-parse", "--absolute-git-dir"))
+	if _, err := os.Lstat(filepath.Join(gitDir, "info", "exclude")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("per-worktree exclude unexpectedly exists: %v", err)
+	}
+	assertDirExists(t, filepath.Join(linkedWorktree, ".revolvr"))
 }
 
 func TestTaskAddPersistsTask(t *testing.T) {
@@ -3011,6 +3198,80 @@ func writeCLIFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(strings.TrimPrefix(content, "\n")), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func runCLIGitCommand(t *testing.T, workDir string, args ...string) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git not available: %v", err)
+	}
+	allArgs := append([]string{"-C", workDir}, args...)
+	cmd := exec.Command("git", allArgs...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(allArgs, " "), err, output)
+	}
+	return string(output)
+}
+
+func hardenCLIGitMetadata(t *testing.T, gitDir string) {
+	t.Helper()
+	if err := filepath.WalkDir(gitDir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		return os.Chmod(path, info.Mode().Perm()&^0o022)
+	}); err != nil {
+		t.Fatalf("harden Git metadata: %v", err)
+	}
+}
+
+func snapshotCLITree(t *testing.T, root string) map[string]string {
+	t.Helper()
+	snapshot := make(map[string]string)
+	if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		key := filepath.ToSlash(rel)
+		switch {
+		case entry.Type()&os.ModeSymlink != 0:
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			snapshot[key] = fmt.Sprintf("symlink:%04o:%s", info.Mode().Perm(), target)
+		case entry.IsDir():
+			snapshot[key] = fmt.Sprintf("dir:%04o", info.Mode().Perm())
+		case info.Mode().IsRegular():
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			snapshot[key] = fmt.Sprintf("file:%04o:%d:%x", info.Mode().Perm(), len(raw), sha256.Sum256(raw))
+		default:
+			snapshot[key] = fmt.Sprintf("other:%s:%04o", info.Mode().Type(), info.Mode().Perm())
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("snapshot tree %s: %v", root, err)
+	}
+	return snapshot
 }
 
 func writeCLITaskFile(t *testing.T, workDir string, name string, content string) {

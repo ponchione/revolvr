@@ -145,6 +145,37 @@ func CheckOpenedDir(root, path string, dir *os.File) error {
 	return nil
 }
 
+// OpenFile opens one protected regular file without following its final
+// component and proves that the opened descriptor matches the named file.
+// O_TRUNC is forbidden because truncation would precede the identity check;
+// callers that mutate an existing file must do so only after this returns.
+func OpenFile(root, path string, flag int, perm os.FileMode) (*os.File, error) {
+	if flag&os.O_TRUNC != 0 {
+		return nil, unsafe(root, path, "cannot be opened with truncation before identity validation")
+	}
+	missingOK := flag&os.O_CREATE != 0
+	if err := CheckFile(root, path, missingOK); err != nil {
+		return nil, err
+	}
+	file, err := os.OpenFile(path, flag|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, perm)
+	if errors.Is(err, syscall.ELOOP) {
+		return nil, unsafe(root, path, "became a symlink during open")
+	}
+	if err != nil {
+		if missingOK {
+			if checkErr := CheckFile(root, path, false); checkErr != nil && !errors.Is(checkErr, os.ErrNotExist) {
+				return nil, checkErr
+			}
+		}
+		return nil, err
+	}
+	if err := CheckOpenedFile(root, path, file); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return file, nil
+}
+
 // ReadFile opens and reads one protected regular file only after the opened
 // descriptor is proven to match the named component. A substitution during
 // the read is detected by the second identity check.
