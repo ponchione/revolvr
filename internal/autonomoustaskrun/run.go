@@ -67,12 +67,17 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	unlock, err := lockOperation(ctx, n.root, n.OperationID)
+	lease, err := lockOperation(ctx, n.boundary, n.OperationID)
 	if err != nil {
 		return Result{}, err
 	}
-	defer unlock()
-	op, found, err := loadOperation(n.root, n.OperationID)
+	defer lease.Close()
+	store, found, err := openTaskRunStore(n.boundary, n.OperationID, lease, n.FailureInjector)
+	if err != nil || !found {
+		return Result{}, errors.Join(err, errors.New("task run: prepared operation directory is missing"))
+	}
+	defer store.Close()
+	op, found, err := store.load()
 	if err != nil {
 		return Result{}, err
 	}
@@ -90,7 +95,7 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 			return resultOf(op, true), nil
 		}
 		if op.InFlight {
-			return stop(n, op, StopUnsafeAmbiguous, "restart found an in-flight cycle without exact reconciliation evidence")
+			return stop(n, store, op, StopUnsafeAmbiguous, "restart found an in-flight cycle without exact reconciliation evidence")
 		}
 	} else {
 		if err := ctx.Err(); err != nil {
@@ -107,7 +112,7 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
-		if err := persist(n.root, Operation{}, op, n.FailureInjector); err != nil {
+		if err := store.persist(Operation{}, op); err != nil {
 			return Result{}, err
 		}
 	}
@@ -121,18 +126,18 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 	}
 	for {
 		if err := ctx.Err(); err != nil {
-			result, stopErr := stop(n, op, StopOperationCancelled, err.Error())
+			result, stopErr := stop(n, store, op, StopOperationCancelled, err.Error())
 			return result, errors.Join(err, stopErr)
 		}
 		terminal, detail, err := canonicalTerminal(n.root, op.TaskID)
 		if err != nil {
-			return stop(n, op, StopUnsafeAmbiguous, err.Error())
+			return stop(n, store, op, StopUnsafeAmbiguous, err.Error())
 		}
 		if terminal != "" {
-			return stop(n, op, terminal, detail)
+			return stop(n, store, op, terminal, detail)
 		}
 		if n.MaxCycles.Mode == "limited" && op.Statistics.CyclesStarted >= n.MaxCycles.Limit {
-			return stop(n, op, StopMaxCycles, "caller-owned maximum cycle limit reached")
+			return stop(n, store, op, StopMaxCycles, "caller-owned maximum cycle limit reached")
 		}
 		before := op
 		op.Sequence++
@@ -141,7 +146,7 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 		op.UpdatedAt = n.Clock().UTC()
 		op.Statistics.CyclesStarted++
 		op.Statistics.SupervisorStarted++
-		if err := persist(n.root, before, op, n.FailureInjector); err != nil {
+		if err := store.persist(before, op); err != nil {
 			return Result{}, err
 		}
 		if err := recordLoopEvent(ctx, n, op, ledger.EventTaskRunCycleStarted); err != nil {
@@ -149,7 +154,7 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 		}
 		emit(n.Progress, op)
 		if n.Runner == nil {
-			return stop(n, op, StopUnsafeAmbiguous, "production autonomous step runner is unavailable")
+			return stop(n, store, op, StopUnsafeAmbiguous, "production autonomous step runner is unavailable")
 		}
 		step, runErr := n.Runner(ctx, StepInput{Operation: op, Cycle: op.Statistics.CyclesStarted})
 		step.StopDetail = redactText(n.Redact, step.StopDetail)
@@ -200,7 +205,7 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config) (Result, error) {
 			op.CompletedAt = &now
 			op.Stage = "terminal"
 		}
-		if err := persist(n.root, before, op, n.FailureInjector); err != nil {
+		if err := store.persist(before, op); err != nil {
 			return Result{}, err
 		}
 		if err := recordLoopEvent(context.WithoutCancel(ctx), n, op, ledger.EventTaskRunCycleCompleted); err != nil {
@@ -255,14 +260,16 @@ func currentAuthority(root, taskID string) (authoritySnapshot, error) {
 
 type normalized struct {
 	Config
-	root string
+	root     string
+	boundary runtimepath.Boundary
 }
 
 func normalize(cfg Config) (normalized, error) {
-	root, err := runtimepath.CanonicalRoot(strings.TrimSpace(cfg.RepositoryRoot))
+	boundary, err := runtimepath.Bind(strings.TrimSpace(cfg.RepositoryRoot))
 	if err != nil {
 		return normalized{}, err
 	}
+	root := boundary.Root()
 	if !safeID(cfg.OperationID) {
 		return normalized{}, errors.New("task run: safe operation ID is required")
 	}
@@ -278,7 +285,7 @@ func normalize(cfg Config) (normalized, error) {
 	if cfg.Clock == nil {
 		return normalized{}, errors.New("task run: clock is required")
 	}
-	return normalized{Config: cfg, root: root}, nil
+	return normalized{Config: cfg, root: root, boundary: boundary}, nil
 }
 func resolveTask(root, id string) (taskfile.Task, bool, error) {
 	return resolveTaskScheduled(context.Background(), root, id, nil, nil)
@@ -418,7 +425,7 @@ func compatible(op Operation, n normalized) error {
 	}
 	return nil
 }
-func stop(n normalized, op Operation, reason StopReason, detail string) (Result, error) {
+func stop(n normalized, store *taskRunStore, op Operation, reason StopReason, detail string) (Result, error) {
 	before := op
 	op.StopReason, op.StopDetail = reason, redactText(n.Redact, detail)
 	op.Stage = "terminal"
@@ -426,7 +433,7 @@ func stop(n normalized, op Operation, reason StopReason, detail string) (Result,
 	op.UpdatedAt = n.Clock().UTC()
 	now := op.UpdatedAt
 	op.CompletedAt = &now
-	if err := persist(n.root, before, op, n.FailureInjector); err != nil {
+	if err := store.persist(before, op); err != nil {
 		return Result{}, err
 	}
 	if err := completeLoopLedger(context.Background(), n, op); err != nil {
@@ -450,7 +457,11 @@ func emit(progress Progress, op Operation) {
 		progress(op)
 	}
 }
-func lockOperation(ctx context.Context, root, id string) (func(), error) {
+func lockOperation(ctx context.Context, boundary runtimepath.Boundary, id string) (*lock.Flock, error) {
+	root := boundary.Root()
+	if err := boundary.EnsureDir(operationDir(root, id), 0o700); err != nil {
+		return nil, err
+	}
 	rel, err := filepath.Rel(root, filepath.Join(operationDir(root, id), "operation.lock"))
 	if err != nil {
 		return nil, err
@@ -464,5 +475,9 @@ func lockOperation(ctx context.Context, root, id string) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	return func() { _ = lease.Close() }, nil
+	if err := lease.Check(); err != nil {
+		_ = lease.Close()
+		return nil, err
+	}
+	return lease, nil
 }

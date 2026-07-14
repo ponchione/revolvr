@@ -57,7 +57,7 @@
   persistence with the reproduced outside-rename regression.
 - [x] AUDIT-R4-02 — Migrate notification intent, payload, history, journal,
   cleanup, sync, and lease checks to the stable runtime-path boundary.
-- [ ] AUDIT-R4-03 — Repair task-run protected reads and bind history/checkpoint
+- [x] AUDIT-R4-03 — Repair task-run protected reads and bind history/checkpoint
   publication and cleanup to stable parent and file identities.
 - [ ] AUDIT-R4-04 — Migrate autonomous archive immutable/mutable storage and
   removal away from its bespoke check-then-use path helpers.

@@ -2,10 +2,43 @@
 
 ## Current Focus
 
-`AUDIT-R4-02` is complete. Notification evidence and persistence retain stable
-delivery/history directory handles and the actual delivery flock through
-publication, sync, cleanup, and readback. The next bounded task is
-`AUDIT-R4-03`; there are no blockers.
+`AUDIT-R4-03` is complete. Exact-task-run evidence and persistence retain one
+stable operation/history namespace and the actual operation flock through
+protected reads, publication, cleanup, sync, and readback. The next bounded
+task is `AUDIT-R4-04`; there are no blockers.
+
+## Stable Exact-Task-Run Persistence Boundary (2026-07-14)
+
+- `RunTaskUntilTerminal` binds one `runtimepath.Boundary`, retains the opened
+  operation and history directories, and keeps the actual exclusive
+  `lock.Flock` for the complete operation. Admission, cycle, recovery, and
+  terminal transitions all use that one store rather than re-resolving paths
+  or reducing the lease to an unlock closure.
+- Checkpoint/history recovery uses protected descriptor reads and stable
+  directory enumeration. The old `CheckFile`/`CheckDir` followed by
+  `os.ReadFile`/`os.ReadDir` pattern and its unused standalone load wrapper are
+  removed.
+- Immutable history now writes and syncs an opened temporary inode, publishes
+  it with a descriptor-relative exclusive link, and syncs the retained history
+  directory. Mutable `operation.json` retains its opened temporary through
+  descriptor-relative replacement, operation-directory sync, and exact-byte
+  readback.
+- Every create, write/sync, history link, checkpoint replacement, cleanup,
+  directory sync, and readback acceptance checks both the stable namespace and
+  original operation lease. Cleanup unlinks only the still-opened temporary;
+  namespace or lease loss leaves local residue instead of risking an outside
+  unlink.
+- Permanent end-to-end regressions substitute the operation directory before
+  and after history/checkpoint open, publication, sync, cleanup, and readback;
+  install same-named attacker temporaries; and prove the complete outside tree
+  is unchanged including entries, bytes, modes, symlink targets, and link
+  counts. Separate coverage rejects unsafe read evidence and replacement of
+  only the held operation-lock inode.
+- Focused adversarial tests passed ten repetitions and the package race suite.
+  The complete ordinary and race suites, `go vet`, module verification,
+  formatting/diff checks, CLI help, and Linux/Darwin/FreeBSD plus Windows-stub
+  cross-builds passed. No dependency was added. The next task is
+  `AUDIT-R4-04`; blockers: none.
 
 ## Stable Notification Persistence Boundary (2026-07-14)
 

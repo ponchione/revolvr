@@ -1,5 +1,30 @@
 # Agent Decisions
 
+## AUDIT-R4-03 Stable Exact-Task-Run Store (2026-07-14)
+
+- One exact-task run owns one descriptor-rooted store and one exclusive
+  operation `Flock` for its complete lifecycle. Admission, cycle, recovery,
+  and terminal persistence share the retained operation/history directories;
+  the lease remains available for identity checks rather than being converted
+  to a close-only function.
+- Immutable operation history is published from an opened, synced temporary
+  inode with a descriptor-relative exclusive link. Mutable `operation.json`
+  is published from an opened temporary with descriptor-relative replacement,
+  followed by stable directory sync and exact-byte protected readback.
+- Recovery reads checkpoint and history bytes through protected file
+  descriptors and enumerates the retained history directory. History remains
+  authoritative when newer than the checkpoint; this task changes filesystem
+  identity ownership, not the established operation-stage recovery policy.
+- Every mutation and authority-acceptance boundary checks the retained
+  namespace and original lease. Cleanup removes only the still-opened
+  temporary from its stable parent; namespace or lease loss deliberately
+  leaves harness-owned residue in the displaced directory.
+- The package-level `persist` helper remains only for tests and durable setup;
+  it acquires the same hardened lease and store for its single transition.
+  Production never reacquires between transitions. Deterministic fault points
+  bracket both opens, file/directory syncs, immutable link, mutable replacement,
+  readback, and cleanup so ancestor and lease substitutions stay testable.
+
 ## AUDIT-R4-02 Stable Notification Persistence Boundary (2026-07-14)
 
 - One notification delivery owns one descriptor-rooted store for its complete
