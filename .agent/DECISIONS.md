@@ -1,5 +1,16 @@
 # Agent Decisions
 
+## AUDIT-R3-CLOSE-01 Final Audit Closure (2026-07-14)
+
+- `AUDIT_PROBLEMS.md` is deleted only after current source inspection and fresh
+  focused executions independently prove AP-01 through AP-08, followed by the
+  ordinary, original-seed shuffled, race, vet, module, smoke, CLI, shell, and
+  cross-platform matrices.
+- Fake-Codex smoke repositories explicitly set `umask 0022`. Their Git admin
+  directories must satisfy the same no-group-write initialization boundary as
+  production repositories regardless of the invoking developer's host umask;
+  the smoke fixture adapts to that contract rather than weakening it.
+
 ## AUDIT-R3-08 No-Caller Surface Removal (2026-07-14)
 
 - Private wrappers with no caller are not retained as speculative convenience

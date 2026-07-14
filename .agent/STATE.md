@@ -2,9 +2,45 @@
 
 ## Current Focus
 
-`AUDIT-R3-08` removes confirmed no-caller code. Every individual R3 finding
-now has a committed remediation; `AUDIT-R3-CLOSE-01` remains to re-audit all
-eight findings as one set, run final verification, and delete the audit file.
+`AUDIT-R3-CLOSE-01` is complete. AP-01 through AP-08 are independently
+re-audited against current source and fresh regressions, the final verification
+matrix passes, and `AUDIT_PROBLEMS.md` is deleted. No audit task remains.
+
+## Final R3 Audit Closure (2026-07-14)
+
+- AP-01: current runner code inspects and settles the original process group
+  after leader exit, refuses reused leader identities, preserves cancellation
+  authority, and reports remaining descendants as a lifecycle error. Five
+  repetitions each proved redirected natural-exit and cancelled writers cannot
+  mutate after return.
+- AP-02: current init code canonicalizes one worktree, preflights protected
+  components before creation, uses no-follow named/opened identities, validates
+  Git-reported admin/common/exclude paths, and accepts only reciprocal linked
+  worktrees. Three focused repetitions covered hostile runtime, agent, task,
+  profile, ledger, `.git`, and exclude components, post-open replacement, no
+  outside mutation, and genuine common-exclude behavior.
+- AP-03 through AP-07: twenty busy/cancellation repetitions retained typed
+  SQLite evidence and reopened cleanly; fence unit/receipt/CLI regressions
+  passed five times; SHA-1/SHA-256 validators and a real SHA-256 dossier passed
+  three times; component-aware safe/traversal path and real-Git dossier tests
+  passed five times; and all three multi-invalid diagnostic tests passed 100
+  package repetitions.
+- AP-08: the admitted-cycle file and all six audited symbols remain absent.
+  The affected autonomous lifecycle packages passed three times, and complete
+  repository compilation proves no consumer remains.
+- Final verification passed: the complete suite twice after all production
+  fixes, the original AP-03 shuffle seed, the complete race suite, `go vet
+  ./...`, `go mod verify`, tracked-Go formatting, `git diff --check`, shell
+  syntax, CLI help/config/status, all three documented non-Codex smoke tests,
+  Linux/Darwin/FreeBSD amd64 CI-equivalent builds, and the Windows diagnostic
+  stub build/message check.
+- The first closure run exposed host-umask sensitivity in both fake-Codex smoke
+  fixtures: their Git directories inherited mode `0775`, which AP-02 correctly
+  rejects. Both scripts now set `umask 0022`; their complete success and
+  expected-verification-failure paths then passed without weakening init.
+- Files changed in closure: the two fake-Codex smoke scripts, durable agent
+  state, and deletion of `AUDIT_PROBLEMS.md`. No dependency was added, nothing
+  remains, and there are no blockers.
 
 ## Confirmed No-Caller Code Removal (2026-07-14)
 

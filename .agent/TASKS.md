@@ -47,7 +47,7 @@
   explicit deterministic ordering.
 - [x] AUDIT-R3-08 — Remove the confirmed no-caller wrappers and obsolete
   admitted-cycle orchestration path if it is not intentionally reserved.
-- [ ] AUDIT-R3-CLOSE-01 — Re-audit AP-01 through AP-08 against committed
+- [x] AUDIT-R3-CLOSE-01 — Re-audit AP-01 through AP-08 against committed
   source and regressions, run the final verification matrix, and delete
   `AUDIT_PROBLEMS.md` only when every finding is proven closed.
 
