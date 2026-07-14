@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## AUDIT-FIX-05 App Live Ledger Read Boundary (2026-07-14)
+
+- `internal/app.openReadOnlyLedger` is the sole production app boundary for
+  opening raw live ledger evidence. Status, run display, receipt validation,
+  task scheduling, archive verification, metrics, and autonomous archive
+  scheduling all use it; mutation orchestration retains an explicit writable
+  opener.
+- The boundary delegates only to `ledger.OpenLiveReadOnly`, preserving ordinary
+  live SQLite locking and query-only behavior without directory creation,
+  schema initialization, or migration. Empty, old-schema, and malformed live
+  ledgers remain diagnostic evidence rather than implicit recovery requests.
+- App integration tests compare the state-directory entry set and the database,
+  rollback-journal, WAL, and shared-memory existence, mode, size, modification
+  time, and SHA-256 identity around each audited projection. A valid ledger and
+  its parent are permission-read-only; invalid fixtures must fail without any
+  filesystem mutation.
+
 ## AUDIT-FIX-04 Complete Coordinator Flock Migration (2026-07-14)
 
 - `internal/lock.AcquireFlock` is now the only production boundary that invokes

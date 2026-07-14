@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -109,6 +111,123 @@ func TestStatusReturnsTasksRecentRunsAndLatestEvents(t *testing.T) {
 	}
 	if got, want := eventTypes(result.LatestEvents), []ledger.EventType{ledger.EventRunStarted, ledger.EventRunFailed}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("latest event types = %#v, want %#v", got, want)
+	}
+}
+
+func TestReadProjectionsLeaveLiveLedgerImmutable(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	completedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	createAppValidationRun(t, workDir, appValidationRunSpec{
+		RunID:              "run-read-only-projection",
+		TaskID:             "task-read-only-projection",
+		Task:               "Inspect immutable live evidence",
+		CompletedAt:        completedAt,
+		VerificationStatus: "passed",
+		WriteArtifacts:     true,
+	})
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatalf("resolve state paths: %v", err)
+	}
+	if err := os.Chmod(paths.LedgerDBPath, 0o444); err != nil {
+		t.Fatalf("make ledger read-only: %v", err)
+	}
+	if err := os.Chmod(paths.StateDir, 0o555); err != nil {
+		t.Fatalf("make ledger parent read-only: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(paths.StateDir, 0o755)
+		_ = os.Chmod(paths.LedgerDBPath, 0o644)
+	})
+
+	operations := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "status", run: func() error {
+			_, err := Status(ctx, Config{WorkDir: workDir})
+			return err
+		}},
+		{name: "show run", run: func() error {
+			_, err := ShowRun(ctx, Config{WorkDir: workDir}, "run-read-only-projection")
+			return err
+		}},
+		{name: "validate receipt", run: func() error {
+			_, err := ValidateReceipt(ctx, Config{WorkDir: workDir}, "run-read-only-projection")
+			return err
+		}},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			before := captureAppLedgerFilesystem(t, paths)
+			if err := operation.run(); err != nil {
+				t.Fatalf("read projection: %v", err)
+			}
+			after := captureAppLedgerFilesystem(t, paths)
+			assertAppLedgerFilesystemUnchanged(t, before, after)
+		})
+	}
+}
+
+func TestReadProjectionsDoNotInitializeOrMigrateInvalidLedgers(t *testing.T) {
+	ctx := context.Background()
+	fixtures := []struct {
+		name   string
+		create func(*testing.T, string)
+	}{
+		{name: "empty", create: func(t *testing.T, path string) {
+			if err := os.WriteFile(path, nil, 0o644); err != nil {
+				t.Fatalf("create empty ledger: %v", err)
+			}
+		}},
+		{name: "old schema", create: createOldAppLedger},
+		{name: "malformed", create: func(t *testing.T, path string) {
+			if err := os.WriteFile(path, []byte("not a SQLite database\n"), 0o644); err != nil {
+				t.Fatalf("create malformed ledger: %v", err)
+			}
+		}},
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			workDir := t.TempDir()
+			paths, err := resolveStatePaths(workDir)
+			if err != nil {
+				t.Fatalf("resolve state paths: %v", err)
+			}
+			if err := os.MkdirAll(paths.StateDir, 0o755); err != nil {
+				t.Fatalf("create state directory: %v", err)
+			}
+			fixture.create(t, paths.LedgerDBPath)
+
+			operations := []struct {
+				name string
+				run  func() error
+			}{
+				{name: "status", run: func() error {
+					_, err := Status(ctx, Config{WorkDir: workDir})
+					return err
+				}},
+				{name: "show run", run: func() error {
+					_, err := ShowRun(ctx, Config{WorkDir: workDir}, "missing-run")
+					return err
+				}},
+				{name: "validate receipt", run: func() error {
+					_, err := ValidateReceipt(ctx, Config{WorkDir: workDir}, "missing-run")
+					return err
+				}},
+			}
+			for _, operation := range operations {
+				t.Run(operation.name, func(t *testing.T) {
+					before := captureAppLedgerFilesystem(t, paths)
+					if err := operation.run(); err == nil {
+						t.Fatal("read projection error = nil, want invalid-ledger diagnostic")
+					}
+					after := captureAppLedgerFilesystem(t, paths)
+					assertAppLedgerFilesystemUnchanged(t, before, after)
+				})
+			}
+		})
 	}
 }
 
@@ -1755,6 +1874,94 @@ func appValidationCommandPayloads(entries []receipt.VerificationEntry) []map[str
 		})
 	}
 	return payloads
+}
+
+func createOldAppLedger(t *testing.T, path string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open old-schema ledger: %v", err)
+	}
+	if _, err := db.Exec(`
+CREATE TABLE runs (
+	id TEXT PRIMARY KEY,
+	task_id TEXT NOT NULL,
+	task TEXT NOT NULL,
+	status TEXT NOT NULL,
+	started_at TEXT NOT NULL
+);
+CREATE TABLE events (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	run_id TEXT NOT NULL,
+	event_type TEXT NOT NULL,
+	created_at TEXT NOT NULL
+);`); err != nil {
+		_ = db.Close()
+		t.Fatalf("create old-schema ledger: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close old-schema ledger: %v", err)
+	}
+}
+
+type appLedgerFileSnapshot struct {
+	Exists bool
+	Mode   os.FileMode
+	Size   int64
+	MTime  time.Time
+	SHA256 string
+}
+
+type appLedgerFilesystemSnapshot struct {
+	Entries []string
+	Files   map[string]appLedgerFileSnapshot
+}
+
+func captureAppLedgerFilesystem(t *testing.T, paths statePaths) appLedgerFilesystemSnapshot {
+	t.Helper()
+	entries, err := os.ReadDir(paths.StateDir)
+	if err != nil {
+		t.Fatalf("read state directory: %v", err)
+	}
+	snapshot := appLedgerFilesystemSnapshot{
+		Entries: make([]string, 0, len(entries)),
+		Files:   make(map[string]appLedgerFileSnapshot, 4),
+	}
+	for _, entry := range entries {
+		snapshot.Entries = append(snapshot.Entries, entry.Name())
+	}
+	for _, suffix := range []string{"", "-journal", "-wal", "-shm"} {
+		path := paths.LedgerDBPath + suffix
+		name := filepath.Base(path)
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			snapshot.Files[name] = appLedgerFileSnapshot{}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("inspect %s: %v", name, err)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		digest := sha256.Sum256(raw)
+		snapshot.Files[name] = appLedgerFileSnapshot{
+			Exists: true,
+			Mode:   info.Mode(),
+			Size:   info.Size(),
+			MTime:  info.ModTime(),
+			SHA256: fmt.Sprintf("%x", digest),
+		}
+	}
+	return snapshot
+}
+
+func assertAppLedgerFilesystemUnchanged(t *testing.T, before, after appLedgerFilesystemSnapshot) {
+	t.Helper()
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("read projection mutated ledger filesystem\nbefore=%#v\nafter=%#v", before, after)
+	}
 }
 
 func writeAppTestFile(t *testing.T, path string, content string) {

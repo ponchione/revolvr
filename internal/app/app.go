@@ -203,7 +203,7 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 		return StatusResult{Initialized: false}, nil
 	}
 
-	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	runs, err := openReadOnlyLedger(ctx, paths)
 	if err != nil {
 		return StatusResult{}, err
 	}
@@ -289,11 +289,15 @@ func openSchedulingLedger(ctx context.Context, paths statePaths) (*ledger.Store,
 	if err != nil || !initialized {
 		return nil, func() {}, err
 	}
-	runs, err := ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
+	runs, err := openReadOnlyLedger(ctx, paths)
 	if err != nil {
 		return nil, nil, err
 	}
 	return runs, func() { _ = runs.Close() }, nil
+}
+
+func openReadOnlyLedger(ctx context.Context, paths statePaths) (*ledger.Store, error) {
+	return ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
 }
 
 func cloneSchedulingDiagnostics(input []taskscheduler.Diagnostic) []taskscheduler.Diagnostic {
@@ -364,7 +368,7 @@ func ShowRun(ctx context.Context, cfg Config, runID string) (ledger.RunWithEvent
 		return ledger.RunWithEvents{}, errors.New("state is not initialized; run `revolvr init` first")
 	}
 
-	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	runs, err := openReadOnlyLedger(ctx, paths)
 	if err != nil {
 		return ledger.RunWithEvents{}, err
 	}
@@ -398,7 +402,7 @@ func ValidateReceipt(ctx context.Context, cfg Config, runID string) (receipt.Val
 		return receipt.ValidationResult{}, errors.New("state is not initialized; run `revolvr init` first")
 	}
 
-	runs, err := ledger.Open(ctx, paths.LedgerDBPath)
+	runs, err := openReadOnlyLedger(ctx, paths)
 	if err != nil {
 		return receipt.ValidationResult{}, err
 	}

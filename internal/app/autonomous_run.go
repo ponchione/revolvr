@@ -399,7 +399,7 @@ func verifiedSchedulingArchives(ctx context.Context, root string, cfg runonce.Co
 	if err != nil {
 		return nil, err
 	}
-	store, err := ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
+	store, err := openReadOnlyLedger(ctx, paths)
 	if err != nil {
 		return nil, err
 	}

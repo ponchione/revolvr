@@ -20,7 +20,7 @@
   canonical roots, no-follow opens, and named/opened inode checks.
 - [x] AUDIT-FIX-04 — Migrate the remaining predictable coordinator locks to the
   same hardened flock primitive and substitution tests.
-- [ ] AUDIT-FIX-05 — Open all app read projections through the live read-only
+- [x] AUDIT-FIX-05 — Open all app read projections through the live read-only
   ledger API and prove byte/sidecar immutability.
 - [ ] AUDIT-FIX-06 — Declare and enforce the supported-platform contract with a
   matching cross-build matrix.

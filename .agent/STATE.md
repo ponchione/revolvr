@@ -2,40 +2,31 @@
 
 ## Current Focus
 
-Resolve `AUDIT-FIX-05`, the first unchecked task in `.agent/TASKS.md`. Every
-predictable flock-based coordinator now uses the hardened shared primitive; the
-next pass must make app read projections use the live read-only ledger API and
-prove ledger bytes and sidecars remain immutable.
+Resolve `AUDIT-FIX-06`, the first unchecked task in `.agent/TASKS.md`. App read
+projections now share the live read-only ledger boundary and preserve database
+and sidecar evidence; the next pass must declare and enforce the supported-
+platform contract with a matching cross-build matrix.
 
 ## Latest Completed Audit Fix (2026-07-14)
 
-- Task selected: `AUDIT-FIX-04`.
-- Autonomous execution, archive Git/state coordination, child publication,
-  autonomous migration, notification delivery, queue operations, autonomous
-  state compare-and-swap, task-run operations, workspace Git administration,
-  and artifact-GC inner admissions now all acquire `internal/lock.Flock`.
-  Production `syscall.Flock` calls exist only in the build-tagged lock backend.
-- The primitive now reports nonwaiting contention through
-  `ErrFlockContended`, supports deterministic after-open substitution testing,
-  and accepts a bounded retry schedule. The state store preserves its immediate
-  attempt plus 1/2/4/8/16/20ms capped backoff and rejects pre-canceled callers
-  before creating runtime paths.
-- Retention maps only genuine contention to an active-coordinator result and
-  propagates unsafe lock identities. Its held inner leases also participate in
-  identity checks. Delivery receives the actual repository root instead of
-  reconstructing one from its nested directory.
-- Git-admin and delivery integration tests each cover final symlinks to an
-  unchanged outside sentinel, hard-link aliases, symlinked ancestors, and
-  deterministic pathname substitution between open and flock. Existing child
-  and queue substitution tests continue through the shared after-open seam.
-- Files changed: the shared flock primitive/tests; artifact retention;
-  autonomous archive, child, execution, migration, notification, queue, state,
-  task-run, and workspace lock owners/tests; and the durable agent-state files.
-- Verification passed: all focused migrated-owner suites,
-  `go test -race` for every migrated owner, Darwin and FreeBSD
-  `go test -exec=true ./...` cross-compilation, `go test -count=1 ./...`, and
-  `git diff --check`.
-- Remaining audit work: `AUDIT-FIX-05` through `AUDIT-FIX-07`. No blocker is
+- Task selected: `AUDIT-FIX-05`.
+- `Status`, `ShowRun`, and `ValidateReceipt` now open the live ledger through
+  the read-only API. The app-level `openReadOnlyLedger` boundary is also the
+  sole production live-reader opener for task scheduling, archive verification,
+  metrics, and autonomous archive scheduling evidence; writable `ledger.Open`
+  remains only in the archive mutation configuration path.
+- App regressions run all three audited projections against a valid ledger whose
+  database file and parent directory are permission-read-only. Each operation
+  preserves the state-directory entry set and the database, journal, WAL, and
+  shared-memory existence, mode, size, modification time, and SHA-256 identity.
+- Empty, deliberately old-schema, and malformed ledgers produce diagnostics
+  through every audited projection without initialization, migration, sidecar
+  creation, or any byte/filesystem identity change.
+- Files changed: `internal/app/app.go`, `archive.go`, `autonomous_run.go`,
+  `metrics.go`, `app_test.go`, and the durable agent-state files.
+- Verification passed: focused app read-projection tests, `go test ./...`,
+  `go run ./cmd/revolvr status`, and `git diff --check`.
+- Remaining audit work: `AUDIT-FIX-06` and `AUDIT-FIX-07`. No blocker is
   recorded.
 
 ## Wide-Sweep Audit (2026-07-14)
@@ -90,8 +81,8 @@ remained unchanged.
 ## Verification Baseline
 
 - `gofmt` reports no unformatted Go files.
-- `go test -count=1 ./...` passes after every predictable flock coordinator was
-  migrated to the hardened shared primitive.
+- `go test ./...` passes after app live-ledger projections were consolidated on
+  the read-only opener and immutable-filesystem regressions were added.
 - `go test -race -count=1 ./...` and
   `go test -shuffle=on -count=1 ./...` pass.
 - `go vet ./...`, `go mod verify`, and `govulncheck ./...` pass; no reachable
@@ -130,9 +121,8 @@ above. Detailed historical prose remains available through Git history.
 ## Verification Gaps
 
 See `AUDIT_PROBLEMS.md` and the remaining `AUDIT-FIX-*` backlog. The documented
-local smoke is red, Windows is not a buildable target under the currently
-unstated platform contract, and coordinator locks and read-only ledger
-projections still require their bounded fixes.
+local smoke is red, and Windows is not a buildable target under the currently
+unstated platform contract.
 
 ## Notes For Next Fresh Session
 

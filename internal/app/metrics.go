@@ -27,7 +27,7 @@ func ShowMetrics(ctx context.Context, cfg Config, exportID string) (autonomousme
 	if exportID != "" {
 		snapshot, err = ledgerexport.ReplaySnapshot(ctx, paths.WorkDir, exportID, secrets)
 	} else {
-		store, openErr := ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
+		store, openErr := openReadOnlyLedger(ctx, paths)
 		if openErr != nil {
 			return autonomousmetrics.Projection{}, openErr
 		}

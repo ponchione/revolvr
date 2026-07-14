@@ -59,7 +59,7 @@ func VerifyArchive(ctx context.Context, cfg Config, selector string) (autonomous
 	if err != nil {
 		return autonomousarchive.VerificationReport{}, err
 	}
-	store, err := ledger.OpenLiveReadOnly(ctx, paths.LedgerDBPath)
+	store, err := openReadOnlyLedger(ctx, paths)
 	if err != nil {
 		return autonomousarchive.VerificationReport{}, err
 	}
