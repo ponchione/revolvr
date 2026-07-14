@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## AUDIT-R4-01 Descriptor-Rooted Runtime State Boundary (2026-07-14)
+
+- `runtimepath.Boundary` is a value authority over one canonical repository
+  root device/inode. It retains no file descriptor; each operation opens the
+  named root without following the final component and requires that original
+  identity before traversing with stable directory descriptors.
+- Existing and created descendants are opened relative to their validated
+  parents with no-follow operations. `Directory` and `File` handles retain
+  opened identities across create, enumerate, read, exclusive link
+  publication, replacement rename, unlink, file/directory sync, and readback.
+  Named/opened identity and safe type/mode/link-count checks bracket every
+  operation that returns or mutates protected evidence.
+- The legacy string-based runtime-path API delegates to this boundary so
+  current owners gain descriptor-rooted single-operation safety without a
+  flag day. Durable owners that require one root or parent identity across a
+  transaction retain the `Boundary` or opened `Directory` directly as they
+  migrate in AUDIT-R4-01 through AUDIT-R4-06.
+- `autonomousstate.Store` binds one root identity at construction. Canonical
+  state and all transition history reads use protected descriptors; immutable
+  evidence and state temporaries are created relative to stable parents; and
+  the same opened task directory and temporary inode own CAS read, rename,
+  sync, and readback. The held state flock is checked immediately before state
+  metadata replacement and before readback acceptance, and around immutable
+  publication.
+- Cleanup is fail-closed. It unlinks only the still-opened file from its stable
+  named parent while the state lease remains valid. Namespace or lease loss
+  leaves inspectable harness residue rather than risking an attacker-selected
+  unlink.
+- The audit reproducer is permanent. Replacing the task namespace with an
+  outside symlink at `FailureBeforeStateRename` cannot create outside
+  `state.json`, consume the attacker temporary, or change outside contents,
+  entries, permissions, or hard-link counts.
+
 ## AUDIT-R3-CLOSE-01 Final Audit Closure (2026-07-14)
 
 - `AUDIT_PROBLEMS.md` is deleted only after current source inspection and fresh

@@ -131,14 +131,14 @@ func (s *Store) CommitAttempt(ctx context.Context, request AttemptCommitRequest)
 		if err != nil {
 			return AttemptCommitResult{}, err
 		}
-		created, err := s.writeImmutable(historyPath, historyBytes, "attempt history", FailureDuringHistoryWrite)
+		created, err := s.writeImmutable(historyPath, historyBytes, "attempt history", FailureDuringHistoryWrite, lockLease)
 		if err != nil {
 			return AttemptCommitResult{}, err
 		}
 		if !created {
 			return AttemptCommitResult{}, fmt.Errorf("%w: attempt history appeared concurrently", ErrOperationConflict)
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
 			return AttemptCommitResult{}, fmt.Errorf("commit attempt transition: sync history directory: %w", err)
 		}
 		history = AttemptHistorySnapshot{Record: request.History, SHA256: hashBytes(historyBytes), ByteSize: len(historyBytes), SourcePath: historyPath}
@@ -147,7 +147,7 @@ func (s *Store) CommitAttempt(ctx context.Context, request AttemptCommitRequest)
 		return AttemptCommitResult{}, err
 	}
 
-	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes, lockLease)
 	if err != nil {
 		return AttemptCommitResult{}, err
 	}
@@ -182,14 +182,15 @@ func (s *Store) readAttemptOperation(task taskfile.Task, operationID string) (At
 
 func (s *Store) readAllAttemptHistory(task taskfile.Task) ([]AttemptHistorySnapshot, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "attempts"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return nil, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
@@ -203,9 +204,12 @@ func (s *Store) readAllAttemptHistory(task taskfile.Task) ([]AttemptHistorySnaps
 	result := make([]AttemptHistorySnapshot, 0, len(names))
 	for _, name := range names {
 		rel := filepath.ToSlash(filepath.Join(dirRel, name))
-		raw, err := os.ReadFile(filepath.Join(s.root, filepath.FromSlash(rel)))
+		raw, found, err := dir.ReadFile(name, false)
 		if err != nil {
 			return nil, err
+		}
+		if !found {
+			return nil, os.ErrNotExist
 		}
 		record, err := DecodeAttemptHistory(raw)
 		if err != nil {

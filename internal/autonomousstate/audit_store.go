@@ -276,7 +276,7 @@ func (s *Store) ReplayAudit(ctx context.Context, taskID, operationID, applicatio
 		if err != nil {
 			return AuditCommitResult{}, false, err
 		}
-		if err := syncDirectory(filepath.Dir(abs)); err != nil {
+		if err := s.syncDirectory(filepath.Dir(abs)); err != nil {
 			return AuditCommitResult{}, false, err
 		}
 	}
@@ -370,13 +370,13 @@ func (s *Store) CommitAudit(ctx context.Context, request AuditCommitRequest) (Au
 	if err := s.failAudit(FailureBeforeAuditOutput); err != nil {
 		return AuditCommitResult{}, err
 	}
-	created, err := s.writeImmutable(request.History.CanonicalOutput.Path, request.CanonicalOutput, "canonical audit output", FailureDuringAuditOutput)
+	created, err := s.writeImmutable(request.History.CanonicalOutput.Path, request.CanonicalOutput, "canonical audit output", FailureDuringAuditOutput, lockLease)
 	if err != nil {
 		return AuditCommitResult{}, err
 	}
 	if created {
 		abs, _ := s.safePath(request.History.CanonicalOutput.Path)
-		if err := syncDirectory(filepath.Dir(abs)); err != nil {
+		if err := s.syncDirectory(filepath.Dir(abs)); err != nil {
 			return AuditCommitResult{}, err
 		}
 	}
@@ -390,14 +390,14 @@ func (s *Store) CommitAudit(ctx context.Context, request AuditCommitRequest) (Au
 		if err != nil {
 			return AuditCommitResult{}, err
 		}
-		created, err := s.writeImmutable(historyPath, historyBytes, "audit history", FailureDuringAuditHistory)
+		created, err := s.writeImmutable(historyPath, historyBytes, "audit history", FailureDuringAuditHistory, lockLease)
 		if err != nil {
 			return AuditCommitResult{}, err
 		}
 		if !created {
 			return AuditCommitResult{}, fmt.Errorf("%w: audit history appeared concurrently", ErrOperationConflict)
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
 			return AuditCommitResult{}, err
 		}
 		history = AuditHistorySnapshot{Record: request.History, SourcePath: historyPath, SHA256: hashBytes(historyBytes), ByteSize: len(historyBytes)}
@@ -406,7 +406,7 @@ func (s *Store) CommitAudit(ctx context.Context, request AuditCommitRequest) (Au
 		return AuditCommitResult{}, err
 	}
 
-	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes, lockLease)
 	if err != nil {
 		return AuditCommitResult{}, err
 	}
@@ -421,14 +421,15 @@ func (s *Store) CommitAudit(ctx context.Context, request AuditCommitRequest) (Au
 
 func (s *Store) readAuditHistory(task taskfile.Task) ([]AuditHistorySnapshot, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "audit"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return nil, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
@@ -439,13 +440,12 @@ func (s *Store) readAuditHistory(task taskfile.Task) ([]AuditHistorySnapshot, er
 			continue
 		}
 		rel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-		abs, err := s.safePath(rel)
+		raw, found, err := dir.ReadFile(entry.Name(), false)
 		if err != nil {
 			return nil, err
 		}
-		raw, err := os.ReadFile(abs)
-		if err != nil {
-			return nil, err
+		if !found {
+			return nil, os.ErrNotExist
 		}
 		record, err := DecodeAuditHistory(raw)
 		if err != nil {
@@ -462,14 +462,15 @@ func (s *Store) readAuditHistory(task taskfile.Task) ([]AuditHistorySnapshot, er
 
 func (s *Store) readAllPlanningHistory(task taskfile.Task) ([]HistorySnapshot, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "planning"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return nil, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
@@ -480,13 +481,12 @@ func (s *Store) readAllPlanningHistory(task taskfile.Task) ([]HistorySnapshot, e
 			continue
 		}
 		rel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-		abs, err := s.safePath(rel)
+		raw, found, err := dir.ReadFile(entry.Name(), false)
 		if err != nil {
 			return nil, err
 		}
-		raw, err := os.ReadFile(abs)
-		if err != nil {
-			return nil, err
+		if !found {
+			return nil, os.ErrNotExist
 		}
 		record, err := DecodePlanningHistory(raw)
 		if err != nil {
@@ -547,13 +547,12 @@ func (s *Store) failAudit(point FailurePoint) error {
 }
 
 func (s *Store) readArtifactBytes(identity ArtifactIdentity) ([]byte, error) {
-	abs, err := s.safePath(identity.Path)
+	raw, found, err := s.readFile(identity.Path, false)
 	if err != nil {
 		return nil, err
 	}
-	raw, err := os.ReadFile(abs)
-	if err != nil {
-		return nil, err
+	if !found {
+		return nil, os.ErrNotExist
 	}
 	if hashBytes(raw) != identity.SHA256 || len(raw) != identity.ByteSize {
 		return nil, fmt.Errorf("%w: immutable artifact %s no longer matches its identity", ErrOperationConflict, identity.Path)

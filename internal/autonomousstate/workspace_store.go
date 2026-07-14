@@ -113,14 +113,14 @@ func (s *Store) CommitWorkspace(ctx context.Context, request WorkspaceCommitRequ
 		if err != nil {
 			return WorkspaceCommitResult{}, err
 		}
-		created, err := s.writeImmutable(path, raw, "workspace history", FailureDuringHistoryWrite)
+		created, err := s.writeImmutable(path, raw, "workspace history", FailureDuringHistoryWrite, lockLease)
 		if err != nil {
 			return WorkspaceCommitResult{}, err
 		}
 		if !created {
 			return WorkspaceCommitResult{}, fmt.Errorf("%w: workspace history appeared concurrently", ErrOperationConflict)
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
 			return WorkspaceCommitResult{}, err
 		}
 		history = WorkspaceHistorySnapshot{Record: request.History, SHA256: hashBytes(raw), ByteSize: len(raw), SourcePath: path}
@@ -128,7 +128,7 @@ func (s *Store) CommitWorkspace(ctx context.Context, request WorkspaceCommitRequ
 	if err := s.fail(FailureAfterHistoryWrite); err != nil {
 		return WorkspaceCommitResult{}, err
 	}
-	readback, found, err := s.replaceState(task, request.Expected, nextRaw)
+	readback, found, err := s.replaceState(task, request.Expected, nextRaw, lockLease)
 	if err != nil {
 		return WorkspaceCommitResult{}, err
 	}
@@ -160,14 +160,15 @@ func (s *Store) readWorkspaceOperation(task taskfile.Task, operationID string) (
 
 func (s *Store) readAllWorkspaceHistory(task taskfile.Task) ([]WorkspaceHistorySnapshot, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "workspace"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return nil, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
@@ -178,13 +179,12 @@ func (s *Store) readAllWorkspaceHistory(task taskfile.Task) ([]WorkspaceHistoryS
 			continue
 		}
 		rel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-		abs, err := s.safePath(rel)
+		raw, found, err := dir.ReadFile(entry.Name(), false)
 		if err != nil {
 			return nil, err
 		}
-		raw, err := os.ReadFile(abs)
-		if err != nil {
-			return nil, err
+		if !found {
+			return nil, os.ErrNotExist
 		}
 		record, err := DecodeWorkspaceHistory(raw)
 		if err != nil {

@@ -96,14 +96,14 @@ func (s *Store) CommitFinalization(ctx context.Context, request FinalizationComm
 		if err != nil {
 			return FinalizationCommitResult{}, err
 		}
-		created, err := s.writeImmutable(path, raw, "finalization history", FailureDuringHistoryWrite)
+		created, err := s.writeImmutable(path, raw, "finalization history", FailureDuringHistoryWrite, lockLease)
 		if err != nil {
 			return FinalizationCommitResult{}, err
 		}
 		if !created {
 			return FinalizationCommitResult{}, fmt.Errorf("%w: finalization history appeared concurrently", ErrOperationConflict)
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
 			return FinalizationCommitResult{}, err
 		}
 		history = FinalizationHistorySnapshot{Record: request.History, SHA256: hashBytes(raw), ByteSize: len(raw), SourcePath: path}
@@ -111,7 +111,7 @@ func (s *Store) CommitFinalization(ctx context.Context, request FinalizationComm
 	if err := s.fail(FailureAfterHistoryWrite); err != nil {
 		return FinalizationCommitResult{}, err
 	}
-	readback, ok, err := s.replaceState(task, request.Expected, nextRaw)
+	readback, ok, err := s.replaceState(task, request.Expected, nextRaw, lockLease)
 	if err != nil {
 		return FinalizationCommitResult{}, err
 	}
@@ -143,14 +143,15 @@ func (s *Store) readFinalizationOperation(task taskfile.Task, operationID string
 
 func (s *Store) readAllFinalizationHistory(task taskfile.Task) ([]FinalizationHistorySnapshot, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "finalization"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return nil, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
@@ -161,13 +162,12 @@ func (s *Store) readAllFinalizationHistory(task taskfile.Task) ([]FinalizationHi
 			continue
 		}
 		rel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-		abs, err := s.safePath(rel)
+		raw, found, err := dir.ReadFile(entry.Name(), false)
 		if err != nil {
 			return nil, err
 		}
-		raw, err := os.ReadFile(abs)
-		if err != nil {
-			return nil, err
+		if !found {
+			return nil, os.ErrNotExist
 		}
 		record, err := DecodeFinalizationHistory(raw)
 		if err != nil {

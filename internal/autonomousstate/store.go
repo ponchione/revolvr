@@ -20,6 +20,7 @@ import (
 	"revolvr/internal/autonomous"
 	"revolvr/internal/lock"
 	"revolvr/internal/pathguard"
+	"revolvr/internal/runtimepath"
 	"revolvr/internal/taskfile"
 )
 
@@ -62,8 +63,9 @@ type Config struct {
 }
 
 type Store struct {
-	root   string
-	inject FailureInjector
+	root     string
+	boundary runtimepath.Boundary
+	inject   FailureInjector
 }
 
 type ExpectedState struct {
@@ -119,19 +121,11 @@ func New(cfg Config) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("open autonomous state store: repository root is required")
 	}
-	abs, err := filepath.Abs(root)
+	boundary, err := runtimepath.Bind(root)
 	if err != nil {
-		return nil, fmt.Errorf("open autonomous state store: resolve repository root: %w", err)
+		return nil, fmt.Errorf("open autonomous state store: bind repository root: %w", err)
 	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return nil, fmt.Errorf("open autonomous state store: resolve repository root symlinks: %w", err)
-	}
-	info, err := os.Stat(resolved)
-	if err != nil || !info.IsDir() {
-		return nil, fmt.Errorf("open autonomous state store: repository root is not a directory: %w", err)
-	}
-	return &Store{root: resolved, inject: cfg.FailureInjector}, nil
+	return &Store{root: boundary.Root(), boundary: boundary, inject: cfg.FailureInjector}, nil
 }
 
 // Load performs no writes and accepts only canonical deterministic state JSON.
@@ -204,7 +198,7 @@ func (s *Store) ReplayPlanning(ctx context.Context, taskID, operationID, applica
 		if err != nil {
 			return CommitResult{}, false, err
 		}
-		if err := syncDirectory(filepath.Dir(abs)); err != nil {
+		if err := s.syncDirectory(filepath.Dir(abs)); err != nil {
 			return CommitResult{}, false, fmt.Errorf("replay planning transition: sync directory for %s: %w", rel, err)
 		}
 	}
@@ -279,7 +273,7 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 			return CommitResult{}, err
 		}
 		if currentFound && current.SHA256 == request.History.ResultingState.SHA256 && current.ByteSize == request.History.ResultingState.ByteSize {
-			if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(task.AutonomousStatePath)))); err != nil {
+			if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(task.AutonomousStatePath)))); err != nil {
 				return CommitResult{}, fmt.Errorf("commit planning transition: recover state directory sync: %w", err)
 			}
 			return CommitResult{Disposition: CommitReplayed, Previous: request.History.PreviousState, Current: current, History: existingHistory}, nil
@@ -292,7 +286,7 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 		return CommitResult{}, fmt.Errorf("%w: orphaned operation history previous hash %q does not match current hash %q", ErrStaleWrite, request.History.PreviousState.SHA256, current.SHA256)
 	}
 
-	canonicalCreated, err := s.writeImmutable(request.History.CanonicalOutput.Path, request.CanonicalOutput, "canonical planner output", "")
+	canonicalCreated, err := s.writeImmutable(request.History.CanonicalOutput.Path, request.CanonicalOutput, "canonical planner output", "", lockLease)
 	if err != nil {
 		return CommitResult{}, err
 	}
@@ -301,7 +295,7 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 		if err != nil {
 			return CommitResult{}, err
 		}
-		if err := syncDirectory(filepath.Dir(canonicalAbs)); err != nil {
+		if err := s.syncDirectory(filepath.Dir(canonicalAbs)); err != nil {
 			return CommitResult{}, fmt.Errorf("commit planning transition: sync canonical output directory: %w", err)
 		}
 	}
@@ -315,7 +309,7 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 		if err != nil {
 			return CommitResult{}, err
 		}
-		created, err := s.writeImmutable(historyPath, historyBytes, "planning history", FailureDuringHistoryWrite)
+		created, err := s.writeImmutable(historyPath, historyBytes, "planning history", FailureDuringHistoryWrite, lockLease)
 		if err != nil {
 			return CommitResult{}, err
 		}
@@ -328,7 +322,7 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 		if err := s.fail(FailureHistoryDirectorySync); err != nil {
 			return CommitResult{}, err
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
 			return CommitResult{}, fmt.Errorf("commit planning transition: sync history directory: %w", err)
 		}
 		history = HistorySnapshot{Record: request.History, SourcePath: historyPath, SHA256: hashBytes(historyBytes), ByteSize: len(historyBytes)}
@@ -337,7 +331,7 @@ func (s *Store) CommitPlanning(ctx context.Context, request CommitRequest) (Comm
 		return CommitResult{}, err
 	}
 
-	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes, lockLease)
 	if err != nil {
 		return CommitResult{}, err
 	}
@@ -431,20 +425,17 @@ func (s *Store) readCurrent(task taskfile.Task) (Snapshot, bool, error) {
 	if err != nil {
 		return Snapshot{}, false, err
 	}
-	info, err := os.Lstat(abs)
-	if errors.Is(err, os.ErrNotExist) {
+	raw, found, err := s.boundary.ReadFile(abs, true)
+	if err != nil {
+		return Snapshot{}, false, fmt.Errorf("load autonomous state %s: %w", task.AutonomousStatePath, s.pathError(err))
+	}
+	if !found {
 		return Snapshot{SourcePath: task.AutonomousStatePath}, false, nil
 	}
-	if err != nil {
-		return Snapshot{}, false, fmt.Errorf("load autonomous state: inspect %s: %w", task.AutonomousStatePath, err)
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return Snapshot{}, false, fmt.Errorf("%w: state path %q is not a regular non-symlink file", ErrUnsafePath, task.AutonomousStatePath)
-	}
-	raw, err := os.ReadFile(abs)
-	if err != nil {
-		return Snapshot{}, false, fmt.Errorf("load autonomous state %s: %w", task.AutonomousStatePath, err)
-	}
+	return decodeSnapshot(task, raw)
+}
+
+func decodeSnapshot(task taskfile.Task, raw []byte) (Snapshot, bool, error) {
 	state, err := DecodeState(raw, task.ID)
 	if err != nil {
 		return Snapshot{}, false, fmt.Errorf("load autonomous state %s: %w", task.AutonomousStatePath, err)
@@ -458,12 +449,17 @@ func (s *Store) readOperation(task taskfile.Task, operationID string) (HistorySn
 	if err != nil {
 		return HistorySnapshot{}, false, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	opened, found, err := s.boundary.OpenDir(dir, true)
+	if err != nil {
+		return HistorySnapshot{}, false, fmt.Errorf("load planning history: %w", s.pathError(err))
+	}
+	if !found {
 		return HistorySnapshot{}, false, nil
 	}
+	defer opened.Close()
+	entries, err := opened.ReadDir()
 	if err != nil {
-		return HistorySnapshot{}, false, fmt.Errorf("load planning history: %w", err)
+		return HistorySnapshot{}, false, fmt.Errorf("load planning history: %w", s.pathError(err))
 	}
 	suffix := "-" + operationHash(operationID) + ".json"
 	var names []string
@@ -480,13 +476,12 @@ func (s *Store) readOperation(task taskfile.Task, operationID string) (HistorySn
 		return HistorySnapshot{}, false, fmt.Errorf("%w: operation %q has multiple immutable history records", ErrOperationConflict, operationID)
 	}
 	rel := filepath.ToSlash(filepath.Join(dirRel, names[0]))
-	abs, err := s.safePath(rel)
+	raw, found, err := opened.ReadFile(names[0], false)
 	if err != nil {
-		return HistorySnapshot{}, false, err
+		return HistorySnapshot{}, false, fmt.Errorf("load planning history %s: %w", rel, s.pathError(err))
 	}
-	raw, err := os.ReadFile(abs)
-	if err != nil {
-		return HistorySnapshot{}, false, fmt.Errorf("load planning history %s: %w", rel, err)
+	if !found {
+		return HistorySnapshot{}, false, fmt.Errorf("load planning history %s: %w", rel, os.ErrNotExist)
 	}
 	record, err := DecodePlanningHistory(raw)
 	if err != nil {
@@ -498,7 +493,7 @@ func (s *Store) readOperation(task taskfile.Task, operationID string) (HistorySn
 	return HistorySnapshot{Record: record, SHA256: hashBytes(raw), ByteSize: len(raw), SourcePath: rel}, true, nil
 }
 
-func (s *Store) writeImmutable(rel string, content []byte, label string, point FailurePoint) (bool, error) {
+func (s *Store) writeImmutable(rel string, content []byte, label string, point FailurePoint, lease *lock.Flock) (bool, error) {
 	abs, err := s.safePath(rel)
 	if err != nil {
 		return false, err
@@ -506,11 +501,24 @@ func (s *Store) writeImmutable(rel string, content []byte, label string, point F
 	if err := s.ensureDirectory(filepath.ToSlash(filepath.Dir(rel)), 0o755); err != nil {
 		return false, err
 	}
-	file, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	dir, found, err := s.boundary.OpenDir(filepath.Dir(abs), false)
+	if err != nil {
+		return false, s.pathError(err)
+	}
+	if !found {
+		return false, os.ErrNotExist
+	}
+	defer dir.Close()
+	if lease != nil {
+		if err := lease.Check(); err != nil {
+			return false, fmt.Errorf("create immutable %s %q: validate state lease: %w", label, rel, s.pathError(err))
+		}
+	}
+	file, err := dir.OpenFile(filepath.Base(abs), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if errors.Is(err, os.ErrExist) {
-		existing, readErr := os.ReadFile(abs)
+		existing, _, readErr := dir.ReadFile(filepath.Base(abs), false)
 		if readErr != nil {
-			return false, fmt.Errorf("read existing immutable %s: %w", label, readErr)
+			return false, fmt.Errorf("read existing immutable %s: %w", label, s.pathError(readErr))
 		}
 		if !bytes.Equal(existing, content) {
 			return false, fmt.Errorf("%w: existing immutable %s %q has different content", ErrOperationConflict, label, rel)
@@ -522,10 +530,12 @@ func (s *Store) writeImmutable(rel string, content []byte, label string, point F
 	}
 	ok := false
 	defer func() {
-		_ = file.Close()
 		if !ok {
-			_ = os.Remove(abs)
+			if lease == nil || lease.Check() == nil {
+				_ = dir.Remove(file)
+			}
 		}
+		_ = file.Close()
 	}()
 	if point != "" {
 		if err := s.fail(point); err != nil {
@@ -541,32 +551,41 @@ func (s *Store) writeImmutable(rel string, content []byte, label string, point F
 	if err := file.Close(); err != nil {
 		return false, fmt.Errorf("close immutable %s %q: %w", label, rel, err)
 	}
+	if lease != nil {
+		if err := lease.Check(); err != nil {
+			return false, fmt.Errorf("create immutable %s %q: validate state lease after publication: %w", label, rel, s.pathError(err))
+		}
+	}
 	ok = true
 	return true, nil
 }
 
 // replaceState owns the persistence mechanics common to every canonical state
 // transition. Callers retain lifecycle validation and exact readback policy.
-func (s *Store) replaceState(task taskfile.Task, expected ExpectedState, content []byte) (Snapshot, bool, error) {
+func (s *Store) replaceState(task taskfile.Task, expected ExpectedState, content []byte, lease *lock.Flock) (Snapshot, bool, error) {
 	statePath, err := s.safePath(task.AutonomousStatePath)
 	if err != nil {
 		return Snapshot{}, false, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(statePath), ".state.json.tmp-*")
+	dir, found, err := s.boundary.OpenDir(filepath.Dir(statePath), false)
+	if err != nil {
+		return Snapshot{}, false, s.pathError(err)
+	}
+	if !found {
+		return Snapshot{}, false, os.ErrNotExist
+	}
+	defer dir.Close()
+	temp, err := dir.CreateTemp(".state.json.tmp-", 0o644)
 	if err != nil {
 		return Snapshot{}, false, fmt.Errorf("replace autonomous state: create temporary file: %w", err)
 	}
-	tempPath := temp.Name()
-	closed := false
+	published := false
 	defer func() {
-		if !closed {
-			_ = temp.Close()
+		if !published {
+			_ = dir.Remove(temp)
 		}
-		_ = os.Remove(tempPath)
+		_ = temp.Close()
 	}()
-	if err := temp.Chmod(0o644); err != nil {
-		return Snapshot{}, false, fmt.Errorf("replace autonomous state: chmod temporary file: %w", err)
-	}
 	if err := s.fail(FailureDuringStateWrite); err != nil {
 		return Snapshot{}, false, err
 	}
@@ -579,17 +598,18 @@ func (s *Store) replaceState(task taskfile.Task, expected ExpectedState, content
 	if err := temp.Sync(); err != nil {
 		return Snapshot{}, false, fmt.Errorf("replace autonomous state: sync temporary file: %w", err)
 	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return Snapshot{}, false, fmt.Errorf("replace autonomous state: close temporary file: %w", err)
-	}
-	closed = true
-
-	latest, found, err := s.readCurrent(task)
+	latestRaw, stateFound, err := dir.ReadFile(filepath.Base(statePath), true)
 	if err != nil {
-		return Snapshot{}, false, err
+		return Snapshot{}, false, s.pathError(err)
 	}
-	if err := compareExpected(expected, latest, found); err != nil {
+	latest := Snapshot{SourcePath: task.AutonomousStatePath}
+	if stateFound {
+		latest, _, err = decodeSnapshot(task, latestRaw)
+		if err != nil {
+			return Snapshot{}, false, err
+		}
+	}
+	if err := compareExpected(expected, latest, stateFound); err != nil {
 		return Snapshot{}, false, err
 	}
 	if err := s.fail(FailureBeforeStateRename); err != nil {
@@ -598,22 +618,40 @@ func (s *Store) replaceState(task taskfile.Task, expected ExpectedState, content
 	if err := s.fail(FailureStateRename); err != nil {
 		return Snapshot{}, false, err
 	}
-	if err := os.Rename(tempPath, statePath); err != nil {
+	if lease != nil {
+		if err := lease.Check(); err != nil {
+			return Snapshot{}, false, fmt.Errorf("replace autonomous state: validate state lease: %w", s.pathError(err))
+		}
+	}
+	if err := dir.Replace(temp, filepath.Base(statePath)); err != nil {
 		return Snapshot{}, false, fmt.Errorf("replace autonomous state: rename temporary file: %w", err)
 	}
+	published = true
 	if err := s.fail(FailureAfterStateRename); err != nil {
 		return Snapshot{}, false, err
 	}
 	if err := s.fail(FailureStateDirectorySync); err != nil {
 		return Snapshot{}, false, err
 	}
-	if err := syncDirectory(filepath.Dir(statePath)); err != nil {
+	if err := dir.Sync(); err != nil {
 		return Snapshot{}, false, fmt.Errorf("replace autonomous state: sync state directory: %w", err)
 	}
 	if err := s.fail(FailureStateReadback); err != nil {
 		return Snapshot{}, false, err
 	}
-	return s.readCurrent(task)
+	if lease != nil {
+		if err := lease.Check(); err != nil {
+			return Snapshot{}, false, fmt.Errorf("replace autonomous state: validate state lease before readback: %w", s.pathError(err))
+		}
+	}
+	raw, found, err := dir.ReadFile(filepath.Base(statePath), false)
+	if err != nil {
+		return Snapshot{}, false, s.pathError(err)
+	}
+	if !found {
+		return Snapshot{SourcePath: task.AutonomousStatePath}, false, nil
+	}
+	return decodeSnapshot(task, raw)
 }
 
 func (s *Store) verifyArtifact(identity ArtifactIdentity) error {
@@ -624,9 +662,12 @@ func (s *Store) verifyArtifact(identity ArtifactIdentity) error {
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(abs)
+	raw, found, err := s.boundary.ReadFile(abs, false)
 	if err != nil {
-		return fmt.Errorf("read immutable artifact %s: %w", identity.Path, err)
+		return fmt.Errorf("read immutable artifact %s: %w", identity.Path, s.pathError(err))
+	}
+	if !found {
+		return fmt.Errorf("read immutable artifact %s: %w", identity.Path, os.ErrNotExist)
 	}
 	if hashBytes(raw) != identity.SHA256 || len(raw) != identity.ByteSize {
 		return fmt.Errorf("%w: immutable artifact %s no longer matches its identity", ErrOperationConflict, identity.Path)
@@ -635,26 +676,12 @@ func (s *Store) verifyArtifact(identity ArtifactIdentity) error {
 }
 
 func (s *Store) ensureDirectory(rel string, perm os.FileMode) error {
-	clean := filepath.Clean(filepath.FromSlash(rel))
-	current := s.root
-	for _, component := range strings.Split(clean, string(filepath.Separator)) {
-		if component == "." || component == "" {
-			continue
-		}
-		current = filepath.Join(current, component)
-		info, err := os.Lstat(current)
-		if errors.Is(err, os.ErrNotExist) {
-			if err := os.Mkdir(current, perm); err != nil && !errors.Is(err, os.ErrExist) {
-				return fmt.Errorf("create autonomous state directory %s: %w", rel, err)
-			}
-			info, err = os.Lstat(current)
-		}
-		if err != nil {
-			return fmt.Errorf("inspect autonomous state directory %s: %w", rel, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-			return fmt.Errorf("%w: path component %q is not a non-symlink directory", ErrUnsafePath, component)
-		}
+	abs, err := s.safePath(rel)
+	if err != nil {
+		return err
+	}
+	if err := s.boundary.EnsureDir(abs, perm); err != nil {
+		return fmt.Errorf("create autonomous state directory %s: %w", rel, s.pathError(err))
 	}
 	return nil
 }
@@ -664,24 +691,45 @@ func (s *Store) safePath(rel string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: resolve %q: %v", ErrUnsafePath, rel, err)
 	}
-	current := s.root
-	for _, component := range strings.Split(filepath.Clean(filepath.FromSlash(rel)), string(filepath.Separator)) {
-		if component == "." || component == "" {
-			continue
-		}
-		current = filepath.Join(current, component)
-		info, statErr := os.Lstat(current)
-		if errors.Is(statErr, os.ErrNotExist) {
-			break
-		}
-		if statErr != nil {
-			return "", fmt.Errorf("%w: inspect path component %q: %v", ErrUnsafePath, component, statErr)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("%w: path component %q is a symbolic link", ErrUnsafePath, component)
-		}
-	}
 	return abs, nil
+}
+
+func (s *Store) pathError(err error) error {
+	if errors.Is(err, runtimepath.ErrUnsafe) {
+		return fmt.Errorf("%w: %w", ErrUnsafePath, err)
+	}
+	return err
+}
+
+func (s *Store) syncDirectory(path string) error {
+	if err := s.boundary.SyncDir(path); err != nil {
+		return s.pathError(err)
+	}
+	return nil
+}
+
+func (s *Store) readFile(rel string, missingOK bool) ([]byte, bool, error) {
+	abs, err := s.safePath(rel)
+	if err != nil {
+		return nil, false, err
+	}
+	raw, found, err := s.boundary.ReadFile(abs, missingOK)
+	if err != nil {
+		return nil, false, s.pathError(err)
+	}
+	return raw, found, nil
+}
+
+func (s *Store) openDir(rel string, missingOK bool) (*runtimepath.Directory, bool, error) {
+	abs, err := s.safePath(rel)
+	if err != nil {
+		return nil, false, err
+	}
+	dir, found, err := s.boundary.OpenDir(abs, missingOK)
+	if err != nil {
+		return nil, false, s.pathError(err)
+	}
+	return dir, found, nil
 }
 
 func (s *Store) acquireLock(ctx context.Context, rel string) (*lock.Flock, error) {
@@ -748,15 +796,6 @@ func decodeStrict(raw []byte, target any) error {
 		return fmt.Errorf("trailing JSON content: %w", err)
 	}
 	return nil
-}
-
-func syncDirectory(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
 }
 
 func canonicalStatePath(taskID string) string {

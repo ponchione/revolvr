@@ -285,6 +285,126 @@ func TestProtectedReadHelpersUseNamedOpenedIdentities(t *testing.T) {
 	}
 }
 
+func TestBoundaryReplaceRejectsRenamedAncestorWithoutOutsideMutation(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	boundary, err := Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, ".revolvr", "autonomous", "tasks", "task-one")
+	if err := boundary.EnsureDir(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dir, found, err := boundary.OpenDir(target, false)
+	if err != nil || !found {
+		t.Fatalf("OpenDir found=%t err=%v", found, err)
+	}
+	defer dir.Close()
+	temp, err := dir.CreateTemp(".state.json.tmp-", 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer temp.Close()
+	if _, err := temp.Write([]byte("inside authority\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := temp.Sync(); err != nil {
+		t.Fatal(err)
+	}
+
+	mustRuntimeWrite(t, filepath.Join(outside, "sentinel"), []byte("outside-authority\n"), 0o600)
+	mustRuntimeWrite(t, filepath.Join(outside, temp.name), []byte("attacker temporary\n"), 0o600)
+	before := runtimeTreeSnapshot(t, outside)
+	if err := os.Rename(target, target+".moved"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, target); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := dir.Replace(temp, "state.json"); !errors.Is(err, ErrUnsafe) {
+		t.Fatalf("Replace error = %v, want ErrUnsafe", err)
+	}
+	if err := dir.Remove(temp); !errors.Is(err, ErrUnsafe) {
+		t.Fatalf("Remove error = %v, want ErrUnsafe", err)
+	}
+	if after := runtimeTreeSnapshot(t, outside); !reflect.DeepEqual(after, before) {
+		t.Fatalf("outside tree changed\nbefore: %v\nafter:  %v", before, after)
+	}
+}
+
+func TestBoundaryRejectsRepositoryRootIdentityReplacement(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "repository")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	boundary, err := Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(root, root+".moved"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	before := runtimeTreeSnapshot(t, root)
+	if err := boundary.EnsureDir(filepath.Join(root, ".revolvr"), 0o700); !errors.Is(err, ErrUnsafe) {
+		t.Fatalf("EnsureDir error = %v, want ErrUnsafe", err)
+	}
+	if after := runtimeTreeSnapshot(t, root); !reflect.DeepEqual(after, before) {
+		t.Fatalf("replacement root changed\nbefore: %v\nafter:  %v", before, after)
+	}
+}
+
+func TestBoundaryLinkPublishesOpenedInodeExclusively(t *testing.T) {
+	root := t.TempDir()
+	boundary, err := Bind(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, ".revolvr", "protected")
+	if err := boundary.EnsureDir(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dir, found, err := boundary.OpenDir(target, false)
+	if err != nil || !found {
+		t.Fatalf("OpenDir found=%t err=%v", found, err)
+	}
+	defer dir.Close()
+	temp, err := dir.CreateTemp(".history.tmp-", 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer temp.Close()
+	want := []byte("immutable history\n")
+	if _, err := temp.Write(want); err != nil {
+		t.Fatal(err)
+	}
+	if err := temp.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	if err := dir.Link(temp, "history.json"); err != nil {
+		t.Fatal(err)
+	}
+	got, found, err := dir.ReadFile("history.json", false)
+	if err != nil || !found || !reflect.DeepEqual(got, want) {
+		t.Fatalf("ReadFile = %q found=%t err=%v", got, found, err)
+	}
+
+	conflict, err := dir.CreateTemp(".history.tmp-", 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conflict.Close()
+	if err := dir.Link(conflict, "history.json"); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("conflicting Link error = %v, want os.ErrExist", err)
+	}
+	if err := dir.Remove(conflict); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRuntimePathAllowsOrdinaryCreateAndReopen(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, ".revolvr", "autonomous", "task-runs", "run-one")
@@ -341,7 +461,11 @@ func runtimeTreeSnapshot(t *testing.T, root string) []string {
 		if err != nil {
 			return err
 		}
-		value := fmt.Sprintf("%s|%s|%04o", filepath.ToSlash(rel), info.Mode().Type(), info.Mode().Perm())
+		nlink := uint64(0)
+		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+			nlink = uint64(stat.Nlink)
+		}
+		value := fmt.Sprintf("%s|%s|%04o|%d", filepath.ToSlash(rel), info.Mode().Type(), info.Mode().Perm(), nlink)
 		if info.Mode().IsRegular() {
 			raw, err := os.ReadFile(path)
 			if err != nil {

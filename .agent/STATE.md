@@ -2,10 +2,42 @@
 
 ## Current Focus
 
-`AUDIT-R4-00` is complete. A fresh wide-sweep audit found six evidence-backed
-problems and records exact impact, affected code, remediation, and regression
-requirements in `AUDIT_PROBLEMS.md`. The next bounded task is `AUDIT-R4-01`;
-there are no blockers.
+`AUDIT-R4-01` is complete. The shared runtime-path boundary is descriptor-
+rooted, canonical autonomous-state persistence uses it throughout, and the
+outside-rename reproducer now fails before outside publication. The next
+bounded task is `AUDIT-R4-02`; there are no blockers.
+
+## Descriptor-Rooted Runtime And Autonomous-State Boundary (2026-07-14)
+
+- `runtimepath.Boundary` binds the initially resolved repository root device
+  and inode without retaining or leaking a descriptor. Every operation reopens
+  that exact root and traverses descendants with no-follow `openat` calls,
+  validating each opened/named identity and safe mode.
+- Stable `Directory` and `File` handles now own descriptor-relative create,
+  enumerate, exclusive link publication, atomic replacement, unlink, read,
+  and directory/file sync. Existing package functions delegate to the same
+  boundary rather than performing `Lstat` followed by a full-path operation.
+- `autonomousstate.Store` retains one root identity, uses protected reads for
+  canonical state and every planning/audit/attempt/input/block/optional-role/
+  workspace/finalization history, and uses descriptor-relative immutable and
+  state publication. The opened task directory and temporary inode remain
+  bound across the locked CAS, rename, sync, and readback.
+- Every production canonical-state replacement checks the held state flock
+  immediately before publication and before accepting readback. Immutable
+  state evidence checks the same lease before and after publication; cleanup
+  proceeds only while the lease and stable namespace remain valid.
+- The permanent original reproducer moves the real task directory aside,
+  installs an outside symlink with attacker-controlled bytes under the same
+  temporary basename, and proves replacement returns `ErrUnsafePath` without
+  creating outside `state.json` or changing outside entries, contents, modes,
+  or link counts. Shared-boundary regressions also cover ancestor replacement,
+  cleanup refusal, exclusive link publication, and repository-root identity
+  replacement.
+- No dependency was added; the implementation uses the already-present
+  `golang.org/x/sys/unix` module. Verification passed for focused and complete
+  Go suites. Race, vet/module, diff, and supported-platform compile evidence is
+  recorded before the implementation commit. The next task is `AUDIT-R4-02`;
+  blockers: none.
 
 ## Fresh R4 Wide-Sweep Audit (2026-07-14)
 

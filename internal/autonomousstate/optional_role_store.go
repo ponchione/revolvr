@@ -119,14 +119,14 @@ func (s *Store) CommitOptionalRole(ctx context.Context, request OptionalRoleComm
 		if err != nil {
 			return OptionalRoleCommitResult{}, err
 		}
-		created, err := s.writeImmutable(historyPath, historyBytes, "optional-role history", FailureDuringHistoryWrite)
+		created, err := s.writeImmutable(historyPath, historyBytes, "optional-role history", FailureDuringHistoryWrite, lockLease)
 		if err != nil {
 			return OptionalRoleCommitResult{}, err
 		}
 		if !created {
 			return OptionalRoleCommitResult{}, fmt.Errorf("%w: optional-role history appeared concurrently", ErrOperationConflict)
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(historyPath)))); err != nil {
 			return OptionalRoleCommitResult{}, err
 		}
 		history = OptionalRoleHistorySnapshot{Record: request.History, SHA256: hashBytes(historyBytes), ByteSize: len(historyBytes), SourcePath: historyPath}
@@ -135,7 +135,7 @@ func (s *Store) CommitOptionalRole(ctx context.Context, request OptionalRoleComm
 		return OptionalRoleCommitResult{}, err
 	}
 
-	readback, found, err := s.replaceState(task, request.Expected, nextBytes)
+	readback, found, err := s.replaceState(task, request.Expected, nextBytes, lockLease)
 	if err != nil {
 		return OptionalRoleCommitResult{}, err
 	}
@@ -167,14 +167,15 @@ func (s *Store) readOptionalRoleOperation(task taskfile.Task, operationID string
 
 func (s *Store) readAllOptionalRoleHistory(task taskfile.Task) ([]OptionalRoleHistorySnapshot, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "optional_roles"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return nil, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
@@ -188,9 +189,12 @@ func (s *Store) readAllOptionalRoleHistory(task taskfile.Task) ([]OptionalRoleHi
 	result := make([]OptionalRoleHistorySnapshot, 0, len(names))
 	for _, name := range names {
 		rel := filepath.ToSlash(filepath.Join(dirRel, name))
-		raw, err := os.ReadFile(filepath.Join(s.root, filepath.FromSlash(rel)))
+		raw, found, err := dir.ReadFile(name, false)
 		if err != nil {
 			return nil, err
+		}
+		if !found {
+			return nil, os.ErrNotExist
 		}
 		record, err := DecodeOptionalRoleHistory(raw)
 		if err != nil {

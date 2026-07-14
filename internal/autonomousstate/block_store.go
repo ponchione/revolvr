@@ -118,14 +118,14 @@ func (s *Store) CommitBlock(ctx context.Context, request BlockCommitRequest) (Bl
 		if err != nil {
 			return BlockCommitResult{}, err
 		}
-		created, err := s.writeImmutable(path, raw, "block history", FailureDuringHistoryWrite)
+		created, err := s.writeImmutable(path, raw, "block history", FailureDuringHistoryWrite, lockLease)
 		if err != nil {
 			return BlockCommitResult{}, err
 		}
 		if !created {
 			return BlockCommitResult{}, fmt.Errorf("%w: block history appeared concurrently", ErrOperationConflict)
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
 			return BlockCommitResult{}, err
 		}
 		history = BlockHistorySnapshot{Record: request.History, SHA256: hashBytes(raw), ByteSize: len(raw), SourcePath: path}
@@ -133,7 +133,7 @@ func (s *Store) CommitBlock(ctx context.Context, request BlockCommitRequest) (Bl
 	if err := s.fail(FailureAfterHistoryWrite); err != nil {
 		return BlockCommitResult{}, err
 	}
-	readback, found, err := s.replaceState(task, request.Expected, nextRaw)
+	readback, found, err := s.replaceState(task, request.Expected, nextRaw, lockLease)
 	if err != nil {
 		return BlockCommitResult{}, err
 	}
@@ -145,14 +145,15 @@ func (s *Store) CommitBlock(ctx context.Context, request BlockCommitRequest) (Bl
 
 func (s *Store) readBlockOperation(task taskfile.Task, operationID string) (BlockHistorySnapshot, bool, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "block"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return BlockHistorySnapshot{}, false, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return BlockHistorySnapshot{}, false, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return BlockHistorySnapshot{}, false, err
 	}
@@ -162,13 +163,12 @@ func (s *Store) readBlockOperation(task taskfile.Task, operationID string) (Bloc
 			continue
 		}
 		rel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-		abs, err := s.safePath(rel)
+		raw, found, err := dir.ReadFile(entry.Name(), false)
 		if err != nil {
 			return BlockHistorySnapshot{}, false, err
 		}
-		raw, err := os.ReadFile(abs)
-		if err != nil {
-			return BlockHistorySnapshot{}, false, err
+		if !found {
+			return BlockHistorySnapshot{}, false, os.ErrNotExist
 		}
 		record, err := DecodeBlockHistory(raw)
 		if err != nil {

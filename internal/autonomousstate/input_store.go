@@ -112,14 +112,14 @@ func (s *Store) CommitInput(ctx context.Context, request InputCommitRequest) (In
 		if err != nil {
 			return InputCommitResult{}, err
 		}
-		created, err := s.writeImmutable(path, raw, "input history", FailureDuringHistoryWrite)
+		created, err := s.writeImmutable(path, raw, "input history", FailureDuringHistoryWrite, lockLease)
 		if err != nil {
 			return InputCommitResult{}, err
 		}
 		if !created {
 			return InputCommitResult{}, fmt.Errorf("%w: input history appeared concurrently", ErrOperationConflict)
 		}
-		if err := syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
+		if err := s.syncDirectory(filepath.Dir(filepath.Join(s.root, filepath.FromSlash(path)))); err != nil {
 			return InputCommitResult{}, err
 		}
 		history = InputHistorySnapshot{Record: request.History, SHA256: hashBytes(raw), ByteSize: len(raw), SourcePath: path}
@@ -127,7 +127,7 @@ func (s *Store) CommitInput(ctx context.Context, request InputCommitRequest) (In
 	if err := s.fail(FailureAfterHistoryWrite); err != nil {
 		return InputCommitResult{}, err
 	}
-	readback, found, err := s.replaceState(task, request.Expected, nextRaw)
+	readback, found, err := s.replaceState(task, request.Expected, nextRaw, lockLease)
 	if err != nil {
 		return InputCommitResult{}, err
 	}
@@ -159,14 +159,15 @@ func (s *Store) readInputOperation(task taskfile.Task, operationID string) (Inpu
 
 func (s *Store) readAllInputHistory(task taskfile.Task) ([]InputHistorySnapshot, error) {
 	dirRel := filepath.ToSlash(filepath.Join(filepath.Dir(task.AutonomousStatePath), "history", "input"))
-	dir, err := s.safePath(dirRel)
+	dir, found, err := s.openDir(dirRel, true)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	if !found {
 		return nil, nil
 	}
+	defer dir.Close()
+	entries, err := dir.ReadDir()
 	if err != nil {
 		return nil, err
 	}
@@ -177,13 +178,12 @@ func (s *Store) readAllInputHistory(task taskfile.Task) ([]InputHistorySnapshot,
 			continue
 		}
 		rel := filepath.ToSlash(filepath.Join(dirRel, entry.Name()))
-		abs, err := s.safePath(rel)
+		raw, found, err := dir.ReadFile(entry.Name(), false)
 		if err != nil {
 			return nil, err
 		}
-		raw, err := os.ReadFile(abs)
-		if err != nil {
-			return nil, err
+		if !found {
+			return nil, os.ErrNotExist
 		}
 		record, err := DecodeInputHistory(raw)
 		if err != nil {

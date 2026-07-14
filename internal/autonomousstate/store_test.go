@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -296,7 +297,7 @@ func TestReplaceStateFaultBoundariesAndCASRecheck(t *testing.T) {
 				return nil
 			})
 			task, previous, nextRaw := prepareReplaceStateTest(t, store, repo, taskRaw)
-			if _, _, err := store.replaceState(task, previous.Expected(), nextRaw); err == nil || !fired {
+			if _, _, err := store.replaceState(task, previous.Expected(), nextRaw, nil); err == nil || !fired {
 				t.Fatalf("replaceState() error=%v fired=%t", err, fired)
 			}
 
@@ -311,7 +312,7 @@ func TestReplaceStateFaultBoundariesAndCASRecheck(t *testing.T) {
 			}
 			assertNoStateTemporaryFiles(t, repo)
 
-			readback, found, err := reopened.replaceState(task, current.Expected(), nextRaw)
+			readback, found, err := reopened.replaceState(task, current.Expected(), nextRaw, nil)
 			if err != nil || !found || readback.SHA256 != hashBytes(nextRaw) || readback.ByteSize != len(nextRaw) {
 				t.Fatalf("retry replaceState() = %+v, %t, %v", readback, found, err)
 			}
@@ -333,7 +334,7 @@ func TestReplaceStateFaultBoundariesAndCASRecheck(t *testing.T) {
 			}
 			return nil
 		}
-		if _, _, err := store.replaceState(task, previous.Expected(), nextRaw); !errors.Is(err, ErrStaleWrite) || !mutated {
+		if _, _, err := store.replaceState(task, previous.Expected(), nextRaw, nil); !errors.Is(err, ErrStaleWrite) || !mutated {
 			t.Fatalf("replaceState() error=%v mutated=%t", err, mutated)
 		}
 		current, found, err := store.readCurrent(task)
@@ -342,6 +343,67 @@ func TestReplaceStateFaultBoundariesAndCASRecheck(t *testing.T) {
 		}
 		assertNoStateTemporaryFiles(t, repo)
 	})
+}
+
+func TestReplaceStateRejectsAncestorSubstitutionBeforeOutsidePublication(t *testing.T) {
+	repo, taskRaw := stateTestRepository(t, "task-1")
+	outside := t.TempDir()
+	store := openStateTestStore(t, repo, nil)
+	task, previous, nextRaw := prepareReplaceStateTest(t, store, repo, taskRaw)
+	namespace := filepath.ToSlash(filepath.Dir(task.AutonomousStatePath))
+	lease, err := store.acquireLock(context.Background(), filepath.ToSlash(filepath.Join(namespace, "state.lock")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+
+	stateDir := filepath.Join(repo, filepath.FromSlash(namespace))
+	movedDir := stateDir + ".moved"
+	mustStateTestWrite(t, filepath.Join(outside, "sentinel"), []byte("outside-authority\n"), 0o600)
+	var outsideBefore []string
+	store.inject = func(point FailurePoint) error {
+		if point != FailureBeforeStateRename {
+			return nil
+		}
+		entries, err := os.ReadDir(stateDir)
+		if err != nil {
+			return err
+		}
+		tempName := ""
+		for _, entry := range entries {
+			if strings.HasPrefix(entry.Name(), ".state.json.tmp-") {
+				tempName = entry.Name()
+				break
+			}
+		}
+		if tempName == "" {
+			return errors.New("state temporary file was not found")
+		}
+		if err := os.Rename(stateDir, movedDir); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(outside, tempName), []byte("attacker temporary\n"), 0o600); err != nil {
+			return err
+		}
+		if err := os.Symlink(outside, stateDir); err != nil {
+			return err
+		}
+		outsideBefore = stateTestTreeSnapshot(t, outside)
+		return nil
+	}
+
+	if _, _, err := store.replaceState(task, previous.Expected(), nextRaw, lease); !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("replaceState() error = %v, want ErrUnsafePath", err)
+	}
+	if outsideBefore == nil {
+		t.Fatal("substitution hook did not run")
+	}
+	if after := stateTestTreeSnapshot(t, outside); !reflect.DeepEqual(after, outsideBefore) {
+		t.Fatalf("outside tree changed\nbefore: %v\nafter:  %v", outsideBefore, after)
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "state.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("outside state.json exists or inspect failed: %v", err)
+	}
 }
 
 func prepareReplaceStateTest(t *testing.T, store *Store, repo string, taskRaw []byte) (taskfile.Task, Snapshot, []byte) {
@@ -541,5 +603,51 @@ func directoryTree(t *testing.T, root string) []string {
 		result = append(result, rel)
 		return nil
 	})
+	return result
+}
+
+func mustStateTestWrite(t *testing.T, path string, raw []byte, mode os.FileMode) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, mode); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func stateTestTreeSnapshot(t *testing.T, root string) []string {
+	t.Helper()
+	var result []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			return err
+		}
+		nlink := uint64(0)
+		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+			nlink = uint64(stat.Nlink)
+		}
+		value := fmt.Sprintf("%s|%s|%04o|%d", filepath.ToSlash(rel), info.Mode().Type(), info.Mode().Perm(), nlink)
+		if info.Mode().IsRegular() {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			value += "|" + string(raw)
+		}
+		result = append(result, value)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return result
 }

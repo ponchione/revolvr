@@ -52,7 +52,7 @@
   `AUDIT_PROBLEMS.md` only when every finding is proven closed.
 - [x] AUDIT-R4-00 — Conduct a fresh wide-sweep audit and record only
   reproduced or directly evidenced findings in `AUDIT_PROBLEMS.md`.
-- [ ] AUDIT-R4-01 — Make the shared runtime-path boundary descriptor-rooted
+- [x] AUDIT-R4-01 — Make the shared runtime-path boundary descriptor-rooted
   across ancestor substitution and migrate canonical autonomous-state
   persistence with the reproduced outside-rename regression.
 - [ ] AUDIT-R4-02 — Migrate notification intent, payload, history, journal,
