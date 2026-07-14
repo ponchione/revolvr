@@ -14,6 +14,8 @@ import (
 	"reflect"
 	"strings"
 	"syscall"
+
+	"revolvr/internal/gitoid"
 )
 
 const (
@@ -115,7 +117,7 @@ func (s Source) Validate() error {
 		}
 	}
 	if !validGitOID(s.CommitSHA) || !validGitOID(s.TreeSHA) {
-		return errors.New("dossier cache: commit_sha and tree_sha must be 40-character lowercase Git object IDs")
+		return errors.New("dossier cache: commit_sha and tree_sha must be 40- or 64-character lowercase Git object IDs")
 	}
 	if s.MaxPaths <= 0 || s.MaxPaths > 1_000_000 || s.MaxBytes <= 0 || s.MaxBytes > MaxEntryBytes {
 		return errors.New("dossier cache: invalid repository map bounds")
@@ -397,8 +399,7 @@ func validSHA256(value string) bool {
 }
 
 func validGitOID(value string) bool {
-	decoded, err := hex.DecodeString(value)
-	return err == nil && len(decoded) == 20 && value == strings.ToLower(value)
+	return gitoid.Valid(value)
 }
 
 func hash(raw []byte) string {

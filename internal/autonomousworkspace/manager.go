@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/gitoid"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/lock"
 	"revolvr/internal/runner"
@@ -833,11 +834,7 @@ func retainedRef(workspaceID, kind, commit string) string {
 	return "refs/revolvr/retained/" + workspaceID + "/" + kind + "-" + commit[:12]
 }
 func validOID(value string) bool {
-	if len(value) != 40 && len(value) != 64 {
-		return false
-	}
-	_, err := hex.DecodeString(value)
-	return err == nil
+	return gitoid.Valid(value)
 }
 func errorText(err error) string {
 	if err == nil {

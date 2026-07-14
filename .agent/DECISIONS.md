@@ -1,5 +1,20 @@
 # Agent Decisions
 
+## AUDIT-R3-05 SHA-1 and SHA-256 Git Object Identities (2026-07-14)
+
+- `internal/gitoid.Valid` is the single full-Git-object-ID validator. Revolvr
+  supports both lowercase SHA-1 (40 hexadecimal characters) and lowercase
+  SHA-256 (64 hexadecimal characters); abbreviated, uppercase, non-hex, and
+  padded forms are invalid.
+- Existing workspace, state, workspace-manager, archive, finalization, and
+  dossier-cache validators delegate to the shared grammar. `git ls-tree -z`
+  parsing and repository-map dossier projection apply the same check rather
+  than imposing a delayed SHA-1-only length rule.
+- SHA-256 support is behavioral rather than a schema claim alone: when the
+  installed Git supports `--object-format=sha256`, an end-to-end assembly test
+  creates a real repository and proves map parsing, cache publication/hit, and
+  dossier projection using its 64-character commit, tree, and blob identities.
+
 ## AUDIT-R3-04 Fence-Aware Markdown Structure (2026-07-14)
 
 - `internal/markdown.Fence` owns the small shared fence grammar used by task

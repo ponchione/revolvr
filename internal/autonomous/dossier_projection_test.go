@@ -2,6 +2,7 @@ package autonomous
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -52,6 +53,33 @@ func TestRoleDossierProjectionMatrixAndDeterminism(t *testing.T) {
 			if !strings.Contains(string(first.Markdown), exact) {
 				t.Fatalf("%s dossier missing %q", role, exact)
 			}
+		}
+	}
+}
+
+func TestRepositoryMapProjectionAcceptsSHA1AndSHA256ObjectIDs(t *testing.T) {
+	for _, length := range []int{40, 64} {
+		t.Run(fmt.Sprintf("length_%d", length), func(t *testing.T) {
+			in := sparseDossierInput()
+			in.RepositoryMap = &RepositoryMapSource{
+				ID:        "repository-map:test",
+				CommitSHA: strings.Repeat("a", length),
+				TreeSHA:   strings.Repeat("b", length),
+				Content:   []byte("- tracked.txt [text]\n"),
+			}
+			if _, err := ProjectTaskDossier(in, DossierRoleSupervisor); err != nil {
+				t.Fatalf("ProjectTaskDossier() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestRepositoryMapProjectionRejectsMalformedObjectIDs(t *testing.T) {
+	for _, oid := range []string{strings.Repeat("a", 39), strings.Repeat("A", 40), strings.Repeat("g", 64)} {
+		in := sparseDossierInput()
+		in.RepositoryMap = &RepositoryMapSource{ID: "repository-map:test", CommitSHA: oid, TreeSHA: strings.Repeat("b", 40), Content: []byte("map\n")}
+		if _, err := ProjectTaskDossier(in, DossierRoleSupervisor); err == nil {
+			t.Fatalf("ProjectTaskDossier() accepted malformed object ID %q", oid)
 		}
 	}
 }

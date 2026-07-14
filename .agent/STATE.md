@@ -2,9 +2,34 @@
 
 ## Current Focus
 
-`AUDIT-R3-04` closes structural interpretation of headings inside fenced
-Markdown examples. The first unchecked follow-up is `AUDIT-R3-05`, which makes
-Git object-ID validation consistent for SHA-1 and SHA-256 repositories.
+`AUDIT-R3-05` closes inconsistent Git object-ID validation across autonomous
+workspace, cache, map, archive, finalization, and dossier boundaries. The first
+unchecked follow-up is `AUDIT-R3-06`, which accepts safe tracked names beginning
+with `..` while retaining component-aware traversal rejection.
+
+## SHA-1 and SHA-256 Git Object Identities (2026-07-14)
+
+- `internal/gitoid.Valid` is the sole Git object-ID grammar: exactly 40 or 64
+  lowercase hexadecimal characters. Abbreviations, uppercase, non-hex, and
+  whitespace-padded values fail closed.
+- Task workspace/state, workspace-manager observations, archive and
+  finalization evidence, dossier-cache sources, NUL-delimited `git ls-tree`
+  records, and repository-map dossier projections all delegate to that shared
+  contract. The cache and projection diagnostics now describe both supported
+  lengths.
+- Regressions validate both SHA-1 and SHA-256 forms and reject invalid
+  length/case/hex values at the shared and `ls-tree` boundaries. Workspace,
+  cache-source, and dossier-projection tests cover both supported forms.
+- A real `git init --object-format=sha256` fixture executed successfully in the
+  current environment. Its 64-character HEAD, tree, and `ls-tree -z` object
+  IDs survive assembly, cache miss/publication, repository-map construction,
+  dossier projection, and cache-hit replay.
+- Verification passed: focused and complete affected-package tests, shuffled
+  affected-package tests, five race-enabled focused repetitions,
+  `go test -count=1 ./...`, `go vet ./...`, `go mod verify`, formatting,
+  `git diff --check`, Linux/Darwin/FreeBSD amd64 cross-builds, and the Windows
+  diagnostic-stub cross-build.
+- No dependency was added. The next task is `AUDIT-R3-06`; blockers: none.
 
 ## Fence-Aware Markdown Structure (2026-07-14)
 

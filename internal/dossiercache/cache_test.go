@@ -3,8 +3,10 @@ package dossiercache
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -47,6 +49,19 @@ func TestCacheMissPublishHitAndInvalidation(t *testing.T) {
 	guidanceMiss, err := store.Lookup(context.Background(), guidance)
 	if err != nil || guidanceMiss.Class != ResultMiss || guidanceMiss.Key == hit.Key {
 		t.Fatalf("guidance invalidation=%+v err=%v", guidanceMiss, err)
+	}
+}
+
+func TestSourceAcceptsSupportedGitObjectIDs(t *testing.T) {
+	for _, length := range []int{40, 64} {
+		t.Run(fmt.Sprintf("length_%d", length), func(t *testing.T) {
+			source := testSource()
+			source.CommitSHA = strings.Repeat("a", length)
+			source.TreeSHA = strings.Repeat("b", length)
+			if err := source.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v", err)
+			}
+		})
 	}
 }
 
@@ -107,6 +122,36 @@ func TestRepositoryMapMarksSymlinkAndSubmoduleWithoutReadingThem(t *testing.T) {
 	for _, want := range []string{"link [symlink-metadata-only]", "third_party/module [submodule-metadata-only]"} {
 		if !strings.Contains(string(mapped.Content), want) {
 			t.Fatalf("map missing %q:\n%s", want, mapped.Content)
+		}
+	}
+}
+
+func TestParseTreeItemsAcceptsSHA1AndSHA256ObjectIDs(t *testing.T) {
+	for _, length := range []int{40, 64} {
+		t.Run(fmt.Sprintf("length_%d", length), func(t *testing.T) {
+			oid := strings.Repeat("a", length)
+			items, err := ParseTreeItems("100644 blob " + oid + "\ttracked.txt\x00")
+			if err != nil {
+				t.Fatalf("ParseTreeItems() error = %v", err)
+			}
+			if got, want := items, []TreeItem{{Path: "tracked.txt", Mode: "100644", Type: "blob"}}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("items = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestParseTreeItemsRejectsMalformedObjectIDs(t *testing.T) {
+	for _, oid := range []string{
+		strings.Repeat("a", 39),
+		strings.Repeat("a", 41),
+		strings.Repeat("a", 63),
+		strings.Repeat("a", 65),
+		strings.Repeat("A", 40),
+		strings.Repeat("g", 64),
+	} {
+		if _, err := ParseTreeItems("100644 blob " + oid + "\ttracked.txt\x00"); err == nil {
+			t.Fatalf("ParseTreeItems() accepted malformed object ID %q", oid)
 		}
 	}
 }

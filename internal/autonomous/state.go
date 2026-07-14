@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"revolvr/internal/gitoid"
 )
 
 const ExecutionStateSchemaVersion = "autonomous-execution-state-v1"
@@ -1886,8 +1888,7 @@ func terminalLifecycleState(state LifecycleState) bool {
 }
 
 func validGitObjectID(value string) bool {
-	decoded, err := hex.DecodeString(value)
-	return err == nil && (len(decoded) == 20 || len(decoded) == 32) && value == strings.ToLower(value)
+	return gitoid.Valid(value)
 }
 
 func validateOptionalEvidenceReferences(prefix string, references []EvidenceReference) error {

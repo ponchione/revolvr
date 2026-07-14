@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"revolvr/internal/gitoid"
 )
 
 const DossierTokenEstimatorSchema = "utf8-bytes-ceil-div-4-v1"
@@ -229,8 +231,8 @@ func validateRepositoryMapSource(source RepositoryMapSource) error {
 	if strings.TrimSpace(source.ID) == "" || source.ID != strings.TrimSpace(source.ID) {
 		return errors.New("build task dossier: repository_map.id is required and normalized")
 	}
-	if len(source.CommitSHA) != 40 || len(source.TreeSHA) != 40 {
-		return errors.New("build task dossier: repository_map commit/tree identities must be 40-character Git object IDs")
+	if !gitoid.Valid(source.CommitSHA) || !gitoid.Valid(source.TreeSHA) {
+		return errors.New("build task dossier: repository_map commit/tree identities must be 40- or 64-character lowercase Git object IDs")
 	}
 	if len(source.Content) == 0 || !utf8.Valid(source.Content) {
 		return errors.New("build task dossier: repository_map.content must be nonempty UTF-8")

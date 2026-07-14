@@ -18,6 +18,7 @@ import (
 	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousstate"
+	"revolvr/internal/gitoid"
 )
 
 const (
@@ -352,6 +353,5 @@ func validHash(value string) bool {
 	return err == nil && len(raw) == sha256.Size && value == strings.ToLower(value)
 }
 func validOID(value string) bool {
-	raw, err := hex.DecodeString(value)
-	return err == nil && (len(raw) == 20 || len(raw) == 32) && value == strings.ToLower(value)
+	return gitoid.Valid(value)
 }

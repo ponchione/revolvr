@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"revolvr/internal/gitoid"
 )
 
 type MapResult struct {
@@ -46,7 +48,7 @@ func ParseTreeItems(raw string) ([]TreeItem, error) {
 	for _, record := range records {
 		tab := strings.IndexByte(record, '\t')
 		fields := strings.Fields(record[:maxInt(tab, 0)])
-		if tab <= 0 || len(fields) != 3 || len(fields[0]) != 6 || (fields[1] != "blob" && fields[1] != "tree" && fields[1] != "commit") || len(fields[2]) != 40 {
+		if tab <= 0 || len(fields) != 3 || len(fields[0]) != 6 || (fields[1] != "blob" && fields[1] != "tree" && fields[1] != "commit") || !gitoid.Valid(fields[2]) {
 			return nil, errors.New("dossier cache: malformed git ls-tree record")
 		}
 		items = append(items, TreeItem{Path: record[tab+1:], Mode: fields[0], Type: fields[1]})

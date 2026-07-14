@@ -243,6 +243,46 @@ func TestAssembleRepositoryMapCacheHitGuidanceInvalidationAndCorruptionFallback(
 	}
 }
 
+func TestAssembleRepositoryMapFromSHA256Repository(t *testing.T) {
+	repo := newSHA256TestRepository(t, "task-sha256")
+	head := gitOutput(t, repo, "rev-parse", "HEAD")
+	tree := gitOutput(t, repo, "rev-parse", "HEAD^{tree}")
+	if len(head) != 64 || len(tree) != 64 {
+		t.Fatalf("SHA-256 repository identities have lengths %d/%d, want 64/64", len(head), len(tree))
+	}
+
+	in := Input{
+		RepositoryRoot: repo,
+		TaskID:         "task-sha256",
+		State:          validState("task-sha256"),
+		RepositoryMapPolicy: RepositoryMapPolicy{
+			Enabled:  true,
+			MaxPaths: 100,
+			MaxBytes: 64 * 1024,
+		},
+		Role: autonomous.DossierRoleSupervisor,
+	}
+	first, err := Assemble(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Assemble() error = %v", err)
+	}
+	if first.Manifest.Cache == nil || first.Manifest.Cache.Result != "recomputed" {
+		t.Fatalf("first repository-map cache = %+v, want recomputed", first.Manifest.Cache)
+	}
+	for _, want := range []string{"Commit: " + head, "Tree: " + tree, "tracked.txt [file]"} {
+		if !strings.Contains(string(first.Markdown), want) {
+			t.Fatalf("SHA-256 dossier missing %q:\n%s", want, first.Markdown)
+		}
+	}
+	second, err := Assemble(context.Background(), in)
+	if err != nil {
+		t.Fatalf("second Assemble() error = %v", err)
+	}
+	if second.Manifest.Cache == nil || second.Manifest.Cache.Result != "hit" || second.Manifest.Cache.Key != first.Manifest.Cache.Key {
+		t.Fatalf("second repository-map cache = %+v, want matching hit", second.Manifest.Cache)
+	}
+}
+
 func TestAssembleTaskStateAndAuditIdentityFailures(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -793,6 +833,28 @@ func newTestRepository(t *testing.T, taskID string, guidance bool) string {
 	}
 	gitRun(t, repo, "add", ".")
 	gitRun(t, repo, "commit", "-q", "-m", "Initial fixture")
+	return repo
+}
+
+func newSHA256TestRepository(t *testing.T, taskID string) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git not available: %v", err)
+	}
+	repo := t.TempDir()
+	cmd := exec.Command("git", "init", "-q", "--object-format=sha256")
+	cmd.Dir = repo
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("installed Git does not support SHA-256 repositories: %v: %s", err, strings.TrimSpace(string(output)))
+	}
+	gitRun(t, repo, "config", "user.name", "Revolvr Assembly")
+	gitRun(t, repo, "config", "user.email", "assembly@example.invalid")
+	task := []byte(fmt.Sprintf("---\nid: %s\nstatus: pending\n---\n# Assemble %s\n\nExact task bytes.\n", taskID, taskID))
+	writeTestFile(t, filepath.Join(repo, ".agent", "tasks", taskID+".md"), task)
+	writeTestFile(t, filepath.Join(repo, ".gitignore"), []byte("/.revolvr/\n"))
+	writeTestFile(t, filepath.Join(repo, "tracked.txt"), []byte("committed\n"))
+	gitRun(t, repo, "add", ".")
+	gitRun(t, repo, "commit", "-q", "-m", "Initial SHA-256 fixture")
 	return repo
 }
 

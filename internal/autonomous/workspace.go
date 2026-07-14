@@ -1,12 +1,13 @@
 package autonomous
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"revolvr/internal/gitoid"
 )
 
 const WorkspaceSchemaVersion = "autonomous-task-workspace-v1"
@@ -155,11 +156,7 @@ func (r WorkspaceRecovery) Validate() error {
 }
 
 func validGitOID(value string) bool {
-	if len(value) != 40 && len(value) != 64 {
-		return false
-	}
-	_, err := hex.DecodeString(value)
-	return err == nil
+	return gitoid.Valid(value)
 }
 
 func pathWithin(root, child string) bool {

@@ -16,6 +16,7 @@ import (
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousfinalization"
+	"revolvr/internal/gitoid"
 	"revolvr/internal/taskfile"
 )
 
@@ -330,8 +331,7 @@ func validHash(value string) bool {
 }
 
 func validOID(value string) bool {
-	raw, err := hex.DecodeString(value)
-	return err == nil && (len(raw) == 20 || len(raw) == 32) && value == strings.ToLower(value)
+	return gitoid.Valid(value)
 }
 
 func validIdentity(value string) bool {

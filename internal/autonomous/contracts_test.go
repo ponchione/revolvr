@@ -2,10 +2,52 @@ package autonomous
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestTaskWorkspaceAcceptsSHA1AndSHA256ObjectIDs(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	for _, length := range []int{40, 64} {
+		t.Run(fmt.Sprintf("length_%d", length), func(t *testing.T) {
+			commit := strings.Repeat("a", length)
+			tree := strings.Repeat("b", length)
+			source := strings.Repeat("c", 64)
+			workspace := TaskWorkspace{
+				SchemaVersion:  WorkspaceSchemaVersion,
+				TaskID:         "task-1",
+				WorkspaceID:    "workspace-one",
+				ControlRoot:    "/control",
+				ExecutionRoot:  "/control/.revolvr/autonomous/worktrees/workspace-one",
+				GitCommonDir:   "/control/.git",
+				BranchRef:      "refs/heads/revolvr/tasks/task-1-workspace",
+				OwnerMarker:    "/control/.revolvr/autonomous/tasks/task-1/workspace-owner.json",
+				BaselineSHA:    commit,
+				HeadSHA:        commit,
+				TreeSHA:        tree,
+				SourceRevision: source,
+				Checkpoint: WorkspaceCheckpoint{
+					Sequence:       1,
+					CommitSHA:      commit,
+					TreeSHA:        tree,
+					SourceRevision: source,
+					OperationID:    "workspace-create",
+					Provenance:     "test",
+					CreatedAt:      now,
+				},
+				Status:    WorkspaceStatusReady,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if err := workspace.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v", err)
+			}
+		})
+	}
+}
 
 func TestSupervisorDecisionValidateSupportsEveryAction(t *testing.T) {
 	tests := []struct {

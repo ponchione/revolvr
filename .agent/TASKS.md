@@ -39,7 +39,7 @@
   make the cancellation regression deterministic.
 - [x] AUDIT-R3-04 — Make task-import and receipt structural parsing ignore
   headings inside Markdown fences.
-- [ ] AUDIT-R3-05 — Make Git object-ID validation consistent for SHA-1 and
+- [x] AUDIT-R3-05 — Make Git object-ID validation consistent for SHA-1 and
   SHA-256 repositories across workspace, cache, map, and dossier boundaries.
 - [ ] AUDIT-R3-06 — Accept safe tracked names beginning with `..` while still
   rejecting path traversal.
