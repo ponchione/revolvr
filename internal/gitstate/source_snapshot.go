@@ -493,7 +493,27 @@ func sourceFileType(mode os.FileMode) string {
 	}
 }
 
+type sourceEntryCapturePoint string
+
+const (
+	sourceEntryAfterInitialLstat              sourceEntryCapturePoint = "after_initial_lstat"
+	sourceEntryAfterRegularOpen               sourceEntryCapturePoint = "after_regular_open"
+	sourceEntryBeforeRegularDescriptorRecheck sourceEntryCapturePoint = "before_regular_descriptor_recheck"
+	sourceEntryBeforeRegularPathRecheck       sourceEntryCapturePoint = "before_regular_path_recheck"
+	sourceEntryAfterSymlinkOpen               sourceEntryCapturePoint = "after_symlink_open"
+	sourceEntryBeforeSymlinkRead              sourceEntryCapturePoint = "before_symlink_read"
+	sourceEntryAfterSymlinkRead               sourceEntryCapturePoint = "after_symlink_read"
+	sourceEntryBeforeSymlinkDescriptorRecheck sourceEntryCapturePoint = "before_symlink_descriptor_recheck"
+	sourceEntryBeforeSymlinkPathRecheck       sourceEntryCapturePoint = "before_symlink_path_recheck"
+)
+
+type sourceEntryCaptureHook func(sourceEntryCapturePoint, string) error
+
 func captureSourceEntry(workDir, path, indexRecord string) (SourceEntry, error) {
+	return captureSourceEntryWithHook(workDir, path, indexRecord, nil)
+}
+
+func captureSourceEntryWithHook(workDir, path, indexRecord string, hook sourceEntryCaptureHook) (SourceEntry, error) {
 	entry := SourceEntry{Path: path, IndexRecord: indexRecord}
 	absPath := filepath.Join(workDir, filepath.FromSlash(path))
 	before, err := os.Lstat(absPath)
@@ -504,38 +524,120 @@ func captureSourceEntry(workDir, path, indexRecord string) (SourceEntry, error) 
 	if err != nil {
 		return SourceEntry{}, err
 	}
+	if err := runSourceEntryCaptureHook(hook, sourceEntryAfterInitialLstat, absPath); err != nil {
+		return SourceEntry{}, err
+	}
 	entry.Mode = uint32(before.Mode())
 	entry.ByteSize = before.Size()
 
 	switch {
 	case before.Mode().IsRegular():
 		entry.FileType = "regular"
-		file, err := os.Open(absPath)
+		file, err := openSourceRegularFile(absPath)
 		if err != nil {
 			return SourceEntry{}, err
 		}
+		defer func() {
+			if file != nil {
+				_ = file.Close()
+			}
+		}()
+		if err := runSourceEntryCaptureHook(hook, sourceEntryAfterRegularOpen, absPath); err != nil {
+			return SourceEntry{}, err
+		}
+		openedBefore, err := file.Stat()
+		if err != nil {
+			return SourceEntry{}, err
+		}
+		if !sameSourceEntryFile(before, openedBefore) || !openedBefore.Mode().IsRegular() {
+			return SourceEntry{}, sourceEntryChanged("regular file")
+		}
 		hash := sha256.New()
 		readSize, readErr := io.Copy(hash, file)
-		closeErr := file.Close()
 		if readErr != nil {
 			return SourceEntry{}, readErr
 		}
-		if closeErr != nil {
-			return SourceEntry{}, closeErr
+		if err := runSourceEntryCaptureHook(hook, sourceEntryBeforeRegularDescriptorRecheck, absPath); err != nil {
+			return SourceEntry{}, err
+		}
+		openedAfter, err := file.Stat()
+		if err != nil {
+			return SourceEntry{}, err
+		}
+		if !sameSourceEntryFile(openedBefore, openedAfter) || !openedAfter.Mode().IsRegular() || readSize != openedAfter.Size() {
+			return SourceEntry{}, sourceEntryChanged("regular file")
+		}
+		if err := runSourceEntryCaptureHook(hook, sourceEntryBeforeRegularPathRecheck, absPath); err != nil {
+			return SourceEntry{}, err
 		}
 		after, err := os.Lstat(absPath)
-		if err != nil || !os.SameFile(before, after) || before.Size() != after.Size() || before.ModTime() != after.ModTime() || before.Mode() != after.Mode() {
-			return SourceEntry{}, errors.New("file changed while it was being captured")
+		if err != nil {
+			return SourceEntry{}, sourceEntryChanged("regular file")
 		}
+		if !sameSourceEntryFile(openedAfter, after) || !after.Mode().IsRegular() {
+			return SourceEntry{}, sourceEntryChanged("regular file")
+		}
+		if err := file.Close(); err != nil {
+			return SourceEntry{}, err
+		}
+		file = nil
+		entry.Mode = uint32(openedAfter.Mode())
 		entry.ByteSize = readSize
 		entry.SHA256 = fmt.Sprintf("%x", hash.Sum(nil))
 	case before.Mode()&os.ModeSymlink != 0:
 		entry.FileType = "symlink"
-		target, err := os.Readlink(absPath)
+		file, err := openSourceSymlink(absPath)
 		if err != nil {
 			return SourceEntry{}, err
 		}
+		defer func() {
+			if file != nil {
+				_ = file.Close()
+			}
+		}()
+		if err := runSourceEntryCaptureHook(hook, sourceEntryAfterSymlinkOpen, absPath); err != nil {
+			return SourceEntry{}, err
+		}
+		openedBefore, err := file.Stat()
+		if err != nil {
+			return SourceEntry{}, err
+		}
+		if !sameSourceEntryFile(before, openedBefore) || openedBefore.Mode()&os.ModeSymlink == 0 {
+			return SourceEntry{}, sourceEntryChanged("symlink")
+		}
+		if err := runSourceEntryCaptureHook(hook, sourceEntryBeforeSymlinkRead, absPath); err != nil {
+			return SourceEntry{}, err
+		}
+		target, err := readSourceSymlink(file, openedBefore.Size())
+		if err != nil {
+			return SourceEntry{}, err
+		}
+		if err := runSourceEntryCaptureHook(hook, sourceEntryAfterSymlinkRead, absPath); err != nil {
+			return SourceEntry{}, err
+		}
+		if err := runSourceEntryCaptureHook(hook, sourceEntryBeforeSymlinkDescriptorRecheck, absPath); err != nil {
+			return SourceEntry{}, err
+		}
+		openedAfter, err := file.Stat()
+		if err != nil {
+			return SourceEntry{}, err
+		}
+		if !sameSourceEntryFile(openedBefore, openedAfter) || openedAfter.Mode()&os.ModeSymlink == 0 || int64(len(target)) != openedAfter.Size() {
+			return SourceEntry{}, sourceEntryChanged("symlink")
+		}
+		if err := runSourceEntryCaptureHook(hook, sourceEntryBeforeSymlinkPathRecheck, absPath); err != nil {
+			return SourceEntry{}, err
+		}
+		after, err := os.Lstat(absPath)
+		if err != nil || !sameSourceEntryFile(openedAfter, after) || after.Mode()&os.ModeSymlink == 0 {
+			return SourceEntry{}, sourceEntryChanged("symlink")
+		}
+		if err := file.Close(); err != nil {
+			return SourceEntry{}, err
+		}
+		file = nil
 		hash := sha256.Sum256([]byte(target))
+		entry.Mode = uint32(openedAfter.Mode())
 		entry.ByteSize = int64(len(target))
 		entry.SHA256 = fmt.Sprintf("%x", hash)
 	case before.IsDir():
@@ -544,6 +646,25 @@ func captureSourceEntry(workDir, path, indexRecord string) (SourceEntry, error) 
 		return SourceEntry{}, fmt.Errorf("unsupported file type %s", before.Mode().Type())
 	}
 	return entry, nil
+}
+
+func runSourceEntryCaptureHook(hook sourceEntryCaptureHook, point sourceEntryCapturePoint, path string) error {
+	if hook == nil {
+		return nil
+	}
+	return hook(point, path)
+}
+
+func sameSourceEntryFile(expected, actual os.FileInfo) bool {
+	return expected != nil && actual != nil &&
+		os.SameFile(expected, actual) &&
+		expected.Mode() == actual.Mode() &&
+		expected.Size() == actual.Size() &&
+		expected.ModTime().Equal(actual.ModTime())
+}
+
+func sourceEntryChanged(fileType string) error {
+	return errors.New(fileType + " changed while it was being captured")
 }
 
 func isRuntimeArtifactPath(path string) bool {

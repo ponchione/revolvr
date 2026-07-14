@@ -2,14 +2,223 @@ package gitstate
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"golang.org/x/sys/unix"
+
 	"revolvr/internal/runner"
 )
+
+func TestCaptureSourceEntryRejectsFinalSymlinkReplacement(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source.txt")
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	writeSourceTestFile(t, path, []byte("source bytes\n"))
+	writeSourceTestFile(t, outside, []byte("outside bytes\n"))
+	fired := false
+
+	_, err := captureSourceEntryWithHook(root, "source.txt", "", func(point sourceEntryCapturePoint, _ string) error {
+		if point != sourceEntryAfterInitialLstat || fired {
+			return nil
+		}
+		fired = true
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+		return os.Symlink(outside, path)
+	})
+	if err == nil || !fired {
+		t.Fatalf("capture error/fired = %v/%t, want rejected final symlink replacement", err, fired)
+	}
+	raw, readErr := os.ReadFile(outside)
+	if readErr != nil || string(raw) != "outside bytes\n" {
+		t.Fatalf("outside bytes/error = %q/%v", raw, readErr)
+	}
+}
+
+func TestCaptureSourceEntryRejectsRegularInodeReplacementAfterOpen(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source.txt")
+	replacement := filepath.Join(root, "replacement.txt")
+	writeSourceTestFile(t, path, []byte("original"))
+	writeSourceTestFile(t, replacement, []byte("replaced"))
+	fired := false
+
+	_, err := captureSourceEntryWithHook(root, "source.txt", "", func(point sourceEntryCapturePoint, _ string) error {
+		if point != sourceEntryAfterRegularOpen || fired {
+			return nil
+		}
+		fired = true
+		return os.Rename(replacement, path)
+	})
+	if err == nil || !strings.Contains(err.Error(), "regular file changed while it was being captured") || !fired {
+		t.Fatalf("capture error/fired = %v/%t, want inode-replacement rejection", err, fired)
+	}
+}
+
+func TestCaptureSourceEntryRejectsRegularABAOpenSubstitution(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source.txt")
+	held := filepath.Join(root, "source-held.txt")
+	replacement := filepath.Join(root, "replacement.txt")
+	writeSourceTestFile(t, path, []byte("AAAA"))
+	writeSourceTestFile(t, replacement, []byte("BBBB"))
+	matchSourceMetadata(t, path, replacement)
+	var replaced, restored bool
+
+	_, err := captureSourceEntryWithHook(root, "source.txt", "", func(point sourceEntryCapturePoint, _ string) error {
+		switch point {
+		case sourceEntryAfterInitialLstat:
+			if err := os.Rename(path, held); err != nil {
+				return err
+			}
+			if err := os.Rename(replacement, path); err != nil {
+				return err
+			}
+			replaced = true
+		case sourceEntryAfterRegularOpen:
+			if err := os.Rename(held, path); err != nil {
+				return err
+			}
+			restored = true
+		}
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "regular file changed while it was being captured") || !replaced || !restored {
+		t.Fatalf("capture error/replaced/restored = %v/%t/%t, want ABA rejection", err, replaced, restored)
+	}
+	raw, readErr := os.ReadFile(path)
+	if readErr != nil || string(raw) != "AAAA" {
+		t.Fatalf("restored bytes/error = %q/%v", raw, readErr)
+	}
+}
+
+func TestCaptureSourceEntryRejectsRegularMutationAfterRead(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source.txt")
+	writeSourceTestFile(t, path, []byte("original"))
+	fired := false
+
+	_, err := captureSourceEntryWithHook(root, "source.txt", "", func(point sourceEntryCapturePoint, _ string) error {
+		if point != sourceEntryBeforeRegularDescriptorRecheck || fired {
+			return nil
+		}
+		fired = true
+		return os.WriteFile(path, []byte("modified after read"), 0o644)
+	})
+	if err == nil || !strings.Contains(err.Error(), "regular file changed while it was being captured") || !fired {
+		t.Fatalf("capture error/fired = %v/%t, want descriptor mutation rejection", err, fired)
+	}
+}
+
+func TestCaptureSourceEntryRejectsSymlinkABAOpenSubstitution(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source-link")
+	held := filepath.Join(root, "source-held")
+	replacement := filepath.Join(root, "replacement-link")
+	if err := os.Symlink("target-a", path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("target-b", replacement); err != nil {
+		t.Fatal(err)
+	}
+	matchSourceSymlinkMetadata(t, path, replacement)
+	var replaced, restored bool
+
+	_, err := captureSourceEntryWithHook(root, "source-link", "", func(point sourceEntryCapturePoint, _ string) error {
+		switch point {
+		case sourceEntryAfterInitialLstat:
+			if err := os.Rename(path, held); err != nil {
+				return err
+			}
+			if err := os.Rename(replacement, path); err != nil {
+				return err
+			}
+			replaced = true
+		case sourceEntryAfterSymlinkOpen:
+			if err := os.Rename(held, path); err != nil {
+				return err
+			}
+			restored = true
+		}
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "symlink changed while it was being captured") || !replaced || !restored {
+		t.Fatalf("capture error/replaced/restored = %v/%t/%t, want symlink ABA rejection", err, replaced, restored)
+	}
+}
+
+func TestCaptureSourceEntryReadsSymlinkThroughOpenedIdentity(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source-link")
+	held := filepath.Join(root, "source-held")
+	replacement := filepath.Join(root, "replacement-link")
+	if err := os.Symlink("target-a", path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("target-b", replacement); err != nil {
+		t.Fatal(err)
+	}
+	matchSourceSymlinkMetadata(t, path, replacement)
+	var replaced, restored bool
+
+	entry, err := captureSourceEntryWithHook(root, "source-link", "", func(point sourceEntryCapturePoint, _ string) error {
+		switch point {
+		case sourceEntryAfterSymlinkOpen:
+			if err := os.Rename(path, held); err != nil {
+				return err
+			}
+			if err := os.Rename(replacement, path); err != nil {
+				return err
+			}
+			replaced = true
+		case sourceEntryAfterSymlinkRead:
+			if err := os.Rename(held, path); err != nil {
+				return err
+			}
+			restored = true
+		}
+		return nil
+	})
+	if err != nil || !replaced || !restored {
+		t.Fatalf("capture error/replaced/restored = %v/%t/%t", err, replaced, restored)
+	}
+	wantHash := sha256.Sum256([]byte("target-a"))
+	if entry.FileType != "symlink" || entry.ByteSize != int64(len("target-a")) || entry.SHA256 != fmt.Sprintf("%x", wantHash) {
+		t.Fatalf("entry = %+v, want opened target-a identity", entry)
+	}
+}
+
+func TestCaptureSourceEntryRejectsSymlinkReplacementAfterRead(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source-link")
+	replacement := filepath.Join(root, "replacement-link")
+	if err := os.Symlink("target-a", path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("target-b", replacement); err != nil {
+		t.Fatal(err)
+	}
+	matchSourceSymlinkMetadata(t, path, replacement)
+	fired := false
+
+	_, err := captureSourceEntryWithHook(root, "source-link", "", func(point sourceEntryCapturePoint, _ string) error {
+		if point != sourceEntryAfterSymlinkRead || fired {
+			return nil
+		}
+		fired = true
+		return os.Rename(replacement, path)
+	})
+	if err == nil || !strings.Contains(err.Error(), "symlink changed while it was being captured") || !fired {
+		t.Fatalf("capture error/fired = %v/%t, want post-read replacement rejection", err, fired)
+	}
+}
 
 func TestSourceSnapshotDetectsContentChangeOnAlreadyDirtyPath(t *testing.T) {
 	root := sourceTestRepository(t)
@@ -340,6 +549,32 @@ func writeSourceTestFile(t *testing.T, path string, raw []byte) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func matchSourceMetadata(t *testing.T, source, target string) {
+	t.Helper()
+	info, err := os.Stat(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(target, info.Mode()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(target, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func matchSourceSymlinkMetadata(t *testing.T, source, target string) {
+	t.Helper()
+	info, err := os.Lstat(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestamp := unix.NsecToTimespec(info.ModTime().UnixNano())
+	if err := unix.UtimesNanoAt(unix.AT_FDCWD, target, []unix.Timespec{timestamp, timestamp}, unix.AT_SYMLINK_NOFOLLOW); err != nil {
 		t.Fatal(err)
 	}
 }

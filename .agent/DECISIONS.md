@@ -1,5 +1,30 @@
 # Agent Decisions
 
+## AUDIT-R4-10 Descriptor-Bound Source Snapshot Identity (2026-07-14)
+
+- Source-entry evidence belongs to the opened filesystem object, not merely
+  to matching pathname observations. Regular capture therefore uses a
+  no-follow, nonblocking descriptor and requires its immediate `fstat`
+  identity, type, mode, size, and modification time to match the initial
+  `Lstat`.
+- A regular digest is accepted only after a second descriptor check proves
+  the opened object remained stable and a final `Lstat` proves the name still
+  designates that object. Reads whose byte count disagrees with descriptor
+  size fail closed.
+- Symlink targets require equivalent descriptor authority. Linux opens the
+  link with `O_PATH|O_NOFOLLOW` and uses empty-path `readlinkat`; macOS opens
+  it with `O_SYMLINK` and uses `freadlink`; FreeBSD uses its
+  `O_PATH|O_NOFOLLOW` descriptor and empty-path `readlinkat`. A platform or
+  filesystem that cannot provide the primitive fails capture instead of
+  falling back to a pathname `Readlink` race.
+- Symlink target reads are dynamically sized with an explicit upper bound and
+  truncation detection. The initial path, opened descriptor before/after the
+  read, target length, and final path must all agree before target bytes are
+  hashed.
+- Test-only capture points bracket initial lookup, descriptor open, reads,
+  and descriptor/path rechecks. ABA regressions equalize mode, size, and
+  modification time so only inode binding can satisfy the contract.
+
 ## AUDIT-R4-09 Codex Usage Schema Authority (2026-07-14)
 
 - Usage authority follows one explicit precedence sequence: top-level

@@ -2,11 +2,35 @@
 
 ## Current Focus
 
-`AUDIT-R4-09` is complete. Codex usage extraction follows explicit schema
-precedence, accepts a legacy recursively nested usage object only when it is
-the unique valid authority, and rejects competing nested candidates with a
-typed deterministic diagnostic. The next bounded task is `AUDIT-R4-10`; there
-are no blockers.
+`AUDIT-R4-10` is complete. Source snapshots bind regular-file bytes and
+symlink targets to opened filesystem identities and reject final-component,
+inode-replacement, and A-to-B-to-A substitutions. The next bounded task is
+`AUDIT-R4-11`; there are no blockers.
+
+## Descriptor-Bound Source Snapshot Entries (2026-07-14)
+
+- Regular entries are opened with no final-component symlink following and
+  nonblocking semantics. Immediate descriptor metadata must match the initial
+  pathname identity, type, mode, size, and modification time before hashing.
+- After hashing, both the opened descriptor and the pathname are checked
+  against the opened identity before the digest is published. This prevents a
+  pathname from supplying metadata for bytes read from a substituted inode.
+- Symlinks are opened as link-inode descriptors and their targets are read
+  through those descriptors: `O_PATH` plus descriptor-relative `readlinkat`
+  on Linux and FreeBSD, and `O_SYMLINK` plus `freadlink` on macOS. Descriptor
+  and pathname identity checks bracket the target read.
+- Deterministic capture hooks reproduce final-symlink replacement, regular
+  inode replacement, regular and symlink A-to-B-to-A substitutions, a
+  regular-file mutation after hashing, and symlink replacement around and
+  after the descriptor target read. Replacement metadata is deliberately
+  matched so identity checks, not incidental size or timestamp differences,
+  cause rejection.
+- Verification passed: twenty focused adversarial repetitions, complete
+  ordinary/shuffled/race suites, `go vet ./...`, `go mod verify`, CLI help,
+  formatting and diff checks, Linux/Darwin/FreeBSD amd64 builds, Darwin and
+  FreeBSD `gitstate` test-package builds, and the unsupported-Windows
+  diagnostic-stub build. No dependency was added. The next task is
+  `AUDIT-R4-11`; blockers: none.
 
 ## Codex Usage Schema Precedence (2026-07-14)
 
