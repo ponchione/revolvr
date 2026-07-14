@@ -105,6 +105,22 @@ func TestApplyReportFindingIdentityAndCleanRules(t *testing.T) {
 	}
 }
 
+func TestApplyReportReportsFirstMissingOpenFindingDeterministically(t *testing.T) {
+	previous := readyState()
+	previous.FindingResolutions = []autonomous.FindingResolution{
+		{FindingID: "finding-zulu", Status: autonomous.FindingResolutionStatusOpen},
+		{FindingID: "finding-alpha", Status: autonomous.FindingResolutionStatusOpen},
+	}
+	output := auditOutput(autonomous.AuditDispositionClean)
+	const want = `apply audit report: open finding "finding-alpha" disappeared from the current report`
+	for i := 0; i < 100; i++ {
+		_, err := ApplyReport(previous, output, auditDecision(), nil)
+		if err == nil || err.Error() != want {
+			t.Fatalf("ApplyReport() error = %v, want %q (run %d)", err, want, i)
+		}
+	}
+}
+
 func TestApplyResolutionEveryTerminalStatus(t *testing.T) {
 	state := readyState()
 	state.FindingResolutions = []autonomous.FindingResolution{{FindingID: "finding-one", Status: autonomous.FindingResolutionStatusOpen}, {FindingID: "finding-two", Status: autonomous.FindingResolutionStatusOpen}}

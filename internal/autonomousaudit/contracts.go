@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"revolvr/internal/autonomous"
@@ -224,12 +225,17 @@ func ApplyReport(previous autonomous.ExecutionState, output AuditOutput, decisio
 			return AuditChange{}, fmt.Errorf("apply audit report: finding %q is a probable rename of open finding %q without explicit supersession", finding.ID, priorID)
 		}
 	}
+	missingOpenFindingIDs := make([]string, 0)
 	for id, status := range statusByID {
 		if status == autonomous.FindingResolutionStatusOpen {
 			if _, ok := reported[id]; !ok {
-				return AuditChange{}, fmt.Errorf("apply audit report: open finding %q disappeared from the current report", id)
+				missingOpenFindingIDs = append(missingOpenFindingIDs, id)
 			}
 		}
+	}
+	sort.Strings(missingOpenFindingIDs)
+	if len(missingOpenFindingIDs) > 0 {
+		return AuditChange{}, fmt.Errorf("apply audit report: open finding %q disappeared from the current report", missingOpenFindingIDs[0])
 	}
 
 	next, err := cloneState(previous)

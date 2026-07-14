@@ -1,5 +1,16 @@
 # Agent Decisions
 
+## AUDIT-R3-07 Deterministic Validation Diagnostics (2026-07-14)
+
+- Validation error precedence is part of Revolvr's deterministic contract.
+  Fixed fields are checked in an explicit slice rather than a map: source
+  snapshot hashes use index, worktree, snapshot order, and dossier-cache root
+  identities use control, execution order.
+- When more than one open audit finding disappears, `ApplyReport` collects and
+  lexically sorts all missing IDs before selecting the diagnostic. This keeps
+  lookup maps internal while preventing their undefined iteration order from
+  choosing externally visible behavior.
+
 ## AUDIT-R3-06 Component-Aware Repository Paths (2026-07-14)
 
 - A clean repository-relative component beginning with `..` is not traversal.

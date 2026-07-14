@@ -43,7 +43,7 @@
   SHA-256 repositories across workspace, cache, map, and dossier boundaries.
 - [x] AUDIT-R3-06 — Accept safe tracked names beginning with `..` while still
   rejecting path traversal.
-- [ ] AUDIT-R3-07 — Replace map-order-dependent validation diagnostics with
+- [x] AUDIT-R3-07 — Replace map-order-dependent validation diagnostics with
   explicit deterministic ordering.
 - [ ] AUDIT-R3-08 — Remove the confirmed no-caller wrappers and obsolete
   admitted-cycle orchestration path if it is not intentionally reserved.

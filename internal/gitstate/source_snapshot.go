@@ -277,13 +277,17 @@ func (snapshot SourceSnapshot) Validate() error {
 	if strings.TrimSpace(snapshot.Head) == "" || strings.ContainsAny(snapshot.Head, "\r\n") {
 		return errors.New("validate source snapshot: HEAD is missing or malformed")
 	}
-	for name, value := range map[string]string{
-		"index":    snapshot.IndexSHA256,
-		"worktree": snapshot.WorktreeSHA256,
-		"snapshot": snapshot.SnapshotSHA256,
-	} {
-		if !validSnapshotHash(value) {
-			return fmt.Errorf("validate source snapshot: %s SHA-256 is invalid", name)
+	hashes := []struct {
+		name  string
+		value string
+	}{
+		{name: "index", value: snapshot.IndexSHA256},
+		{name: "worktree", value: snapshot.WorktreeSHA256},
+		{name: "snapshot", value: snapshot.SnapshotSHA256},
+	}
+	for _, hash := range hashes {
+		if !validSnapshotHash(hash.value) {
+			return fmt.Errorf("validate source snapshot: %s SHA-256 is invalid", hash.name)
 		}
 	}
 	previousPath := ""

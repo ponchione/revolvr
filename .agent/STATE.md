@@ -2,9 +2,26 @@
 
 ## Current Focus
 
-`AUDIT-R3-06` closes over-rejection of safe repository names beginning with
-`..`. The first unchecked follow-up is `AUDIT-R3-07`, which replaces
-map-order-dependent validation diagnostics with explicit deterministic order.
+`AUDIT-R3-07` closes map-order-dependent validation diagnostics. The first
+unchecked follow-up is `AUDIT-R3-08`, which removes confirmed no-caller code.
+
+## Deterministic Validation Diagnostics (2026-07-14)
+
+- Source-snapshot hash validation now has explicit `index`, `worktree`, then
+  `snapshot` precedence. Dossier-cache root validation explicitly checks the
+  control root before the execution root.
+- Audit report application collects every open finding omitted from the
+  current report, sorts the IDs, and reports the lexically first missing ID.
+  Map iteration is no longer diagnostic authority at any of the three audited
+  boundaries.
+- Each regression supplies multiple simultaneous invalid values and asserts
+  one exact error over 100 calls. Focused packages passed ten ordinary and ten
+  shuffled repetitions; the exact regressions passed 100 package repetitions,
+  and affected-package race tests passed.
+- Verification passed: `go test -count=1 ./...`, `go vet ./...`,
+  `go mod verify`, formatting, `git diff --check`, Linux/Darwin/FreeBSD amd64
+  cross-builds, and the Windows diagnostic-stub cross-build.
+- No dependency was added. The next task is `AUDIT-R3-08`; blockers: none.
 
 ## Component-Aware Repository Paths (2026-07-14)
 

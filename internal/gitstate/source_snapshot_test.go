@@ -217,6 +217,22 @@ func TestSourceSnapshotRejectsTruncatedGitEvidence(t *testing.T) {
 	}
 }
 
+func TestSourceSnapshotValidationReportsFirstInvalidHashDeterministically(t *testing.T) {
+	snapshot, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: sourceTestRepository(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot.IndexSHA256 = "invalid-index"
+	snapshot.WorktreeSHA256 = "invalid-worktree"
+	snapshot.SnapshotSHA256 = "invalid-snapshot"
+	const want = "validate source snapshot: index SHA-256 is invalid"
+	for i := 0; i < 100; i++ {
+		if err := snapshot.Validate(); err == nil || err.Error() != want {
+			t.Fatalf("Validate() error = %v, want %q (run %d)", err, want, i)
+		}
+	}
+}
+
 func TestPolicySourceRevisionTracksContentButSurvivesStageAndCommit(t *testing.T) {
 	root := sourceTestRepository(t)
 	baseline, err := CaptureSourceSnapshot(context.Background(), SourceSnapshotConfig{WorkingDir: root})

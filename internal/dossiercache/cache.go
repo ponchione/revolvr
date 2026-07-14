@@ -111,9 +111,16 @@ func (s Source) Validate() error {
 	if s.SchemaVersion != SchemaVersion || s.Algorithm != ProducerAlgorithm {
 		return errors.New("dossier cache: unsupported source schema or algorithm")
 	}
-	for name, value := range map[string]string{"control_root_id": s.ControlRootID, "execution_root_id": s.ExecutionRootID} {
-		if !validSHA256(value) {
-			return fmt.Errorf("dossier cache: %s must be SHA-256", name)
+	rootIDs := []struct {
+		name  string
+		value string
+	}{
+		{name: "control_root_id", value: s.ControlRootID},
+		{name: "execution_root_id", value: s.ExecutionRootID},
+	}
+	for _, rootID := range rootIDs {
+		if !validSHA256(rootID.value) {
+			return fmt.Errorf("dossier cache: %s must be SHA-256", rootID.name)
 		}
 	}
 	if !validGitOID(s.CommitSHA) || !validGitOID(s.TreeSHA) {

@@ -65,6 +65,18 @@ func TestSourceAcceptsSupportedGitObjectIDs(t *testing.T) {
 	}
 }
 
+func TestSourceValidationReportsFirstInvalidRootIDDeterministically(t *testing.T) {
+	source := testSource()
+	source.ControlRootID = "invalid-control"
+	source.ExecutionRootID = "invalid-execution"
+	const want = "dossier cache: control_root_id must be SHA-256"
+	for i := 0; i < 100; i++ {
+		if err := source.Validate(); err == nil || err.Error() != want {
+			t.Fatalf("Validate() error = %v, want %q (run %d)", err, want, i)
+		}
+	}
+}
+
 func TestSourceGuidanceAcceptsSafeDotDotPrefixes(t *testing.T) {
 	source := testSource()
 	source.Guidance = []GuidanceIdentity{
