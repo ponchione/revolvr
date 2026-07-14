@@ -16,7 +16,7 @@
   deterministic.
 - [x] AUDIT-FIX-02 — Remove unsafe mixed-pass dirty-worktree commits or isolate
   and prove the exact run-owned delta with real-Git overlap coverage.
-- [ ] AUDIT-FIX-03 — Harden source-writer and retention lock files with
+- [x] AUDIT-FIX-03 — Harden source-writer and retention lock files with
   canonical roots, no-follow opens, and named/opened inode checks.
 - [ ] AUDIT-FIX-04 — Migrate the remaining predictable coordinator locks to the
   same hardened flock primitive and substitution tests.

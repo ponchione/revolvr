@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"revolvr/internal/runtimepath"
 )
 
 func TestAcquireSourceWriterWritesAndReleasesLock(t *testing.T) {
@@ -25,6 +27,15 @@ func TestAcquireSourceWriterWritesAndReleasesLock(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("acquire source writer: %v", err)
+	}
+	for _, path := range []string{
+		handle.Path(),
+		filepath.Join(workDir, filepath.FromSlash(ArtifactRetentionRelPath)),
+	} {
+		info, statErr := os.Lstat(path)
+		if statErr != nil || info.Mode().Perm() != 0o600 {
+			t.Fatalf("lock %s mode = %v, err=%v, want 0600", path, info, statErr)
+		}
 	}
 
 	metadata, found, err := ReadSourceWriter(ctx, workDir)
@@ -207,7 +218,7 @@ func TestHeartbeatReportsLockPersistenceFailure(t *testing.T) {
 	if err := os.WriteFile(filepath.Dir(path), []byte("not a directory"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := handle.Heartbeat(ctx); err == nil || !strings.Contains(err.Error(), "source-writer lock directory") {
+	if err := handle.Heartbeat(ctx); !errors.Is(err, runtimepath.ErrUnsafe) {
 		t.Fatalf("Heartbeat error = %v, want persistence failure", err)
 	}
 }
@@ -346,6 +357,132 @@ func TestReleaseDropsRetentionAdmissionEvenWhenMetadataReleaseFails(t *testing.T
 	_ = file.Close()
 	if err := writer.Release(context.Background()); err != nil {
 		t.Fatalf("clear metadata after cancelled release: %v", err)
+	}
+}
+
+func TestAcquireSourceWriterRejectsUnsafeLockPathsWithoutOutsideMutation(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, root, outside, sentinel, sourcePath string)
+	}{
+		{
+			name: "final symlink",
+			setup: func(t *testing.T, root, _, sentinel, sourcePath string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Dir(sourcePath), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(sentinel, sourcePath); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "hard link alias",
+			setup: func(t *testing.T, root, _, sentinel, sourcePath string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Dir(sourcePath), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Link(sentinel, sourcePath); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "symlinked ancestor",
+			setup: func(t *testing.T, root, outside, _, _ string) {
+				t.Helper()
+				if err := os.Mkdir(filepath.Join(root, ".revolvr"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, filepath.Join(root, ".revolvr", "locks")); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			outside := t.TempDir()
+			sentinel := filepath.Join(outside, "sentinel.txt")
+			const sentinelBytes = "outside source sentinel\n"
+			if err := os.WriteFile(sentinel, []byte(sentinelBytes), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			sourcePath := filepath.Join(root, filepath.FromSlash(SourceWriterRelPath))
+			tt.setup(t, root, outside, sentinel, sourcePath)
+
+			writer, err := AcquireSourceWriter(context.Background(), Config{
+				WorkingDir: root,
+				RunID:      "unsafe-path-test",
+				PID:        123,
+				Timeout:    time.Minute,
+			})
+			if err == nil {
+				_ = writer.Release(context.Background())
+				t.Fatal("unsafe source-writer path was acquired")
+			}
+			if !errors.Is(err, runtimepath.ErrUnsafe) {
+				t.Fatalf("acquire error = %v, want runtimepath.ErrUnsafe", err)
+			}
+			raw, readErr := os.ReadFile(sentinel)
+			if readErr != nil || string(raw) != sentinelBytes {
+				t.Fatalf("outside sentinel changed: err=%v bytes=%q", readErr, raw)
+			}
+			entries, readErr := os.ReadDir(outside)
+			if readErr != nil || len(entries) != 1 || entries[0].Name() != "sentinel.txt" {
+				t.Fatalf("outside directory changed: err=%v entries=%v", readErr, entries)
+			}
+		})
+	}
+}
+
+func TestSourceWriterRefusesInodeReplacementBeforeMetadataMutation(t *testing.T) {
+	tests := []struct {
+		name      string
+		operation func(*SourceWriter) error
+	}{
+		{name: "heartbeat", operation: func(writer *SourceWriter) error { return writer.Heartbeat(context.Background()) }},
+		{name: "release", operation: func(writer *SourceWriter) error { return writer.Release(context.Background()) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writer, err := AcquireSourceWriter(context.Background(), Config{
+				WorkingDir: root,
+				RunID:      "inode-bound-writer",
+				PID:        123,
+				Timeout:    time.Minute,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer writer.releaseRetentionAdmission()
+			path := writer.Path()
+			original, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			openedPath := path + ".opened"
+			if err := os.Rename(path, openedPath); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := tt.operation(writer); !errors.Is(err, runtimepath.ErrUnsafe) {
+				t.Fatalf("operation error = %v, want runtimepath.ErrUnsafe", err)
+			}
+			for _, candidate := range []string{path, openedPath} {
+				raw, readErr := os.ReadFile(candidate)
+				if readErr != nil || string(raw) != string(original) {
+					t.Fatalf("metadata file %s changed: err=%v bytes=%q want=%q", candidate, readErr, raw, original)
+				}
+			}
+		})
 	}
 }
 

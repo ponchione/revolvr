@@ -76,11 +76,11 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	if in.Clock == nil {
 		in.Clock = time.Now
 	}
-	release, err := acquireMutationLeases(ctx, root, in.Clock)
+	leases, err := acquireMutationLeases(ctx, root, in.Clock)
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	defer release()
+	defer leases.Close()
 	journal, found, err := loadJournal(root, in.Plan.OperationID)
 	if err != nil {
 		return ApplyResult{}, err
@@ -112,6 +112,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 			return ApplyResult{}, errors.New("artifact GC apply: stale plan")
 		}
 		journal = Journal{SchemaVersion: JournalSchema, OperationID: in.Plan.OperationID, Stage: stageAdmitted, Plan: in.Plan, UpdatedAt: in.Clock().UTC()}
+		if err := leases.Check(); err != nil {
+			return ApplyResult{}, err
+		}
 		if err := persistJournal(root, Journal{}, &journal); err != nil {
 			return ApplyResult{}, err
 		}
@@ -122,7 +125,13 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	}
 	if in.Plan.RequiredExport && journal.ExportID == "" {
 		if err := ctx.Err(); err != nil {
+			if leaseErr := leases.Check(); leaseErr != nil {
+				return ApplyResult{}, errors.Join(err, leaseErr)
+			}
 			return cancelJournal(root, &journal, in.Clock, err)
+		}
+		if err := leases.Check(); err != nil {
+			return ApplyResult{}, err
 		}
 		exported, err := ledgerexport.Export(ctx, ledgerexport.ExportInput{RepositoryRoot: root, LedgerPath: in.LedgerPath, OperationID: in.Plan.OperationID, ExportedAt: in.Plan.FrozenAt, PolicySHA256: in.Plan.PolicySHA256, Bounds: ledgerexport.Bounds{ThroughEventID: in.Plan.Ledger.HighWaterEventID}, Secrets: in.Secrets})
 		if err != nil {
@@ -137,6 +146,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 			return ApplyResult{}, err
 		}
 		exportVerified = true
+		if err := leases.Check(); err != nil {
+			return ApplyResult{}, err
+		}
 		if err := persistJournal(root, prior, &journal); err != nil {
 			return ApplyResult{}, err
 		}
@@ -146,9 +158,15 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
+			if leaseErr := leases.Check(); leaseErr != nil {
+				return ApplyResult{}, errors.Join(err, leaseErr)
+			}
 			return cancelJournal(root, &journal, in.Clock, err)
 		}
 		if err := revalidateActionAuthority(ctx, root, in.LedgerPath, in.Plan, action); err != nil {
+			return ApplyResult{}, err
+		}
+		if err := leases.Check(); err != nil {
 			return ApplyResult{}, err
 		}
 		switch action.Kind {
@@ -170,6 +188,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		journal.Stage = string(action.Kind) + "_applied"
 		journal.Cancelled = false
 		journal.UpdatedAt = in.Clock().UTC()
+		if err := leases.Check(); err != nil {
+			return ApplyResult{}, err
+		}
 		if err := persistJournal(root, prior, &journal); err != nil {
 			return ApplyResult{}, err
 		}
@@ -182,6 +203,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 		journal.Stage = stageCompleted
 		journal.Cancelled = false
 		journal.UpdatedAt = in.Clock().UTC()
+		if err := leases.Check(); err != nil {
+			return ApplyResult{}, err
+		}
 		if err := persistJournal(root, prior, &journal); err != nil {
 			return ApplyResult{}, err
 		}
@@ -191,6 +215,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	}
 	operationDir := filepath.Join(root, ".revolvr", "retention", "gc", safeOperationDir(in.Plan.OperationID))
 	quarantine := filepath.Join(operationDir, "quarantine")
+	if err := leases.Check(); err != nil {
+		return ApplyResult{Journal: journal, Resumable: true}, err
+	}
 	if err := os.RemoveAll(quarantine); err != nil {
 		return ApplyResult{Journal: journal, Resumable: true}, err
 	}
@@ -206,6 +233,9 @@ func ApplyGC(ctx context.Context, in ApplyInput) (ApplyResult, error) {
 	prior := cloneJournal(journal)
 	journal.Stage = stageCleaned
 	journal.UpdatedAt = in.Clock().UTC()
+	if err := leases.Check(); err != nil {
+		return ApplyResult{}, err
+	}
 	if err := persistJournal(root, prior, &journal); err != nil {
 		return ApplyResult{}, err
 	}
@@ -497,45 +527,78 @@ func journalPath(root, id string) string {
 }
 func safeOperationDir(id string) string { return hash([]byte(strings.TrimSpace(id))) }
 
-func acquireMutationLeases(ctx context.Context, root string, clock func() time.Time) (func(), error) {
+type mutationLeases struct {
+	retention *lock.Flock
+	inner     []*os.File
+}
+
+func (l *mutationLeases) Check() error {
+	if l == nil || l.retention == nil {
+		return errors.New("artifact GC apply: retention lease is missing")
+	}
+	if err := l.retention.Check(); err != nil {
+		return fmt.Errorf("artifact GC apply: retention lease identity changed: %w", err)
+	}
+	return nil
+}
+
+func (l *mutationLeases) Close() {
+	if l == nil {
+		return
+	}
+	for i := len(l.inner) - 1; i >= 0; i-- {
+		releaseFlock(l.inner[i])
+	}
+	l.inner = nil
+	if l.retention != nil {
+		_ = l.retention.Close()
+		l.retention = nil
+	}
+}
+
+func acquireMutationLeases(ctx context.Context, root string, clock func() time.Time) (*mutationLeases, error) {
 	// The mutation order is retention, autonomous execution, Git administration,
 	// then child publication. Retention is the only waiting exclusive acquire;
 	// every inner acquire is a probe, but every successful file remains held for
 	// the full GC transaction.
-	dir := filepath.Join(root, ".revolvr", "locks")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, err
-	}
-	held := make([]*os.File, 0, 4)
-	release := func() {
-		for i := len(held) - 1; i >= 0; i-- {
-			releaseFlock(held[i])
-		}
-	}
-	retention, err := openFlock(ctx, filepath.Join(root, filepath.FromSlash(lock.ArtifactRetentionRelPath)), true)
+	retention, err := lock.AcquireFlock(ctx, root, lock.FlockConfig{
+		RelativePath: lock.ArtifactRetentionRelPath,
+		Mode:         lock.FlockExclusive,
+		Wait:         true,
+		Create:       true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	held = append(held, retention)
+	leases := &mutationLeases{retention: retention, inner: make([]*os.File, 0, 3)}
+	dir := filepath.Dir(retention.Path())
 	autonomous, err := openFlock(ctx, filepath.Join(dir, "autonomous-execution.lock"), false)
 	if err != nil {
-		release()
+		leases.Close()
 		return nil, errors.New("artifact GC apply: autonomous execution is active")
 	}
-	held = append(held, autonomous)
+	leases.inner = append(leases.inner, autonomous)
 	for _, name := range []string{"git-admin.lock", "child-publication.lock"} {
 		lease, lockErr := openFlock(ctx, filepath.Join(dir, name), false)
 		if lockErr != nil {
-			release()
+			leases.Close()
 			return nil, fmt.Errorf("artifact GC apply: active %s", name)
 		}
-		held = append(held, lease)
+		leases.inner = append(leases.inner, lease)
 	}
-	if err := rejectActiveSourceWriters(context.WithoutCancel(ctx), root, clock().UTC()); err != nil {
-		release()
+	if err := leases.Check(); err != nil {
+		leases.Close()
 		return nil, err
 	}
-	return release, nil
+	if err := rejectActiveSourceWriters(context.WithoutCancel(ctx), root, clock().UTC()); err != nil {
+		leases.Close()
+		return nil, err
+	}
+	if err := leases.Check(); err != nil {
+		leases.Close()
+		return nil, err
+	}
+	return leases, nil
 }
 
 func rejectActiveSourceWriters(ctx context.Context, root string, now time.Time) error {

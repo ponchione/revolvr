@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## AUDIT-FIX-03 Hardened Flock Foundation (2026-07-14)
+
+- `internal/lock.AcquireFlock` is the shared predictable-lock acquisition
+  boundary. It resolves one canonical repository/control root, accepts only a
+  contained relative lock path, creates missing ancestors one component at a
+  time through `runtimepath.EnsureDir`, validates an existing final component,
+  and creates lock files at `0600` by default.
+- No-follow open and advisory flock operations live in build-tagged platform
+  files. The common boundary validates the opened regular file, safe mode,
+  single-link count, and named/opened inode before flock and again after a
+  successful shared or exclusive acquisition. Waiting is bounded by caller
+  cancellation; nonwaiting contention preserves its underlying error.
+- A held `Flock.Check` is the required identity revalidation immediately before
+  a destructive metadata operation. Deterministic tests substitute the named
+  path between open and flock and after acquisition; neither case grants safe
+  authority over the replacement.
+- Source-writer metadata, workspace source-writer metadata, and the shared
+  artifact-retention admission gate now use the shared primitive below
+  canonical roots. A `SourceWriter` additionally binds the initial source-lock
+  inode for its complete logical lease and compares every heartbeat/release
+  descriptor to it before reads and truncating writes. Byte-identical metadata
+  on a replacement inode cannot inherit ownership.
+- Artifact GC takes the same hardened retention inode exclusively, checks it
+  after inner coordinator admission and source-writer scans, and checks again
+  immediately before export, compression/prune, journal, cancellation, and
+  cleanup mutations. Source writers likewise recheck their held shared
+  retention inode before source metadata writes.
+- This task migrates only the source-writer and outer retention identities.
+  Autonomous execution, Git administration, child publication, notification,
+  workspace, migration, queue, and other predictable coordinator owners remain
+  the bounded `AUDIT-FIX-04` migration; their behavior is not represented as
+  hardened merely because retention probes some of their filenames.
+
 ## AUDIT-FIX-02 Clean Mixed-Pass Commit Contract (2026-07-14)
 
 - A source-changing pass requires a clean pre-run worktree. The legacy

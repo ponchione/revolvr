@@ -10,8 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"revolvr/internal/runtimepath"
 )
 
 const (
@@ -49,7 +50,9 @@ type Metadata struct {
 }
 
 type SourceWriter struct {
+	root          string
 	path          string
+	fileIdentity  os.FileInfo
 	runID         string
 	pid           int
 	timeout       time.Duration
@@ -57,7 +60,7 @@ type SourceWriter struct {
 	workspaceID   string
 	executionRoot string
 	retentionMu   sync.Mutex
-	retentionFile *os.File
+	retentionFile *Flock
 }
 
 type HeldError struct {
@@ -89,7 +92,7 @@ func (e *HeldError) Unwrap() error {
 }
 
 func AcquireSourceWriter(ctx context.Context, cfg Config) (*SourceWriter, error) {
-	cfg, path, err := normalizeConfig(cfg)
+	cfg, root, path, err := normalizeConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -107,18 +110,13 @@ func AcquireSourceWriter(ctx context.Context, cfg Config) (*SourceWriter, error)
 		}
 	}()
 
-	file, err := openLockFile(path)
+	fileLock, err := openSourceWriterLock(ctx, root, path, true)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer fileLock.Close()
 
-	if err := lockFile(ctx, file); err != nil {
-		return nil, err
-	}
-	defer unlockFile(file)
-
-	current, found, err := readMetadata(file)
+	current, found, err := readMetadata(fileLock)
 	if err != nil {
 		return nil, err
 	}
@@ -137,12 +135,24 @@ func AcquireSourceWriter(ctx context.Context, cfg Config) (*SourceWriter, error)
 		WorkspaceID:   cfg.WorkspaceID,
 		ExecutionRoot: cfg.ExecutionRoot,
 	}
-	if err := writeMetadata(file, metadata); err != nil {
+	if err := retentionFile.Check(); err != nil {
+		return nil, fmt.Errorf("validate artifact-retention admission before source metadata write: %w", err)
+	}
+	if err := writeMetadata(fileLock, metadata); err != nil {
 		return nil, err
+	}
+	fileIdentity, err := fileLock.file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("capture source-writer lock identity: %w", err)
+	}
+	if err := fileLock.Check(); err != nil {
+		return nil, fmt.Errorf("validate source-writer lock after identity capture: %w", err)
 	}
 
 	writer := &SourceWriter{
+		root:          root,
 		path:          path,
+		fileIdentity:  fileIdentity,
 		runID:         cfg.RunID,
 		pid:           cfg.PID,
 		timeout:       cfg.Timeout,
@@ -159,52 +169,39 @@ func ReadSourceWriter(ctx context.Context, workingDir string) (Metadata, bool, e
 	if err := ctx.Err(); err != nil {
 		return Metadata{}, false, err
 	}
-	path, err := SourceWriterPath(workingDir)
+	root, err := runtimepath.CanonicalRoot(workingDir)
 	if err != nil {
 		return Metadata{}, false, err
 	}
-	file, err := os.OpenFile(path, os.O_RDWR, 0)
-	if errors.Is(err, os.ErrNotExist) {
-		return Metadata{}, false, nil
-	}
-	if err != nil {
-		return Metadata{}, false, fmt.Errorf("open source-writer lock: %w", err)
-	}
-	defer file.Close()
-
-	if err := lockFile(ctx, file); err != nil {
-		return Metadata{}, false, err
-	}
-	defer unlockFile(file)
-
-	return readMetadata(file)
+	path := filepath.Join(root, filepath.FromSlash(SourceWriterRelPath))
+	return readLockPath(ctx, root, path)
 }
 
 func ReadWorkspaceSourceWriter(ctx context.Context, controlRoot, workspaceID string) (Metadata, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return Metadata{}, false, err
 	}
-	path, err := WorkspaceSourceWriterPath(controlRoot, workspaceID)
+	root, err := runtimepath.CanonicalRoot(controlRoot)
 	if err != nil {
 		return Metadata{}, false, err
 	}
-	return readLockPath(ctx, path)
+	path, err := WorkspaceSourceWriterPath(root, workspaceID)
+	if err != nil {
+		return Metadata{}, false, err
+	}
+	return readLockPath(ctx, root, path)
 }
 
-func readLockPath(ctx context.Context, path string) (Metadata, bool, error) {
-	file, err := os.OpenFile(path, os.O_RDWR, 0)
+func readLockPath(ctx context.Context, root, path string) (Metadata, bool, error) {
+	fileLock, err := openSourceWriterLock(ctx, root, path, false)
 	if errors.Is(err, os.ErrNotExist) {
 		return Metadata{}, false, nil
 	}
 	if err != nil {
 		return Metadata{}, false, fmt.Errorf("open source-writer lock: %w", err)
 	}
-	defer file.Close()
-	if err := lockFile(ctx, file); err != nil {
-		return Metadata{}, false, err
-	}
-	defer unlockFile(file)
-	return readMetadata(file)
+	defer fileLock.Close()
+	return readMetadata(fileLock)
 }
 
 func (l *SourceWriter) Heartbeat(ctx context.Context) error {
@@ -214,18 +211,26 @@ func (l *SourceWriter) Heartbeat(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	file, err := openLockFile(l.path)
+	retentionFile, temporaryRetention, err := l.retentionForOperation(ctx)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-
-	if err := lockFile(ctx, file); err != nil {
+	if temporaryRetention {
+		defer retentionFile.Close()
+	}
+	if err := retentionFile.Check(); err != nil {
+		return fmt.Errorf("validate artifact-retention admission before heartbeat: %w", err)
+	}
+	fileLock, err := openSourceWriterLock(ctx, l.root, l.path, true)
+	if err != nil {
 		return err
 	}
-	defer unlockFile(file)
+	defer fileLock.Close()
+	if err := l.checkSourceFileIdentity(fileLock); err != nil {
+		return err
+	}
 
-	current, found, err := readMetadata(file)
+	current, found, err := readMetadata(fileLock)
 	if err != nil {
 		return err
 	}
@@ -242,7 +247,13 @@ func (l *SourceWriter) Heartbeat(ctx context.Context) error {
 	}
 	current.HeartbeatAt = now
 	current.ExpiresAt = now.Add(l.timeout)
-	return writeMetadata(file, current)
+	if err := retentionFile.Check(); err != nil {
+		return fmt.Errorf("validate artifact-retention admission before heartbeat write: %w", err)
+	}
+	if err := l.checkSourceFileIdentity(fileLock); err != nil {
+		return err
+	}
+	return writeMetadata(fileLock, current)
 }
 
 func (l *SourceWriter) Release(ctx context.Context) error {
@@ -253,18 +264,26 @@ func (l *SourceWriter) Release(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	file, err := openLockFile(l.path)
+	retentionFile, temporaryRetention, err := l.retentionForOperation(ctx)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-
-	if err := lockFile(ctx, file); err != nil {
+	if temporaryRetention {
+		defer retentionFile.Close()
+	}
+	if err := retentionFile.Check(); err != nil {
+		return fmt.Errorf("validate artifact-retention admission before release: %w", err)
+	}
+	fileLock, err := openSourceWriterLock(ctx, l.root, l.path, true)
+	if err != nil {
 		return err
 	}
-	defer unlockFile(file)
+	defer fileLock.Close()
+	if err := l.checkSourceFileIdentity(fileLock); err != nil {
+		return err
+	}
 
-	current, found, err := readMetadata(file)
+	current, found, err := readMetadata(fileLock)
 	if err != nil {
 		return err
 	}
@@ -278,16 +297,25 @@ func (l *SourceWriter) Release(ctx context.Context) error {
 	if !current.ExpiresAt.After(now) {
 		return &ExpiredError{Metadata: current, ObservedAt: now}
 	}
-	if err := file.Truncate(0); err != nil {
+	if err := retentionFile.Check(); err != nil {
+		return fmt.Errorf("validate artifact-retention admission before release write: %w", err)
+	}
+	if err := fileLock.Check(); err != nil {
+		return fmt.Errorf("validate source-writer lock before release write: %w", err)
+	}
+	if err := l.checkSourceFileIdentity(fileLock); err != nil {
+		return err
+	}
+	if err := fileLock.file.Truncate(0); err != nil {
 		return fmt.Errorf("release source-writer lock: %w", err)
 	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
+	if _, err := fileLock.file.Seek(0, io.SeekStart); err != nil {
 		return fmt.Errorf("release source-writer lock: %w", err)
 	}
-	if err := file.Sync(); err != nil {
+	if err := fileLock.file.Sync(); err != nil {
 		return fmt.Errorf("release source-writer lock: %w", err)
 	}
-	return nil
+	return fileLock.Check()
 }
 
 func (l *SourceWriter) Path() string {
@@ -302,11 +330,11 @@ func SourceWriterPath(workingDir string) (string, error) {
 	if workingDir == "" {
 		return "", errors.New("source-writer lock: working directory is required")
 	}
-	abs, err := filepath.Abs(workingDir)
+	root, err := runtimepath.CanonicalRoot(workingDir)
 	if err != nil {
 		return "", fmt.Errorf("resolve working directory: %w", err)
 	}
-	return filepath.Join(abs, SourceWriterRelPath), nil
+	return filepath.Join(root, filepath.FromSlash(SourceWriterRelPath)), nil
 }
 
 func WorkspaceSourceWriterPath(controlRoot, workspaceID string) (string, error) {
@@ -315,52 +343,17 @@ func WorkspaceSourceWriterPath(controlRoot, workspaceID string) (string, error) 
 	if controlRoot == "" || workspaceID == "" || strings.ContainsAny(workspaceID, "/\\\r\n") {
 		return "", errors.New("workspace source-writer lock: control root and safe workspace ID are required")
 	}
-	abs, err := filepath.Abs(controlRoot)
+	root, err := runtimepath.CanonicalRoot(controlRoot)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(abs, ".revolvr", "locks", "workspaces", workspaceID, "source-writer.lock"), nil
+	return filepath.Join(root, ".revolvr", "locks", "workspaces", workspaceID, "source-writer.lock"), nil
 }
 
-func normalizeConfig(cfg Config) (Config, string, error) {
-	if strings.TrimSpace(cfg.ControlRoot) != "" || strings.TrimSpace(cfg.ExecutionRoot) != "" || strings.TrimSpace(cfg.WorkspaceID) != "" {
-		if strings.TrimSpace(cfg.ControlRoot) == "" || strings.TrimSpace(cfg.ExecutionRoot) == "" || strings.TrimSpace(cfg.WorkspaceID) == "" {
-			return Config{}, "", errors.New("workspace source-writer lock requires control root, execution root, and workspace ID together")
-		}
-		control, err := filepath.Abs(cfg.ControlRoot)
-		if err != nil {
-			return Config{}, "", err
-		}
-		execution, err := filepath.Abs(cfg.ExecutionRoot)
-		if err != nil {
-			return Config{}, "", err
-		}
-		if filepath.Clean(control) == filepath.Clean(execution) {
-			return Config{}, "", errors.New("workspace source-writer lock requires distinct control and execution roots")
-		}
-		cfg.ControlRoot, cfg.ExecutionRoot = filepath.Clean(control), filepath.Clean(execution)
-		path, err := WorkspaceSourceWriterPath(cfg.ControlRoot, cfg.WorkspaceID)
-		if err != nil {
-			return Config{}, "", err
-		}
-		cfg.WorkingDir = cfg.ExecutionRoot
-		if cfg.PID <= 0 {
-			cfg.PID = os.Getpid()
-		}
-		if cfg.Timeout <= 0 {
-			cfg.Timeout = defaultTimeout
-		}
-		if cfg.Clock == nil {
-			cfg.Clock = time.Now
-		}
-		return cfg, path, nil
-	}
-	if strings.TrimSpace(cfg.WorkingDir) == "" {
-		return Config{}, "", errors.New("source-writer lock: working directory is required")
-	}
+func normalizeConfig(cfg Config) (Config, string, string, error) {
 	cfg.RunID = strings.TrimSpace(cfg.RunID)
 	if cfg.RunID == "" {
-		return Config{}, "", errors.New("source-writer lock: run id is required")
+		return Config{}, "", "", errors.New("source-writer lock: run id is required")
 	}
 	if cfg.PID <= 0 {
 		cfg.PID = os.Getpid()
@@ -371,16 +364,43 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
 	}
-	workingDir, err := filepath.Abs(cfg.WorkingDir)
+	if strings.TrimSpace(cfg.ControlRoot) != "" || strings.TrimSpace(cfg.ExecutionRoot) != "" || strings.TrimSpace(cfg.WorkspaceID) != "" {
+		if strings.TrimSpace(cfg.ControlRoot) == "" || strings.TrimSpace(cfg.ExecutionRoot) == "" || strings.TrimSpace(cfg.WorkspaceID) == "" {
+			return Config{}, "", "", errors.New("workspace source-writer lock requires control root, execution root, and workspace ID together")
+		}
+		control, err := runtimepath.CanonicalRoot(cfg.ControlRoot)
+		if err != nil {
+			return Config{}, "", "", err
+		}
+		execution, err := runtimepath.CanonicalRoot(cfg.ExecutionRoot)
+		if err != nil {
+			return Config{}, "", "", err
+		}
+		if filepath.Clean(control) == filepath.Clean(execution) {
+			return Config{}, "", "", errors.New("workspace source-writer lock requires distinct control and execution roots")
+		}
+		cfg.ControlRoot, cfg.ExecutionRoot = filepath.Clean(control), filepath.Clean(execution)
+		cfg.WorkspaceID = strings.TrimSpace(cfg.WorkspaceID)
+		if strings.ContainsAny(cfg.WorkspaceID, "/\\\r\n") {
+			return Config{}, "", "", errors.New("workspace source-writer lock requires a safe workspace ID")
+		}
+		path := filepath.Join(control, ".revolvr", "locks", "workspaces", cfg.WorkspaceID, "source-writer.lock")
+		cfg.WorkingDir = cfg.ExecutionRoot
+		return cfg, control, path, nil
+	}
+	if strings.TrimSpace(cfg.WorkingDir) == "" {
+		return Config{}, "", "", errors.New("source-writer lock: working directory is required")
+	}
+	workingDir, err := runtimepath.CanonicalRoot(cfg.WorkingDir)
 	if err != nil {
-		return Config{}, "", err
+		return Config{}, "", "", err
 	}
 	cfg.WorkingDir = filepath.Clean(workingDir)
 	path := filepath.Join(cfg.WorkingDir, filepath.FromSlash(SourceWriterRelPath))
-	return cfg, path, nil
+	return cfg, cfg.WorkingDir, path, nil
 }
 
-func acquireRetentionAdmission(ctx context.Context, cfg Config) (*os.File, error) {
+func acquireRetentionAdmission(ctx context.Context, cfg Config) (*Flock, error) {
 	// Every source writer holds a shared control-root retention gate for its
 	// complete lease. GC takes the same file exclusively before probing any
 	// inner coordinator lock, so an autonomous owner may safely wait here: a GC
@@ -389,44 +409,26 @@ func acquireRetentionAdmission(ctx context.Context, cfg Config) (*os.File, error
 	if root == "" {
 		root = cfg.WorkingDir
 	}
-	path := filepath.Join(root, filepath.FromSlash(ArtifactRetentionRelPath))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("create artifact-retention lock directory: %w", err)
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	return acquireRetentionAdmissionAtRoot(ctx, root)
+}
+
+func acquireRetentionAdmissionAtRoot(ctx context.Context, root string) (*Flock, error) {
+	file, err := AcquireFlock(ctx, root, FlockConfig{
+		RelativePath: ArtifactRetentionRelPath,
+		Mode:         FlockShared,
+		Wait:         true,
+		Create:       true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open artifact-retention lock: %w", err)
 	}
-	for {
-		err := syscall.Flock(int(file.Fd()), syscall.LOCK_SH|syscall.LOCK_NB)
-		if err == nil {
-			return file, nil
-		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
-			_ = file.Close()
-			return nil, fmt.Errorf("lock artifact-retention admission: %w", err)
-		}
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
-			_ = file.Close()
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
-	}
+	return file, nil
 }
 
-func releaseRetentionAdmission(file *os.File) {
+func releaseRetentionAdmission(file *Flock) {
 	if file == nil {
 		return
 	}
-	_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 	_ = file.Close()
 }
 
@@ -438,46 +440,63 @@ func (l *SourceWriter) releaseRetentionAdmission() {
 	releaseRetentionAdmission(file)
 }
 
-func openLockFile(path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("create source-writer lock directory: %w", err)
+func (l *SourceWriter) retentionForOperation(ctx context.Context) (*Flock, bool, error) {
+	l.retentionMu.Lock()
+	file := l.retentionFile
+	l.retentionMu.Unlock()
+	if file != nil {
+		return file, false, nil
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	file, err := acquireRetentionAdmissionAtRoot(ctx, l.root)
+	if err != nil {
+		return nil, false, fmt.Errorf("reacquire source-writer retention admission: %w", err)
+	}
+	return file, true, nil
+}
+
+func (l *SourceWriter) checkSourceFileIdentity(fileLock *Flock) error {
+	if l == nil || l.fileIdentity == nil || fileLock == nil || fileLock.file == nil {
+		return fmt.Errorf("%w: source-writer lock identity is missing", runtimepath.ErrUnsafe)
+	}
+	current, err := fileLock.file.Stat()
+	if err != nil {
+		return fmt.Errorf("stat source-writer lock identity: %w", err)
+	}
+	if !os.SameFile(l.fileIdentity, current) {
+		return fmt.Errorf("%w: source-writer lock inode changed during lease", runtimepath.ErrUnsafe)
+	}
+	return nil
+}
+
+func openSourceWriterLock(ctx context.Context, root, path string, create bool) (*Flock, error) {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve source-writer lock path: %w", err)
+	}
+	file, err := AcquireFlock(ctx, root, FlockConfig{
+		RelativePath: rel,
+		Mode:         FlockExclusive,
+		Wait:         true,
+		Create:       create,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open source-writer lock: %w", err)
 	}
 	return file, nil
 }
 
-func lockFile(ctx context.Context, file *os.File) error {
-	for {
-		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			return nil
-		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
-			return fmt.Errorf("lock source-writer file: %w", err)
-		}
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-}
-
-func unlockFile(file *os.File) {
-	_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
-}
-
-func readMetadata(file *os.File) (Metadata, bool, error) {
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
+func readMetadata(fileLock *Flock) (Metadata, bool, error) {
+	if err := fileLock.Check(); err != nil {
 		return Metadata{}, false, fmt.Errorf("read source-writer lock: %w", err)
 	}
-	content, err := io.ReadAll(file)
+	if _, err := fileLock.file.Seek(0, io.SeekStart); err != nil {
+		return Metadata{}, false, fmt.Errorf("read source-writer lock: %w", err)
+	}
+	content, err := io.ReadAll(fileLock.file)
 	if err != nil {
+		return Metadata{}, false, fmt.Errorf("read source-writer lock: %w", err)
+	}
+	if err := fileLock.Check(); err != nil {
 		return Metadata{}, false, fmt.Errorf("read source-writer lock: %w", err)
 	}
 	if strings.TrimSpace(string(content)) == "" {
@@ -493,25 +512,28 @@ func readMetadata(file *os.File) (Metadata, bool, error) {
 	return metadata, true, nil
 }
 
-func writeMetadata(file *os.File, metadata Metadata) error {
+func writeMetadata(fileLock *Flock, metadata Metadata) error {
 	if err := validateMetadata(metadata); err != nil {
 		return err
 	}
-	if err := file.Truncate(0); err != nil {
+	if err := fileLock.Check(); err != nil {
 		return fmt.Errorf("write source-writer lock: %w", err)
 	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
+	if err := fileLock.file.Truncate(0); err != nil {
 		return fmt.Errorf("write source-writer lock: %w", err)
 	}
-	encoder := json.NewEncoder(file)
+	if _, err := fileLock.file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("write source-writer lock: %w", err)
+	}
+	encoder := json.NewEncoder(fileLock.file)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(metadata); err != nil {
 		return fmt.Errorf("write source-writer lock: %w", err)
 	}
-	if err := file.Sync(); err != nil {
+	if err := fileLock.file.Sync(); err != nil {
 		return fmt.Errorf("write source-writer lock: %w", err)
 	}
-	return nil
+	return fileLock.Check()
 }
 
 func validateMetadata(metadata Metadata) error {

@@ -2,36 +2,41 @@
 
 ## Current Focus
 
-Resolve `AUDIT-FIX-03`, the first unchecked task in `.agent/TASKS.md`. Mixed
-passes now require a clean worktree at every staging boundary; the next pass
-must harden the source-writer and retention lock-file identities.
+Resolve `AUDIT-FIX-04`, the first unchecked task in `.agent/TASKS.md`. The
+source-writer and outer retention locks now use one hardened flock primitive;
+the next pass must migrate the remaining predictable coordinator locks.
 
 ## Latest Completed Audit Fix (2026-07-14)
 
-- Task selected: `AUDIT-FIX-02`.
-- Mixed-pass run configuration rejects the legacy
-  `commit.allow_pre_existing_dirty: true` setting before source locking, runner
-  invocation, verification, staging, or commit work. Explicit `false` remains
-  accepted for configuration compatibility.
-- The commit package no longer exposes a dirty-worktree bypass. Mixed and
-  autonomous source-changing paths unconditionally refuse a nonempty pre-run
-  capture, so filename subtraction cannot misattribute operator bytes to a run.
-- Real-Git regressions cover unrelated and overlapping operator/run edits. Both
-  cases fail closed with no commit or staged paths and retain the exact operator,
-  run, and task-metadata worktree bytes.
-- Files changed: `README.md`, `internal/app/app_test.go`,
-  `internal/app/autonomous_run.go`, `internal/app/config.go`,
-  `internal/autonomouscorrection/coordinator.go`,
-  `internal/autonomouscycle/types.go`, `internal/autonomouscycle/worker.go`,
-  `internal/cli/root_test.go`, `internal/commit/commit.go`,
-  `internal/commit/commit_test.go`, `internal/runonce/effectiveconfig_test.go`,
-  `internal/runonce/runonce.go`, `internal/runonce/runonce_test.go`,
-  `.agent/TASKS.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`.
-- Verification passed:
-  `go test -count=10 -run 'TestRunRefusesRealPreExistingDirtyWorktreeWithoutStaging' ./internal/commit`,
-  focused run-once/app/CLI rejection tests, `go test -count=1 ./...`, and
-  `go run ./cmd/revolvr config check`.
-- Remaining audit work: `AUDIT-FIX-03` through `AUDIT-FIX-07`. No blocker is
+- Task selected: `AUDIT-FIX-03`.
+- `internal/lock.AcquireFlock` now owns canonical-root resolution, safe
+  component-by-component directory creation, final-file validation, a
+  platform-tagged no-follow open/flock implementation, restrictive creation
+  modes, and named/opened identity checks before and after acquisition.
+- Source-writer metadata and the shared artifact-retention admission gate use
+  that primitive. A writer binds its initially acquired source-lock inode and
+  rechecks both held lock identities before heartbeat or release truncation, so
+  a byte-identical path replacement cannot inherit ownership.
+- Artifact GC holds the hardened retention lock exclusively and rechecks its
+  identity after inner admission/source scans and immediately before export,
+  artifact, journal, and cleanup mutations. Remaining inner coordinator lock
+  owners are intentionally reserved for `AUDIT-FIX-04`.
+- Regression tests cover final-component symlinks to unchanged outside
+  sentinels, hard-link aliases, symlinked ancestors, substitution between open
+  and flock, replacement after acquisition, and source inode replacement across
+  heartbeat/release operations for the primitive, source-writer, and retention
+  integration paths.
+- Files changed: `internal/lock/flock.go`, `internal/lock/flock_unix.go`,
+  `internal/lock/flock_unsupported.go`, `internal/lock/flock_test.go`,
+  `internal/lock/source_writer.go`, `internal/lock/source_writer_test.go`,
+  `internal/artifactretention/apply.go`,
+  `internal/artifactretention/retention_test.go`, `.agent/TASKS.md`,
+  `.agent/STATE.md`, and `.agent/DECISIONS.md`.
+- Verification passed: focused substitution tests at count 5,
+  `go test -race -count=1 ./internal/lock ./internal/artifactretention`,
+  `go test -count=1 ./...`, focused `go vet`, and Darwin/FreeBSD compile-only
+  tests for the changed packages.
+- Remaining audit work: `AUDIT-FIX-04` through `AUDIT-FIX-07`. No blocker is
   recorded.
 
 ## Wide-Sweep Audit (2026-07-14)
@@ -86,7 +91,8 @@ remained unchanged.
 ## Verification Baseline
 
 - `gofmt` reports no unformatted Go files.
-- `go test -count=1 ./...` passes after the clean mixed-pass commit contract.
+- `go test -count=1 ./...` passes after the source-writer and retention lock
+  hardening.
 - `go test -race -count=1 ./...` and
   `go test -shuffle=on -count=1 ./...` pass.
 - `go vet ./...`, `go mod verify`, and `govulncheck ./...` pass; no reachable

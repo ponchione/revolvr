@@ -18,6 +18,7 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/ledgerexport"
 	revolvrlock "revolvr/internal/lock"
+	"revolvr/internal/runtimepath"
 )
 
 func TestPolicyDefaultsAndValidation(t *testing.T) {
@@ -48,14 +49,14 @@ func TestPolicyDefaultsAndValidation(t *testing.T) {
 
 func TestMutationLeasesHoldEveryCompetingAdmissionAfterAcquisitionBarrier(t *testing.T) {
 	root := t.TempDir()
-	release, err := acquireMutationLeases(context.Background(), root, time.Now)
+	leases, err := acquireMutationLeases(context.Background(), root, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	released := false
 	defer func() {
 		if !released {
-			release()
+			leases.Close()
 		}
 	}()
 
@@ -96,7 +97,7 @@ func TestMutationLeasesHoldEveryCompetingAdmissionAfterAcquisitionBarrier(t *tes
 		t.Fatalf("blocked source writer published metadata: found=%t err=%v", found, err)
 	}
 
-	release()
+	leases.Close()
 	released = true
 	if unlock, err := autonomousexec.TryAcquire(root); err != nil {
 		t.Fatalf("archive admission remained blocked after release: %v", err)
@@ -140,9 +141,9 @@ func TestControlAndWorkspaceSourceWritersHoldSharedRetentionAdmission(t *testing
 			}
 
 			gcCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-			if release, err := acquireMutationLeases(gcCtx, root, time.Now); !errors.Is(err, context.DeadlineExceeded) {
+			if leases, err := acquireMutationLeases(gcCtx, root, time.Now); !errors.Is(err, context.DeadlineExceeded) {
 				if err == nil {
-					release()
+					leases.Close()
 				}
 				cancel()
 				_ = writer.Release(context.Background())
@@ -152,11 +153,11 @@ func TestControlAndWorkspaceSourceWritersHoldSharedRetentionAdmission(t *testing
 			if err := writer.Release(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			release, err := acquireMutationLeases(context.Background(), root, time.Now)
+			leases, err := acquireMutationLeases(context.Background(), root, time.Now)
 			if err != nil {
 				t.Fatalf("GC remained blocked after source-writer release: %v", err)
 			}
-			release()
+			leases.Close()
 		})
 	}
 }
@@ -186,9 +187,9 @@ func TestMutationLeasesRejectLiveWriterMetadataAfterGateReleaseFailure(t *testin
 			if err := writer.Release(cancelled); !errors.Is(err, context.Canceled) {
 				t.Fatalf("cancelled writer release error = %v", err)
 			}
-			if release, err := acquireMutationLeases(context.Background(), root, time.Now); err == nil || !strings.Contains(err.Error(), "source writer") {
+			if leases, err := acquireMutationLeases(context.Background(), root, time.Now); err == nil || !strings.Contains(err.Error(), "source writer") {
 				if err == nil {
-					release()
+					leases.Close()
 				}
 				t.Fatalf("GC live-metadata admission error = %v", err)
 			}
@@ -196,6 +197,104 @@ func TestMutationLeasesRejectLiveWriterMetadataAfterGateReleaseFailure(t *testin
 				t.Fatalf("clear writer metadata: %v", err)
 			}
 		})
+	}
+}
+
+func TestMutationLeasesRejectUnsafeRetentionLockWithoutOutsideMutation(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, root, outside, sentinel, retentionPath string)
+	}{
+		{
+			name: "final symlink",
+			setup: func(t *testing.T, root, _, sentinel, retentionPath string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Dir(retentionPath), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(sentinel, retentionPath); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "hard link alias",
+			setup: func(t *testing.T, root, _, sentinel, retentionPath string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Dir(retentionPath), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Link(sentinel, retentionPath); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "symlinked ancestor",
+			setup: func(t *testing.T, root, outside, _, _ string) {
+				t.Helper()
+				if err := os.Mkdir(filepath.Join(root, ".revolvr"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, filepath.Join(root, ".revolvr", "locks")); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			outside := t.TempDir()
+			sentinel := filepath.Join(outside, "sentinel.txt")
+			const sentinelBytes = "outside retention sentinel\n"
+			if err := os.WriteFile(sentinel, []byte(sentinelBytes), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			retentionPath := filepath.Join(root, filepath.FromSlash(revolvrlock.ArtifactRetentionRelPath))
+			tt.setup(t, root, outside, sentinel, retentionPath)
+
+			leases, err := acquireMutationLeases(context.Background(), root, time.Now)
+			if err == nil {
+				leases.Close()
+				t.Fatal("unsafe retention lock path was acquired")
+			}
+			if !errors.Is(err, runtimepath.ErrUnsafe) {
+				t.Fatalf("acquire error = %v, want runtimepath.ErrUnsafe", err)
+			}
+			raw, readErr := os.ReadFile(sentinel)
+			if readErr != nil || string(raw) != sentinelBytes {
+				t.Fatalf("outside sentinel changed: err=%v bytes=%q", readErr, raw)
+			}
+			entries, readErr := os.ReadDir(outside)
+			if readErr != nil || len(entries) != 1 || entries[0].Name() != "sentinel.txt" {
+				t.Fatalf("outside directory changed: err=%v entries=%v", readErr, entries)
+			}
+		})
+	}
+}
+
+func TestMutationLeasesDetectRetentionPathReplacement(t *testing.T) {
+	root := t.TempDir()
+	leases, err := acquireMutationLeases(context.Background(), root, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer leases.Close()
+	path := leases.retention.Path()
+	openedPath := path + ".opened"
+	if err := os.Rename(path, openedPath); err != nil {
+		t.Fatal(err)
+	}
+	const replacement = "replacement retention lock\n"
+	if err := os.WriteFile(path, []byte(replacement), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := leases.Check(); !errors.Is(err, runtimepath.ErrUnsafe) {
+		t.Fatalf("Check error = %v, want runtimepath.ErrUnsafe", err)
+	}
+	if raw, readErr := os.ReadFile(path); readErr != nil || string(raw) != replacement {
+		t.Fatalf("replacement retention lock changed: err=%v bytes=%q", readErr, raw)
 	}
 }
 
