@@ -1,5 +1,24 @@
 # Agent Decisions
 
+## AUDIT-R4-CLOSE-01 Final Audit Closure (2026-07-14)
+
+- Closure is requirement-by-requirement, not inferred from implementation
+  commits or a green broad suite. Current source must expose each promised
+  authority, every named owner and reader must use it, and fresh focused
+  adversarial tests must prove each reproduced failure boundary before the
+  resolved audit document is removed.
+- `AUDIT_PROBLEMS.md` is an active finding list rather than permanent history.
+  Once AP-01 through AP-06 are independently proven closed and the complete
+  audit matrix passes, the file is deleted. Git history plus `.agent/STATE.md`
+  and `.agent/DECISIONS.md` retain the findings, corrections, and proof.
+- CLI verification uses a freshly initialized Git fixture with `umask 0022`.
+  A developer working copy whose pre-existing `.agent` or `.git` directory is
+  group-writable is expected to fail the filesystem safety boundary; closure
+  does not weaken that boundary or mutate the developer's local permissions.
+- The final platform matrix includes the original audit architectures and the
+  repository's current CI targets, plus Darwin/FreeBSD compilation of the
+  platform-specific source-snapshot tests and the Windows diagnostic stub.
+
 ## AUDIT-R4-11 Deterministic Residual Diagnostics (2026-07-14)
 
 - When several action-budget authorities regress in one transition, action

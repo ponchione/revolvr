@@ -2,10 +2,57 @@
 
 ## Current Focus
 
-`AUDIT-R4-11` is complete. Action-budget transition diagnostics and archive
-commit file diagnostics now have explicit canonical first-error order under
-multiple simultaneous failures. The next bounded task is
-`AUDIT-R4-CLOSE-01`; there are no blockers.
+`AUDIT-R4-CLOSE-01` is complete. Fresh source inspection, adversarial
+regressions, and the final verification matrix prove AP-01 through AP-06 are
+closed. `AUDIT_PROBLEMS.md` has been deleted; the audit backlog is empty and
+there are no blockers.
+
+## Final R4 Audit Closure (2026-07-14)
+
+- AP-01: `runtimepath.Boundary` provides descriptor-rooted no-follow
+  traversal plus identity-checked create, open, enumerate, link, replace,
+  unlink, read, and sync operations. Autonomous state, notification,
+  exact-task run, archive, and finalization owners retain stable parents and
+  opened files across publication, cleanup, lease checks, and readback. The
+  six named evidence readers and the additionally discovered migration reader
+  use the same protected descriptor reads; the audited bespoke walkers and
+  check-then-reopen reads are absent.
+- Fresh AP-01 execution covered the original autonomous-state outside-mutation
+  reproducer ten times, the shared boundary ten times, every other durable
+  owner five times, and all seven evidence readers ten times. Final/ancestor
+  symlinks, hard links, unsafe modes, renamed ancestors, metadata boundaries,
+  cleanup, enumeration, held-lease replacement, and complete outside-tree
+  contents, modes, targets, and link counts remain permanent assertions.
+- AP-02: post-`SIGKILL` settlement has its own deadline, preserves signal and
+  inspection errors, returns `ErrProcessTreeUnsettled` when absence cannot be
+  proven, and checks leader identity reuse before every post-reap signal or
+  poll. Ten focused runs included the real held-zombie descendant boundary.
+- AP-03: active `q` and `ctrl+c` request cancellation but only the matching
+  run token's fully applied terminal message emits `tea.Quit`. Twenty focused
+  runs covered run-once, loop, exact-task, and queue cleanup and refresh.
+- AP-04: explicit usage schemas have declared parent/key precedence; legacy
+  recursive usage is accepted only when unique and otherwise returns typed,
+  sorted ambiguity evidence without changing receipt bytes. Twenty focused
+  runs covered every supported shape, precedence boundary, and 1,000 parses
+  of the multi-candidate event per invocation.
+- AP-05: regular and symlink source evidence is read through opened identities
+  with immediate and post-read descriptor/path checks. Twenty focused runs
+  covered final-symlink, inode, mutation, regular ABA, symlink ABA, and
+  post-read substitution cases with replacement metadata equalized.
+- AP-06: prior action budgets are sorted by action and archive byte checks use
+  sorted expected paths. Twenty focused runs asserted exact multi-invalid
+  first errors and archive object-read order across 1,000 calls per test.
+- Final verification passed: complete ordinary, shuffled, and race suites;
+  `go vet ./...`; `go mod verify`; `govulncheck ./...` with zero reachable
+  vulnerabilities; tracked-Go formatting; `git diff --check`; Bash syntax for
+  all tracked shell scripts; and CLI help. A fresh `umask 0022` Git fixture
+  passed `init`, `config check`, and `status`; the existing working copy's
+  group-writable `.agent` directory was correctly refused and left unchanged.
+- Cross-builds passed for Linux 386/amd64/arm64, Darwin amd64/arm64, and
+  FreeBSD amd64/arm64. Darwin and FreeBSD `gitstate` test binaries compile,
+  and the Windows diagnostic stub contains the required unsupported-platform
+  message. No dependency was added, the audit document is deleted, the
+  backlog is empty, and blockers are none.
 
 ## Deterministic Remaining First-Error Diagnostics (2026-07-14)
 
