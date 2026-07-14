@@ -184,7 +184,7 @@ func TestLoadInvalidCompletedCheckpointFailsGraphClosed(t *testing.T) {
 		prepare func(*testing.T, string) string
 		want    string
 	}{
-		{name: "missing receipt", prepare: func(t *testing.T, root string) string { return strings.Repeat("a", 64) }, want: "no such file"},
+		{name: "missing receipt", prepare: func(t *testing.T, root string) string { return strings.Repeat("a", 64) }, want: os.ErrNotExist.Error()},
 		{name: "malformed receipt", prepare: func(t *testing.T, root string) string {
 			raw := []byte(`{"schema_version":`)
 			writeCheckpointReceiptRaw(t, root, "manual-acceptance", raw)

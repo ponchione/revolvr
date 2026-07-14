@@ -69,6 +69,8 @@
   and close cancellation/identity-reuse races in the runner.
 - [x] AUDIT-R4-08 — Make active TUI quit wait for the matching run, loop,
   task-run, or queue terminal event before exiting.
+- [x] AUDIT-VERIFY-01 — Repair the stale missing-checkpoint diagnostic
+  assertion left by the protected receipt-read migration.
 - [ ] AUDIT-R4-09 — Replace recursive map-order Codex usage selection with
   schema precedence and fail-closed ambiguity handling.
 - [ ] AUDIT-R4-10 — Bind source-snapshot bytes to the opened file identity and

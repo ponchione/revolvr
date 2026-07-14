@@ -2,10 +2,40 @@
 
 ## Current Focus
 
-`AUDIT-R4-08` is complete. Active TUI `q` and `ctrl+c` now request
-cancellation but keep Bubble Tea alive until the matching run, loop,
-autonomous-task, or queue terminal message has applied. The next bounded task
-is `AUDIT-R4-09`; there are no blockers.
+`AUDIT-VERIFY-01` is complete. The missing-checkpoint regression now derives
+its expected text from `os.ErrNotExist`, matching the protected receipt-read
+contract instead of the former syscall-specific wording. The next bounded
+task is `AUDIT-R4-09`; its implementation remains uncommitted and ready for
+its own complete verification pass.
+
+## Protected Missing-Receipt Assertion Repair (2026-07-14)
+
+- `runtimepath.Boundary.ReadFileLimit` deliberately reports absent required
+  files with `os.ErrNotExist`. The taskschedule regression now asserts that
+  contract through `os.ErrNotExist.Error()` rather than the obsolete
+  `no such file` literal produced by the former pathname read.
+- Fifty focused repetitions, ten complete taskschedule-package repetitions,
+  and `go test -count=1 ./...` passed. No production behavior or dependency
+  changed. The next task is `AUDIT-R4-09`; blockers: none.
+
+## Pending Codex Usage Schema Fix (2026-07-14)
+
+- The metrics parser now gives explicit precedence to direct usage aliases,
+  the same aliases in the four supported event envelopes, and bare metric
+  fields. A single legacy nested candidate remains supported.
+- Legacy nested discovery enumerates all valid usage candidates with sorted
+  JSON-pointer paths. It selects only a unique candidate; competing candidates
+  fail closed with `CodexUsageAmbiguityError`, including the record number and
+  deterministic candidate paths.
+- Ambiguity is classified as a parse diagnostic, not an artifact source
+  failure, so existing Codex and receipt callers leave usage unpublished.
+- Tests cover all 21 explicit schema locations, the bare and unique legacy
+  shapes, each precedence boundary, file diagnostic classification, and 1,000
+  repeated parses of the reproduced ambiguous event.
+- Focused tests passed twenty repetitions and the receipt race suite passed.
+  After `AUDIT-VERIFY-01`, the ordinary full suite also passes in the current
+  combined worktree. R4-09 still requires its own complete verification pass;
+  blockers to the parser implementation itself: none.
 
 ## TUI Quit-After-Settlement (2026-07-14)
 
