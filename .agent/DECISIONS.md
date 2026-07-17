@@ -1,5 +1,33 @@
 # Agent Decisions
 
+## EXT-20 RC.2 Replacement Candidate Authority (2026-07-17)
+
+- RC.1 at `ed65049fba6bf82852fd406ebc17afa90a953e3f` and all of its local,
+  remote, and failed-live evidence remain immutable rejected history. They
+  cannot be relabeled, overwritten, or used as the replacement candidate.
+- Replacement candidate `level1-v0.1.0-rc.2` binds release version `0.1.0` to
+  exact clean source commit `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`.
+  Its locally reproduced Linux, Darwin, and FreeBSD amd64 SHA-256 values are,
+  respectively,
+  `06c1258a947def8c53e03bfd79944bb002351358fc8dfecd35682ab7532b5010`,
+  `05a15786dd1617d77ec671f420075922f6f9a78bf03de1245f03008f0960dee1`,
+  and `5891c88e1e13f5a0a0e3452c15221981a187652c2e563a7b8b218b63c07d2a29`.
+- RC.2 continues the settled EXT-18 procedure unchanged: Go 1.22.12 is the
+  source floor; release artifacts use Go 1.26.5, local toolchain selection,
+  module-readonly mode, disabled CGO, amd64, trimpath, explicit clean VCS
+  metadata, empty Go build ID, and exact release version. Two independent
+  non-local clean clones must produce byte-identical artifacts.
+- The ignored local RC.2 candidate and verification bundles are immutable
+  construction evidence, not remote or external-use authority. A first
+  relative-output-path build was fail-closed by metadata verification and is
+  retained unchanged under a failed diagnostic suffix. Only the subsequent
+  absolute-path build is candidate authority.
+- RC.2 cannot enter EXT-20 dogfood until a collision-free remote candidate ref
+  binds the exact source SHA, every EXT-15 job passes on it, and a separate
+  exact-checkout Go 1.26.5 attestation reproduces these three hashes and
+  embedded identities. This local construction grants no push, tag, live
+  model, or external-use approval.
+
 ## EXT-19 Remote Candidate And Attestation Authority (2026-07-17)
 
 - The Level-1 candidate source authority is remote branch

@@ -58,15 +58,95 @@ before/during/after transition seams for supervisor, worker, verification,
 commit, checkpoint, audit, finalization, queue reconciliation, notification,
 and archive publication. Every row binds exact durable replay, quarantine,
 readiness-level continuation, prohibited inference, and operator action.
-The next fresh task is EXT-20. The exact candidate exists on the remote, its
-complete push-triggered CI matrix passed, and the supplemental remote
-attestation rebuilt all supported artifacts with the exact EXT-18 hashes and
-retained the attested bundle. Recovery inspection uses a distinct
+The next fresh task remains EXT-20. RC.1 and its remote evidence are immutable
+rejected history after the omitted-work-directory defect. Replacement RC.2 is
+now built and locally verified from the exact fix commit; fresh exact-commit CI
+and supplemental remote artifact attestation remain required before any new
+collision-free live dogfood suite may start. Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.2 Replacement Candidate — Local Verification (2026-07-17)
+
+- Task selected: the bounded replacement-candidate subtask of `EXT-20` only.
+  Candidate `level1-v0.1.0-rc.2` binds release version `0.1.0` to exact clean
+  source commit `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec` and tree
+  `f1eef2999103ffdc9b76fceda34af824191dd4b7`. Local and remote ref checks plus
+  local bundle/root checks found no prior RC.2 collision. RC.1, both retired
+  EXT-20 live roots, their remote refs, and their evidence were not changed.
+- The production omitted-work-directory fix was inspected first. Its focused
+  regression passed on Go 1.26.5, under the race detector, and with the full
+  `internal/cli` package before candidate construction; the focused ordinary
+  and race results are also retained with the release verification evidence.
+- The immutable candidate bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.2-eeaaf50b52fd/`.
+  Its build-instruction SHA-256 is
+  `c9e38a38684c5022445fbc59725f4ecd4f7d143540ad2bb99a3aa8c208f2bdcf`
+  and its complete inventory SHA-256 is
+  `d398e5ae9a2a74965ad76134b48311e593d299a0c1003e7e2f19b72a74f1c0e7`.
+  Two independent non-local clean clones produced byte-identical artifacts:
+  Linux amd64
+  `06c1258a947def8c53e03bfd79944bb002351358fc8dfecd35682ab7532b5010`,
+  Darwin amd64
+  `05a15786dd1617d77ec671f420075922f6f9a78bf03de1245f03008f0960dee1`,
+  and FreeBSD amd64
+  `5891c88e1e13f5a0a0e3452c15221981a187652c2e563a7b8b218b63c07d2a29`.
+- Every artifact independently records Go 1.26.5, its exact target,
+  `CGO_ENABLED=0`, source revision `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`,
+  and `vcs.modified=false`; the Linux binary reports `revolvr 0.1.0`. The
+  sibling immutable verification bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.2-eeaaf50b52fd-verification/`.
+  It retains exact source/Go/Git/govulncheck identities, commands, logs,
+  independent build metadata, both build-attempt logs, and a complete
+  inventory with SHA-256
+  `45a6d14e90aaf95de7f1a67e0179edf50142e226ecdbc52259e8c60c77531c9c`.
+- Required verification passed: Go 1.22.12 source-floor tests; Go 1.26.5 full
+  tests; `go vet ./...`; `go mod verify`; `govulncheck ./...` and verbose scan;
+  supported Linux/Darwin/FreeBSD amd64 builds; exact duplicate-build hash
+  comparison; embedded version/source/toolchain checks; candidate self-check;
+  verification-bundle inventory check; and source cleanliness. Govulncheck
+  found zero reachable and zero imported-package vulnerabilities. Its one
+  retained module-only finding is `GO-2026-5024` in the Windows-only
+  `golang.org/x/sys/windows` surface at `v0.30.0`; Revolvr does not call it and
+  the report names `v0.44.0` as fixed.
+- Independent controller verification reran both bundle inventories, rejected
+  links/aliases, checked every artifact hash and embedded build field, verified
+  RC.1 remained intact, and ran the RC.2 Linux binary from a retired external
+  repository. RC.2 passed repository/external admission and refused only an
+  intentionally absent task at scheduler selection, with no operation or Git
+  mutation. A third build from another clean non-local clone reproduced all
+  three artifact hashes exactly. Its complete bundle inventory differs because
+  the first line of each retained `go version -m` text records that rebuild's
+  absolute artifact pathname; this documented path-only text variance is not
+  artifact or embedded-metadata authority. The candidate binaries and all
+  embedded fields remain byte-identical to the authoritative bundle.
+- The first construction used a relative output path. Artifacts reproduced,
+  but fail-closed verification rejected the path-bearing build metadata. That
+  immutable diagnostic is retained at
+  `.revolvr/release-candidates/level1-v0.1.0-rc.2-eeaaf50b52fd.failed-relative-metadata-path/`.
+  The single repair used the settled absolute output-path invocation and
+  passed every check; no failed bundle was overwritten.
+- Files changed: this state file, `.agent/DECISIONS.md`, the new ignored RC.2
+  pinned build script, candidate bundle, verification bundle, and failed
+  diagnostic. No Go source, dependency, RC.1 evidence, failed EXT-20 root,
+  commit, push, tag, remote ref, workflow run, or live/model operation changed.
+  `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked.
+- Exact remaining remote-attestation step: after independent controller
+  verification, use raw Git to publish a collision-free
+  `level1-v0.1.0-rc.2` ref at exact source
+  `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`; require every EXT-15 CI job on
+  that SHA to pass. Then publish a separate RC.2 attestation-workflow commit
+  that checks out that immutable source, pins Go 1.26.5 and the three hashes
+  above, rebuilds both clean passes, verifies embedded metadata, and retains a
+  remote artifact digest. Compare its outputs byte-for-byte with this local
+  bundle before preparing a new collision-free EXT-20 live suite. No `gh`,
+  push, remote CI request, or attestation was performed in this pass.
+- Result: local replacement-candidate construction passed. What remains is
+  fresh remote exact-commit CI/artifact attestation followed by the complete
+  quantitative real-Codex gate. Blockers for this bounded local task: none.
 
 ## EXT-20 Candidate Rejected: CLI Work Directory (2026-07-17)
 
