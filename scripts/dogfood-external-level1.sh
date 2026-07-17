@@ -459,7 +459,7 @@ func main() {
 		fmt.Println("Effective config schema: revolvr-effective-run-config-v7")
 		fmt.Println("Effective config SHA-256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 		fmt.Println("Autonomy mode: operator_attended")
-		fmt.Println("Attended operational bounds: schema=revolvr-operational-bounds-v1 task_attempts=16 action_attempts=audit:4,correct:4,document:4,implement:4,plan:4,simplify:4 elapsed_nanoseconds=14400000000000 model_tokens=1000000 cycles_per_task=50 process_nanoseconds=1800000000000 output_bytes_per_stream=262144 retained_disk_bytes=1073741824 notification_attempts=0")
+		fmt.Println("Attended operational bounds: task_attempts=16 action_attempts=[audit=4,correct=4,document=4,implement=4,plan=4,simplify=4] elapsed=4h0m0s model_tokens=1000000 cycles_per_task=50 process_duration=30m0s output_bytes_per_stream=262144 retained_disk_bytes=1073741824 notification_attempts=0")
 		fmt.Println("Verification command count: 1")
 		fmt.Println("Commit allow pre-existing dirty: false")
 		fmt.Println("Commit allow missing verification: false")
@@ -690,10 +690,8 @@ preflight() {
   grep -Fq "resolved=\"$CODEX_EXECUTABLE\"" "$TMP_ROOT/config-check.out" || { echo "config check Codex path does not match" >&2; return 1; }
   grep -Fq "sha256=$CODEX_SHA256" "$TMP_ROOT/config-check.out" || { echo "config check Codex digest does not match" >&2; return 1; }
   grep -Fq 'Effective config SHA-256: ' "$TMP_ROOT/config-check.out" || { echo "effective config identity is missing" >&2; return 1; }
-  grep -Fq 'Attended operational bounds: ' "$TMP_ROOT/config-check.out" || { echo "attended bounds are missing" >&2; return 1; }
-  for value in 'task_attempts=16' 'audit:4' 'correct:4' 'document:4' 'implement:4' 'plan:4' 'simplify:4' 'elapsed_nanoseconds=14400000000000' 'model_tokens=1000000' 'cycles_per_task=50' 'process_nanoseconds=1800000000000' 'output_bytes_per_stream=262144' 'retained_disk_bytes=1073741824' 'notification_attempts=0'; do
-    grep -Fq "$value" "$TMP_ROOT/config-check.out" || { echo "approved attended bound is missing: $value" >&2; return 1; }
-  done
+  local expected_bounds='Attended operational bounds: task_attempts=16 action_attempts=[audit=4,correct=4,document=4,implement=4,plan=4,simplify=4] elapsed=4h0m0s model_tokens=1000000 cycles_per_task=50 process_duration=30m0s output_bytes_per_stream=262144 retained_disk_bytes=1073741824 notification_attempts=0'
+  grep -Fxq "$expected_bounds" "$TMP_ROOT/config-check.out" || { echo "approved attended bounds do not exactly match the Level-1 release contract" >&2; return 1; }
   (cd "$REPOSITORY" && "$CANDIDATE_BINARY" doctor --for attended-task --task "$TASK_ID") >"$TMP_ROOT/doctor.out" 2>"$TMP_ROOT/doctor.err" || { echo "candidate doctor refused the exact task" >&2; return 1; }
   grep -Fxq 'Ready: true' "$TMP_ROOT/doctor.out" || { echo "candidate doctor did not report Ready: true" >&2; return 1; }
 }

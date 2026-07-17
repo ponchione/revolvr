@@ -68,6 +68,40 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 Live Preflight Bound-Rendering Fix (2026-07-17)
+
+- The first confirmation-gated live command stopped during EXT-17 collector
+  admission for operation `ext20-e92c1bdec435-01` with status 1 and no terminal
+  manifest. The retained diagnostic is
+  `/tmp/revolvr-ext20-fresh.OmCBwv/suite/logs/01-successful-source-change-1.stderr`.
+  No Codex/model process, task operation, runtime evidence, source change, or
+  aggregate file was started; both disposable repositories remained clean.
+- Root cause: `scripts/dogfood-external-level1.sh` still asserted the obsolete
+  strict-fixture rendering `audit:4`, `elapsed_nanoseconds`, and
+  `process_nanoseconds`. The exact EXT-18 candidate renders its settled public
+  config contract as `action_attempts=[audit=4,...]`, `elapsed=4h0m0s`, and
+  `process_duration=30m0s`, so the collector rejected the valid release before
+  model admission.
+- Fix: the collector fixture now reproduces the exact release rendering and
+  real-operation preflight compares the complete canonical attended-bounds
+  line byte-for-byte. This removes the fixture/production drift while retaining
+  fail-closed validation of every Level-1 bound.
+- Verification passed: shell syntax; two fresh fixture-only collections and
+  independent manifest verification; wrong-Codex preflight rejection; suite
+  static verification; and a real-candidate/no-model preflight probe that
+  passed candidate, Codex, config, and exact bounds authority before refusing
+  only the intentionally absent task at doctor. The probe created no evidence
+  and left Git clean.
+- The failed preparation root is retired to preserve its diagnostic. A fresh
+  no-model suite is prepared at `/tmp/revolvr-ext20-live2.3ZVQcm/suite` with
+  zero manifests, an empty aggregate directory, two clean repositories, and
+  exact isolated `codex-cli 0.144.4`. Live confirmation refusal and pre-live
+  aggregate refusal both passed without mutation.
+- EXT-20 remains unchecked. Resume with:
+  `scripts/dogfood-external-level1-suite.sh --live --run-root
+  /tmp/revolvr-ext20-live2.3ZVQcm/suite --confirm-live-real-codex
+  EXT20_LIVE_REAL_CODEX_MODEL_CALLS`.
+
 ## EXT-20 Guarded Level-1 Suite Driver (2026-07-17)
 
 - Task selected: `EXT-20`, implement the guarded driver for the complete
