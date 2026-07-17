@@ -69,6 +69,28 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.2 Exact-Candidate Remote CI (2026-07-17)
+
+- Independent controller verification passed for the local RC.2 bundle and a
+  third clean-clone rebuild. Raw Git published collision-free branch
+  `level1-v0.1.0-rc.2` at exact source commit
+  `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`; remote readback resolves that
+  ref to the same SHA.
+- Push-triggered GitHub Actions CI run `29620366441` completed `success` on
+  that exact SHA. All ten jobs passed: Go 1.22 source floor and tests; Darwin,
+  Linux, and FreeBSD amd64 builds; Windows diagnostic stub; vet and module
+  verification; fake-Codex success and verification-failure smokes; race
+  tests; and the production autonomous strict-fake suite. Run evidence:
+  `https://github.com/ponchione/revolvr/actions/runs/29620366441`.
+- The local evidence update was committed as `916c856`; raw Git pushed `main`
+  and the exact candidate ref. No `gh`, tag, attestation workflow, live Codex,
+  or external-use approval was used or created.
+- EXT-20 remains unchecked. The next bounded pass is the separate RC.2 remote
+  artifact attestation workflow only. It must check out exact `eeaaf50`, pin Go
+  1.26.5, reproduce both clean build passes and all three recorded hashes,
+  verify embedded metadata, retain the attested artifact bundle, and preserve
+  every RC.1 workflow/evidence unchanged.
+
 ## EXT-20 RC.2 Replacement Candidate — Local Verification (2026-07-17)
 
 - Task selected: the bounded replacement-candidate subtask of `EXT-20` only.
