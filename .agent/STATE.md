@@ -69,6 +69,67 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.2 Remote Artifact Attestation Workflow (2026-07-17)
+
+- Task selected: the bounded RC.2 remote-artifact prerequisite of `EXT-20`
+  only. A new separate
+  `.github/workflows/level1-rc2-candidate-attestation.yml` triggers only on a
+  push to `level1-v0.1.0-rc.2-attestation` and checks out exact candidate
+  source commit `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec` rather than the
+  trigger HEAD.
+- The workflow installs exact Go 1.26.5 with cache restoration disabled, makes
+  two independent clean `--no-local` source clones with separate Go build and
+  module caches, and builds Linux, Darwin, and FreeBSD amd64 artifacts with
+  the settled EXT-18 environment, build flags, empty build ID, and
+  `main.version=0.1.0`. It compares each pass pair byte-for-byte and requires
+  the exact RC.2 SHA-256 values
+  `06c1258a947def8c53e03bfd79944bb002351358fc8dfecd35682ab7532b5010`,
+  `05a15786dd1617d77ec671f420075922f6f9a78bf03de1245f03008f0960dee1`,
+  and `5891c88e1e13f5a0a0e3452c15221981a187652c2e563a7b8b218b63c07d2a29`.
+- Every artifact must expose the exact Go toolchain, command path, compiler,
+  trimpath, target, disabled CGO, Git source revision, and
+  `vcs.modified=false` build metadata. Each artifact must also carry exactly
+  one `main.version` symbol and exact `0.1.0` string; both Linux copies must
+  execute with exact output `revolvr 0.1.0`. One upload retains both binary
+  sets, all six build-metadata/version assertions, `SHA256SUMS`, pairwise
+  reproducibility hashes, and the exact tabular authority manifest.
+- Files changed: the new RC.2 workflow and this state file only.
+  `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked, and
+  `.agent/DECISIONS.md` remains unchanged because this workflow implements the
+  already settled RC.2 authority. The RC.1 workflow remains byte-for-byte
+  unchanged at SHA-256
+  `d1314182a0cffd78927e6a5cc688e370c42f3d17a4e4ffe426f647a384c40a41`;
+  no RC.1 ref, hash, bundle, or failed live evidence changed.
+- Verification commands run: all required durable-state reads; raw Git status,
+  history, exact candidate object/tree, and local/remote ref-collision checks;
+  PyYAML BaseLoader parsing with exact trigger/checkout/toolchain/build/hash/
+  metadata/upload assertions; `bash -n` on the embedded workflow shell; and
+  two executions of the actual embedded shell against fresh detached clones
+  under host Go 1.26.5. The first execution completed all builds and hash
+  checks but its outer local harness miscounted the retained files; the single
+  repair corrected that harness assertion from 18 to 21. The complete rerun
+  passed all six required hashes, all three byte-for-byte pair comparisons,
+  every retained-authority assertion, and `git diff --check`.
+- Verification result: local workflow syntax, exact constants, clean two-pass
+  execution, metadata, version, hashes, reproducibility, and retained evidence
+  passed. Independent controller verification parsed the workflow authority,
+  syntax-checked and executed its exact embedded shell from a detached clean
+  checkout, then verified all 21 retained files, six SHA-256 entries, three
+  byte-identical artifact pairs, and the complete authority manifest. No
+  remote workflow, live/nested Codex, model, commit, push, or tag operation was
+  started during either local verification pass.
+- Collision-free raw-Git attestation ref to publish after controller review
+  and commit: `refs/heads/level1-v0.1.0-rc.2-attestation`. Raw Git found that
+  ref absent both locally and at `origin`; publication should use the reviewed
+  workflow commit as its tip and must not move the exact candidate ref.
+- What remains: commit the reviewed workflow independently, publish only that
+  collision-free attestation ref with raw Git, require its remote job to
+  succeed, record the run URL and conclusion, verify its exact checkout SHA,
+  inspect the retained artifact and remote digest, and compare all six
+  binaries/hashes/metadata/authority files with this contract. Only then may a
+  new collision-free RC.2 EXT-20 real-Codex suite be prepared. External use
+  remains unapproved; blocker for this local subtask: none.
+
 ## EXT-20 RC.2 Exact-Candidate Remote CI (2026-07-17)
 
 - Independent controller verification passed for the local RC.2 bundle and a
