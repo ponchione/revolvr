@@ -58,13 +58,134 @@ before/during/after transition seams for supervisor, worker, verification,
 commit, checkpoint, audit, finalization, queue reconciliation, notification,
 and archive publication. Every row binds exact durable replay, quarantine,
 readiness-level continuation, prohibited inference, and operator action.
-The next fresh task is EXT-19, which requires explicit operator authorization
-before pushing the exact candidate commit. Recovery inspection uses a distinct
+The current fresh task is EXT-19. The exact candidate exists on the remote and
+its complete push-triggered CI matrix passed. A local supplemental attestation
+workflow now checks out the exact candidate, rebuilds and hashes all supported
+artifacts, and retains them for remote inspection; it still requires controller
+publication and a successful remote run. Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-19 Supplemental Candidate Attestation Workflow (2026-07-17)
+
+- Task selected: `EXT-19`, push the exact Level-1 candidate and obtain remote
+  CI evidence. This pass implements only the operator-directed supplemental
+  remote binary attestation workflow and does not publish it.
+- `.github/workflows/level1-candidate-attestation.yml` triggers only on a push
+  to `level1-v0.1.0-rc.1-attestation`, explicitly checks out candidate source
+  commit `ed65049fba6bf82852fd406ebc17afa90a953e3f`, installs Go 1.26.5,
+  rebuilds Linux/Darwin/FreeBSD amd64 with the exact EXT-18 environment and Go
+  flags, validates and retains `go version -m` evidence, compares all three
+  SHA-256 values with the recorded EXT-18 values, and uploads the binaries,
+  metadata, and `SHA256SUMS` as one workflow artifact.
+- Files changed in this pass:
+  `.github/workflows/level1-candidate-attestation.yml` and this state file.
+  `.agent/TASKS.md` remains unchanged and EXT-19 remains unchecked.
+  `.agent/DECISIONS.md` remains unchanged because the workflow directly
+  implements already-settled release authority rather than changing it. The
+  pre-existing untracked `agent-ext19.sh` was not modified.
+- Verification commands run: the required durable-state reads; worktree and
+  exact candidate inspection using raw `git`; PyYAML BaseLoader parsing plus
+  assertions for the exact trigger, checkout, toolchain, build flags, metadata
+  checks, recorded hashes, and artifact upload; execution of the workflow's
+  extracted build-and-attest shell block in a fresh detached clone of the
+  candidate commit under host Go 1.26.5; the pinned EXT-18 bundle `--verify`
+  command; untracked-workflow whitespace validation; and `git diff --check`.
+- Verification result: local workflow structure and execution passed. The
+  fresh candidate rebuild produced exact EXT-18 SHA-256 values for Linux
+  `6239ec551a01b96b95dbaa2aac50ff3036f8f1ccccfff785f1136cd82323591a`,
+  Darwin `1c28e844196e88dd03daffde2a24a417d88571ab31bba2b022438b9453aa9fdb`,
+  and FreeBSD
+  `8b7860b801e30f7d36258cde1da4a8af5e9cb312177bd46fc0003a439fca0e17`.
+  The complete immutable EXT-18 bundle also reverified.
+- What remains: the controller must verify, commit, and push the supplemental
+  workflow to the exact trigger branch, wait for its remote job to succeed,
+  and record the run URL, conclusion, and retained artifact evidence. EXT-19
+  must remain unchecked until that remote workflow passes.
+- Blockers: the required remote workflow has not run because this pass is
+  expressly prohibited from committing or pushing. No commit, push, tag,
+  `gh`, or nested Codex operation was used.
+
+## EXT-19 Remote CI Observed — Completion Still Blocked (2026-07-17)
+
+- Task selected: `EXT-19`, push the exact Level-1 candidate and obtain remote
+  CI evidence.
+- Files changed in this pass: this state file only. `.agent/TASKS.md` remains
+  unchanged and EXT-19 remains unchecked. `.agent/DECISIONS.md` remains
+  unchanged because no durable implementation or architecture decision was
+  made.
+- Verification commands run: the required durable-state reads; `git status
+  --branch --porcelain=v2`; `git rev-parse --verify HEAD`; `git branch
+  --show-current`; `git remote -v`; `git branch -vv`; recent `git log`; exact
+  candidate/evidence commit inspection; `command -v gh`; `git ls-remote
+  --heads origin`; read-only GitHub commit, workflow, and status connector
+  queries; the public GitHub Actions run, jobs, and artifacts API projections;
+  `.github/workflows/ci.yml` inspection; local candidate manifest and artifact
+  hashing; the candidate bundle's pinned `--verify` command; and `git diff
+  --check`.
+- Verification result: remote branch `level1-v0.1.0-rc.1` points to exact
+  candidate source commit `ed65049fba6bf82852fd406ebc17afa90a953e3f` while
+  remote `main` remains `e76280cc93404aab403f8fe34036e6971e58bb78`.
+  Push-triggered CI run `29612464054` on the candidate commit completed on its
+  first attempt with conclusion `success`; all ten required jobs and their
+  exact-source assertions succeeded. The run URL is
+  `https://github.com/ponchione/revolvr/actions/runs/29612464054`.
+- The immutable EXT-18 bundle still verifies. Its Linux, Darwin, and FreeBSD
+  amd64 SHA-256 values remain
+  `6239ec551a01b96b95dbaa2aac50ff3036f8f1ccccfff785f1136cd82323591a`,
+  `1c28e844196e88dd03daffde2a24a417d88571ab31bba2b022438b9453aa9fdb`,
+  and `8b7860b801e30f7d36258cde1da4a8af5e9cb312177bd46fc0003a439fca0e17`.
+- What remains: obtain direct operator authorization or an explicit operator
+  confirmation naming the already-published exact commit and target ref. Also
+  obtain remote evidence that hashes the binaries actually tested by CI and
+  compares them with EXT-18. This run retained zero workflow artifacts, and
+  the candidate workflow builds only into runner-temporary paths without
+  hashing or uploading those outputs, so that required comparison cannot be
+  reconstructed from run `29612464054`.
+- Blockers: this pass contains no explicit commit/push authorization, and
+  EXT-19 expressly forbids completion without it; remote state alone is not
+  authorization. The required tested-binary hash evidence is also absent. The
+  `gh` executable is unavailable, though the official read-only Actions API
+  exposed the run and job conclusions. No push, commit, tag, workflow rerun,
+  or other remote mutation was attempted.
+
+## EXT-19 Remote CI Gate Blocked — Missing Push Authorization (2026-07-17)
+
+- Task selected: `EXT-19`, push the exact Level-1 candidate and obtain remote
+  CI evidence.
+- Files changed in this pass: this state file only. `.agent/TASKS.md` remains
+  unchanged and EXT-19 remains unchecked. `.agent/DECISIONS.md` remains
+  unchanged because no durable implementation or architecture decision was
+  made.
+- Verification commands run: `git status --branch --porcelain=v2`; `git
+  rev-parse --verify HEAD`; `git branch --show-current`; `git remote -v`;
+  `git branch -vv`; recent `git log`; `git show --stat --summary` for candidate
+  source commit `ed65049fba6bf82852fd406ebc17afa90a953e3f` and evidence commit
+  `413c3f11053f8d04e2aca10c5d5d33d38078ae29`; `git diff --check`; untracked
+  file inspection; `git ls-remote --heads origin`; an attempted `gh auth
+  status`/workflow query; and read-only GitHub connector checks for repository,
+  branch, candidate-commit, and candidate-workflow authority.
+- Verification result: blocked before publication. The local tree is clean at
+  `413c3f11053f8d04e2aca10c5d5d33d38078ae29` on `main`, two commits ahead of
+  `origin/main`. The ignored release artifacts are bound to exact source commit
+  `ed65049fba6bf82852fd406ebc17afa90a953e3f`; the later local commit records
+  EXT-18 evidence only. GitHub has only `main` at
+  `e76280cc93404aab403f8fe34036e6971e58bb78`, reports the candidate source
+  commit absent, and has no workflow run for it. The required `gh` executable
+  is also unavailable in this environment.
+- What remains: obtain direct operator authorization naming the exact push and
+  target ref, publish the candidate source commit without using Revolvr, wait
+  for the complete EXT-15 workflow on that exact commit, inspect every required
+  job, compare tested artifact hashes with EXT-18, and record the CI URL and
+  conclusions in release-decision evidence.
+- Blocker: this pass contains no explicit commit/push authorization, and EXT-19
+  expressly forbids completion without it. Pushing `main` as-is would test the
+  later evidence commit rather than make the EXT-18 source commit the pushed
+  ref tip, so the target ref must be explicit. No push, commit, tag, workflow
+  rerun, or remote mutation was attempted.
 
 ## EXT-18 Reproducible Level-1 Release Candidate (2026-07-17)
 

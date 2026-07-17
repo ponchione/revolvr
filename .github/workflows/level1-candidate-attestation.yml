@@ -1,0 +1,88 @@
+name: Level 1 candidate attestation
+
+on:
+  push:
+    branches:
+      - level1-v0.1.0-rc.1-attestation
+
+permissions:
+  contents: read
+
+jobs:
+  attest:
+    name: Rebuild and attest Level 1 candidate
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_COMMIT: ed65049fba6bf82852fd406ebc17afa90a953e3f
+      GO_VERSION: go1.26.5
+      RELEASE_VERSION: 0.1.0
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ed65049fba6bf82852fd406ebc17afa90a953e3f
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: Rebuild and attest candidate artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          readonly attestation_dir="${RUNNER_TEMP}/level1-v0.1.0-rc.1-attestation"
+          readonly artifact_dir="${attestation_dir}/artifacts"
+          readonly metadata_dir="${attestation_dir}/metadata"
+          readonly targets=(linux darwin freebsd)
+
+          test "$(git rev-parse --verify HEAD)" = "${CANDIDATE_COMMIT}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(go env GOVERSION)" = "${GO_VERSION}"
+          mkdir -p "${artifact_dir}" "${metadata_dir}"
+
+          printf '%s\n' "${GO_VERSION}" >"${metadata_dir}/go-version.txt"
+          printf '%s\n' "${CANDIDATE_COMMIT}" >"${metadata_dir}/source-commit.txt"
+
+          for target in "${targets[@]}"; do
+            output="${artifact_dir}/revolvr-v${RELEASE_VERSION}-${target}-amd64"
+            env \
+              CGO_ENABLED=0 \
+              GOARCH=amd64 \
+              GOENV=off \
+              GOOS="${target}" \
+              GOTOOLCHAIN=local \
+              GOWORK=off \
+              LC_ALL=C \
+              TZ=UTC \
+              go build -mod=readonly -trimpath -buildvcs=true \
+                -ldflags="-buildid= -X main.version=${RELEASE_VERSION}" \
+                -o "${output}" ./cmd/revolvr
+
+            metadata="${metadata_dir}/revolvr-v${RELEASE_VERSION}-${target}-amd64.buildinfo.txt"
+            go version -m "${output}" >"${metadata}"
+            awk -v want="${GO_VERSION}" 'NR == 1 { exit($NF == want ? 0 : 1) }' "${metadata}"
+            awk -v key=GOOS -v value="${target}" '$1 == "build" && $2 == key "=" value { found = 1 } END { exit(found ? 0 : 1) }' "${metadata}"
+            awk -v key=GOARCH -v value=amd64 '$1 == "build" && $2 == key "=" value { found = 1 } END { exit(found ? 0 : 1) }' "${metadata}"
+            awk -v key=CGO_ENABLED -v value=0 '$1 == "build" && $2 == key "=" value { found = 1 } END { exit(found ? 0 : 1) }' "${metadata}"
+            awk -v key=vcs.revision -v value="${CANDIDATE_COMMIT}" '$1 == "build" && $2 == key "=" value { found = 1 } END { exit(found ? 0 : 1) }' "${metadata}"
+            awk -v key=vcs.modified -v value=false '$1 == "build" && $2 == key "=" value { found = 1 } END { exit(found ? 0 : 1) }' "${metadata}"
+          done
+
+          test "$("${artifact_dir}/revolvr-v${RELEASE_VERSION}-linux-amd64" --version)" = "revolvr ${RELEASE_VERSION}"
+          printf '%s\n' "revolvr ${RELEASE_VERSION}" >"${metadata_dir}/version-output.txt"
+
+          cat >"${attestation_dir}/SHA256SUMS" <<'EOF'
+          6239ec551a01b96b95dbaa2aac50ff3036f8f1ccccfff785f1136cd82323591a  artifacts/revolvr-v0.1.0-linux-amd64
+          1c28e844196e88dd03daffde2a24a417d88571ab31bba2b022438b9453aa9fdb  artifacts/revolvr-v0.1.0-darwin-amd64
+          8b7860b801e30f7d36258cde1da4a8af5e9cb312177bd46fc0003a439fca0e17  artifacts/revolvr-v0.1.0-freebsd-amd64
+          EOF
+          (
+            cd "${attestation_dir}"
+            sha256sum --check SHA256SUMS
+          )
+      - name: Retain attested binaries and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: level1-v0.1.0-rc.1-attestation
+          path: ${{ runner.temp }}/level1-v0.1.0-rc.1-attestation
+          if-no-files-found: error
