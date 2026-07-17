@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"unicode"
@@ -35,20 +36,24 @@ type InvocationConfig struct {
 	EffectiveConfigSchema  string
 	EffectiveConfigSHA256  string
 	SafetyPolicySHA256     string
+	CodexIdentity          CodexExecutableIdentity
+	GitIdentity            ExecutableIdentity
 }
 
 type InvocationProvenance struct {
-	Executable            string   `json:"executable"`
-	Version               string   `json:"version"`
-	Model                 string   `json:"model"`
-	ReasoningEffort       string   `json:"reasoning_effort"`
-	Ephemeral             bool     `json:"ephemeral"`
-	SessionMode           string   `json:"session_mode"`
-	EffectiveConfigSchema string   `json:"effective_config_schema"`
-	EffectiveConfigSHA256 string   `json:"effective_config_sha256"`
-	SafetyPolicySHA256    string   `json:"safety_policy_sha256,omitempty"`
-	Argv                  []string `json:"argv"`
-	WorkingDir            string   `json:"working_dir"`
+	Executable            string                   `json:"executable"`
+	Version               string                   `json:"version"`
+	Model                 string                   `json:"model"`
+	ReasoningEffort       string                   `json:"reasoning_effort"`
+	Ephemeral             bool                     `json:"ephemeral"`
+	SessionMode           string                   `json:"session_mode"`
+	EffectiveConfigSchema string                   `json:"effective_config_schema"`
+	EffectiveConfigSHA256 string                   `json:"effective_config_sha256"`
+	SafetyPolicySHA256    string                   `json:"safety_policy_sha256,omitempty"`
+	Argv                  []string                 `json:"argv"`
+	WorkingDir            string                   `json:"working_dir"`
+	CodexIdentity         *CodexExecutableIdentity `json:"codex_identity,omitempty"`
+	GitIdentity           *ExecutableIdentity      `json:"git_identity,omitempty"`
 }
 
 func PrepareInvocation(cfg InvocationConfig) (InvocationProvenance, ArtifactPaths, error) {
@@ -113,6 +118,8 @@ func PrepareInvocation(cfg InvocationConfig) (InvocationProvenance, ArtifactPath
 		SafetyPolicySHA256:    strings.TrimSpace(cfg.SafetyPolicySHA256),
 		Argv:                  argv,
 		WorkingDir:            workDir,
+		CodexIdentity:         codexIdentityPointer(cfg.CodexIdentity),
+		GitIdentity:           executableIdentityPointer(cfg.GitIdentity),
 	}, artifacts, nil
 }
 
@@ -168,6 +175,19 @@ func (p InvocationProvenance) Validate() error {
 	if strings.TrimSpace(p.Version) == "" {
 		return errors.New("Codex invocation provenance: version is required")
 	}
+	if p.CodexIdentity != nil {
+		if err := p.CodexIdentity.Validate(); err != nil {
+			return fmt.Errorf("Codex invocation provenance: %w", err)
+		}
+		if p.Version != p.CodexIdentity.Version || p.Executable != p.CodexIdentity.Executable.Configured {
+			return errors.New("Codex invocation provenance: executable/version do not match admitted Codex identity")
+		}
+	}
+	if p.GitIdentity != nil {
+		if err := p.GitIdentity.Validate(); err != nil {
+			return fmt.Errorf("Codex invocation provenance: Git %w", err)
+		}
+	}
 	model, err := NormalizeModel(p.Model)
 	if err != nil {
 		return fmt.Errorf("Codex invocation provenance: %w", err)
@@ -213,7 +233,25 @@ func sameInvocation(got, want InvocationProvenance) bool {
 		got.EffectiveConfigSHA256 == want.EffectiveConfigSHA256 &&
 		got.SafetyPolicySHA256 == want.SafetyPolicySHA256 &&
 		slices.Equal(got.Argv, want.Argv) &&
-		got.WorkingDir == want.WorkingDir
+		got.WorkingDir == want.WorkingDir &&
+		reflect.DeepEqual(got.CodexIdentity, want.CodexIdentity) &&
+		reflect.DeepEqual(got.GitIdentity, want.GitIdentity)
+}
+
+func codexIdentityPointer(identity CodexExecutableIdentity) *CodexExecutableIdentity {
+	if identity == (CodexExecutableIdentity{}) {
+		return nil
+	}
+	copy := identity
+	return &copy
+}
+
+func executableIdentityPointer(identity ExecutableIdentity) *ExecutableIdentity {
+	if identity == (ExecutableIdentity{}) {
+		return nil
+	}
+	copy := identity
+	return &copy
 }
 
 func absoluteWorkingDir(value string) (string, error) {

@@ -64,6 +64,231 @@ func TestPrepareUsesExactCommitAndIgnoresDirtyPrimaryWorktree(t *testing.T) {
 	}
 }
 
+func TestExternalTaskWorkspaceAuthority(t *testing.T) {
+	t.Run("records exact isolated baseline authority", func(t *testing.T) {
+		repo, baseline := testRepository(t)
+		ambientBranch := runGit(t, repo, "symbolic-ref", "HEAD")
+		writeFile(t, filepath.Join(repo, "operator-only.txt"), "ambient operator branch\n")
+		runGit(t, repo, "add", "operator-only.txt")
+		runGit(t, repo, "commit", "-q", "-m", "operator branch advance")
+		ambientHead := runGit(t, repo, "rev-parse", "HEAD")
+
+		cfg := testConfig(repo, "external-authority", "prepare-external-authority", baseline)
+		prepared, err := Prepare(context.Background(), cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := normalize(context.Background(), cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace := prepared.Workspace
+		if workspace.ControlRoot != n.root || workspace.ExecutionRoot != n.execution || workspace.GitCommonDir != n.common || workspace.BranchRef != n.branchRef || workspace.OwnerMarker != n.markerPath {
+			t.Fatalf("recorded workspace authority = %+v, want normalized authority %+v", workspace, n)
+		}
+		if workspace.BaselineSHA != baseline || workspace.HeadSHA != baseline || workspace.Checkpoint.CommitSHA != baseline {
+			t.Fatalf("baseline authority = baseline %s head %s checkpoint %s, want %s", workspace.BaselineSHA, workspace.HeadSHA, workspace.Checkpoint.CommitSHA, baseline)
+		}
+		if got := runGit(t, workspace.ExecutionRoot, "symbolic-ref", "HEAD"); got != workspace.BranchRef {
+			t.Fatalf("execution branch = %q, want %q", got, workspace.BranchRef)
+		}
+		registry := runGit(t, repo, "worktree", "list", "--porcelain", "-z")
+		if !registered(registry, workspace.ExecutionRoot, workspace.BranchRef) {
+			t.Fatalf("workspace registration does not contain exact path/ref: %q", registry)
+		}
+		marker, found, err := readMarker(n.root, workspace.OwnerMarker)
+		if err != nil || !found {
+			t.Fatalf("read ownership marker: found=%t err=%v", found, err)
+		}
+		if err := validateMarker(marker, n); err != nil {
+			t.Fatalf("ownership marker does not bind exact authority: %v", err)
+		}
+		if got := runGit(t, repo, "symbolic-ref", "HEAD"); got != ambientBranch {
+			t.Fatalf("ambient branch changed to %q, want %q", got, ambientBranch)
+		}
+		if got := runGit(t, repo, "rev-parse", "HEAD"); got != ambientHead {
+			t.Fatalf("ambient HEAD changed to %q, want %q", got, ambientHead)
+		}
+		if _, err := os.Stat(filepath.Join(workspace.ExecutionRoot, "operator-only.txt")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("ambient branch bytes entered task workspace: %v", err)
+		}
+		raw, err := DeterministicJSON(workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var durable autonomous.TaskWorkspace
+		if err := json.Unmarshal(raw, &durable); err != nil {
+			t.Fatal(err)
+		}
+		if durable.ControlRoot != workspace.ControlRoot || durable.GitCommonDir != workspace.GitCommonDir || durable.BranchRef != workspace.BranchRef || durable.BaselineSHA != workspace.BaselineSHA || durable.HeadSHA != workspace.HeadSHA || durable.OwnerMarker != workspace.OwnerMarker {
+			t.Fatalf("durable workspace evidence lost authority: %+v", durable)
+		}
+	})
+
+	t.Run("refuses drifted durable identity before source mutation", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			mutate func(*autonomous.TaskWorkspace)
+		}{
+			{name: "workspace path", mutate: func(w *autonomous.TaskWorkspace) {
+				w.ExecutionRoot = filepath.Join(w.ControlRoot, ".revolvr", "autonomous", "worktrees", "foreign")
+			}},
+			{name: "Git common directory", mutate: func(w *autonomous.TaskWorkspace) { w.GitCommonDir = filepath.Join(w.ControlRoot, ".git", "objects") }},
+			{name: "branch ref", mutate: func(w *autonomous.TaskWorkspace) { w.BranchRef = "refs/heads/revolvr/tasks/foreign" }},
+			{name: "ownership marker", mutate: func(w *autonomous.TaskWorkspace) {
+				w.OwnerMarker = filepath.Join(w.ControlRoot, ".revolvr", "autonomous", "tasks", "foreign", "workspace-owner.json")
+			}},
+			{name: "baseline", mutate: func(w *autonomous.TaskWorkspace) { w.BaselineSHA = strings.Repeat("1", len(w.BaselineSHA)) }},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				repo, baseline := testRepository(t)
+				cfg := testConfig(repo, "durable-drift", "prepare-durable-drift", baseline)
+				prepared, err := Prepare(context.Background(), cfg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				before := captureWorkspaceSource(t, prepared.Workspace.ExecutionRoot)
+				expected := prepared.Workspace
+				tt.mutate(&expected)
+				_, err = Reopen(context.Background(), testConfig(repo, "durable-drift", "reopen-durable-drift", baseline), expected)
+				if !errors.Is(err, ErrUnsafeOwnership) {
+					t.Fatalf("Reopen error = %v, want ErrUnsafeOwnership", err)
+				}
+				assertWorkspaceSource(t, prepared.Workspace.ExecutionRoot, before)
+			})
+		}
+	})
+
+	t.Run("refuses foreign live authority before source mutation", func(t *testing.T) {
+		t.Run("marker symlink", func(t *testing.T) {
+			repo, baseline := testRepository(t)
+			prepared, err := Prepare(context.Background(), testConfig(repo, "marker-link", "prepare-marker-link", baseline))
+			if err != nil {
+				t.Fatal(err)
+			}
+			markerBytes, err := os.ReadFile(prepared.Workspace.OwnerMarker)
+			if err != nil {
+				t.Fatal(err)
+			}
+			outsideMarker := filepath.Join(t.TempDir(), "workspace-owner.json")
+			if err := os.WriteFile(outsideMarker, markerBytes, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(prepared.Workspace.OwnerMarker); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outsideMarker, prepared.Workspace.OwnerMarker); err != nil {
+				t.Fatal(err)
+			}
+			before := captureWorkspaceSource(t, prepared.Workspace.ExecutionRoot)
+			_, err = Reopen(context.Background(), testConfig(repo, "marker-link", "reopen-marker-link", baseline), prepared.Workspace)
+			if !errors.Is(err, ErrUnsafeOwnership) {
+				t.Fatalf("Reopen error = %v, want ErrUnsafeOwnership", err)
+			}
+			assertWorkspaceSource(t, prepared.Workspace.ExecutionRoot, before)
+			if got := readFile(t, outsideMarker); got != string(markerBytes) {
+				t.Fatalf("outside marker changed: %q", got)
+			}
+		})
+
+		t.Run("linked Git file symlink", func(t *testing.T) {
+			repo, baseline := testRepository(t)
+			prepared, err := Prepare(context.Background(), testConfig(repo, "git-link", "prepare-git-link", baseline))
+			if err != nil {
+				t.Fatal(err)
+			}
+			gitLink := filepath.Join(prepared.Workspace.ExecutionRoot, ".git")
+			gitLinkBytes, err := os.ReadFile(gitLink)
+			if err != nil {
+				t.Fatal(err)
+			}
+			outsideLink := filepath.Join(t.TempDir(), "git-link")
+			if err := os.WriteFile(outsideLink, gitLinkBytes, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(gitLink); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outsideLink, gitLink); err != nil {
+				t.Fatal(err)
+			}
+			before := captureWorkspaceSource(t, prepared.Workspace.ExecutionRoot)
+			_, err = Reopen(context.Background(), testConfig(repo, "git-link", "reopen-git-link", baseline), prepared.Workspace)
+			if !errors.Is(err, ErrUnsafeOwnership) {
+				t.Fatalf("Reopen error = %v, want ErrUnsafeOwnership", err)
+			}
+			assertWorkspaceSource(t, prepared.Workspace.ExecutionRoot, before)
+			if got := readFile(t, outsideLink); got != string(gitLinkBytes) {
+				t.Fatalf("outside Git link changed: %q", got)
+			}
+		})
+
+		t.Run("worktree registration path", func(t *testing.T) {
+			repo, baseline := testRepository(t)
+			prepared, err := Prepare(context.Background(), testConfig(repo, "registration", "prepare-registration", baseline))
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg := testConfig(repo, "registration", "reopen-registration", baseline)
+			cfg.CommandRunner = func(ctx context.Context, command runner.Command) runner.Result {
+				result := runner.Run(ctx, command)
+				if command.Dir == repo && equalStrings(command.Args, []string{"worktree", "list", "--porcelain", "-z"}) {
+					result.Stdout = strings.ReplaceAll(result.Stdout, prepared.Workspace.ExecutionRoot, prepared.Workspace.ExecutionRoot+"-foreign")
+				}
+				return result
+			}
+			before := captureWorkspaceSource(t, prepared.Workspace.ExecutionRoot)
+			_, err = Reopen(context.Background(), cfg, prepared.Workspace)
+			if !errors.Is(err, ErrUnsafeOwnership) {
+				t.Fatalf("Reopen error = %v, want ErrUnsafeOwnership", err)
+			}
+			assertWorkspaceSource(t, prepared.Workspace.ExecutionRoot, before)
+		})
+
+		t.Run("Git common directory relationship", func(t *testing.T) {
+			repo, baseline := testRepository(t)
+			prepared, err := Prepare(context.Background(), testConfig(repo, "common-dir", "prepare-common-dir", baseline))
+			if err != nil {
+				t.Fatal(err)
+			}
+			foreignCommon := t.TempDir()
+			cfg := testConfig(repo, "common-dir", "reopen-common-dir", baseline)
+			cfg.CommandRunner = func(ctx context.Context, command runner.Command) runner.Result {
+				result := runner.Run(ctx, command)
+				if command.Dir == prepared.Workspace.ExecutionRoot && equalStrings(command.Args, []string{"rev-parse", "--git-common-dir"}) {
+					result.Stdout = foreignCommon + "\n"
+				}
+				return result
+			}
+			before := captureWorkspaceSource(t, prepared.Workspace.ExecutionRoot)
+			_, err = Reopen(context.Background(), cfg, prepared.Workspace)
+			if !errors.Is(err, ErrUnsafeOwnership) {
+				t.Fatalf("Reopen error = %v, want ErrUnsafeOwnership", err)
+			}
+			assertWorkspaceSource(t, prepared.Workspace.ExecutionRoot, before)
+		})
+
+		t.Run("changed control root", func(t *testing.T) {
+			repo, baseline := testRepository(t)
+			prepared, err := Prepare(context.Background(), testConfig(repo, "control-root", "prepare-control-root", baseline))
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := captureWorkspaceSource(t, prepared.Workspace.ExecutionRoot)
+			cfg := testConfig(prepared.Workspace.ExecutionRoot, "control-root", "reopen-control-root", baseline)
+			_, err = Reopen(context.Background(), cfg, prepared.Workspace)
+			if !errors.Is(err, ErrUnsafeOwnership) {
+				t.Fatalf("Reopen error = %v, want ErrUnsafeOwnership", err)
+			}
+			assertWorkspaceSource(t, prepared.Workspace.ExecutionRoot, before)
+			if _, err := os.Lstat(filepath.Join(prepared.Workspace.ExecutionRoot, ".revolvr")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("changed control root created task-source runtime state: %v", err)
+			}
+		})
+	})
+}
+
 func TestConcurrentPrimaryEditDoesNotEnterWorkspace(t *testing.T) {
 	repo, baseline := testRepository(t)
 	cfg := testConfig(repo, "task-concurrent", "create-concurrent", baseline)
@@ -275,42 +500,6 @@ func TestPrepareRefusesRegisteredUserWorktreeAtExpectedPath(t *testing.T) {
 	}
 }
 
-func TestRestoreRetainsFailedStateAndReturnsToCheckpoint(t *testing.T) {
-	repo, baseline := testRepository(t)
-	cfg := testConfig(repo, "task-restore", "prepare-restore", baseline)
-	prepared, err := Prepare(context.Background(), cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(prepared.Workspace.ExecutionRoot, "tracked.txt"), "failed bytes\n")
-	writeFile(t, filepath.Join(prepared.Workspace.ExecutionRoot, "new.txt"), "inspect me\n")
-
-	restoreCfg := testConfig(repo, "task-restore", "restore-failed", baseline)
-	restored, err := Restore(context.Background(), restoreCfg, prepared.Workspace, "verification failed")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if restored.Workspace.Status != autonomous.WorkspaceStatusRestored || restored.Workspace.HeadSHA != baseline || len(restored.Workspace.RetainedRefs) != 1 {
-		t.Fatalf("restored workspace = %+v", restored.Workspace)
-	}
-	if got := readFile(t, filepath.Join(restored.Workspace.ExecutionRoot, "tracked.txt")); got != "baseline\n" {
-		t.Fatalf("restored bytes = %q", got)
-	}
-	if _, err := os.Stat(filepath.Join(restored.Workspace.ExecutionRoot, "new.txt")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("untracked failed bytes remain: %v", err)
-	}
-	retained := restored.Workspace.RetainedRefs[0]
-	if got := runGit(t, repo, "show", retained.Ref+":tracked.txt"); got != "failed bytes" {
-		t.Fatalf("retained tracked bytes = %q", got)
-	}
-	if got := runGit(t, repo, "show", retained.Ref+":new.txt"); got != "inspect me" {
-		t.Fatalf("retained untracked bytes = %q", got)
-	}
-	if _, err := Cleanup(context.Background(), testConfig(repo, "task-restore", "cleanup-retained", baseline), restored.Workspace); !errors.Is(err, ErrCleanupRefused) {
-		t.Fatalf("evidence-losing cleanup error = %v", err)
-	}
-}
-
 func TestReconcileCommitAndAdvanceCheckpoint(t *testing.T) {
 	repo, baseline := testRepository(t)
 	prepared, err := Prepare(context.Background(), testConfig(repo, "task-checkpoint", "prepare-checkpoint", baseline))
@@ -483,6 +672,44 @@ func TestTwoTaskWorkspacesAreIsolated(t *testing.T) {
 	if got := readFile(t, filepath.Join(two.Workspace.ExecutionRoot, "tracked.txt")); got != "baseline\n" {
 		t.Fatalf("task A contaminated task B: %q", got)
 	}
+}
+
+type workspaceSourceSnapshot struct {
+	Head        string
+	Branch      string
+	Status      string
+	Tracked     string
+	DeleteGuard string
+}
+
+func captureWorkspaceSource(t *testing.T, root string) workspaceSourceSnapshot {
+	t.Helper()
+	return workspaceSourceSnapshot{
+		Head:        runGit(t, root, "rev-parse", "HEAD"),
+		Branch:      runGit(t, root, "symbolic-ref", "HEAD"),
+		Status:      runGit(t, root, "status", "--porcelain=v1", "-z", "--untracked-files=all"),
+		Tracked:     readFile(t, filepath.Join(root, "tracked.txt")),
+		DeleteGuard: readFile(t, filepath.Join(root, "deleted.txt")),
+	}
+}
+
+func assertWorkspaceSource(t *testing.T, root string, before workspaceSourceSnapshot) {
+	t.Helper()
+	if after := captureWorkspaceSource(t, root); after != before {
+		t.Fatalf("workspace source changed on refused authority:\nbefore: %+v\nafter:  %+v", before, after)
+	}
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func testConfig(repo, taskID, operationID, baseline string) Config {

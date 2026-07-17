@@ -30,6 +30,7 @@ type ApplyConfig struct {
 	TaskID         string
 	OperationID    string
 	Expected       autonomousstate.ExpectedState
+	DossierState   *autonomous.ExecutionState
 	Cycle          autonomouscycle.Result
 	Verification   autonomouspolicy.VerificationEvidence
 	LatestMutation *autonomouspolicy.SourceMutation
@@ -134,7 +135,18 @@ func ApplyAuditResult(ctx context.Context, cfg ApplyConfig) (Result, error) {
 	if err := compareExpected(cfg.Expected, current, found); err != nil {
 		return reject(result, "state_compare", err)
 	}
-	if err := validateDossier(task, current.State, cfg.Cycle.DossierManifest); err != nil {
+	dossierState := current.State
+	if cfg.DossierState != nil {
+		if err := validateDossierStatePredecessor(*cfg.DossierState, current.State); err != nil {
+			return reject(result, "dossier_identity", err)
+		}
+		dossierState = *cfg.DossierState
+	}
+	if cfg.Cycle.DossierManifest.SchemaVersion == autonomous.RoleDossierManifestSchemaVersion && cfg.Cycle.SafetyPolicy != nil && dossierState.Workspace != nil {
+		workspace := cfg.Cycle.SafetyPolicy.Workspace
+		dossierState.Workspace = &workspace
+	}
+	if err := validateDossier(task, dossierState, cfg.Cycle.DossierManifest); err != nil {
 		return reject(result, "dossier_identity", err)
 	}
 	history, err := store.LoadAuditHistory(ctx, cfg.TaskID)
@@ -382,10 +394,15 @@ func validateCycle(boundary runtimepath.Boundary, task taskfile.Task, cfg ApplyC
 	if r.Worker.Commit.Status != commit.Status("") || r.Worker.Commit.CommitSHA != "" {
 		return errors.New("auditor synthesized commit")
 	}
-	if r.DossierManifest.TaskID != task.ID || r.DossierManifest.SchemaVersion != autonomous.DossierManifestSchemaVersion || r.DossierManifest.DossierSHA256 == "" || r.DossierManifest.DossierByteSize <= 0 {
+	legacyDossier := r.DossierManifest.SchemaVersion == autonomous.DossierManifestSchemaVersion
+	roleDossier := r.DossierManifest.SchemaVersion == autonomous.RoleDossierManifestSchemaVersion && r.DossierManifest.Projection != nil && r.DossierManifest.Projection.Role == autonomous.DossierRoleAuditor
+	if r.DossierManifest.TaskID != task.ID || !legacyDossier && !roleDossier || r.DossierManifest.DossierSHA256 == "" || r.DossierManifest.DossierByteSize <= 0 {
 		return errors.New("cycle dossier identity is missing or malformed")
 	}
-	if r.Supervisor.Dossier.TaskID != task.ID || r.Supervisor.Dossier.SchemaVersion != r.DossierManifest.SchemaVersion || r.Supervisor.Dossier.SHA256 != r.DossierManifest.DossierSHA256 || r.Supervisor.Dossier.ByteSize != r.DossierManifest.DossierByteSize {
+	if r.Supervisor.Dossier.TaskID != task.ID || r.Supervisor.Dossier.SHA256 == "" || r.Supervisor.Dossier.ByteSize <= 0 {
+		return errors.New("supervisor did not consume the exact audit dossier")
+	}
+	if legacyDossier && (r.Supervisor.Dossier.SchemaVersion != r.DossierManifest.SchemaVersion || r.Supervisor.Dossier.SHA256 != r.DossierManifest.DossierSHA256 || r.Supervisor.Dossier.ByteSize != r.DossierManifest.DossierByteSize) {
 		return errors.New("supervisor did not consume the exact audit dossier")
 	}
 	if err := autonomouspolicy.ValidateEvidence(task.ID, autonomouspolicy.SourceEvidence{Revision: r.Source.AdmissionRevision, Safety: autonomouspolicy.SourceSafetySafe, LatestMutation: cfg.LatestMutation}, &cfg.Verification, nil); err != nil {
@@ -397,8 +414,15 @@ func validateCycle(boundary runtimepath.Boundary, task taskfile.Task, cfg ApplyC
 	if cfg.Verification.Tiered != nil && !cfg.Verification.Tiered.FinalSatisfied {
 		return errors.New("tiered verification does not satisfy the final gate")
 	}
-	profileRaw, _, err := readArtifact(boundary, filepath.ToSlash(r.Worker.Profile.Path), r.Worker.Profile.SHA256, r.Worker.Profile.ByteSize)
-	if err != nil || len(profileRaw) == 0 {
+	profilePath, err := pathguard.Resolve(root, filepath.FromSlash(r.Worker.Profile.Path))
+	if err != nil {
+		return errors.New("auditor profile artifact mismatch")
+	}
+	profileRaw, found, err := boundary.ReadFileLimit(profilePath, false, 1<<20)
+	profileContent := []byte(strings.TrimSpace(string(profileRaw)))
+	exactProfile := hashBytes(profileRaw) == r.Worker.Profile.SHA256 && len(profileRaw) == r.Worker.Profile.ByteSize
+	normalizedProfile := hashBytes(profileContent) == r.Worker.Profile.SHA256 && len(profileContent) == r.Worker.Profile.ByteSize
+	if err != nil || !found || len(profileContent) == 0 || !exactProfile && !normalizedProfile {
 		return errors.New("auditor profile artifact mismatch")
 	}
 	return nil
@@ -417,10 +441,25 @@ func validateOutput(cfg ApplyConfig, o autonomousaudit.AuditOutput) error {
 	if o.Provenance.Profile != wantP {
 		return errors.New("profile provenance mismatch")
 	}
-	if o.Provenance.RawOutputPath != c.Worker.Artifacts.Output.Path || o.Provenance.SourceRevision != c.Source.AdmissionRevision || !reflect.DeepEqual(o.Provenance.Verification, cfg.Verification) || !reflect.DeepEqual(o.Provenance.LatestSourceMutation, autonomousaudit.SourceMutationFromPolicy(cfg.LatestMutation)) {
-		return errors.New("raw/source/verification/mutation provenance mismatch")
+	if o.Provenance.RawOutputPath != c.Worker.Artifacts.Output.Path {
+		return errors.New("raw output provenance mismatch")
+	}
+	if o.Provenance.SourceRevision != c.Source.AdmissionRevision {
+		return errors.New("source revision provenance mismatch")
+	}
+	if !sameJSONValue(o.Provenance.Verification, cfg.Verification) {
+		return errors.New("verification provenance mismatch")
+	}
+	if !reflect.DeepEqual(o.Provenance.LatestSourceMutation, autonomousaudit.SourceMutationFromPolicy(cfg.LatestMutation)) {
+		return errors.New("latest source mutation provenance mismatch")
 	}
 	return nil
+}
+
+func sameJSONValue(left, right any) bool {
+	leftRaw, leftErr := json.Marshal(left)
+	rightRaw, rightErr := json.Marshal(right)
+	return leftErr == nil && rightErr == nil && bytes.Equal(leftRaw, rightRaw)
 }
 
 func validateDossier(task taskfile.Task, state autonomous.ExecutionState, m autonomous.TaskDossierManifest) error {
@@ -439,6 +478,19 @@ func validateDossier(task taskfile.Task, state autonomous.ExecutionState, m auto
 	}
 	return nil
 }
+
+func validateDossierStatePredecessor(dossier, current autonomous.ExecutionState) error {
+	if err := autonomous.ValidateExecutionStateTransition(dossier, current); err != nil {
+		return fmt.Errorf("dossier state is not a valid predecessor: %w", err)
+	}
+	withoutAccounting := current
+	withoutAccounting.Attempts = dossier.Attempts
+	if !reflect.DeepEqual(dossier, withoutAccounting) {
+		return errors.New("dossier state differs from current state outside append-only attempt accounting")
+	}
+	return nil
+}
+
 func readArtifact(boundary runtimepath.Boundary, path, sha string, size int) ([]byte, autonomousstate.ArtifactIdentity, error) {
 	abs := filepath.Join(boundary.Root(), filepath.FromSlash(path))
 	raw, found, err := boundary.ReadFileLimit(abs, false, int64(size))

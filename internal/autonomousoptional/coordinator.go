@@ -192,7 +192,22 @@ func finishRun(ctx context.Context, n normalized, admission autonomousattempt.Re
 		return stopped(result, OutcomeRoleStopped, errors.Join(err, completeErr))
 	}
 	auditCfg := n.AuditCycle
-	auditCfg.RepositoryRoot, auditCfg.Workspace, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, n.Workspace, n.TaskID, admission.Current.State
+	auditWorkspace := n.Workspace
+	auditState := admission.Current.State
+	if n.Workspace != nil {
+		// The role commit advances the checked-out harness branch before the
+		// coordinator may durably advance its checkpoint. Give the nested
+		// read-only audit the exact committed head/source identity while the
+		// durable admitted state remains unchanged until the whole attempt,
+		// including this audit, succeeds.
+		current := *n.Workspace
+		current.HeadSHA = role.Worker.Commit.CommitSHA
+		current.SourceRevision = role.Source.FinalRevision
+		current.UpdatedAt = n.Clock().UTC()
+		auditWorkspace = &current
+		auditState.Workspace = &current
+	}
+	auditCfg.RepositoryRoot, auditCfg.Workspace, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, auditWorkspace, n.TaskID, auditState
 	auditCfg.SourceSafety, auditCfg.Verification, auditCfg.Audit = autonomouspolicy.SourceSafetySafe, &verification, nil
 	auditCfg.LatestMutation = &autonomouspolicy.SourceMutation{TaskID: n.TaskID, RunID: role.Worker.RunID, DecisionID: role.Route.DecisionID, Action: role.Route.Action, ResultingRevision: role.Source.FinalRevision}
 	auditResult, auditErr := n.CycleRunner(ctx, auditCfg)

@@ -9,6 +9,8 @@ import (
 
 	"revolvr/internal/app"
 	"revolvr/internal/autonomousnotification"
+	"revolvr/internal/codexexec"
+	"revolvr/internal/runonce"
 	"revolvr/internal/verification"
 )
 
@@ -39,6 +41,7 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Config found: %t", result.Found),
 		fmt.Sprintf("Defaults: %s", defaults),
 		fmt.Sprintf("Codex executable: %s", effectiveString(cfg.CodexExecutable, defaultCodexExecutable)),
+		fmt.Sprintf("Codex executable identity: %s", formatConfigCodexIdentity(cfg, result.CodexIdentityError)),
 		fmt.Sprintf("Codex model: %s", effectiveString(cfg.CodexModel, defaultCodexModel)),
 		fmt.Sprintf("Codex reasoning effort: %s", effectiveString(cfg.CodexReasoningEffort, defaultCodexReasoningEffort)),
 		fmt.Sprintf("Codex session mode: ephemeral (ephemeral=%t)", cfg.CodexEphemeral),
@@ -59,6 +62,7 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Fully unattended acknowledgement present: %t", strings.TrimSpace(cfg.SafetyDeclaration.Acknowledgement) != ""),
 		fmt.Sprintf("Queue policy schema: %s", cfg.QueuePolicy.SchemaVersion),
 		fmt.Sprintf("Queue maximum workers: %d", cfg.QueuePolicy.MaximumWorkers),
+		fmt.Sprintf("Attended operational bounds: %s", app.FormatOperationalBounds(cfg.OperationalBounds)),
 		fmt.Sprintf("Retention policy schema: %s", cfg.RetentionPolicy.SchemaVersion),
 		fmt.Sprintf("Retention mutation enabled: %t", cfg.RetentionPolicy.MutationEnabled),
 		fmt.Sprintf("Retention recent run count: %d", cfg.RetentionPolicy.RecentRunCount),
@@ -75,6 +79,7 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Notification environment names: %s", formatVerificationArgs(cfg.NotificationPolicy.EnvironmentNames)),
 		fmt.Sprintf("Notification bounds: timeout=%s stdout=%d stderr=%d attempts=%d retry_delay=%s", cfg.NotificationPolicy.Timeout, cfg.NotificationPolicy.StdoutCap, cfg.NotificationPolicy.StderrCap, cfg.NotificationPolicy.MaximumAttempts, cfg.NotificationPolicy.RetryDelay),
 		fmt.Sprintf("Git executable: %s", effectiveString(cfg.GitExecutable, defaultGitExecutable)),
+		fmt.Sprintf("Git executable identity: %s", formatConfigGitIdentity(cfg, result.GitIdentityError)),
 		fmt.Sprintf("Git timeout: %s", effectiveDuration(cfg.GitTimeout, defaultGitTimeout)),
 		fmt.Sprintf("Verification missing policy: %s", cfg.MissingVerificationPolicy),
 		fmt.Sprintf("Verification command count: %d", len(cfg.VerificationCommands)),
@@ -109,6 +114,23 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		}
 	}
 	return nil
+}
+
+func formatConfigCodexIdentity(cfg runonce.Config, identityErr string) string {
+	if identityErr != "" {
+		if cfg.CodexIdentity != (codexexec.CodexExecutableIdentity{}) {
+			return codexexec.FormatCodexExecutableIdentity(cfg.CodexIdentity) + "; refused: " + identityErr
+		}
+		return "unresolved: " + identityErr
+	}
+	return codexexec.FormatCodexExecutableIdentity(cfg.CodexIdentity)
+}
+
+func formatConfigGitIdentity(cfg runonce.Config, identityErr string) string {
+	if identityErr != "" {
+		return "unresolved: " + identityErr
+	}
+	return codexexec.FormatExecutableIdentity(cfg.GitIdentity)
 }
 
 func formatNotificationEvents(events []autonomousnotification.Event) string {

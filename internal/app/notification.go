@@ -20,12 +20,22 @@ import (
 type NotificationObserver func(autonomousnotification.Result, error)
 
 type NotificationRuntime struct {
-	Clock     func() time.Time
-	Runner    autonomousnotification.CommandRunner
-	LookPath  autonomousnotification.LookPath
-	LookupEnv autonomousnotification.LookupEnv
-	Wait      autonomousnotification.Wait
+	Clock           func() time.Time
+	Runner          autonomousnotification.CommandRunner
+	LookPath        autonomousnotification.LookPath
+	LookupEnv       autonomousnotification.LookupEnv
+	Wait            autonomousnotification.Wait
+	failureInjector notificationInterruptionInjector
 }
+
+type notificationInterruptionPoint string
+
+const (
+	notificationFailureBeforeDelivery notificationInterruptionPoint = "before_delivery"
+	notificationFailureAfterDelivery  notificationInterruptionPoint = "after_delivery"
+)
+
+type notificationInterruptionInjector func(notificationInterruptionPoint) error
 
 func dispatchTaskOutcome(ctx context.Context, root string, result autonomoustaskrun.Result, runtime NotificationRuntime, observer NotificationObserver) {
 	event := autonomousnotification.Event("")
@@ -210,7 +220,18 @@ func deliverNotification(ctx context.Context, root string, effective runonce.Con
 		observeNotification(observer, autonomousnotification.Result{}, redactor.Error(err))
 		return
 	}
+	if runtime.failureInjector != nil {
+		if err := runtime.failureInjector(notificationFailureBeforeDelivery); err != nil {
+			observeNotification(observer, autonomousnotification.Result{SchemaVersion: autonomousnotification.ResultSchemaVersion, DeliveryID: payload.DeliveryID, Event: payload.Event}, redactor.Error(err))
+			return
+		}
+	}
 	result, deliveryErr := autonomousnotification.Deliver(ctx, autonomousnotification.DeliveryConfig{RepositoryRoot: root, Payload: payload, PayloadBytes: raw, Policy: policy, RedactionNames: input.RedactionNames, Clock: runtime.Clock, Runner: runtime.Runner, LookPath: runtime.LookPath, LookupEnv: runtime.LookupEnv, Wait: runtime.Wait})
+	if runtime.failureInjector != nil {
+		if err := runtime.failureInjector(notificationFailureAfterDelivery); err != nil {
+			deliveryErr = errors.Join(deliveryErr, err)
+		}
+	}
 	observeNotification(observer, result, redactor.Error(deliveryErr))
 }
 

@@ -11,16 +11,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/gitoid"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/lock"
 	"revolvr/internal/runner"
+	"revolvr/internal/runtimepath"
 )
 
 var (
@@ -105,7 +110,7 @@ func Prepare(ctx context.Context, cfg Config) (Result, error) {
 		return Result{}, errors.Join(err, fmt.Errorf("capture primary worktree evidence: %s", dirty.CaptureError))
 	}
 
-	marker, found, err := readMarker(n.markerPath)
+	marker, found, err := readMarker(n.root, n.markerPath)
 	if err != nil {
 		return Result{}, err
 	}
@@ -129,7 +134,7 @@ func Prepare(ctx context.Context, cfg Config) (Result, error) {
 	}
 	marker = ownerMarker{SchemaVersion: ownerSchema, TaskID: n.TaskID, WorkspaceID: n.workspaceID, ControlRoot: n.root, ExecutionRoot: n.execution, GitCommonDir: n.common, BranchRef: n.branchRef, BaselineSHA: n.BaselineSHA, CreationOperationID: n.OperationID, CreatedAt: n.Clock().UTC()}
 	marker.MaterialSHA256 = markerMaterial(marker)
-	if err := writeMarker(n.markerPath, marker); err != nil {
+	if err := writeMarker(n.root, n.markerPath, marker); err != nil {
 		return Result{}, err
 	}
 	if _, err := n.git(ctx, n.root, "update-ref", n.branchRef, n.BaselineSHA, strings.Repeat("0", len(n.BaselineSHA))); err != nil {
@@ -173,8 +178,31 @@ func recoverOwnedCreation(ctx context.Context, n *normalized) error {
 	return err
 }
 
-// Reopen verifies marker, common-dir, registry, .git link, branch, HEAD, tree,
-// source identity, and cleanliness. It never guesses ownership from names.
+// Inspect verifies marker, common-dir, registry, .git link, branch, HEAD, tree,
+// source identity, and cleanliness without acquiring a mutation lease or
+// publishing retained refs. It never guesses ownership from names.
+func Inspect(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace) (Result, error) {
+	n, err := normalize(ctx, cfg)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := expected.Validate(); err != nil {
+		return Result{}, err
+	}
+	if err := validateExpectedAuthority(n, expected); err != nil {
+		return Result{}, err
+	}
+	marker, found, err := readMarker(n.root, n.markerPath)
+	if err != nil || !found {
+		return Result{}, errors.Join(err, fmt.Errorf("%w: ownership marker is missing", ErrUnsafeOwnership))
+	}
+	workspace, err := inspect(ctx, n, marker, &expected, false)
+	return Result{Workspace: workspace, Commands: n.commands, Reopened: true}, err
+}
+
+// Reopen verifies the same authority as Inspect while holding the Git
+// administration lease and retaining an unexpected live HEAD for later
+// reconciliation.
 func Reopen(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace) (Result, error) {
 	n, err := normalize(ctx, cfg)
 	if err != nil {
@@ -183,19 +211,19 @@ func Reopen(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace) 
 	if err := expected.Validate(); err != nil {
 		return Result{}, err
 	}
+	if err := validateExpectedAuthority(n, expected); err != nil {
+		return Result{}, err
+	}
 	unlock, err := acquireAdminLock(ctx, n.root)
 	if err != nil {
 		return Result{}, err
 	}
 	defer unlock()
-	if expected.TaskID != n.TaskID || expected.WorkspaceID != n.workspaceID || expected.ControlRoot != n.root || expected.ExecutionRoot != n.execution || expected.GitCommonDir != n.common || expected.BranchRef != n.branchRef || expected.BaselineSHA != n.BaselineSHA {
-		return Result{}, fmt.Errorf("%w: expected workspace identity does not match deterministic authority", ErrUnsafeOwnership)
-	}
-	marker, found, err := readMarker(n.markerPath)
+	marker, found, err := readMarker(n.root, n.markerPath)
 	if err != nil || !found {
 		return Result{}, errors.Join(err, fmt.Errorf("%w: ownership marker is missing", ErrUnsafeOwnership))
 	}
-	workspace, err := reopen(ctx, n, marker, &expected)
+	workspace, err := inspect(ctx, n, marker, &expected, true)
 	return Result{Workspace: workspace, Commands: n.commands, Reopened: true}, err
 }
 
@@ -210,6 +238,9 @@ func ReconcileCommit(ctx context.Context, cfg Config, expected autonomous.TaskWo
 	if err := expected.Validate(); err != nil {
 		return Result{}, err
 	}
+	if err := validateExpectedAuthority(n, expected); err != nil {
+		return Result{}, err
+	}
 	unlock, err := acquireAdminLock(ctx, n.root)
 	if err != nil {
 		return Result{}, err
@@ -218,7 +249,7 @@ func ReconcileCommit(ctx context.Context, cfg Config, expected autonomous.TaskWo
 	if !validOID(observedHead) || observedHead == expected.HeadSHA {
 		return Result{}, errors.New("reconcile workspace commit: a distinct full observed HEAD is required")
 	}
-	marker, found, err := readMarker(n.markerPath)
+	marker, found, err := readMarker(n.root, n.markerPath)
 	if err != nil || !found {
 		return Result{}, errors.Join(err, fmt.Errorf("%w: ownership marker is missing", ErrUnsafeOwnership))
 	}
@@ -257,76 +288,6 @@ func AdvanceCheckpoint(ctx context.Context, cfg Config, expected autonomous.Task
 	return result, nil
 }
 
-// Restore retains an immutable failed-state commit/ref before resetting only
-// the revalidated harness worktree to its exact durable checkpoint.
-func Restore(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace, reason string) (Result, error) {
-	if strings.TrimSpace(reason) == "" {
-		return Result{}, errors.New("restore workspace: failed-state reason is required")
-	}
-	result, err := Reopen(ctx, cfg, expected)
-	if err != nil {
-		return result, err
-	}
-	n, _ := normalize(ctx, cfg)
-	unlock, err := acquireAdminLock(ctx, n.root)
-	if err != nil {
-		return result, err
-	}
-	defer unlock()
-	if err := refuseActiveWriter(ctx, n); err != nil {
-		return result, err
-	}
-	marker, _, err := readMarker(n.markerPath)
-	if err != nil {
-		return result, err
-	}
-	revalidated, err := reopen(ctx, n, marker, &expected)
-	if err != nil {
-		return result, err
-	}
-	result.Workspace = revalidated
-	from := result.Workspace.HeadSHA
-	dirty, err := captureDirty(ctx, n, n.execution)
-	if err != nil {
-		return result, err
-	}
-	ignored, err := ignoredPaths(ctx, n)
-	if err != nil {
-		return result, err
-	}
-	if len(ignored) != 0 {
-		return result, fmt.Errorf("%w: ignored files cannot be retained safely: %v", ErrUnsafeOwnership, ignored)
-	}
-	if from != expected.Checkpoint.CommitSHA || len(dirty) != 0 {
-		retained, err := retainCurrent(ctx, n, result.Workspace, reason)
-		if err != nil {
-			return result, err
-		}
-		result.Workspace.RetainedRefs = append(result.Workspace.RetainedRefs, retained)
-	}
-	if _, err := n.git(ctx, n.execution, "reset", "--hard", expected.Checkpoint.CommitSHA); err != nil {
-		return result, err
-	}
-	if _, err := n.git(ctx, n.execution, "clean", "-fd"); err != nil {
-		return result, err
-	}
-	refreshed, err := reopen(ctx, n, mustMarker(n.markerPath), &expected)
-	if err != nil {
-		return result, err
-	}
-	refreshed.RetainedRefs = result.Workspace.RetainedRefs
-	refreshed.Status = autonomous.WorkspaceStatusRestored
-	refreshed.LastRecovery = &autonomous.WorkspaceRecovery{OperationID: n.OperationID, Kind: "failed_attempt_restored", FromCommitSHA: from, ToCommitSHA: expected.Checkpoint.CommitSHA, SourceRevision: refreshed.SourceRevision, CreatedAt: n.Clock().UTC()}
-	if len(refreshed.RetainedRefs) > 0 {
-		refreshed.LastRecovery.RetainedRef = refreshed.RetainedRefs[len(refreshed.RetainedRefs)-1].Ref
-	}
-	if refreshed.HeadSHA != expected.Checkpoint.CommitSHA || refreshed.TreeSHA != expected.Checkpoint.TreeSHA || refreshed.SourceRevision != expected.Checkpoint.SourceRevision {
-		return result, fmt.Errorf("%w: post-restore identity does not match the durable checkpoint", ErrUnsafeOwnership)
-	}
-	result.Workspace, result.Commands = refreshed, n.commands
-	return result, nil
-}
-
 func Cleanup(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace) (Result, error) {
 	result, err := Reopen(ctx, cfg, expected)
 	if err != nil {
@@ -344,7 +305,7 @@ func Cleanup(ctx context.Context, cfg Config, expected autonomous.TaskWorkspace)
 	if err := refuseActiveWriter(ctx, n); err != nil {
 		return result, err
 	}
-	marker, _, err := readMarker(n.markerPath)
+	marker, _, err := readMarker(n.root, n.markerPath)
 	if err != nil {
 		return result, err
 	}
@@ -455,7 +416,25 @@ func normalize(ctx context.Context, cfg Config) (*normalized, error) {
 	return n, nil
 }
 
+func validateExpectedAuthority(n *normalized, expected autonomous.TaskWorkspace) error {
+	if expected.TaskID != n.TaskID ||
+		expected.WorkspaceID != n.workspaceID ||
+		expected.ControlRoot != n.root ||
+		expected.ExecutionRoot != n.execution ||
+		expected.GitCommonDir != n.common ||
+		expected.BranchRef != n.branchRef ||
+		expected.OwnerMarker != n.markerPath ||
+		expected.BaselineSHA != n.BaselineSHA {
+		return fmt.Errorf("%w: expected workspace identity does not match deterministic authority", ErrUnsafeOwnership)
+	}
+	return nil
+}
+
 func reopen(ctx context.Context, n *normalized, marker ownerMarker, trusted *autonomous.TaskWorkspace) (autonomous.TaskWorkspace, error) {
+	return inspect(ctx, n, marker, trusted, true)
+}
+
+func inspect(ctx context.Context, n *normalized, marker ownerMarker, trusted *autonomous.TaskWorkspace, publishRetainedRef bool) (autonomous.TaskWorkspace, error) {
 	if err := validateMarker(marker, n); err != nil {
 		return autonomous.TaskWorkspace{}, err
 	}
@@ -470,7 +449,7 @@ func reopen(ctx context.Context, n *normalized, marker ownerMarker, trusted *aut
 	if !registered(registry, n.execution, n.branchRef) {
 		return autonomous.TaskWorkspace{}, fmt.Errorf("%w: exact worktree registration is missing or mismatched", ErrUnsafeOwnership)
 	}
-	gitLink, err := os.ReadFile(filepath.Join(n.execution, ".git"))
+	gitLink, err := readLinkedGitFile(n.root, filepath.Join(n.execution, ".git"))
 	if err != nil || !strings.HasPrefix(string(gitLink), "gitdir: ") {
 		return autonomous.TaskWorkspace{}, errors.Join(err, fmt.Errorf("%w: linked-worktree .git file is invalid", ErrUnsafeOwnership))
 	}
@@ -521,8 +500,10 @@ func reopen(ctx context.Context, n *normalized, marker ownerMarker, trusted *aut
 	if head != n.BaselineSHA && (trusted == nil || head != trusted.HeadSHA) {
 		w.Status = autonomous.WorkspaceStatusAmbiguous
 		retainedRef := retainedRef(n.workspaceID, "ambiguous", head)
-		if _, err := n.git(ctx, n.root, "update-ref", retainedRef, head); err != nil {
-			return autonomous.TaskWorkspace{}, err
+		if publishRetainedRef {
+			if _, err := n.git(ctx, n.root, "update-ref", retainedRef, head); err != nil {
+				return autonomous.TaskWorkspace{}, err
+			}
 		}
 		already := false
 		for _, retained := range w.RetainedRefs {
@@ -538,35 +519,6 @@ func reopen(ctx context.Context, n *normalized, marker ownerMarker, trusted *aut
 		return autonomous.TaskWorkspace{}, err
 	}
 	return w, nil
-}
-
-func retainCurrent(ctx context.Context, n *normalized, w autonomous.TaskWorkspace, reason string) (autonomous.WorkspaceRetainedRef, error) {
-	if _, err := n.git(ctx, n.execution, "add", "-A"); err != nil {
-		return autonomous.WorkspaceRetainedRef{}, err
-	}
-	tree, err := n.git(ctx, n.execution, "write-tree")
-	if err != nil {
-		return autonomous.WorkspaceRetainedRef{}, err
-	}
-	tree = strings.TrimSpace(tree)
-	commitResult := n.run(ctx, n.execution, []string{"commit-tree", tree, "-p", w.HeadSHA}, []byte("Revolvr retained failed workspace state\n"))
-	if err := commandError(commitResult); err != nil {
-		return autonomous.WorkspaceRetainedRef{}, err
-	}
-	commit := strings.TrimSpace(commitResult.Stdout)
-	ref := retainedRef(n.workspaceID, "failed", commit)
-	if _, err := n.git(ctx, n.root, "update-ref", ref, commit); err != nil {
-		return autonomous.WorkspaceRetainedRef{}, err
-	}
-	snapshot, err := gitstate.CaptureSourceSnapshot(ctx, gitstate.SourceSnapshotConfig{WorkingDir: n.execution, GitExecutable: n.GitExecutable, Timeout: n.Timeout, StdoutCap: n.StdoutCap, StderrCap: n.StderrCap, CommandRunner: gitstate.CommandRunner(n.CommandRunner)})
-	if err != nil {
-		return autonomous.WorkspaceRetainedRef{}, err
-	}
-	revision, err := gitstate.PolicySourceRevision(snapshot)
-	if err != nil {
-		return autonomous.WorkspaceRetainedRef{}, err
-	}
-	return autonomous.WorkspaceRetainedRef{Ref: ref, CommitSHA: commit, TreeSHA: tree, SourceRevision: revision, Reason: strings.TrimSpace(reason), OperationID: n.OperationID, CreatedAt: n.Clock().UTC()}, nil
 }
 
 func captureDirty(ctx context.Context, n *normalized, dir string) ([]string, error) {
@@ -637,13 +589,71 @@ func commandError(r runner.Result) error {
 	return nil
 }
 
-func readMarker(path string) (ownerMarker, bool, error) {
-	raw, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return ownerMarker{}, false, nil
+func readLinkedGitFile(root, path string) ([]byte, error) {
+	if err := ensureSafeParents(root, filepath.Dir(path)); err != nil {
+		return nil, err
 	}
+	before, err := os.Lstat(path)
 	if err != nil {
-		return ownerMarker{}, false, err
+		return nil, err
+	}
+	if err := validateLinkedGitFileInfo(before); err != nil {
+		return nil, err
+	}
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if err := validateLinkedGitFileInfo(opened); err != nil {
+		return nil, err
+	}
+	if !os.SameFile(before, opened) {
+		return nil, fmt.Errorf("%w: linked-worktree .git file changed before open", ErrUnsafeOwnership)
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, 4097))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > 4096 {
+		return nil, fmt.Errorf("%w: linked-worktree .git file is oversized", ErrUnsafeOwnership)
+	}
+	after, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateLinkedGitFileInfo(after); err != nil {
+		return nil, err
+	}
+	if err := ensureSafeParents(root, filepath.Dir(path)); err != nil {
+		return nil, err
+	}
+	if !os.SameFile(opened, after) {
+		return nil, fmt.Errorf("%w: linked-worktree .git file changed during read", ErrUnsafeOwnership)
+	}
+	return raw, nil
+}
+
+func validateLinkedGitFileInfo(info os.FileInfo) error {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || uint64(stat.Nlink) != 1 || !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: linked-worktree .git file is not a protected regular file", ErrUnsafeOwnership)
+	}
+	return nil
+}
+
+func readMarker(root, path string) (ownerMarker, bool, error) {
+	raw, found, err := runtimepath.ReadFile(root, path, true)
+	if err != nil {
+		return ownerMarker{}, false, ownershipPathError(err)
+	}
+	if !found {
+		return ownerMarker{}, false, nil
 	}
 	var marker ownerMarker
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -658,30 +668,37 @@ func readMarker(path string) (ownerMarker, bool, error) {
 	return marker, true, nil
 }
 
-func writeMarker(path string, marker ownerMarker) error {
-	if err := ensureSafeParents(filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(path)))), filepath.Dir(path)); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+func writeMarker(root, path string, marker ownerMarker) error {
+	if err := runtimepath.EnsureDir(root, filepath.Dir(path), 0o755); err != nil {
+		return ownershipPathError(err)
 	}
 	raw, err := marshalMarker(marker)
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	f, err := runtimepath.OpenFile(root, path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return err
+		return ownershipPathError(err)
 	}
 	if _, err = f.Write(raw); err == nil {
 		err = f.Sync()
+	}
+	if err == nil {
+		err = runtimepath.CheckOpenedFile(root, path, f)
 	}
 	closeErr := f.Close()
 	if err == nil {
 		err = closeErr
 	}
 	if err == nil {
-		err = syncDir(filepath.Dir(path))
+		err = runtimepath.SyncDir(root, filepath.Dir(path))
+	}
+	return ownershipPathError(err)
+}
+
+func ownershipPathError(err error) error {
+	if err != nil && errors.Is(err, runtimepath.ErrUnsafe) {
+		return errors.Join(err, ErrUnsafeOwnership)
 	}
 	return err
 }
@@ -705,8 +722,6 @@ func validateMarker(marker ownerMarker, n *normalized) error {
 	}
 	return nil
 }
-
-func mustMarker(path string) ownerMarker { marker, _, _ := readMarker(path); return marker }
 
 func registered(raw, execution, branchRef string) bool {
 	fields := strings.Split(raw, "\x00")
@@ -871,15 +886,6 @@ func acquireAdminLock(ctx context.Context, root string, afterOpen ...func(root, 
 		return nil, err
 	}
 	return func() { _ = lease.Close() }, nil
-}
-
-func syncDir(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
 }
 
 // DeterministicJSON is used by persistence and dossier tests.

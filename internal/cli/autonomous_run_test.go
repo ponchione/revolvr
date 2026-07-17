@@ -101,7 +101,7 @@ func TestRunDaemonFlagsValidationAndSummary(t *testing.T) {
 	}
 }
 
-func TestNotificationWarningRenderingAndReadOnlyList(t *testing.T) {
+func TestNotificationWarningRenderingAndReadOnlyInspection(t *testing.T) {
 	workDir := t.TempDir()
 	var out bytes.Buffer
 	root := NewRootCommand(Options{Out: &out, WorkDir: workDir, RunTaskUntilTerminal: func(_ context.Context, _ app.Config, input app.TaskRunInput) (autonomoustaskrun.Result, error) {
@@ -115,8 +115,16 @@ func TestNotificationWarningRenderingAndReadOnlyList(t *testing.T) {
 	if !strings.Contains(out.String(), "Notification warning: delivery=delivery-one event=safety_stop stage=failed attempts=2 detail=hook delivery failed error=bounded failure\n") {
 		t.Fatalf("output=%q", out.String())
 	}
+	oldWorkDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWorkDir) })
 	out.Reset()
-	root = NewRootCommand(Options{Out: &out, WorkDir: workDir})
+	root = NewRootCommand(Options{Out: &out})
 	root.SetArgs([]string{"notification", "list"})
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
@@ -126,5 +134,13 @@ func TestNotificationWarningRenderingAndReadOnlyList(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workDir, ".revolvr")); !os.IsNotExist(err) {
 		t.Fatalf("read-only list created state: %v", err)
+	}
+	root = NewRootCommand(Options{Out: &out})
+	root.SetArgs([]string{"notification", "show", "missing-delivery"})
+	if err := root.Execute(); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("show error=%v, want not exist", err)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, ".revolvr")); !os.IsNotExist(err) {
+		t.Fatalf("read-only show created state: %v", err)
 	}
 }

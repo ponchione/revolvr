@@ -432,6 +432,47 @@ func TestDiscoverVersion(t *testing.T) {
 	}
 }
 
+func TestReleaseCodexAllowlist(t *testing.T) {
+	manifest, err := CurrentReleaseManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.SchemaVersion != ReleaseManifestSchema || len(manifest.Codex) != 1 {
+		t.Fatalf("release manifest = %+v", manifest)
+	}
+	build := manifest.Codex[0]
+	identity := CodexExecutableIdentity{Version: build.Version, Executable: ExecutableIdentity{Configured: "codex", Resolved: "/opt/revolvr/codex", SHA256: build.SHA256}}
+	if err := manifest.Authorize(identity); err != nil {
+		t.Fatalf("authorize exact release identity: %v", err)
+	}
+
+	for _, test := range []struct {
+		name     string
+		identity CodexExecutableIdentity
+	}{
+		{name: "unlisted version", identity: CodexExecutableIdentity{Version: "codex-cli 999.0.0", Executable: identity.Executable}},
+		{name: "different bytes", identity: CodexExecutableIdentity{Version: build.Version, Executable: ExecutableIdentity{Configured: "codex", Resolved: "/opt/revolvr/codex", SHA256: strings.Repeat("f", 64)}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := manifest.Authorize(test.identity); err == nil || !strings.Contains(err.Error(), "not release-authorized") {
+				t.Fatalf("Authorize(%+v) error = %v", test.identity, err)
+			}
+		})
+	}
+
+	ranged := manifest
+	ranged.Codex = append([]ReleaseCodexBuild(nil), manifest.Codex...)
+	ranged.Codex[0].Version = "codex-cli >=0.144.4"
+	if err := ranged.Validate(); err == nil || !strings.Contains(err.Error(), "exact Codex CLI version") {
+		t.Fatalf("semantic range manifest error = %v", err)
+	}
+	duplicated := manifest
+	duplicated.Codex = append(duplicated.Codex, duplicated.Codex[0])
+	if err := duplicated.Validate(); err == nil || !strings.Contains(err.Error(), "exactly one Codex build") {
+		t.Fatalf("multi-build first manifest error = %v", err)
+	}
+}
+
 func TestRunReportsInvalidJSONAndProcessState(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()

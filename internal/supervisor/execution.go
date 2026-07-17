@@ -56,6 +56,8 @@ type Config struct {
 	CodexApprovalPolicy            string
 	CodexBypassApprovalsAndSandbox bool
 	CodexVersion                   string
+	CodexIdentity                  codexexec.CodexExecutableIdentity
+	CodexReleaseManifest           *codexexec.ReleaseManifest
 	EffectiveConfigSchema          string
 	EffectiveConfigSHA256          string
 	SafetyPolicySHA256             string
@@ -68,6 +70,7 @@ type Config struct {
 	SafetyPreflight                *autonomoussafety.PreflightResult
 
 	GitExecutable     string
+	GitIdentity       codexexec.ExecutableIdentity
 	GitTimeout        time.Duration
 	GitStdoutCap      int
 	GitStderrCap      int
@@ -302,6 +305,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		EffectiveConfigSchema:  normalized.EffectiveConfigSchema,
 		EffectiveConfigSHA256:  normalized.EffectiveConfigSHA256,
 		SafetyPolicySHA256:     normalized.SafetyPolicySHA256,
+		CodexIdentity:          normalized.CodexIdentity,
+		GitIdentity:            normalized.GitIdentity,
 	})
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "invocation", err, sourceEvidence{}, false)
@@ -403,6 +408,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		Ledger:                    normalized.Ledger,
 		CommandRunner:             normalized.CodexCommandRunner,
 		Provenance:                invocation,
+		ReleaseManifest:           normalized.CodexReleaseManifest,
 		Redactor:                  normalized.Redactor,
 	})
 	result.Codex = codexResult

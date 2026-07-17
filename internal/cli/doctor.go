@@ -20,14 +20,25 @@ func (doctorFailedError) Error() string {
 }
 
 func newDoctorCommand(opts Options) *cobra.Command {
-	return &cobra.Command{
+	var mode, taskID string
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check readiness for dogfooding",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.Flags().Changed("for") && mode == "" {
+				return fmt.Errorf("doctor: --for requires attended-task, queue, or daemon")
+			}
+			if cmd.Flags().Changed("task") && taskID == "" {
+				return fmt.Errorf("doctor: --task requires an exact task ID")
+			}
 			result, err := runDoctor(cmd.Context(), opts.WorkDir, app.PreflightInput{
-				CommandRunner: opts.DoctorCommandRunner,
-				LookPath:      opts.ExecutableLookPath,
+				CommandRunner:          opts.DoctorCommandRunner,
+				LookPath:               opts.ExecutableLookPath,
+				ExecutableInspector:    opts.ExecutableInspector,
+				CodexIdentityInspector: opts.CodexIdentityInspector,
+				Mode:                   app.PreflightMode(mode),
+				TaskID:                 taskID,
 			})
 			if err != nil {
 				return err
@@ -41,6 +52,9 @@ func newDoctorCommand(opts Options) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&mode, "for", "", "preflight mode: attended-task, queue, or daemon (default attended-task)")
+	cmd.Flags().StringVar(&taskID, "task", "", "exact autonomous task ID (attended-task only)")
+	return cmd
 }
 
 func runDoctor(ctx context.Context, workDir string, input app.PreflightInput) (app.PreflightResult, error) {

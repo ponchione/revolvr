@@ -11,6 +11,7 @@ import (
 	"revolvr/internal/ledger"
 	"revolvr/internal/passpolicy"
 	"revolvr/internal/receipt"
+	"revolvr/internal/repositorypath"
 	"revolvr/internal/taskfile"
 	"revolvr/internal/taskimport"
 	"revolvr/internal/taskmodel"
@@ -195,11 +196,11 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 	if err != nil {
 		return StatusResult{}, err
 	}
-	initialized, err := stateInitialized(paths)
+	authority, err := repositorypath.Inspect(paths.WorkDir, repositorypath.InspectOptions{})
 	if err != nil {
 		return StatusResult{}, err
 	}
-	if !initialized {
+	if !authority.Initialized() {
 		return StatusResult{Initialized: false}, nil
 	}
 

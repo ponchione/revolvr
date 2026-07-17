@@ -53,7 +53,7 @@ func TestRunCommitsChangedFilesAndRecordsSHA(t *testing.T) {
 			return runner.Result{ExitCode: 0, Stdout: "abc123def456\n"}
 		case reflect.DeepEqual(command.Args, []string{"--literal-pathspecs", "add", "--", "a.go", "b.go"}):
 			return runner.Result{ExitCode: 0}
-		case reflect.DeepEqual(command.Args, []string{"commit", "-m", "Add auto commit gate", "-m", "Run-ID: run-commit\nTask-ID: task-commit\nVerification: passed"}):
+		case reflect.DeepEqual(command.Args, []string{"--literal-pathspecs", "commit", "--only", "-m", "Add auto commit gate", "-m", "Run-ID: run-commit\nTask-ID: task-commit\nVerification: passed", "--", "a.go", "b.go"}):
 			return runner.Result{ExitCode: 0, Stdout: "[main abc123] Add auto commit gate\n"}
 		default:
 			t.Fatalf("unexpected git command: %#v", command.Args)
@@ -109,8 +109,8 @@ func TestRunCommitsChangedFilesAndRecordsSHA(t *testing.T) {
 		}
 	}
 	commitArgs := calls[2].Args
-	if !strings.Contains(commitArgs[4], "Run-ID: run-commit") || !strings.Contains(commitArgs[4], "Task-ID: task-commit") {
-		t.Fatalf("commit body = %q, want run id and task id", commitArgs[4])
+	if !strings.Contains(commitArgs[6], "Run-ID: run-commit") || !strings.Contains(commitArgs[6], "Task-ID: task-commit") {
+		t.Fatalf("commit body = %q, want run id and task id", commitArgs[6])
 	}
 
 	stored, ok, err := store.GetRun(ctx, run.ID)
@@ -164,7 +164,7 @@ func TestRunRecoversCreatedCommitAfterTransientHEADLookupFailure(t *testing.T) {
 			}
 		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
-		case len(command.Args) > 0 && command.Args[0] == "commit":
+		case commitTestGitSubcommand(command.Args) == "commit":
 			return runner.Result{ExitCode: 0}
 		default:
 			t.Fatalf("unexpected git command: %#v", command.Args)
@@ -205,7 +205,7 @@ func TestRunReconcilesRealCommitAfterTransientHEADLookupFailure(t *testing.T) {
 	commitAttempted := false
 	postLookupFailed := false
 	commandRunner := func(ctx context.Context, command runner.Command) runner.Result {
-		if len(command.Args) > 0 && command.Args[0] == "commit" {
+		if commitTestGitSubcommand(command.Args) == "commit" {
 			result := runner.Run(ctx, command)
 			commitAttempted = true
 			return result
@@ -363,6 +363,128 @@ func TestRunStagesLiteralPathsAndCommitsExactTree(t *testing.T) {
 	}
 }
 
+func TestExternalCommitContainsOnlyRunOwnedDelta(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+	runCommitTestGit(t, workDir, "init", "-q")
+	runCommitTestGit(t, workDir, "config", "user.name", "Revolvr Test")
+	runCommitTestGit(t, workDir, "config", "user.email", "revolvr-test@example.invalid")
+
+	baseline := map[string]string{
+		".agent/tasks/run-owned.md": "status: pending\n",
+		"source.txt":                "source baseline\n",
+		"late-staged.txt":           "staged baseline\n",
+		"late-worktree.txt":         "worktree baseline\n",
+	}
+	for path, content := range baseline {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(workDir, path)), 0o755); err != nil {
+			t.Fatalf("create parent for %q: %v", path, err)
+		}
+		if err := os.WriteFile(filepath.Join(workDir, path), []byte(content), 0o644); err != nil {
+			t.Fatalf("write baseline %q: %v", path, err)
+		}
+	}
+	runCommitTestGit(t, workDir, "add", "-A")
+	runCommitTestGit(t, workDir, "commit", "-q", "-m", "Baseline")
+	baselineHEAD := strings.TrimSpace(runCommitTestGit(t, workDir, "rev-parse", "HEAD"))
+
+	preRun, err := gitstate.CaptureDirtyWorktree(ctx, gitstate.Config{WorkingDir: workDir})
+	if err != nil {
+		t.Fatalf("capture admitted clean worktree: %v", err)
+	}
+	if len(preRun.DirtyFiles) != 0 {
+		t.Fatalf("admitted worktree is dirty: %#v", preRun.DirtyFiles)
+	}
+	runOwned := map[string]string{
+		".agent/tasks/run-owned.md": "status: pending\nphase: audit\n",
+		"source.txt":                "run-owned source\n",
+	}
+	for path, content := range runOwned {
+		if err := os.WriteFile(filepath.Join(workDir, path), []byte(content), 0o644); err != nil {
+			t.Fatalf("write run-owned path %q: %v", path, err)
+		}
+	}
+	postRun, err := gitstate.CaptureChangedFiles(ctx, gitstate.Config{WorkingDir: workDir})
+	if err != nil {
+		t.Fatalf("capture admitted run-owned delta: %v", err)
+	}
+	wantOwnedPaths := []string{".agent/tasks/run-owned.md", "source.txt"}
+	if !reflect.DeepEqual(postRun.ChangedFiles, wantOwnedPaths) {
+		t.Fatalf("admitted changed paths = %#v, want %#v", postRun.ChangedFiles, wantOwnedPaths)
+	}
+
+	// These changes arrive after the admitted capture. The staged path is the
+	// important containment adversary: an unscoped git commit would absorb it.
+	late := map[string]string{
+		"late-staged.txt":    "operator staged bytes\n",
+		"late-worktree.txt":  "operator worktree bytes\n",
+		"late-untracked.txt": "operator untracked bytes\n",
+	}
+	for path, content := range late {
+		if err := os.WriteFile(filepath.Join(workDir, path), []byte(content), 0o644); err != nil {
+			t.Fatalf("write late path %q: %v", path, err)
+		}
+	}
+	runCommitTestGit(t, workDir, "add", "--", "late-staged.txt")
+
+	var commitArgs []string
+	result, err := Run(ctx, Config{
+		WorkingDir:         workDir,
+		RunID:              "run-owned-operation",
+		TaskID:             "run-owned-task",
+		TaskSummary:        "Commit only the admitted operation delta",
+		CodexResult:        &codexexec.Result{ExitCode: 0},
+		VerificationResult: passedVerification(),
+		PreRunDirty:        &preRun,
+		PostRunChanged:     &postRun,
+		CommandRunner: func(ctx context.Context, command runner.Command) runner.Result {
+			if commitTestGitSubcommand(command.Args) == "commit" {
+				commitArgs = append([]string(nil), command.Args...)
+			}
+			return runner.Run(ctx, command)
+		},
+	})
+	if err != nil {
+		t.Fatalf("commit admitted delta: %v", err)
+	}
+	if result.Status != StatusCommitted || result.PreCommitSHA != baselineHEAD {
+		t.Fatalf("commit result = %+v, want one commit from %s", result, baselineHEAD)
+	}
+	wantCommitArgs := []string{"--literal-pathspecs", "commit", "--only", "-m", "Commit only the admitted operation delta", "-m", "Run-ID: run-owned-operation\nTask-ID: run-owned-task\nVerification: passed", "--", ".agent/tasks/run-owned.md", "source.txt"}
+	if !reflect.DeepEqual(commitArgs, wantCommitArgs) {
+		t.Fatalf("commit args = %#v, want exact literal path-scoped args %#v", commitArgs, wantCommitArgs)
+	}
+
+	committedPaths := commitTestNULPaths(runCommitTestGit(t, workDir, "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "HEAD"))
+	if !reflect.DeepEqual(committedPaths, wantOwnedPaths) {
+		t.Fatalf("committed delta = %#v, want only %#v", committedPaths, wantOwnedPaths)
+	}
+	wantTreePaths := []string{".agent/tasks/run-owned.md", "late-staged.txt", "late-worktree.txt", "source.txt"}
+	committedTree := commitTestNULPaths(runCommitTestGit(t, workDir, "ls-tree", "-r", "--name-only", "-z", "HEAD"))
+	if !reflect.DeepEqual(committedTree, wantTreePaths) {
+		t.Fatalf("committed tree paths = %#v, want exact tree %#v", committedTree, wantTreePaths)
+	}
+	for path, content := range runOwned {
+		if got := runCommitTestGit(t, workDir, "show", "HEAD:"+path); got != content {
+			t.Fatalf("committed bytes for %q = %q, want %q", path, got, content)
+		}
+	}
+	for _, path := range []string{"late-staged.txt", "late-worktree.txt"} {
+		if got := runCommitTestGit(t, workDir, "show", "HEAD:"+path); got != baseline[path] {
+			t.Fatalf("unowned committed bytes for %q = %q, want baseline %q", path, got, baseline[path])
+		}
+	}
+	if staged := commitTestNULPaths(runCommitTestGit(t, workDir, "diff", "--cached", "--name-only", "-z")); !reflect.DeepEqual(staged, []string{"late-staged.txt"}) {
+		t.Fatalf("late staged authority changed = %#v", staged)
+	}
+	for path, content := range late {
+		raw, readErr := os.ReadFile(filepath.Join(workDir, path))
+		if readErr != nil || string(raw) != content {
+			t.Fatalf("late path %q changed: err=%v bytes=%q want=%q", path, readErr, raw, content)
+		}
+	}
+}
+
 func TestRunRecordsCommitWhenCommandFailsButHEADAdvanced(t *testing.T) {
 	headCalls := 0
 	result, err := Run(context.Background(), baseConfig(t, func(_ context.Context, command runner.Command) runner.Result {
@@ -375,7 +497,7 @@ func TestRunRecordsCommitWhenCommandFailsButHEADAdvanced(t *testing.T) {
 			return runner.Result{ExitCode: 0, Stdout: "created456\n"}
 		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
-		case len(command.Args) > 0 && command.Args[0] == "commit":
+		case commitTestGitSubcommand(command.Args) == "commit":
 			return runner.Result{ExitCode: 1, Stderr: "hook reported failure after creating commit"}
 		default:
 			t.Fatalf("unexpected git command: %#v", command.Args)
@@ -405,7 +527,7 @@ func TestRunReportsIndeterminateWhenPostCommitHEADCannotBeResolved(t *testing.T)
 			return runner.Result{ExitCode: 2, Err: errors.New("HEAD unavailable")}
 		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
-		case len(command.Args) > 0 && command.Args[0] == "commit":
+		case commitTestGitSubcommand(command.Args) == "commit":
 			return runner.Result{ExitCode: 0}
 		default:
 			t.Fatalf("unexpected git command: %#v", command.Args)
@@ -438,7 +560,7 @@ func TestRunSupportsInitialCommitWithUnbornHEAD(t *testing.T) {
 			return runner.Result{ExitCode: 0, Stdout: "initial123\n"}
 		case commitTestGitSubcommand(command.Args) == "add":
 			return runner.Result{ExitCode: 0}
-		case len(command.Args) > 0 && command.Args[0] == "commit":
+		case commitTestGitSubcommand(command.Args) == "commit":
 			return runner.Result{ExitCode: 0}
 		default:
 			t.Fatalf("unexpected git command: %#v", command.Args)

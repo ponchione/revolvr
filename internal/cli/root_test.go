@@ -532,6 +532,12 @@ verification:
 				return runner.Result{ExitCode: 0, Stdout: "codex-test 1.2.3\n"}
 			}
 			switch strings.Join(command.Args, "\x00") {
+			case "rev-parse\x00--is-bare-repository":
+				return runner.Result{ExitCode: 0, Stdout: "false\n"}
+			case "rev-parse\x00--show-toplevel":
+				return runner.Result{ExitCode: 0, Stdout: command.Dir + "\n"}
+			case "submodule\x00status\x00--recursive":
+				return runner.Result{ExitCode: 0}
 			case "config\x00--get\x00user.name":
 				return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
 			case "config\x00--get\x00user.email":
@@ -555,6 +561,8 @@ verification:
 				return "", fmt.Errorf("executable %s not found", name)
 			}
 		},
+		ExecutableInspector:    cliTestExecutableInspector,
+		CodexIdentityInspector: cliTestCodexIdentityInspector,
 		TUIRunner: func(_ context.Context, status app.StatusResult, opts tuiapp.RunOptions) error {
 			called = true
 			if !status.Initialized {
@@ -1858,19 +1866,22 @@ func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 		"Config found: false\n" +
 		"Defaults: used\n" +
 		"Codex executable: codex\n" +
+		"Codex executable identity: " + formatConfigCodexIdentity(configResult.Effective, configResult.CodexIdentityError) + "\n" +
 		"Codex model: gpt-5.6-sol\n" +
 		"Codex reasoning effort: xhigh\n" +
 		"Codex session mode: ephemeral (ephemeral=true)\n" +
 		"Codex dangerously bypass approvals and sandbox: true\n" +
 		"Codex sandbox: workspace-write\n" +
 		"Codex approval policy: never\n" +
-		"Codex timeout: 0s\n" +
+		"Codex timeout: 30m0s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
 		defaultAutonomyConfigOutput() +
+		operationalBoundsConfigOutput(262144) +
 		defaultRetentionConfigOutput() +
 		defaultNotificationConfigOutput() +
 		"Git executable: git\n" +
+		"Git executable identity: " + formatConfigGitIdentity(configResult.Effective, configResult.GitIdentityError) + "\n" +
 		"Git timeout: 30s\n" +
 		"Verification missing policy: fail\n" +
 		"Verification command count: 0\n" +
@@ -1899,19 +1910,22 @@ func TestConfigCheckMissingConfigPrintsDefaultVerificationCommand(t *testing.T) 
 		"Config found: false\n" +
 		"Defaults: used\n" +
 		"Codex executable: codex\n" +
+		"Codex executable identity: " + formatConfigCodexIdentity(configResult.Effective, configResult.CodexIdentityError) + "\n" +
 		"Codex model: gpt-5.6-sol\n" +
 		"Codex reasoning effort: xhigh\n" +
 		"Codex session mode: ephemeral (ephemeral=true)\n" +
 		"Codex dangerously bypass approvals and sandbox: true\n" +
 		"Codex sandbox: workspace-write\n" +
 		"Codex approval policy: never\n" +
-		"Codex timeout: 0s\n" +
+		"Codex timeout: 30m0s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
 		defaultAutonomyConfigOutput() +
+		operationalBoundsConfigOutput(262144) +
 		defaultRetentionConfigOutput() +
 		defaultNotificationConfigOutput() +
 		"Git executable: git\n" +
+		"Git executable identity: " + formatConfigGitIdentity(configResult.Effective, configResult.GitIdentityError) + "\n" +
 		"Git timeout: 30s\n" +
 		"Verification missing policy: fail\n" +
 		"Verification command count: 1\n" +
@@ -2006,6 +2020,7 @@ output:
 		"Config found: true\n" +
 		"Defaults: merged\n" +
 		"Codex executable: codex-custom\n" +
+		"Codex executable identity: " + formatConfigCodexIdentity(configResult.Effective, configResult.CodexIdentityError) + "\n" +
 		"Codex model: gpt-override\n" +
 		"Codex reasoning effort: low\n" +
 		"Codex session mode: ephemeral (ephemeral=true)\n" +
@@ -2016,9 +2031,11 @@ output:
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
 		defaultAutonomyConfigOutput() +
+		operationalBoundsConfigOutput(108) +
 		defaultRetentionConfigOutput() +
 		defaultNotificationConfigOutput() +
 		"Git executable: git-custom\n" +
+		"Git executable identity: " + formatConfigGitIdentity(configResult.Effective, configResult.GitIdentityError) + "\n" +
 		"Git timeout: 12s\n" +
 		"Verification missing policy: pass\n" +
 		"Verification command count: 1\n" +
@@ -2097,6 +2114,10 @@ func defaultRetentionConfigOutput() string {
 		"Retention classes: codex_jsonl=true codex_stderr=true prune_compressed=false\n" +
 		"Retention verified export required: true\n" +
 		"Retention operation bounds: files=100 bytes=1073741824\n"
+}
+
+func operationalBoundsConfigOutput(outputBytes int) string {
+	return fmt.Sprintf("Attended operational bounds: task_attempts=16 action_attempts=[audit=4,correct=4,document=4,implement=4,plan=4,simplify=4] elapsed=4h0m0s model_tokens=1000000 cycles_per_task=50 process_duration=30m0s output_bytes_per_stream=%d retained_disk_bytes=1073741824 notification_attempts=0\n", outputBytes)
 }
 
 func defaultNotificationConfigOutput() string {

@@ -77,6 +77,21 @@ type LockAcquirer func(context.Context, lock.Config) (SourceLock, error)
 type CommandRunner func(context.Context, runner.Command) runner.Result
 type SafetyPreflightRunner func(context.Context, autonomoussafety.Input) (autonomoussafety.Output, error)
 
+type FailurePoint string
+
+const (
+	FailureBeforeSupervisor   FailurePoint = "before_supervisor"
+	FailureAfterSupervisor    FailurePoint = "after_supervisor"
+	FailureBeforeWorker       FailurePoint = "before_worker"
+	FailureAfterWorker        FailurePoint = "after_worker"
+	FailureBeforeVerification FailurePoint = "before_verification"
+	FailureAfterVerification  FailurePoint = "after_verification"
+	FailureBeforeCommit       FailurePoint = "before_commit"
+	FailureAfterCommit        FailurePoint = "after_commit"
+)
+
+type FailureInjector func(FailurePoint) error
+
 // WorkerAdmission runs after the supervisor decision and policy route have
 // been validated against the admission source, but before any worker starts.
 // It is the composition seam used by the task runner to durably charge AW-15.
@@ -121,6 +136,8 @@ type Config struct {
 	CodexApprovalPolicy            string
 	CodexBypassApprovalsAndSandbox bool
 	CodexVersion                   string
+	CodexIdentity                  codexexec.CodexExecutableIdentity
+	CodexReleaseManifest           *codexexec.ReleaseManifest
 	EffectiveConfigSchema          string
 	EffectiveConfigSHA256          string
 	CodexTimeout                   time.Duration
@@ -128,6 +145,7 @@ type Config struct {
 	CodexStderrCap                 int
 
 	GitExecutable string
+	GitIdentity   codexexec.ExecutableIdentity
 	GitTimeout    time.Duration
 	GitStdoutCap  int
 	GitStderrCap  int
@@ -169,6 +187,7 @@ type Config struct {
 	SafetyLookPath             func(string) (string, error)
 	SafetyLookupEnv            func(string) (string, bool)
 	BeforeWorker               WorkerAdmission
+	FailureInjector            FailureInjector
 }
 
 type Artifact struct {

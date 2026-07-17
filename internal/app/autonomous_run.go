@@ -55,9 +55,46 @@ type TaskRunInput struct {
 	RunConfig           *runonce.Config
 	Notification        NotificationObserver
 	NotificationRuntime NotificationRuntime
+	idGenerator         func() string
+	releaseManifest     *codexexec.ReleaseManifest
+	failureInjector     taskInterruptionInjector
 }
 
+type taskInterruptionPoint string
+
+const (
+	taskFailureBeforeSupervisor   taskInterruptionPoint = "before_supervisor"
+	taskFailureAfterSupervisor    taskInterruptionPoint = "after_supervisor"
+	taskFailureBeforeWorker       taskInterruptionPoint = "before_worker"
+	taskFailureAfterWorker        taskInterruptionPoint = "after_worker"
+	taskFailureBeforeVerification taskInterruptionPoint = "before_verification"
+	taskFailureAfterVerification  taskInterruptionPoint = "after_verification"
+	taskFailureBeforeCommit       taskInterruptionPoint = "before_commit"
+	taskFailureAfterCommit        taskInterruptionPoint = "after_commit"
+	taskFailureBeforeCheckpoint   taskInterruptionPoint = "before_checkpoint"
+	taskFailureAfterCheckpoint    taskInterruptionPoint = "after_checkpoint"
+	taskFailureBeforeAudit        taskInterruptionPoint = "before_audit"
+	taskFailureAfterAudit         taskInterruptionPoint = "after_audit"
+	taskFailureBeforeFinalization taskInterruptionPoint = "before_finalization"
+	taskFailureAfterFinalization  taskInterruptionPoint = "after_finalization"
+)
+
+type taskInterruptionInjector func(taskInterruptionPoint) error
+
 func RunTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (autonomoustaskrun.Result, error) {
+	maxCycles := input.MaxCycles
+	if maxCycles == 0 {
+		maxCycles = runonce.DefaultTaskCycleLimit
+	}
+	if input.Unlimited {
+		return autonomoustaskrun.Result{}, errors.New("external attended-task admission: unlimited cycles are not supported")
+	}
+	effective, err := admitExternalModeWithManifest(ctx, cfg.WorkDir, PreflightModeAttendedTask, maxCycles, input.RunConfig, input.Runner == nil, input.releaseManifest)
+	if err != nil {
+		return autonomoustaskrun.Result{}, err
+	}
+	input.MaxCycles = maxCycles
+	input.RunConfig = &effective
 	unlock, err := autonomousexec.Acquire(ctx, cfg.WorkDir)
 	if err != nil {
 		return autonomoustaskrun.Result{}, err
@@ -82,6 +119,9 @@ func runTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 	if err != nil {
 		return autonomoustaskrun.Result{}, err
 	}
+	if err := recheckExternalExecutableIdentitiesWithManifest(effective, input.Runner == nil, input.releaseManifest); err != nil {
+		return autonomoustaskrun.Result{}, err
+	}
 	fingerprint, err := runonce.FingerprintEffectiveConfig(effective)
 	if err != nil {
 		return autonomoustaskrun.Result{}, err
@@ -91,16 +131,14 @@ func runTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 		operationID = "task-run-" + id.New()
 	}
 	maxCycles := input.MaxCycles
-	if maxCycles == 0 {
-		maxCycles = 50
-	}
 	max := autonomoustaskrun.Limited(maxCycles)
-	if input.Unlimited {
-		max = autonomoustaskrun.Unlimited()
-	}
 	clock := input.Clock
 	if clock == nil {
 		clock = time.Now
+	}
+	idGenerator := input.idGenerator
+	if idGenerator == nil {
+		idGenerator = id.New
 	}
 	redactor, _, err := redact.New(effective.SafetyDeclaration.Redaction, os.LookupEnv)
 	if err != nil {
@@ -116,20 +154,11 @@ func runTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 		taskID = existing.TaskID
 	}
 	if !restarting {
-		archiveEvidence, err = verifiedSchedulingArchives(ctx, cfg.WorkDir, effective)
-		if err != nil {
-			return autonomoustaskrun.Result{}, err
-		}
-	}
-	if !restarting {
-		active, loadErr := autonomousscheduler.LoadActiveStrict(ctx, cfg.WorkDir)
+		graph, archives, loadErr := loadAutonomousGraph(ctx, cfg.WorkDir, effective)
 		if loadErr != nil {
 			return autonomoustaskrun.Result{}, loadErr
 		}
-		graph, buildErr := autonomousscheduler.BuildSnapshot(active, archiveEvidence)
-		if buildErr != nil {
-			return autonomoustaskrun.Result{}, buildErr
-		}
+		archiveEvidence = archives
 		if taskID == "" {
 			if selected := autonomousscheduler.SelectNextReady(graph, nil); selected.Found {
 				taskID = selected.Task.ID
@@ -163,17 +192,12 @@ func runTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 			_ = closeLedger()
 			return autonomoustaskrun.Result{}, prepErr
 		}
-		version, versionErr := codexexec.DiscoverVersion(ctx, codexexec.VersionConfig{Executable: effective.CodexExecutable, WorkingDir: workspace.ExecutionRoot, Timeout: effective.GitTimeout, StdoutCap: effective.CodexStdoutCap, StderrCap: effective.CodexStderrCap, CommandRunner: codexexec.CommandRunner(commandRunner(effective))})
-		if versionErr != nil {
-			_ = closeLedger()
-			return autonomoustaskrun.Result{}, versionErr
-		}
-		step = productionStepRunner(productionStepConfig{root: paths.WorkDir, taskID: taskID, operationID: operationID, run: effective, configSchema: fingerprint.Schema, configSHA: fingerprint.SHA256, codexVersion: version, workspace: workspace, stateStore: stateStore, ledger: store, ledgerPath: paths.LedgerDBPath, redactor: redactor, clock: clock})
+		step = productionStepRunner(productionStepConfig{root: paths.WorkDir, taskID: taskID, operationID: operationID, run: effective, configSchema: fingerprint.Schema, configSHA: fingerprint.SHA256, workspace: workspace, stateStore: stateStore, ledger: store, ledgerPath: paths.LedgerDBPath, redactor: redactor, clock: clock, idGenerator: idGenerator, releaseManifest: input.releaseManifest, failureInjector: input.failureInjector})
 	}
 	if closeLedger != nil {
 		defer closeLedger()
 	}
-	return autonomoustaskrun.RunTaskUntilTerminal(ctx, autonomoustaskrun.Config{RepositoryRoot: cfg.WorkDir, OperationID: operationID, TaskID: taskID, ConfigSHA256: fingerprint.SHA256, MaxCycles: max, Clock: clock, Runner: step, Progress: input.Progress, Redact: redactor.String, Ledger: loopLedger, ArchiveEvidence: archiveEvidence})
+	return autonomoustaskrun.RunTaskUntilTerminal(ctx, autonomoustaskrun.Config{RepositoryRoot: cfg.WorkDir, OperationID: operationID, TaskID: taskID, ConfigSHA256: fingerprint.SHA256, EffectiveBounds: taskRunEffectiveBounds(effective.OperationalBounds), MaxCycles: max, Clock: clock, Runner: step, Progress: input.Progress, Redact: redactor.String, Ledger: loopLedger, ArchiveEvidence: archiveEvidence})
 }
 
 type QueueInput struct {
@@ -194,6 +218,16 @@ type QueueInput struct {
 }
 
 func RunQueue(ctx context.Context, cfg Config, input QueueInput) (autonomousqueue.Result, error) {
+	maxCycles := input.MaxCycles
+	if maxCycles == 0 {
+		maxCycles = runonce.DefaultTaskCycleLimit
+	}
+	effective, err := admitExternalMode(ctx, cfg.WorkDir, PreflightModeQueue, maxCycles, input.RunConfig, input.TaskRunner == nil)
+	if err != nil {
+		return autonomousqueue.Result{}, err
+	}
+	input.MaxCycles = maxCycles
+	input.RunConfig = &effective
 	unlock, err := autonomousexec.Acquire(ctx, cfg.WorkDir)
 	if err != nil {
 		return autonomousqueue.Result{}, err
@@ -290,6 +324,24 @@ type DaemonInput struct {
 }
 
 func RunDaemon(ctx context.Context, cfg Config, input DaemonInput) (autonomousdaemon.Result, error) {
+	maxCycles := input.MaxCycles
+	if maxCycles == 0 {
+		maxCycles = runonce.DefaultTaskCycleLimit
+	}
+	requested, err := loadEffectiveExternalConfig(cfg.WorkDir, maxCycles, input.RunConfig)
+	if err != nil {
+		return autonomousdaemon.Result{}, err
+	}
+	if requested.SafetyDeclaration.Mode != autonomoussafety.ModeFullyUnattended {
+		return autonomousdaemon.Result{}, errors.New("autonomous daemon requires fully-unattended safety authority")
+	}
+	input.RunConfig = &requested
+	effectiveAdmission, err := admitExternalMode(ctx, cfg.WorkDir, PreflightModeDaemon, maxCycles, input.RunConfig, true)
+	if err != nil {
+		return autonomousdaemon.Result{}, err
+	}
+	input.MaxCycles = maxCycles
+	input.RunConfig = &effectiveAdmission
 	runCfg, err := LoadRunOnceConfig(cfg.WorkDir, DefaultRunOnceConfig(cfg.WorkDir))
 	if input.RunConfig != nil {
 		runCfg = *input.RunConfig
@@ -345,15 +397,7 @@ func RunDaemon(ctx context.Context, cfg Config, input DaemonInput) (autonomousda
 }
 
 func loadQueueSnapshot(ctx context.Context, root string, cfg runonce.Config) (autonomousqueue.Snapshot, error) {
-	archives, err := verifiedSchedulingArchives(ctx, root, cfg)
-	if err != nil {
-		return autonomousqueue.Snapshot{}, err
-	}
-	active, err := autonomousscheduler.LoadActiveStrict(ctx, root)
-	if err != nil {
-		return autonomousqueue.Snapshot{}, err
-	}
-	graph, err := autonomousscheduler.BuildSnapshot(active, archives)
+	graph, _, err := loadAutonomousGraph(ctx, root, cfg)
 	if err != nil {
 		return autonomousqueue.Snapshot{}, err
 	}
@@ -374,6 +418,19 @@ func loadQueueSnapshot(ctx context.Context, root string, cfg runonce.Config) (au
 	return autonomousqueue.Snapshot{Fingerprint: hashText(string(raw)), Nodes: nodes, Classify: func(occupied []string) ([]autonomousscheduler.Node, error) {
 		return autonomousscheduler.ClassifyAll(graph, occupied), nil
 	}}, nil
+}
+
+func loadAutonomousGraph(ctx context.Context, root string, cfg runonce.Config) (autonomousscheduler.Graph, []autonomousscheduler.ArchiveEvidence, error) {
+	active, err := autonomousscheduler.LoadActiveStrict(ctx, root)
+	if err != nil {
+		return autonomousscheduler.Graph{}, nil, err
+	}
+	archives, err := verifiedSchedulingArchives(ctx, root, cfg)
+	if err != nil {
+		return autonomousscheduler.Graph{}, nil, err
+	}
+	graph, err := autonomousscheduler.BuildSnapshot(active, archives)
+	return graph, archives, err
 }
 
 func safetyDeclarationIdentity(cfg runonce.Config) string {
@@ -406,7 +463,7 @@ func verifiedSchedulingArchives(ctx context.Context, root string, cfg runonce.Co
 	defer store.Close()
 	result := make([]autonomousscheduler.ArchiveEvidence, 0, len(entries))
 	for _, entry := range entries {
-		report, verifyErr := autonomousarchive.Verify(ctx, autonomousarchive.VerifyConfig{RepositoryRoot: root, Ledger: store, GitExecutable: cfg.GitExecutable, GitTimeout: cfg.GitTimeout, ForbiddenValues: archiveSecretValues(cfg)}, entry.Manifest.ArchiveID)
+		report, verifyErr := autonomousarchive.Verify(ctx, autonomousarchive.VerifyConfig{RepositoryRoot: root, Ledger: store, GitExecutable: cfg.GitExecutable, GitTimeout: cfg.GitTimeout, CommandRunner: autonomousarchive.CommandRunner(commandRunner(cfg)), ForbiddenValues: archiveSecretValues(cfg)}, entry.Manifest.ArchiveID)
 		if verifyErr != nil {
 			return nil, verifyErr
 		}
@@ -463,14 +520,17 @@ func prepareTaskWorkspace(ctx context.Context, root, taskID, operationID string,
 }
 
 type productionStepConfig struct {
-	root, taskID, operationID, configSchema, configSHA, codexVersion string
-	run                                                              runonce.Config
-	workspace                                                        autonomous.TaskWorkspace
-	stateStore                                                       *autonomousstate.Store
-	ledger                                                           *ledger.Store
-	ledgerPath                                                       string
-	redactor                                                         *redact.Redactor
-	clock                                                            func() time.Time
+	root, taskID, operationID, configSchema, configSHA string
+	run                                                runonce.Config
+	workspace                                          autonomous.TaskWorkspace
+	stateStore                                         *autonomousstate.Store
+	ledger                                             *ledger.Store
+	ledgerPath                                         string
+	redactor                                           *redact.Redactor
+	clock                                              func() time.Time
+	idGenerator                                        func() string
+	releaseManifest                                    *codexexec.ReleaseManifest
+	failureInjector                                    taskInterruptionInjector
 }
 
 func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
@@ -480,11 +540,34 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 			return autonomoustaskrun.StepResult{}, errors.Join(err, autonomousstate.ErrStateMissing)
 		}
 		workspace := *snapshot.State.Workspace
-		cycleCfg := autonomouscycle.Config{RepositoryRoot: p.root, Workspace: &workspace, TaskID: p.taskID, State: snapshot.State, SafetyDeclaration: p.run.SafetyDeclaration, SourceSafety: autonomouspolicy.SourceSafetySafe, LatestMutation: in.Operation.LatestMutation, Verification: in.Operation.Verification, Audit: in.Operation.Audit, LedgerPath: p.run.LedgerPath, Ledger: p.ledger, CodexExecutable: p.run.CodexExecutable, CodexModel: p.run.CodexModel, CodexReasoningEffort: p.run.CodexReasoningEffort, CodexEphemeral: p.run.CodexEphemeral, CodexSandbox: p.run.CodexSandbox, CodexApprovalPolicy: p.run.CodexApprovalPolicy, CodexBypassApprovalsAndSandbox: p.run.CodexBypassApprovalsAndSandbox, CodexVersion: p.codexVersion, EffectiveConfigSchema: p.configSchema, EffectiveConfigSHA256: p.configSHA, CodexTimeout: p.run.CodexTimeout, CodexStdoutCap: p.run.CodexStdoutCap, CodexStderrCap: p.run.CodexStderrCap, GitExecutable: p.run.GitExecutable, GitTimeout: p.run.GitTimeout, GitStdoutCap: p.run.GitStdoutCap, GitStderrCap: p.run.GitStderrCap, VerificationCommands: p.run.VerificationCommands, VerificationPlan: p.run.VerificationPlan, MissingVerificationPolicy: p.run.MissingVerificationPolicy, VerificationTimeout: p.run.VerificationTimeout, VerificationStdoutCap: p.run.VerificationStdoutCap, VerificationStderrCap: p.run.VerificationStderrCap, CommitTimeout: p.run.CommitTimeout, CommitStdoutCap: p.run.CommitStdoutCap, CommitStderrCap: p.run.CommitStderrCap, SourceWriterLockTimeout: p.run.SourceWriterLockTimeout, SourceWriterLockHeartbeatInterval: p.run.SourceWriterLockHeartbeatInterval, SourceWriterLockPID: p.run.SourceWriterLockPID, IDGenerator: id.New, Clock: p.clock, CommandRunner: autonomouscycle.CommandRunner(commandRunner(p.run))}
-		attemptID := "attempt-" + id.New()
-		admissionOp := p.operationID + "-admit-" + id.New()
-		completionOp := p.operationID + "-complete-" + id.New()
-		limits := defaultAttemptLimits()
+		latestMutation, verificationEvidence, auditEvidence := in.Operation.LatestMutation, in.Operation.Verification, in.Operation.Audit
+		if latestMutation == nil || verificationEvidence == nil || auditEvidence == nil {
+			currentAudit, current, loadErr := p.stateStore.LoadCurrentAudit(ctx, p.taskID)
+			if loadErr != nil {
+				return autonomoustaskrun.StepResult{}, loadErr
+			}
+			if current {
+				if latestMutation == nil && currentAudit.History.Record.LatestSourceMutation != nil {
+					latestMutation = currentAudit.History.Record.LatestSourceMutation.Policy()
+				}
+				if verificationEvidence == nil {
+					value := currentAudit.History.Record.Verification
+					verificationEvidence = &value
+				}
+				if auditEvidence == nil {
+					value := currentAudit.PolicyEvidence
+					auditEvidence = &value
+				}
+			}
+		}
+		cycleCfg := autonomouscycle.Config{RepositoryRoot: p.root, Workspace: &workspace, TaskID: p.taskID, State: snapshot.State, SafetyDeclaration: p.run.SafetyDeclaration, SourceSafety: autonomouspolicy.SourceSafetySafe, LatestMutation: latestMutation, Verification: verificationEvidence, Audit: auditEvidence, LedgerPath: p.run.LedgerPath, Ledger: p.ledger, CodexExecutable: p.run.CodexExecutable, CodexModel: p.run.CodexModel, CodexReasoningEffort: p.run.CodexReasoningEffort, CodexEphemeral: p.run.CodexEphemeral, CodexSandbox: p.run.CodexSandbox, CodexApprovalPolicy: p.run.CodexApprovalPolicy, CodexBypassApprovalsAndSandbox: p.run.CodexBypassApprovalsAndSandbox, CodexVersion: p.run.CodexIdentity.Version, CodexIdentity: p.run.CodexIdentity, CodexReleaseManifest: p.releaseManifest, EffectiveConfigSchema: p.configSchema, EffectiveConfigSHA256: p.configSHA, CodexTimeout: p.run.CodexTimeout, CodexStdoutCap: p.run.CodexStdoutCap, CodexStderrCap: p.run.CodexStderrCap, GitExecutable: p.run.GitExecutable, GitIdentity: p.run.GitIdentity, GitTimeout: p.run.GitTimeout, GitStdoutCap: p.run.GitStdoutCap, GitStderrCap: p.run.GitStderrCap, VerificationCommands: p.run.VerificationCommands, VerificationPlan: p.run.VerificationPlan, MissingVerificationPolicy: p.run.MissingVerificationPolicy, VerificationTimeout: p.run.VerificationTimeout, VerificationStdoutCap: p.run.VerificationStdoutCap, VerificationStderrCap: p.run.VerificationStderrCap, CommitTimeout: p.run.CommitTimeout, CommitStdoutCap: p.run.CommitStdoutCap, CommitStderrCap: p.run.CommitStderrCap, SourceWriterLockTimeout: p.run.SourceWriterLockTimeout, SourceWriterLockHeartbeatInterval: p.run.SourceWriterLockHeartbeatInterval, SourceWriterLockPID: p.run.SourceWriterLockPID, IDGenerator: p.idGenerator, Clock: p.clock, CommandRunner: autonomouscycle.CommandRunner(commandRunner(p.run))}
+		cycleCfg.FailureInjector = func(point autonomouscycle.FailurePoint) error {
+			return injectTaskInterruption(p.failureInjector, taskInterruptionPoint(point))
+		}
+		attemptID := "attempt-" + p.idGenerator()
+		admissionOp := p.operationID + "-admit-" + p.idGenerator()
+		completionOp := p.operationID + "-complete-" + p.idGenerator()
+		limits := defaultAttemptLimits(p.run.OperationalBounds)
 		admission := autonomousattempt.AdmissionConfig{OperationID: admissionOp, AttemptID: attemptID, Expected: snapshot.Expected(), Limits: limits, Store: p.stateStore}
 		admitted := false
 		var admissionResult autonomousattempt.Result
@@ -517,7 +600,7 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 		}
 		started := p.clock().UTC()
 		cycle, cycleErr := autonomouscycle.Run(ctx, cycleCfg)
-		step := autonomoustaskrun.StepResult{RunID: cycle.Supervisor.RunID, LatestMutation: in.Operation.LatestMutation, Verification: in.Operation.Verification, Audit: in.Operation.Audit}
+		step := autonomoustaskrun.StepResult{RunID: cycle.Supervisor.RunID, LatestMutation: latestMutation, Verification: verificationEvidence, Audit: auditEvidence}
 		if cycle.Supervisor.Decision != nil {
 			step.Action = string(cycle.Supervisor.Decision.Action)
 		}
@@ -549,7 +632,11 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 			snapshot = completed.Current
 		}
 		if cycleErr != nil {
-			return classifyCycleStop(step, cycle), cycleErr
+			step = classifyCycleStop(step, cycle)
+			if step.StopReason == autonomoustaskrun.StopSafety {
+				return step, nil
+			}
+			return step, cycleErr
 		}
 		if cycle.Supervisor.Decision != nil && cycle.Supervisor.Decision.ChildTasks != nil {
 			parentTask, found, loadErr := taskfile.FindByID(p.root, p.taskID)
@@ -570,13 +657,13 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 			case autonomous.ActionCorrect:
 				return finishCorrectionStep(ctx, p, in, snapshot, workspace, cycleCfg, cycle, admission, admissionResult, completionOp, attemptID, started, step)
 			case autonomous.ActionDocument, autonomous.ActionSimplify:
-				return finishOptionalStep(ctx, p, in, snapshot, workspace, cycleCfg, cycle, admission, admissionResult, completionOp, attemptID, started, step)
+				return finishOptionalStep(ctx, p, snapshot, workspace, cycleCfg, cycle, admission, admissionResult, completionOp, attemptID, started, step)
 			}
 		}
 		switch cycle.Outcome {
 		case autonomouscycle.OutcomeReadOnlyCompleted:
 			if cycle.Route.Action == autonomous.ActionPlan {
-				_, applyErr := autonomousplanapply.ApplyPlanningResult(context.WithoutCancel(ctx), autonomousplanapply.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-plan-" + id.New(), Expected: snapshot.Expected(), Cycle: cycle, CreatedAt: p.clock().UTC(), Store: p.stateStore})
+				_, applyErr := autonomousplanapply.ApplyPlanningResult(context.WithoutCancel(ctx), autonomousplanapply.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-plan-" + p.idGenerator(), Expected: snapshot.Expected(), Cycle: cycle, CreatedAt: p.clock().UTC(), Store: p.stateStore})
 				if applyErr != nil {
 					return step, applyErr
 				}
@@ -585,9 +672,16 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 				if step.Verification == nil {
 					return step, errors.New("audit route has no current verification evidence")
 				}
-				applied, applyErr := autonomousauditapply.ApplyAuditResult(context.WithoutCancel(ctx), autonomousauditapply.ApplyConfig{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-audit-" + id.New(), Expected: snapshot.Expected(), Cycle: cycle, Verification: *step.Verification, LatestMutation: step.LatestMutation, CreatedAt: p.clock().UTC(), Store: p.stateStore})
+				if err := injectTaskInterruption(p.failureInjector, taskFailureBeforeAudit); err != nil {
+					return step, err
+				}
+				dossierState := cycleCfg.State
+				applied, applyErr := autonomousauditapply.ApplyAuditResult(context.WithoutCancel(ctx), autonomousauditapply.ApplyConfig{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-audit-" + p.idGenerator(), Expected: snapshot.Expected(), DossierState: &dossierState, Cycle: cycle, Verification: *step.Verification, LatestMutation: step.LatestMutation, CreatedAt: p.clock().UTC(), Store: p.stateStore})
 				if applyErr != nil {
 					return step, applyErr
+				}
+				if err := injectTaskInterruption(p.failureInjector, taskFailureAfterAudit); err != nil {
+					return step, err
 				}
 				step.Audit = &applied.PolicyEvidence
 				step.Statistics.Audits++
@@ -607,14 +701,14 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 			p.workspace = advanced
 			step.Statistics.CheckpointAdvances++
 		case autonomouscycle.OutcomeNeedsInputAuthorized:
-			recorded, recordErr := autonomousinput.RecordQuestion(context.WithoutCancel(ctx), autonomousinput.QuestionRequest{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-input-" + id.New(), Expected: snapshot.Expected(), Decision: *cycle.Supervisor.Decision, Reference: *cycle.Supervisor.DecisionReference, SourceRevision: cycle.Source.FinalRevision, SourceSafety: autonomouspolicy.SourceSafetySafe, RecordedAt: p.clock().UTC()})
+			recorded, recordErr := autonomousinput.RecordQuestion(context.WithoutCancel(ctx), autonomousinput.QuestionRequest{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-input-" + p.idGenerator(), Expected: snapshot.Expected(), Decision: *cycle.Supervisor.Decision, Reference: *cycle.Supervisor.DecisionReference, SourceRevision: cycle.Source.FinalRevision, SourceSafety: autonomouspolicy.SourceSafetySafe, RecordedAt: p.clock().UTC()})
 			if recordErr != nil {
 				return step, recordErr
 			}
 			step.StopReason = autonomoustaskrun.StopNeedsInput
 			step.StopDetail = string(recorded.Yield.Reason)
 		case autonomouscycle.OutcomeBlockAuthorized:
-			blocked, blockErr := autonomousblock.Apply(context.WithoutCancel(ctx), autonomousblock.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-block-" + id.New(), Expected: snapshot.Expected(), Decision: *cycle.Supervisor.Decision, Reference: *cycle.Supervisor.DecisionReference, Source: autonomouspolicy.SourceEvidence{Revision: cycle.Source.FinalRevision, Safety: autonomouspolicy.SourceSafetySafe, LatestMutation: step.LatestMutation}, Verification: step.Verification, Audit: step.Audit, CreatedAt: p.clock().UTC(), Store: p.stateStore})
+			blocked, blockErr := autonomousblock.Apply(context.WithoutCancel(ctx), autonomousblock.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-block-" + p.idGenerator(), Expected: snapshot.Expected(), Decision: *cycle.Supervisor.Decision, Reference: *cycle.Supervisor.DecisionReference, Source: autonomouspolicy.SourceEvidence{Revision: cycle.Source.FinalRevision, Safety: autonomouspolicy.SourceSafetySafe, LatestMutation: step.LatestMutation}, Verification: step.Verification, Audit: step.Audit, CreatedAt: p.clock().UTC(), Store: p.stateStore})
 			if blockErr != nil {
 				return step, blockErr
 			}
@@ -622,6 +716,9 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 			step.StopDetail = blocked.Current.State.Terminal.Reason
 			step.Evidence = append(step.Evidence, blocked.History.SourcePath)
 		case autonomouscycle.OutcomeCompleteAuthorized:
+			if err := injectTaskInterruption(p.failureInjector, taskFailureBeforeFinalization); err != nil {
+				return step, err
+			}
 			frozen, freezeErr := buildFrozenEvidence(context.WithoutCancel(ctx), p, snapshot, cycle, step)
 			if freezeErr != nil {
 				return step, freezeErr
@@ -631,6 +728,9 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 			}})
 			if finalErr != nil {
 				return step, finalErr
+			}
+			if err := injectTaskInterruption(p.failureInjector, taskFailureAfterFinalization); err != nil {
+				return step, err
 			}
 			step.StopReason = autonomoustaskrun.StopCompleted
 			step.StopDetail = "AW-20 finalization reached ledger completion"
@@ -649,13 +749,20 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 	}
 }
 
-func defaultAttemptLimits() autonomousattempt.Limits {
-	actions := []autonomous.Action{autonomous.ActionPlan, autonomous.ActionImplement, autonomous.ActionAudit, autonomous.ActionCorrect, autonomous.ActionDocument, autonomous.ActionSimplify}
-	budgets := make([]autonomous.ActionBudget, 0, len(actions))
-	for _, a := range actions {
-		budgets = append(budgets, autonomous.ActionBudget{Action: a, Budget: autonomous.CountBudget{Mode: autonomous.BudgetModeLimited, Limit: 4}})
+func defaultAttemptLimits(bounds runonce.OperationalBounds) autonomousattempt.Limits {
+	budgets := make([]autonomous.ActionBudget, 0, len(bounds.ActionAttempts))
+	for _, bound := range bounds.ActionAttempts {
+		budgets = append(budgets, autonomous.ActionBudget{Action: autonomous.Action(bound.Action), Budget: autonomous.CountBudget{Mode: autonomous.BudgetModeLimited, Limit: bound.Attempts}})
 	}
-	return autonomousattempt.Limits{TaskAttempts: autonomous.CountBudget{Mode: autonomous.BudgetModeLimited, Limit: 16}, ActionAttempts: budgets, Elapsed: autonomous.DurationBudget{Mode: autonomous.BudgetModeLimited, Limit: 4 * time.Hour}, Tokens: autonomous.CountBudget{Mode: autonomous.BudgetModeUnlimited}, RepeatedSignatureLimit: 3}
+	return autonomousattempt.Limits{TaskAttempts: autonomous.CountBudget{Mode: autonomous.BudgetModeLimited, Limit: bounds.TaskAttempts}, ActionAttempts: budgets, Elapsed: autonomous.DurationBudget{Mode: autonomous.BudgetModeLimited, Limit: bounds.Elapsed}, Tokens: autonomous.CountBudget{Mode: autonomous.BudgetModeLimited, Limit: bounds.ModelTokens}, RepeatedSignatureLimit: 3}
+}
+
+func taskRunEffectiveBounds(bounds runonce.OperationalBounds) autonomoustaskrun.EffectiveBounds {
+	actions := make([]autonomoustaskrun.ActionAttemptBound, len(bounds.ActionAttempts))
+	for i, bound := range bounds.ActionAttempts {
+		actions[i] = autonomoustaskrun.ActionAttemptBound{Action: bound.Action, Attempts: bound.Attempts}
+	}
+	return autonomoustaskrun.EffectiveBounds{SchemaVersion: bounds.SchemaVersion, TaskAttempts: bounds.TaskAttempts, ActionAttempts: actions, ElapsedNanoseconds: int64(bounds.Elapsed), ModelTokens: bounds.ModelTokens, CyclesPerTask: bounds.CyclesPerTask, ProcessNanoseconds: int64(bounds.ProcessDuration), OutputBytesPerStream: bounds.OutputBytesPerStream, RetainedDiskBytes: bounds.RetainedDiskBytes, NotificationAttempts: bounds.NotificationAttempts}
 }
 
 func finishCorrectionStep(ctx context.Context, p productionStepConfig, in autonomoustaskrun.StepInput, _ autonomousstate.Snapshot, workspace autonomous.TaskWorkspace, cycleCfg autonomouscycle.Config, cycle autonomouscycle.Result, admissionCfg autonomousattempt.AdmissionConfig, admission autonomousattempt.Result, completionOp, attemptID string, started time.Time, step autonomoustaskrun.StepResult) (autonomoustaskrun.StepResult, error) {
@@ -700,7 +807,8 @@ func finishCorrectionStep(ctx context.Context, p productionStepConfig, in autono
 		RepositoryRoot: p.root, Workspace: &workspace, TaskID: p.taskID, Expected: current.Expected(), Authority: authority, Store: p.stateStore,
 		CorrectionCycle: correctionCfg, AuditCycle: auditCfg, FinalPlan: plan,
 		FinalTimeout: p.run.VerificationTimeout, FinalStdoutCap: p.run.VerificationStdoutCap, FinalStderrCap: p.run.VerificationStderrCap,
-		IDGenerator: id.New, Clock: p.clock,
+		IDGenerator: p.idGenerator, Clock: p.clock,
+		AuditApplier: autonomouscorrection.AuditApplier(taskAuditApplier(p)),
 		CycleRunner: func(runCtx context.Context, cfg autonomouscycle.Config) (autonomouscycle.Result, error) {
 			cycleCalls++
 			if cycleCalls == 1 {
@@ -750,12 +858,12 @@ func finishCorrectionStep(ctx context.Context, p productionStepConfig, in autono
 	return step, nil
 }
 
-func finishOptionalStep(ctx context.Context, p productionStepConfig, in autonomoustaskrun.StepInput, _ autonomousstate.Snapshot, workspace autonomous.TaskWorkspace, cycleCfg autonomouscycle.Config, cycle autonomouscycle.Result, admissionCfg autonomousattempt.AdmissionConfig, admission autonomousattempt.Result, completionOp, attemptID string, started time.Time, step autonomoustaskrun.StepResult) (autonomoustaskrun.StepResult, error) {
+func finishOptionalStep(ctx context.Context, p productionStepConfig, _ autonomousstate.Snapshot, workspace autonomous.TaskWorkspace, cycleCfg autonomouscycle.Config, cycle autonomouscycle.Result, admissionCfg autonomousattempt.AdmissionConfig, admission autonomousattempt.Result, completionOp, attemptID string, started time.Time, step autonomoustaskrun.StepResult) (autonomoustaskrun.StepResult, error) {
 	current, found, err := p.stateStore.Load(context.WithoutCancel(ctx), p.taskID)
 	if err != nil || !found {
 		return step, errors.Join(err, autonomousstate.ErrStateMissing)
 	}
-	assessment, err := buildOptionalAssessment(p, current, cycle, in.Operation.Verification, in.Operation.Audit)
+	assessment, err := buildOptionalAssessment(p, current, cycle, cycleCfg.Verification, cycleCfg.Audit)
 	if err != nil {
 		return step, err
 	}
@@ -765,8 +873,8 @@ func finishOptionalStep(ctx context.Context, p productionStepConfig, in autonomo
 	auditCfg.BeforeWorker = nil
 	optional, optionalErr := autonomousoptional.Continue(ctx, autonomousoptional.Config{
 		RepositoryRoot: p.root, Workspace: &workspace, TaskID: p.taskID, Expected: current.Expected(), Assessment: assessment, Store: p.stateStore, Ledger: p.ledger,
-		Admission: admissionCfg, CompletionOperationID: completionOp, DispositionOperationID: p.operationID + "-optional-" + id.New(), AuditOperationID: p.operationID + "-optional-audit-" + id.New(),
-		RoleCycle: roleCfg, AuditCycle: auditCfg, Clock: p.clock,
+		Admission: admissionCfg, CompletionOperationID: completionOp, DispositionOperationID: p.operationID + "-optional-" + p.idGenerator(), AuditOperationID: p.operationID + "-optional-audit-" + p.idGenerator(),
+		RoleCycle: roleCfg, AuditCycle: auditCfg, Clock: p.clock, AuditApplier: taskAuditApplier(p),
 	}, admission, cycle, started)
 	step.Statistics.AttemptsAdmitted, step.Statistics.AttemptsCompleted = 1, 1
 	step.Statistics.Actions = []autonomoustaskrun.ActionCount{{Action: string(cycle.Route.Action), Count: 1}}
@@ -854,7 +962,7 @@ func cleanOptionalTarget(value string) string {
 	return value
 }
 func classifyCycleStop(step autonomoustaskrun.StepResult, c autonomouscycle.Result) autonomoustaskrun.StepResult {
-	if c.Outcome == autonomouscycle.OutcomeSafetyPreflightFailed || c.Outcome == autonomouscycle.OutcomeSourceChanged || c.Outcome == autonomouscycle.OutcomeSourceChangedDuringDossier {
+	if c.Outcome == autonomouscycle.OutcomeSafetyPreflightFailed || c.Outcome == autonomouscycle.OutcomeSourceChanged || c.Outcome == autonomouscycle.OutcomeSourceChangedDuringDossier || c.Outcome == autonomouscycle.OutcomeSupervisorFailed && c.Supervisor.SourceDifference.Changed {
 		step.StopReason = autonomoustaskrun.StopSafety
 	} else {
 		step.StopReason = autonomoustaskrun.StopUnsafeAmbiguous
@@ -881,8 +989,15 @@ func cycleFailure(c autonomouscycle.Result) string {
 	return string(c.Outcome)
 }
 func advanceWorkspace(ctx context.Context, p productionStepConfig, current autonomous.TaskWorkspace, cycle autonomouscycle.Result) (autonomous.TaskWorkspace, error) {
-	cfg := autonomousworkspace.Config{ControlRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-checkpoint-" + id.New(), BaselineSHA: current.BaselineSHA, GitExecutable: p.run.GitExecutable, Timeout: p.run.GitTimeout, StdoutCap: p.run.GitStdoutCap, StderrCap: p.run.GitStderrCap, Clock: p.clock, CommandRunner: autonomousworkspace.CommandRunner(commandRunner(p.run))}
-	advanced, err := autonomousworkspace.AdvanceCheckpoint(ctx, cfg, current, "verified autonomous cycle "+cycle.Worker.RunID)
+	if err := injectTaskInterruption(p.failureInjector, taskFailureBeforeCheckpoint); err != nil {
+		return current, err
+	}
+	cfg := autonomousworkspace.Config{ControlRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-checkpoint-" + p.idGenerator(), BaselineSHA: current.BaselineSHA, GitExecutable: p.run.GitExecutable, Timeout: p.run.GitTimeout, StdoutCap: p.run.GitStdoutCap, StderrCap: p.run.GitStderrCap, Clock: p.clock, CommandRunner: autonomousworkspace.CommandRunner(commandRunner(p.run))}
+	trusted := current
+	trusted.HeadSHA = cycle.Worker.Commit.CommitSHA
+	trusted.SourceRevision = cycle.Source.FinalRevision
+	trusted.UpdatedAt = p.clock().UTC()
+	advanced, err := autonomousworkspace.AdvanceCheckpoint(ctx, cfg, trusted, "verified autonomous cycle "+cycle.Worker.RunID)
 	if err != nil {
 		return current, err
 	}
@@ -894,7 +1009,33 @@ func advanceWorkspace(ctx context.Context, p productionStepConfig, current auton
 	if err != nil {
 		return current, err
 	}
+	if err := injectTaskInterruption(p.failureInjector, taskFailureAfterCheckpoint); err != nil {
+		return current, err
+	}
 	return *applied.Current.State.Workspace, nil
+}
+
+func taskAuditApplier(p productionStepConfig) autonomousoptional.AuditApplier {
+	return func(ctx context.Context, cfg autonomousauditapply.ApplyConfig) (autonomousauditapply.Result, error) {
+		if err := injectTaskInterruption(p.failureInjector, taskFailureBeforeAudit); err != nil {
+			return autonomousauditapply.Result{}, err
+		}
+		result, err := autonomousauditapply.ApplyAuditResult(ctx, cfg)
+		if err != nil {
+			return result, err
+		}
+		if err := injectTaskInterruption(p.failureInjector, taskFailureAfterAudit); err != nil {
+			return result, err
+		}
+		return result, nil
+	}
+}
+
+func injectTaskInterruption(inject taskInterruptionInjector, point taskInterruptionPoint) error {
+	if inject == nil {
+		return nil
+	}
+	return inject(point)
 }
 
 func buildFrozenEvidence(ctx context.Context, p productionStepConfig, snapshot autonomousstate.Snapshot, cycle autonomouscycle.Result, step autonomoustaskrun.StepResult) (autonomousfinalization.FrozenEvidence, error) {
@@ -938,7 +1079,7 @@ func buildFrozenEvidence(ctx context.Context, p productionStepConfig, snapshot a
 	if source.LatestMutation == nil {
 		source.LatestMutation = inferMutation(p.taskID, history, source.Revision)
 	}
-	e := autonomousfinalization.FrozenEvidence{SchemaVersion: autonomousfinalization.FrozenEvidenceSchemaVersion, OperationID: p.operationID + "-finalization", FinalizationRunID: "finalization-" + id.New(), Task: autonomousfinalization.TaskSource{TaskID: task.ID, Title: task.Title, Path: task.SourcePath, SHA256: task.SourceSHA256(), ByteSize: task.SourceByteSize(), Workflow: task.Workflow, StatePath: task.AutonomousStatePath, CompletedSHA256: projected.SourceSHA256(), CompletedByteSize: projected.SourceByteSize()}, State: snapshot.State, StateIdentity: stateID, Decision: *cycle.Supervisor.Decision, DecisionReference: *cycle.Supervisor.DecisionReference, Route: *cycle.Route, Source: source, Verification: *step.Verification, Audit: *step.Audit, Workspace: *snapshot.State.Workspace, SafetyPolicy: *cycle.SafetyPolicy, SafetyPreflight: *cycle.SafetyPreflight, EffectiveConfigSchema: p.configSchema, EffectiveConfigSHA256: p.configSHA, Commits: commits, Runs: runs, Provenance: []autonomous.EvidenceReference{{Kind: autonomous.EvidenceKindTask, Reference: task.SourcePath, Detail: "Exact canonical task source at completion admission."}, {Kind: autonomous.EvidenceKindLedger, Reference: "ledger:" + cycle.Supervisor.RunID, Detail: "Fresh complete supervisor decision run."}}, AdmittedAt: now, TerminalAt: now}
+	e := autonomousfinalization.FrozenEvidence{SchemaVersion: autonomousfinalization.FrozenEvidenceSchemaVersion, OperationID: p.operationID + "-finalization", FinalizationRunID: "finalization-" + p.idGenerator(), Task: autonomousfinalization.TaskSource{TaskID: task.ID, Title: task.Title, Path: task.SourcePath, SHA256: task.SourceSHA256(), ByteSize: task.SourceByteSize(), Workflow: task.Workflow, StatePath: task.AutonomousStatePath, CompletedSHA256: projected.SourceSHA256(), CompletedByteSize: projected.SourceByteSize()}, State: snapshot.State, StateIdentity: stateID, Decision: *cycle.Supervisor.Decision, DecisionReference: *cycle.Supervisor.DecisionReference, Route: *cycle.Route, Source: source, Verification: *step.Verification, Audit: *step.Audit, Workspace: *snapshot.State.Workspace, SafetyPolicy: *cycle.SafetyPolicy, SafetyPreflight: *cycle.SafetyPreflight, EffectiveConfigSchema: p.configSchema, EffectiveConfigSHA256: p.configSHA, Commits: commits, Runs: runs, Provenance: []autonomous.EvidenceReference{{Kind: autonomous.EvidenceKindTask, Reference: task.SourcePath, Detail: "Exact canonical task source at completion admission."}, {Kind: autonomous.EvidenceKindLedger, Reference: "ledger:" + cycle.Supervisor.RunID, Detail: "Fresh complete supervisor decision run."}}, AdmittedAt: now, TerminalAt: now}
 	if err := e.Validate(); err != nil {
 		return autonomousfinalization.FrozenEvidence{}, err
 	}
@@ -966,7 +1107,16 @@ func revalidateFrozen(ctx context.Context, p productionStepConfig, e autonomousf
 	if err != nil || !found {
 		return errors.Join(err, autonomousstate.ErrStateMissing)
 	}
-	identity, err := autonomousstate.StateIdentityFor(snapshot.SourcePath, true, snapshot.State)
+	stateForIdentity := snapshot.State
+	if stateForIdentity.Lifecycle == autonomous.LifecycleStateFinalizing && stateForIdentity.Finalization != nil {
+		if stateForIdentity.Finalization.OperationID != e.OperationID || stateForIdentity.Finalization.RunID != e.FinalizationRunID {
+			return errors.New("completion state changed")
+		}
+		stateForIdentity.Lifecycle = e.State.Lifecycle
+		stateForIdentity.LatestDecision = e.State.LatestDecision
+		stateForIdentity.Finalization = e.State.Finalization
+	}
+	identity, err := autonomousstate.StateIdentityFor(snapshot.SourcePath, true, stateForIdentity)
 	if err != nil || identity != e.StateIdentity {
 		return errors.Join(err, errors.New("completion state changed"))
 	}

@@ -164,6 +164,9 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		return failed(result, OutcomeSourceChangedDuringDossier, "dossier_source_window", sourceChangedError("source changed during dossier assembly", result.Source.DossierDifference))
 	}
 
+	if err := injectFailure(n.FailureInjector, FailureBeforeSupervisor); err != nil {
+		return failed(result, OutcomeSupervisorFailed, "supervisor_interruption", err)
+	}
 	supervisorResult, supervisorErr := n.SupervisorRunner(ctx, supervisor.Config{
 		RepositoryRoot:                 n.root,
 		ExecutionRoot:                  n.executionRoot,
@@ -184,8 +187,11 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		CodexApprovalPolicy:            n.CodexApprovalPolicy,
 		CodexBypassApprovalsAndSandbox: n.CodexBypassApprovalsAndSandbox,
 		CodexVersion:                   n.CodexVersion,
+		CodexIdentity:                  n.CodexIdentity,
+		CodexReleaseManifest:           n.CodexReleaseManifest,
 		EffectiveConfigSchema:          n.EffectiveConfigSchema,
 		EffectiveConfigSHA256:          n.EffectiveConfigSHA256,
+		GitIdentity:                    n.GitIdentity,
 		SafetyPolicySHA256:             safetyOutput.Policy.PolicySHA256,
 		CodexTimeout:                   n.CodexTimeout,
 		CodexStdoutCap:                 n.CodexStdoutCap,
@@ -204,6 +210,9 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		SafetyPreflight:                &safetyOutput.Preflight,
 	})
 	result.Supervisor = supervisorResult
+	if err := injectFailure(n.FailureInjector, FailureAfterSupervisor); err != nil {
+		return failed(result, OutcomeSupervisorFailed, "supervisor_interruption", err)
+	}
 	if supervisorErr != nil {
 		return failed(result, OutcomeSupervisorFailed, "supervisor", supervisorErr)
 	}
@@ -333,6 +342,13 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	default:
 		return failed(result, OutcomePolicyRejected, "policy_route", fmt.Errorf("unknown route kind %q", route.Kind))
 	}
+}
+
+func injectFailure(inject FailureInjector, point FailurePoint) error {
+	if inject == nil {
+		return nil
+	}
+	return inject(point)
 }
 
 func normalizeConfig(cfg Config) (normalizedConfig, error) {

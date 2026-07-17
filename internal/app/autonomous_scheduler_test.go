@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -105,7 +106,9 @@ func TestSchedulingFingerprintExcludesQueueAndLedgerRuntimeChanges(t *testing.T)
 }
 
 func TestDaemonRefusesOperatorAttendedConfiguration(t *testing.T) {
-	_, err := RunDaemon(context.Background(), Config{WorkDir: t.TempDir()}, DaemonInput{OperationID: "daemon-attended", MaxSweeps: 1, Poll: time.Millisecond, Debounce: time.Millisecond})
+	repo := t.TempDir()
+	initializeSchedulingGitRepository(t, repo)
+	_, err := RunDaemon(context.Background(), Config{WorkDir: repo}, DaemonInput{OperationID: "daemon-attended", MaxSweeps: 1, Poll: time.Millisecond, Debounce: time.Millisecond})
 	if err == nil || !strings.Contains(err.Error(), "fully-unattended") {
 		t.Fatalf("err=%v", err)
 	}
@@ -135,7 +138,11 @@ notifications:
   stderr_cap_bytes: 128
   maximum_attempts: 1
   retry_delay_seconds: 0
+verification:
+  commands: [{name: go}]
 `)
+	runSchedulingGit(t, repo, "add", "notify-hook")
+	runSchedulingGit(t, repo, "commit", "-q", "-m", "Add notification fixture")
 	taskPath := filepath.Join(repo, ".agent", "tasks", "notify-task.md")
 	before, _ := os.ReadFile(taskPath)
 	steps, hooks := 0, 0
@@ -185,6 +192,7 @@ notifications:
 
 func createSchedulingTask(t *testing.T, repo, id string, dependencies []string) {
 	t.Helper()
+	initializeSchedulingGitRepository(t, repo)
 	task, err := taskfile.ProjectAutonomousTask(repo, taskfile.AutonomousCreateInput{ID: id, Title: id, Body: "Bounded work.", DependsOn: dependencies})
 	if err != nil {
 		t.Fatal(err)
@@ -204,4 +212,34 @@ func createSchedulingTask(t *testing.T, repo, id string, dependencies []string) 
 	if err = os.WriteFile(path, raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	runSchedulingGit(t, repo, "add", ".agent")
+	runSchedulingGit(t, repo, "commit", "-q", "-m", "Add "+id)
+}
+
+func initializeSchedulingGitRepository(t *testing.T, repo string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(repo, ".git")); err == nil {
+		return
+	}
+	runSchedulingGit(t, repo, "init", "-q")
+	runSchedulingGit(t, repo, "config", "user.name", "Revolvr Test")
+	runSchedulingGit(t, repo, "config", "user.email", "revolvr@example.invalid")
+	if err := os.MkdirAll(filepath.Join(repo, ".git", "info"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".git", "info", "exclude"), []byte("/.revolvr/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeAppTestFile(t, filepath.Join(repo, ".revolvr", "config.yaml"), "verification:\n  commands: [{name: go}]\n")
+}
+
+func runSchedulingGit(t *testing.T, repo string, args ...string) string {
+	t.Helper()
+	command := exec.Command("git", args...)
+	command.Dir = repo
+	raw, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, raw)
+	}
+	return strings.TrimSpace(string(raw))
 }

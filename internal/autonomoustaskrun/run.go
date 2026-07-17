@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ type Config struct {
 	OperationID     string
 	TaskID          string
 	ConfigSHA256    string
+	EffectiveBounds EffectiveBounds
 	MaxCycles       MaxCycles
 	Clock           func() time.Time
 	Runner          StepRunner
@@ -279,6 +281,9 @@ func normalize(cfg Config) (normalized, error) {
 	if len(cfg.ConfigSHA256) != 64 {
 		return normalized{}, errors.New("task run: effective configuration SHA-256 is required")
 	}
+	if err := cfg.EffectiveBounds.Validate(); err != nil {
+		return normalized{}, err
+	}
 	if err := cfg.MaxCycles.Validate(); err != nil {
 		return normalized{}, err
 	}
@@ -337,7 +342,13 @@ func admit(n normalized, task taskfile.Task) (Operation, error) {
 	taskID.Path = task.SourcePath
 	stateID := hashBytes(stateRaw)
 	stateID.Path = snap.SourcePath
-	op := Operation{SchemaVersion: OperationSchemaVersion, OperationID: n.OperationID, TaskID: task.ID, Task: taskID, State: stateID, ConfigSHA256: n.ConfigSHA256, MaxCycles: n.MaxCycles, StartedAt: now, UpdatedAt: now, Stage: "admitted"}
+	var effectiveBounds *EffectiveBounds
+	if n.EffectiveBounds.SchemaVersion != "" {
+		value := n.EffectiveBounds
+		value.ActionAttempts = append([]ActionAttemptBound(nil), value.ActionAttempts...)
+		effectiveBounds = &value
+	}
+	op := Operation{SchemaVersion: OperationSchemaVersion, OperationID: n.OperationID, TaskID: task.ID, Task: taskID, State: stateID, ConfigSHA256: n.ConfigSHA256, EffectiveBounds: effectiveBounds, MaxCycles: n.MaxCycles, StartedAt: now, UpdatedAt: now, Stage: "admitted"}
 	op.Metrics = metricsEvidence(snap.State)
 	if snap.State.Workspace != nil {
 		op.WorkspaceID = snap.State.Workspace.WorkspaceID
@@ -420,7 +431,13 @@ func canonicalTerminal(root, taskID string) (StopReason, string, error) {
 	return "", "", nil
 }
 func compatible(op Operation, n normalized) error {
-	if op.SchemaVersion != OperationSchemaVersion || op.OperationID != n.OperationID || (n.TaskID != "" && op.TaskID != n.TaskID) || op.ConfigSHA256 != n.ConfigSHA256 || op.MaxCycles != n.MaxCycles {
+	var effectiveBounds *EffectiveBounds
+	if n.EffectiveBounds.SchemaVersion != "" {
+		value := n.EffectiveBounds
+		value.ActionAttempts = append([]ActionAttemptBound(nil), value.ActionAttempts...)
+		effectiveBounds = &value
+	}
+	if op.SchemaVersion != OperationSchemaVersion || op.OperationID != n.OperationID || (n.TaskID != "" && op.TaskID != n.TaskID) || op.ConfigSHA256 != n.ConfigSHA256 || !reflect.DeepEqual(op.EffectiveBounds, effectiveBounds) || op.MaxCycles != n.MaxCycles {
 		return errors.New("task run: durable operation conflicts with requested task, configuration, or cycle limit")
 	}
 	return nil

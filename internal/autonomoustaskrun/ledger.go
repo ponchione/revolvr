@@ -20,30 +20,36 @@ const LedgerEventSchemaVersion = "autonomous-task-run-event-v2"
 // LedgerEvent is the strict logical task-operation evidence consumed by
 // read-only projections and immutable export replay.
 type LedgerEvent struct {
-	SchemaVersion string           `json:"schema_version"`
-	OperationID   string           `json:"operation_id"`
-	TaskID        string           `json:"task_id"`
-	Sequence      int64            `json:"sequence"`
-	Stage         string           `json:"stage"`
-	Cycle         int64            `json:"cycle"`
-	Action        string           `json:"action,omitempty"`
-	DecisionID    string           `json:"decision_id,omitempty"`
-	RunID         string           `json:"run_id,omitempty"`
-	StopReason    StopReason       `json:"stop_reason,omitempty"`
-	StopDetail    string           `json:"stop_detail,omitempty"`
-	StartedAt     time.Time        `json:"started_at"`
-	UpdatedAt     time.Time        `json:"updated_at"`
-	CompletedAt   *time.Time       `json:"completed_at,omitempty"`
-	Statistics    Statistics       `json:"statistics"`
-	Metrics       *MetricsEvidence `json:"metrics_evidence,omitempty"`
-	Verification  json.RawMessage  `json:"verification,omitempty"`
-	Audit         json.RawMessage  `json:"audit,omitempty"`
+	SchemaVersion   string           `json:"schema_version"`
+	OperationID     string           `json:"operation_id"`
+	TaskID          string           `json:"task_id"`
+	Sequence        int64            `json:"sequence"`
+	Stage           string           `json:"stage"`
+	Cycle           int64            `json:"cycle"`
+	Action          string           `json:"action,omitempty"`
+	DecisionID      string           `json:"decision_id,omitempty"`
+	RunID           string           `json:"run_id,omitempty"`
+	StopReason      StopReason       `json:"stop_reason,omitempty"`
+	StopDetail      string           `json:"stop_detail,omitempty"`
+	StartedAt       time.Time        `json:"started_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
+	CompletedAt     *time.Time       `json:"completed_at,omitempty"`
+	Statistics      Statistics       `json:"statistics"`
+	EffectiveBounds *EffectiveBounds `json:"effective_bounds,omitempty"`
+	Metrics         *MetricsEvidence `json:"metrics_evidence,omitempty"`
+	Verification    json.RawMessage  `json:"verification,omitempty"`
+	Audit           json.RawMessage  `json:"audit,omitempty"`
 }
 
 func loopLedgerRunID(operationID string) string {
 	sum := sha256.Sum256([]byte("autonomous-task-run-ledger-v1\x00" + operationID))
 	return "task-run-" + hex.EncodeToString(sum[:12])
 }
+
+// LedgerRunID returns the deterministic ledger run identity owned by one
+// durable task operation. Read-only recovery inspection uses the same
+// identity rather than searching ledger history heuristically.
+func LedgerRunID(operationID string) string { return loopLedgerRunID(operationID) }
 
 func admitLoopLedger(ctx context.Context, n normalized, op Operation) error {
 	if n.Ledger == nil {
@@ -77,7 +83,7 @@ func recordLoopEvent(ctx context.Context, n normalized, op Operation, eventType 
 	if n.Ledger == nil {
 		return nil
 	}
-	payload := LedgerEvent{SchemaVersion: LedgerEventSchemaVersion, OperationID: op.OperationID, TaskID: op.TaskID, Sequence: op.Sequence, Stage: op.Stage, Cycle: op.Statistics.CyclesStarted, Action: op.LastAction, DecisionID: op.LastDecisionID, RunID: op.LastRunID, StopReason: op.StopReason, StopDetail: op.StopDetail, StartedAt: op.StartedAt, UpdatedAt: op.UpdatedAt, CompletedAt: op.CompletedAt, Statistics: op.Statistics, Metrics: op.Metrics}
+	payload := LedgerEvent{SchemaVersion: LedgerEventSchemaVersion, OperationID: op.OperationID, TaskID: op.TaskID, Sequence: op.Sequence, Stage: op.Stage, Cycle: op.Statistics.CyclesStarted, Action: op.LastAction, DecisionID: op.LastDecisionID, RunID: op.LastRunID, StopReason: op.StopReason, StopDetail: op.StopDetail, StartedAt: op.StartedAt, UpdatedAt: op.UpdatedAt, CompletedAt: op.CompletedAt, Statistics: op.Statistics, EffectiveBounds: op.EffectiveBounds, Metrics: op.Metrics}
 	if op.Verification != nil {
 		payload.Verification, _ = json.Marshal(op.Verification)
 	}

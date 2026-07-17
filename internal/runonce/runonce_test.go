@@ -122,7 +122,7 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		{"status", "--porcelain=v1", "-z", "--untracked-files=all"},
 		{"rev-parse", "--verify", "--quiet", "HEAD"},
 		{"--literal-pathspecs", "add", "--", "internal/feature.go"},
-		{"commit", "-m", "Implement selected task", "-m", "Run-ID: " + result.Run.ID + "\nTask-ID: task-1\nVerification: passed"},
+		{"--literal-pathspecs", "commit", "--only", "-m", "Implement selected task", "-m", "Run-ID: " + result.Run.ID + "\nTask-ID: task-1\nVerification: passed", "--", "internal/feature.go"},
 		{"rev-parse", "--verify", "--quiet", "HEAD"},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("git commands = %#v, want %#v", got, want)

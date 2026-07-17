@@ -49,6 +49,7 @@ func runWorker(
 	if err != nil {
 		return failed(result, OutcomeWorkerFailed, "worker_dossier_projection", err)
 	}
+	result.DossierManifest = dossier.Manifest
 	profileRaw := []byte(profile.Description)
 	result.Worker.Action = route.Action
 	result.Worker.Profile = ProfileEvidence{
@@ -127,6 +128,8 @@ func runWorker(
 		EffectiveConfigSchema: n.EffectiveConfigSchema,
 		EffectiveConfigSHA256: n.EffectiveConfigSHA256,
 		SafetyPolicySHA256:    n.safetyPolicySHA256,
+		CodexIdentity:         n.CodexIdentity,
+		GitIdentity:           n.GitIdentity,
 	})
 	if err != nil {
 		return failed(result, OutcomeWorkerFailed, "worker_invocation", err)
@@ -244,6 +247,9 @@ func runWorker(
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "worker_ledger", result.Worker.LedgerError, receipt.VerdictBlocked, "not_run", "")
 	}
 
+	if err := injectFailure(n.FailureInjector, FailureBeforeWorker); err != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "worker_interruption", err, receipt.VerdictSafetyLimit, "not_run", "")
+	}
 	result.Worker.Started = true
 	codexResult, codexErr := n.CodexRunner(ctx, codexexec.Config{
 		Executable:                n.CodexExecutable,
@@ -264,12 +270,13 @@ func runWorker(
 			Stderr:      paths.codexStderr,
 			LastMessage: paths.output,
 		},
-		OutputSchema:  paths.outputSchema,
-		RunID:         workerRunID,
-		Ledger:        n.Ledger,
-		CommandRunner: codexexec.CommandRunner(n.CommandRunner),
-		Provenance:    invocation,
-		Redactor:      n.redactor,
+		OutputSchema:    paths.outputSchema,
+		RunID:           workerRunID,
+		Ledger:          n.Ledger,
+		CommandRunner:   codexexec.CommandRunner(n.CommandRunner),
+		Provenance:      invocation,
+		ReleaseManifest: n.CodexReleaseManifest,
+		Redactor:        n.redactor,
 	})
 	if codexErr != nil {
 		if codexResult.ExitCode == 0 {
@@ -278,6 +285,9 @@ func runWorker(
 		codexResult.Err = codexErr
 	}
 	result.Worker.Codex = codexResult
+	if err := injectFailure(n.FailureInjector, FailureAfterWorker); err != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "worker_interruption", err, receipt.VerdictSafetyLimit, "not_run", "")
+	}
 	if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeWorkerFailed, "source_lock_after_worker", errors.Join(codexErr, codexResult.Err, ownershipErr), receipt.VerdictSafetyLimit, "not_run", "")
 	}
@@ -356,6 +366,9 @@ func runWorker(
 	}
 	var verificationResult verification.Result
 	var verificationErr error
+	if err := injectFailure(n.FailureInjector, FailureBeforeVerification); err != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeVerificationFailed, "verification_interruption", err, receipt.VerdictSafetyLimit, "not_run", "")
+	}
 	if n.VerificationPlan == nil {
 		verificationResult, verificationErr = n.VerificationRunner(ctx, verification.Config{
 			WorkingDir:            n.executionRoot,
@@ -390,6 +403,9 @@ func runWorker(
 			result.Worker.Artifacts.Verification = &artifact
 		}
 	}
+	if err := injectFailure(n.FailureInjector, FailureAfterVerification); err != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeVerificationFailed, "verification_interruption", err, receipt.VerdictSafetyLimit, verificationStatus(verificationResult), "")
+	}
 	if verificationResult.LedgerError != nil {
 		setWorkerLedgerError(&result, verificationResult.LedgerError)
 	}
@@ -418,6 +434,9 @@ func runWorker(
 	}
 
 	workerChanges := captureForWorkerChanges(changedCapture, result.Source.ChangedFiles)
+	if err := injectFailure(n.FailureInjector, FailureBeforeCommit); err != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeCommitFailed, "commit_interruption", err, receipt.VerdictSafetyLimit, "passed", "")
+	}
 	commitResult, commitErr := n.CommitRunner(ctx, commit.Config{
 		WorkingDir:               n.executionRoot,
 		RunID:                    workerRunID,
@@ -437,6 +456,9 @@ func runWorker(
 		CommandRunner:            commit.CommandRunner(n.CommandRunner),
 	})
 	result.Worker.Commit = commitResult
+	if err := injectFailure(n.FailureInjector, FailureAfterCommit); err != nil {
+		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeCommitFailed, "commit_interruption", errors.Join(commitErr, err), receipt.VerdictSafetyLimit, "passed", commitResult.CommitSHA)
+	}
 	if ownershipErr := sourceOwnershipError(ctx, n); ownershipErr != nil {
 		return finishWorker(ctx, n, task, route, preRunDirty, &result, OutcomeCommitFailed, "source_lock_after_commit", errors.Join(commitErr, ownershipErr), receipt.VerdictSafetyLimit, "passed", commitResult.CommitSHA)
 	}

@@ -59,8 +59,10 @@ type Config struct {
 	RunID                      string
 	Ledger                     Ledger
 	CommandRunner              CommandRunner
+	LookPath                   ExecutableLookPath
 	OnProgress                 func(ProgressEvent)
 	Provenance                 InvocationProvenance
+	ReleaseManifest            *ReleaseManifest
 	Redactor                   *redact.Redactor
 	LastMessageFailureInjector LastMessageFailureInjector
 }
@@ -92,6 +94,20 @@ type Result struct {
 	LastMessageRedaction redact.Facts
 }
 
+func provenanceCodexIdentity(provenance InvocationProvenance) CodexExecutableIdentity {
+	if provenance.CodexIdentity == nil {
+		return CodexExecutableIdentity{}
+	}
+	return *provenance.CodexIdentity
+}
+
+func provenanceGitIdentity(provenance InvocationProvenance) ExecutableIdentity {
+	if provenance.GitIdentity == nil {
+		return ExecutableIdentity{}
+	}
+	return *provenance.GitIdentity
+}
+
 func Run(ctx context.Context, cfg Config) (Result, error) {
 	cfg, workDir, err := normalizeConfig(cfg)
 	if err != nil {
@@ -113,6 +129,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		EffectiveConfigSchema:  cfg.Provenance.EffectiveConfigSchema,
 		EffectiveConfigSHA256:  cfg.Provenance.EffectiveConfigSHA256,
 		SafetyPolicySHA256:     cfg.Provenance.SafetyPolicySHA256,
+		CodexIdentity:          provenanceCodexIdentity(cfg.Provenance),
+		GitIdentity:            provenanceGitIdentity(cfg.Provenance),
 	})
 	if err != nil {
 		return Result{}, err
@@ -125,6 +143,25 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 			return Result{}, errors.New("run codex exec: supplied invocation provenance does not match effective invocation")
 		}
 		provenance = cfg.Provenance
+	}
+	commandName := cfg.Executable
+	if provenance.CodexIdentity != nil {
+		if err := VerifyExecutableIdentity(provenance.CodexIdentity.Executable, cfg.LookPath); err != nil {
+			return Result{}, fmt.Errorf("run codex exec: %w", err)
+		}
+		manifest := ReleaseManifest{}
+		if cfg.ReleaseManifest != nil {
+			manifest = *cfg.ReleaseManifest
+		} else {
+			manifest, err = CurrentReleaseManifest()
+			if err != nil {
+				return Result{}, err
+			}
+		}
+		if err := manifest.Authorize(*provenance.CodexIdentity); err != nil {
+			return Result{}, fmt.Errorf("run codex exec: %w", err)
+		}
+		commandName = provenance.CodexIdentity.Executable.Resolved
 	}
 
 	stdoutFile, err := createArtifact(artifacts.StdoutJSONL)
@@ -193,7 +230,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	})
 
 	runResult := cfg.CommandRunner(ctx, runner.Command{
-		Name:         cfg.Executable,
+		Name:         commandName,
 		Args:         args,
 		Stdin:        strings.NewReader(cfg.Prompt),
 		Dir:          workDir,

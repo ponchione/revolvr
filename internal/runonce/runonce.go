@@ -38,6 +38,8 @@ const (
 	defaultOutputCap           = 256 * 1024
 	defaultLockTimeout         = 5 * time.Minute
 	defaultLockReleaseTimeout  = 5 * time.Second
+	defaultGitTimeout          = 30 * time.Second
+	defaultCommitTimeout       = 30 * time.Second
 )
 
 type Outcome string
@@ -68,6 +70,7 @@ type Config struct {
 	RetentionPolicy    artifactretention.Policy
 	NotificationPolicy autonomousnotification.Policy
 	QueuePolicy        autonomousqueue.Policy
+	OperationalBounds  OperationalBounds
 
 	LedgerStore *ledger.Store
 	LedgerPath  string
@@ -82,11 +85,13 @@ type Config struct {
 	CodexTimeout                   time.Duration
 	CodexStdoutCap                 int
 	CodexStderrCap                 int
+	CodexIdentity                  codexexec.CodexExecutableIdentity
 
 	GitExecutable string
 	GitTimeout    time.Duration
 	GitStdoutCap  int
 	GitStderrCap  int
+	GitIdentity   codexexec.ExecutableIdentity
 
 	VerificationCommands      []verification.Command
 	VerificationPlan          *autonomousverification.Plan
@@ -307,9 +312,9 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		result.Message = "load run profile failed: " + err.Error()
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
-	versionTimeout := cfg.CodexTimeout
-	if versionTimeout <= 0 {
-		versionTimeout = codexexec.DefaultVersionTimeout
+	versionTimeout := codexexec.DefaultVersionTimeout
+	if cfg.CodexTimeout > 0 && cfg.CodexTimeout < versionTimeout {
+		versionTimeout = cfg.CodexTimeout
 	}
 	codexVersion, err := cfg.CodexVersionDiscoverer(ctx, codexexec.VersionConfig{
 		Executable:    cfg.CodexExecutable,
@@ -652,6 +657,26 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	if cfg.CodexStderrCap <= 0 {
 		cfg.CodexStderrCap = defaultOutputCap
 	}
+	if cfg.CodexTimeout <= 0 {
+		cfg.CodexTimeout = DefaultAttendedProcessTimeout
+	}
+	if cfg.CodexIdentity != (codexexec.CodexExecutableIdentity{}) {
+		if err := cfg.CodexIdentity.Validate(); err != nil {
+			return Config{}, "", fmt.Errorf("run once: %w", err)
+		}
+		if cfg.CodexIdentity.Executable.Configured != cfg.CodexExecutable {
+			return Config{}, "", errors.New("run once: Codex executable identity does not match configured executable")
+		}
+	}
+	if cfg.GitTimeout <= 0 {
+		cfg.GitTimeout = defaultGitTimeout
+	}
+	if cfg.VerificationTimeout <= 0 {
+		cfg.VerificationTimeout = DefaultAttendedProcessTimeout
+	}
+	if cfg.CommitTimeout <= 0 {
+		cfg.CommitTimeout = defaultCommitTimeout
+	}
 	if cfg.GitStdoutCap <= 0 {
 		cfg.GitStdoutCap = defaultOutputCap
 	}
@@ -673,6 +698,14 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 	cfg.GitExecutable = strings.TrimSpace(cfg.GitExecutable)
 	if cfg.GitExecutable == "" {
 		cfg.GitExecutable = defaultGitExecutable
+	}
+	if cfg.GitIdentity != (codexexec.ExecutableIdentity{}) {
+		if err := cfg.GitIdentity.Validate(); err != nil {
+			return Config{}, "", fmt.Errorf("run once: Git %w", err)
+		}
+		if cfg.GitIdentity.Configured != cfg.GitExecutable {
+			return Config{}, "", errors.New("run once: Git executable identity does not match configured executable")
+		}
 	}
 	if cfg.SourceWriterLockTimeout <= 0 {
 		cfg.SourceWriterLockTimeout = defaultLockTimeout
@@ -704,6 +737,9 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 		plan := autonomousverification.ClonePlan(*cfg.VerificationPlan)
 		cfg.VerificationPlan = &plan
 	}
+	if err := normalizeOperationalBounds(&cfg); err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
 	if cfg.CodexRunner == nil {
 		cfg.CodexRunner = codexexec.Run
 	}
@@ -731,6 +767,75 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 		cfg.Clock = time.Now
 	}
 	return cfg, workDir, nil
+}
+
+func normalizeOperationalBounds(cfg *Config) error {
+	bounds := cfg.OperationalBounds
+	if bounds.SchemaVersion == "" {
+		bounds.SchemaVersion = OperationalBoundsSchema
+	}
+	if bounds.TaskAttempts == 0 {
+		bounds.TaskAttempts = DefaultTaskAttemptLimit
+	}
+	if len(bounds.ActionAttempts) == 0 {
+		bounds.ActionAttempts = make([]ActionAttemptBound, len(attendedBoundedActions))
+		for i, action := range attendedBoundedActions {
+			bounds.ActionAttempts[i] = ActionAttemptBound{Action: action, Attempts: DefaultActionAttemptLimit}
+		}
+	} else {
+		bounds.ActionAttempts = append([]ActionAttemptBound(nil), bounds.ActionAttempts...)
+	}
+	if bounds.Elapsed == 0 {
+		bounds.Elapsed = DefaultAttendedElapsedLimit
+	}
+	if bounds.ModelTokens == 0 {
+		bounds.ModelTokens = DefaultModelTokenLimit
+	}
+	if bounds.CyclesPerTask == 0 {
+		bounds.CyclesPerTask = DefaultTaskCycleLimit
+	}
+	processDurations := []time.Duration{cfg.CodexTimeout, cfg.GitTimeout, cfg.VerificationTimeout, cfg.CommitTimeout}
+	for _, command := range cfg.VerificationCommands {
+		processDurations = append(processDurations, command.Timeout)
+	}
+	if cfg.VerificationPlan != nil {
+		for _, tier := range cfg.VerificationPlan.Tiers {
+			for _, command := range tier.Commands {
+				processDurations = append(processDurations, command.Timeout)
+			}
+		}
+	}
+	for _, duration := range processDurations {
+		if duration > bounds.ProcessDuration {
+			bounds.ProcessDuration = duration
+		}
+	}
+	outputCaps := []int{cfg.CodexStdoutCap, cfg.CodexStderrCap, cfg.GitStdoutCap, cfg.GitStderrCap, cfg.VerificationStdoutCap, cfg.VerificationStderrCap, cfg.CommitStdoutCap, cfg.CommitStderrCap}
+	for _, cap := range outputCaps {
+		if cap > bounds.OutputBytesPerStream {
+			bounds.OutputBytesPerStream = cap
+		}
+	}
+	bounds.RetainedDiskBytes = cfg.RetentionPolicy.MaxBytesPerOperation
+	if cfg.NotificationPolicy.Enabled {
+		bounds.NotificationAttempts = cfg.NotificationPolicy.MaximumAttempts
+		if cfg.NotificationPolicy.Timeout > bounds.ProcessDuration {
+			bounds.ProcessDuration = cfg.NotificationPolicy.Timeout
+		}
+		if cfg.NotificationPolicy.StdoutCap > bounds.OutputBytesPerStream {
+			bounds.OutputBytesPerStream = cfg.NotificationPolicy.StdoutCap
+		}
+		if cfg.NotificationPolicy.StderrCap > bounds.OutputBytesPerStream {
+			bounds.OutputBytesPerStream = cfg.NotificationPolicy.StderrCap
+		}
+	} else {
+		bounds.NotificationAttempts = 0
+	}
+	if err := bounds.Validate(cfg.NotificationPolicy.Enabled); err != nil {
+		return err
+	}
+	cfg.OperationalBounds = bounds
+	return nil
 }
 
 func EffectiveConfig(cfg Config) (Config, error) {

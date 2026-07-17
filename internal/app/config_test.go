@@ -23,6 +23,26 @@ func TestCheckRunConfigCodexDefaults(t *testing.T) {
 	}
 }
 
+func TestCheckRunConfigDefaultsToWorkingDirectory(t *testing.T) {
+	root := t.TempDir()
+	before, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(before) })
+
+	result, err := CheckRunConfig("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Effective.WorkingDir != root {
+		t.Fatalf("effective working directory = %q, want %q", result.Effective.WorkingDir, root)
+	}
+}
+
 func TestCheckRunConfigCodexOverrides(t *testing.T) {
 	workDir := t.TempDir()
 	writeConfigTestFile(t, workDir, `

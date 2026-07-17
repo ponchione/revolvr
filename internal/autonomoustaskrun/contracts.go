@@ -76,6 +76,39 @@ type ActionCount struct {
 	Count  int64  `json:"count"`
 }
 
+type ActionAttemptBound struct {
+	Action   string `json:"action"`
+	Attempts int64  `json:"attempts"`
+}
+
+type EffectiveBounds struct {
+	SchemaVersion        string               `json:"schema_version"`
+	TaskAttempts         int64                `json:"task_attempts"`
+	ActionAttempts       []ActionAttemptBound `json:"action_attempts"`
+	ElapsedNanoseconds   int64                `json:"elapsed_nanoseconds"`
+	ModelTokens          int64                `json:"model_tokens"`
+	CyclesPerTask        int64                `json:"cycles_per_task"`
+	ProcessNanoseconds   int64                `json:"process_nanoseconds"`
+	OutputBytesPerStream int                  `json:"output_bytes_per_stream"`
+	RetainedDiskBytes    int64                `json:"retained_disk_bytes"`
+	NotificationAttempts int                  `json:"notification_attempts"`
+}
+
+func (b EffectiveBounds) Validate() error {
+	if b.SchemaVersion == "" {
+		return nil
+	}
+	if b.TaskAttempts <= 0 || b.ElapsedNanoseconds <= 0 || b.ModelTokens <= 0 || b.CyclesPerTask <= 0 || b.ProcessNanoseconds <= 0 || b.OutputBytesPerStream <= 0 || b.RetainedDiskBytes <= 0 || b.NotificationAttempts < 0 || len(b.ActionAttempts) == 0 {
+		return errors.New("task run: effective operational bounds are malformed")
+	}
+	for i, bound := range b.ActionAttempts {
+		if strings.TrimSpace(bound.Action) == "" || bound.Attempts <= 0 || i > 0 && b.ActionAttempts[i-1].Action >= bound.Action {
+			return errors.New("task run: effective action bounds are not positive and canonically ordered")
+		}
+	}
+	return nil
+}
+
 type Statistics struct {
 	SupervisorStarted   int64         `json:"supervisor_started"`
 	SupervisorCompleted int64         `json:"supervisor_completed"`
@@ -131,32 +164,33 @@ func (s *Statistics) Add(d Statistics) {
 }
 
 type Operation struct {
-	SchemaVersion  string                                 `json:"schema_version"`
-	OperationID    string                                 `json:"operation_id"`
-	TaskID         string                                 `json:"task_id"`
-	Task           Identity                               `json:"task"`
-	State          Identity                               `json:"state"`
-	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
-	CheckpointSHA  string                                 `json:"checkpoint_sha,omitempty"`
-	ConfigSHA256   string                                 `json:"config_sha256"`
-	MaxCycles      MaxCycles                              `json:"max_cycles"`
-	StartedAt      time.Time                              `json:"started_at"`
-	UpdatedAt      time.Time                              `json:"updated_at"`
-	CompletedAt    *time.Time                             `json:"completed_at,omitempty"`
-	Sequence       int64                                  `json:"sequence"`
-	Stage          string                                 `json:"stage"`
-	InFlight       bool                                   `json:"in_flight"`
-	Statistics     Statistics                             `json:"statistics"`
-	LastAction     string                                 `json:"last_action,omitempty"`
-	LastRunID      string                                 `json:"last_run_id,omitempty"`
-	LastDecisionID string                                 `json:"last_decision_id,omitempty"`
-	Evidence       []string                               `json:"evidence,omitempty"`
-	LatestMutation *autonomouspolicy.SourceMutation       `json:"latest_mutation,omitempty"`
-	Verification   *autonomouspolicy.VerificationEvidence `json:"verification,omitempty"`
-	Audit          *autonomouspolicy.AuditEvidence        `json:"audit,omitempty"`
-	Metrics        *MetricsEvidence                       `json:"metrics_evidence,omitempty"`
-	StopReason     StopReason                             `json:"stop_reason,omitempty"`
-	StopDetail     string                                 `json:"stop_detail,omitempty"`
+	SchemaVersion   string                                 `json:"schema_version"`
+	OperationID     string                                 `json:"operation_id"`
+	TaskID          string                                 `json:"task_id"`
+	Task            Identity                               `json:"task"`
+	State           Identity                               `json:"state"`
+	WorkspaceID     string                                 `json:"workspace_id,omitempty"`
+	CheckpointSHA   string                                 `json:"checkpoint_sha,omitempty"`
+	ConfigSHA256    string                                 `json:"config_sha256"`
+	EffectiveBounds *EffectiveBounds                       `json:"effective_bounds,omitempty"`
+	MaxCycles       MaxCycles                              `json:"max_cycles"`
+	StartedAt       time.Time                              `json:"started_at"`
+	UpdatedAt       time.Time                              `json:"updated_at"`
+	CompletedAt     *time.Time                             `json:"completed_at,omitempty"`
+	Sequence        int64                                  `json:"sequence"`
+	Stage           string                                 `json:"stage"`
+	InFlight        bool                                   `json:"in_flight"`
+	Statistics      Statistics                             `json:"statistics"`
+	LastAction      string                                 `json:"last_action,omitempty"`
+	LastRunID       string                                 `json:"last_run_id,omitempty"`
+	LastDecisionID  string                                 `json:"last_decision_id,omitempty"`
+	Evidence        []string                               `json:"evidence,omitempty"`
+	LatestMutation  *autonomouspolicy.SourceMutation       `json:"latest_mutation,omitempty"`
+	Verification    *autonomouspolicy.VerificationEvidence `json:"verification,omitempty"`
+	Audit           *autonomouspolicy.AuditEvidence        `json:"audit,omitempty"`
+	Metrics         *MetricsEvidence                       `json:"metrics_evidence,omitempty"`
+	StopReason      StopReason                             `json:"stop_reason,omitempty"`
+	StopDetail      string                                 `json:"stop_detail,omitempty"`
 }
 
 func (o Operation) Validate() error {
@@ -171,6 +205,11 @@ func (o Operation) Validate() error {
 	}
 	if len(o.ConfigSHA256) != 64 {
 		return errors.New("task run: operation effective configuration identity is invalid")
+	}
+	if o.EffectiveBounds != nil {
+		if err := o.EffectiveBounds.Validate(); err != nil {
+			return err
+		}
 	}
 	if err := o.MaxCycles.Validate(); err != nil {
 		return err

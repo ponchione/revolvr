@@ -152,7 +152,8 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 
 	subject, body := commitMessageParts(cfg.TaskSummary, cfg.RunID, cfg.TaskID)
-	commitResult := runGit(ctx, cfg, workDir, []string{"commit", "-m", subject, "-m", body})
+	commitArgs := []string{"--literal-pathspecs", "commit", "--only", "-m", subject, "-m", body, "--"}
+	commitResult := runGit(ctx, cfg, workDir, append(commitArgs, result.ChangedFiles...))
 	result.Commands = append(result.Commands, commitResult)
 
 	postCommitHEAD, postCommitResults, retried, err := resolveHEADAfterCommit(ctx, cfg, workDir)

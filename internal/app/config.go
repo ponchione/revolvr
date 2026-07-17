@@ -2,10 +2,12 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,6 +20,8 @@ import (
 	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
+	"revolvr/internal/repositorypath"
+	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
 	"revolvr/internal/verification"
 )
@@ -41,6 +45,8 @@ type RunConfigCheckResult struct {
 	Effective             runonce.Config
 	EffectiveConfigSchema string
 	EffectiveConfigSHA256 string
+	CodexIdentityError    string
+	GitIdentityError      string
 }
 
 type fileConfig struct {
@@ -199,11 +205,13 @@ func CheckRunConfig(workDir string) (RunConfigCheckResult, error) {
 	if err != nil {
 		return RunConfigCheckResult{}, err
 	}
-	path := filepath.Join(paths.StateDir, DefaultConfigFile)
-	found, err := existingFile(path)
+	authority, err := repositorypath.Inspect(paths.WorkDir, repositorypath.InspectOptions{})
 	if err != nil {
 		return RunConfigCheckResult{}, err
 	}
+	workDir = authority.Root()
+	path := filepath.Join(authority.Root(), stateDirName, DefaultConfigFile)
+	found := authority.ConfigPresent()
 
 	cfg, err := LoadRunOnceConfig(workDir, DefaultRunOnceConfig(workDir))
 	if err != nil {
@@ -212,6 +220,31 @@ func CheckRunConfig(workDir string) (RunConfigCheckResult, error) {
 	effective, err := runonce.EffectiveConfig(cfg)
 	if err != nil {
 		return RunConfigCheckResult{}, err
+	}
+	codexIdentityError := ""
+	codexExecutable, err := codexexec.InspectExecutable(effective.CodexExecutable, exec.LookPath)
+	if err == nil {
+		version, versionErr := codexexec.DiscoverVersion(context.Background(), codexexec.VersionConfig{Executable: codexExecutable.Resolved, WorkingDir: workDir, Timeout: codexexec.DefaultVersionTimeout, StdoutCap: effective.CodexStdoutCap, StderrCap: effective.CodexStderrCap, CommandRunner: codexexec.CommandRunner(runner.Run)})
+		if versionErr != nil {
+			err = versionErr
+		} else {
+			effective.CodexIdentity = codexexec.CodexExecutableIdentity{Version: version, Executable: codexExecutable}
+			manifest, manifestErr := codexexec.CurrentReleaseManifest()
+			if manifestErr != nil {
+				err = manifestErr
+			} else {
+				err = manifest.Authorize(effective.CodexIdentity)
+			}
+		}
+	}
+	if err != nil {
+		codexIdentityError = err.Error()
+	}
+	effective.GitIdentity, err = codexexec.InspectExecutable(effective.GitExecutable, exec.LookPath)
+	gitIdentityError := ""
+	if err != nil {
+		gitIdentityError = err.Error()
+		effective.GitIdentity = codexexec.ExecutableIdentity{}
 	}
 	fingerprint, err := runonce.FingerprintEffectiveConfig(effective)
 	if err != nil {
@@ -223,6 +256,8 @@ func CheckRunConfig(workDir string) (RunConfigCheckResult, error) {
 		Effective:             effective,
 		EffectiveConfigSchema: fingerprint.Schema,
 		EffectiveConfigSHA256: fingerprint.SHA256,
+		CodexIdentityError:    codexIdentityError,
+		GitIdentityError:      gitIdentityError,
 	}, nil
 }
 
@@ -246,9 +281,16 @@ func LoadRunOnceConfig(workDir string, base runonce.Config) (runonce.Config, err
 	if err != nil {
 		return runonce.Config{}, err
 	}
-	path := filepath.Join(paths.StateDir, DefaultConfigFile)
-	content, err := os.ReadFile(path)
+	authority, err := repositorypath.Inspect(paths.WorkDir, repositorypath.InspectOptions{})
 	if errors.Is(err, os.ErrNotExist) {
+		return base, nil
+	}
+	if err != nil {
+		return runonce.Config{}, err
+	}
+	path := filepath.Join(authority.Root(), stateDirName, DefaultConfigFile)
+	content, found, err := authority.ReadFile(repositorypath.ConfigFile, true)
+	if err == nil && !found {
 		return base, nil
 	}
 	if err != nil {

@@ -1,0 +1,9 @@
+{
+  "schema_version": "revolvr-release-executable-manifest-v1",
+  "codex": [
+    {
+      "version": "codex-cli 0.144.4",
+      "sha256": "134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477"
+    }
+  ]
+}

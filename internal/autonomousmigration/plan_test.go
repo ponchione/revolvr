@@ -114,10 +114,11 @@ func TestBuildProducesDeterministicByteExactMigrationPlan(t *testing.T) {
 
 func TestBuildRejectsEveryEligibilityClass(t *testing.T) {
 	tests := []struct {
-		name    string
-		raw     string
-		prepare func(*testing.T, string)
-		want    string
+		name           string
+		raw            string
+		prepare        func(*testing.T, string)
+		want           string
+		wantLoadUnsafe bool
 	}{
 		{name: "audit phase", raw: mixedMigrationTask("candidate", "pending", "audit", ""), want: "phase_not_implement"},
 		{name: "document phase", raw: mixedMigrationTask("candidate", "pending", "document", ""), want: "phase_not_implement"},
@@ -143,7 +144,7 @@ func TestBuildRejectsEveryEligibilityClass(t *testing.T) {
 			if err := os.Symlink(target, filepath.Join(root, ".revolvr")); err != nil {
 				t.Fatal(err)
 			}
-		}, want: "autonomous_state_path_unsafe"},
+		}, wantLoadUnsafe: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -152,7 +153,18 @@ func TestBuildRejectsEveryEligibilityClass(t *testing.T) {
 			if test.prepare != nil {
 				test.prepare(t, root)
 			}
-			snapshot := loadMigrationSchedule(t, root)
+			snapshot, loadErr := taskschedule.Load(context.Background(), taskschedule.Config{
+				RepositoryRoot: root, SelectionWorkflow: taskscheduler.WorkflowMixedPassV1,
+			})
+			if test.wantLoadUnsafe {
+				if !errors.Is(loadErr, runtimepath.ErrUnsafe) {
+					t.Fatalf("shared canonical load error = %v, want unsafe path refusal", loadErr)
+				}
+				return
+			}
+			if loadErr != nil {
+				t.Fatal(loadErr)
+			}
 			_, err := Build(root, snapshot, Request{TaskIDs: []string{"candidate"}, DryRun: true})
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Build error = %v, want %q", err, test.want)

@@ -1,5 +1,433 @@
 # Agent Decisions
 
+## EXT-17 Level-1 Dogfood Evidence Authority (2026-07-16)
+
+- Real collection is opt-in and never initializes or authors the external
+  fixture. Admission requires an exact clean non-bare Git top level, a tracked
+  fixed-content disposable marker plus an exact canonical-path confirmation,
+  a nonempty outside sentinel, and a new evidence directory outside both.
+- Candidate authority is the exact binary SHA-256, exact version output, and
+  clean Go build `vcs.revision`. Codex authority is the exact executable path,
+  SHA-256, and version, repeated by candidate config inspection and admitted
+  by exact-task attended doctor. The raw approved configuration SHA-256 and
+  every documented Level-1 effective bound must also agree before operation or
+  evidence publication begins.
+- One invocation owns one exact task operation and emits schema
+  `revolvr-external-level1-dogfood-manifest-v1`. Before/after Git, sentinel,
+  canonical task, runtime, workspace, ledger/export, receipt, run, history,
+  completion, resource, and typed-outcome evidence is retained under relative
+  bundle paths. A sorted SHA-256 file inventory covers the manifest and every
+  regular evidence file; a separate digest covers that inventory, and bundle
+  verification rejects missing, extra, aliased, or changed evidence.
+- Ledger export/verify/replay and receipt validation are ordinary explicit
+  evidence operations after the task run. The collector never edits task-run,
+  state, history, receipt, or recovery files to manufacture an outcome. A
+  mismatch, unclassified result, sentinel change, identity drift, invalid
+  receipt, or failed ledger validation retains the bundle and fails the
+  collector.
+- Fixture-only output is deterministic mechanism evidence, not real-Codex soak
+  or release approval. It uses a separately built clean VCS-stamped candidate,
+  fixed fixture authority, and no model execution. Its four input faults prove
+  pre-admission refusal against exact source/Git/index and outside-sentinel
+  snapshots without creating an evidence directory.
+
+## EXT-15 Exact-Candidate Release CI Authority (2026-07-16)
+
+- Release CI runs on every pushed branch and tag and on every pull request,
+  without path filters. Its required jobs are independent and have no job-level
+  conditions or dependency chains, so a release ref cannot turn a failed
+  prerequisite into skipped downstream checks.
+- The Go 1.22 source-floor job pins `1.22.x` with `GOTOOLCHAIN=local`. Separate
+  jobs own the production autonomous strict-fake suite, full race suite,
+  vet/module verification, successful and verification-failure fake-Codex
+  smokes, supported Linux/Darwin/FreeBSD builds, and the unsupported Windows
+  diagnostic-stub assertion. The existing supported/unsupported platform split
+  remains explicit.
+- Every job verifies checked-out `HEAD` equals `GITHUB_SHA` and publishes that
+  exact identity in its job summary. Workflow success is therefore evidence
+  about one source commit rather than a moving branch name; remote execution
+  and required-check conclusions for the candidate remain the separate EXT-19
+  gate.
+- Mixed-pass smoke fakes emit an exact syntactically valid Codex CLI version so
+  config inspection can retain diagnostic executable identity. Their unlisted
+  bytes/version never become release-authorized autonomous authority, and the
+  production strict-fake suite continues to use an exact test manifest through
+  its existing unexported test seam.
+
+## EXT-14 Production Interruption Recovery Ownership (2026-07-16)
+
+- The durable task-run operation is the Level-1 quarantine boundary. A machine
+  interruption at any production task transition leaves the stable outer
+  operation in flight; restart of that exact operation terminalizes it as
+  `unsafe_or_ambiguous` without inferring whether an inner process or durable
+  effect may be repeated.
+- Notification delivery remains an independent at-least-once owner. Restart
+  reuses the payload's stable delivery ID; a completed delivery journal is
+  terminal and cannot invoke the receiver again.
+- Explicit archive administration rolls its exact operation forward. An
+  admitted journal whose manifest is not yet published may reconstruct the
+  manifest only from still-active terminal authority and must match its
+  journal-bound artifact identity. If immutable publication already happened,
+  those published bytes are authoritative even when the journal still records
+  the earlier stage.
+- Failure-injection hooks are nil by default and bracket the production owner
+  calls. They add deterministic interruption proof without changing ordinary
+  execution or creating a generic retry surface.
+
+## EXT-13 Explicit Operator Recovery Authority (2026-07-16)
+
+- Autonomous task recovery exposes one read-only projection with seven ordered
+  authorities: task, state, workspace, Git, ledger, receipt, and artifacts.
+  The projection is the sole basis for reconciliation readiness and carries a
+  canonical digest of the inspected operation and authority results.
+- Workspace/Git recovery inspection is distinct from mutation-capable reopen.
+  It verifies the same deterministic marker, common-directory, registration,
+  linked-worktree, branch, HEAD, tree, source, and cleanliness authority but
+  takes no Git-administration mutation lease and never publishes a retained
+  ambiguity ref. Reopen retains that publication behavior for its explicit
+  recovery owner.
+- Reconciliation is restricted to terminal `unsafe_or_ambiguous` operations
+  and requires both an explicit reconcile flag and an exact operation-ID
+  confirmation. Generic retry and unblock remain separate surfaces and cannot
+  invoke or clear this quarantine.
+- All authorities are repeated under the execution lease. Reconciliation
+  refuses any change, preserves the old operation byte-for-byte, and publishes
+  a distinct admitted operation with a stable identity and evidence linking the
+  old operation and authority digest. Exact repeated requests replay that new
+  identity without duplicating authority.
+- The daemon's fully-unattended safety mode is a request-level prerequisite and
+  is therefore checked before environment-dependent executable admission.
+  Requests that satisfy it still undergo the complete external configuration,
+  executable identity, repository, and runtime admission sequence.
+
+## EXT-11 External Git Containment Edge Matrix (2026-07-16)
+
+- External Git containment is proved against real repositories at the app
+  boundary. Dirty and staged operator authority and active submodules stop at
+  shared admission; policy-relevant ignored source may pass porcelain
+  cleanliness but stops at the content-sensitive source snapshot before task
+  ref or workspace publication.
+- SHA-1 and SHA-256 repositories use the same exact task-workspace and
+  path-scoped commit contract. A control root may itself be a genuine linked
+  worktree; its branch, HEAD, index, and source remain separate from the
+  deterministic task branch and execution worktree.
+- A concurrent operator commit on the ambient control branch is independent
+  authority. Injection after the task commit's pre-HEAD observation and before
+  task staging proves the task commit retains the admitted baseline parent and
+  exact run-owned tree, while the operator commit retains its own ref/tree and
+  neither absorbs the other's path.
+- Index authority is its exact bytes, size, file type, permissions, and link
+  count plus the resulting staged tree/status. The index inode timestamp is not
+  authority because ordinary read-only Git status may refresh it without
+  changing index bytes. Outside and unrelated-worktree sentinels retain the
+  stricter complete metadata oracle, including timestamps, symlink targets,
+  and hard-link counts.
+
+## EXT-10 Run-Owned Commit And Git-Operation Containment (2026-07-16)
+
+- Generated commits use one exact path authority twice: byte-sorted,
+  duplicate-free paths from the complete admitted post-run capture are staged
+  with literal pathspecs and supplied again to literal `git commit --only`.
+  Unrelated paths already present in the index therefore remain staged but do
+  not enter the generated commit; unrelated tracked-worktree and untracked
+  bytes likewise remain outside it.
+- Exact containment proof is based on real Git, not only command arguments.
+  It compares the complete committed path tree and every changed/unowned blob
+  after injecting late staged, tracked, and untracked operator bytes, and then
+  proves those late filesystem and index authorities remain intact.
+- External production autonomy does not own repository integration or
+  destructive restoration. Push, merge, rebase, reset, clean, and stash are
+  prohibited; the unused workspace `Restore` implementation and its private
+  reset/clean support path are removed. Existing restored-status decoding
+  remains compatible evidence, but no production operation may create new
+  restored authority by destructive Git commands.
+- The production command-spy proof enters through `app.RunTaskUntilTerminal`,
+  uses the real workspace/commit composition and ordinary command runner,
+  fails on any prohibited verb, and requires actual worktree and commit verbs
+  to have been observed. A separately registered linked worktree is snapshotted
+  across the operation and must retain its exact branch, HEAD, status, tracked
+  bytes, untracked sentinel bytes, and mode.
+
+## EXT-09 Exact Task-Workspace Authority (2026-07-16)
+
+- The deterministic workspace tuple is one indivisible authority: task and
+  workspace IDs, canonical control and execution roots, Git common directory,
+  task branch ref, ownership-marker path, and exact baseline commit. Reopen and
+  commit reconciliation compare that tuple before acquiring the Git-admin
+  lock, so a changed control-root relationship cannot create runtime state in
+  task source before refusal.
+- The ownership marker is harness runtime evidence and therefore uses the
+  descriptor-rooted `runtimepath` boundary for directory creation, exclusive
+  file creation, opened/named identity recheck, synchronization, and readback.
+  A path name, canonical marker-shaped bytes, or a foreign symlink cannot grant
+  workspace ownership.
+- Git creates the linked-worktree `.git` file and may create its parent
+  directories according to the invoking umask. That Git-owned link is read
+  through a bounded final-component no-follow descriptor, must be one regular
+  single-link inode, and must retain the same named/opened identity across the
+  read. Parent symlinks are checked before and after; Git-created directory
+  mode is not treated as ownership-marker authority.
+- Production proof uses real Git for baseline, ambient-branch, ref, worktree,
+  marker, and source evidence. Foreign registration/common-directory results
+  are injected only at the ordinary Git command boundary. Every refusal
+  compares exact task-workspace HEAD, symbolic branch, porcelain status, and
+  tracked bytes before and after, while the positive case proves the ambient
+  operator branch never becomes the task workspace.
+
+## EXT-08 Production Attended Terminal Matrix (2026-07-16)
+
+- The terminal production proof enters only through
+  `app.RunTaskUntilTerminal`, supplies no task `StepRunner`, and uses the
+  separately compiled strict fake through the ordinary production coordinator.
+  Separate cases bind needs-input, block, verification failure, no progress,
+  safety refusal, cancellation, exact terminal replay, and maximum-cycle
+  authority to exact task, state, workspace, Git, receipt, task-run, and ledger
+  evidence.
+- A supervisor failure is a trusted safety stop only when the cycle carries a
+  typed changed `SourceDifference`, proving violation of supervisor read-only
+  authority. Safety classification does not inspect error text. Other
+  supervisor failures and verification failures remain unsafe or ambiguous.
+- Terminal replay re-enters the public app boundary with the exact operation,
+  task, configuration, and cycle authority. It performs the required current
+  executable admission but starts no additional model process and leaves the
+  complete durable task-run operation tree byte-for-byte unchanged.
+- Production terminal tests treat absence as evidence: model invocation count,
+  verification/receipt artifacts, commit count, canonical task changes,
+  state-history categories, finalization artifacts/state/runs/events, and
+  task-run ledger transitions are all asserted against a per-case allowlist.
+
+## EXT-07 Production Correction And Re-audit (2026-07-16)
+
+- The correction production proof enters only through
+  `app.RunTaskUntilTerminal`, uses the ordinary production coordinator and a
+  separately compiled strict fake, and requires one blocking audit, one exact
+  cited repair commit, a distinct final verification, exact finding
+  resolution, a distinct clean re-audit, and terminal completion. Exact IDs
+  and evidence counts make duplicated, skipped, or conflated stages fail the
+  proof.
+- A top-level auditor dossier may identify the execution state captured before
+  attempt admission. Audit application accepts that identity only when it is a
+  valid predecessor of the current state and the two states differ solely by
+  append-only attempt accounting; lifecycle, plan, workspace, findings, and
+  every other authority must remain identical.
+- A correction coordinator's mandatory independent re-audit receives an
+  ephemeral workspace/state projection at the correction commit and resulting
+  source revision. This projection grants read-only audit authority and does
+  not advance durable checkpoint state; the durable checkpoint remains gated
+  on the full correction sequence succeeding.
+- Audit output verification provenance is compared by canonical JSON value,
+  because worker-visible JSON intentionally excludes in-memory-only fields.
+  Stored auditor profiles reopen under the same strict identity rule used at
+  admission: either exact file bytes or deterministic surrounding-whitespace
+  normalization must match the recorded digest and size.
+
+## EXT-06 Production-Composition Happy Path (2026-07-16)
+
+- The attended production-composition proof enters only through
+  `app.RunTaskUntilTerminal`, supplies no task `StepRunner`, and uses the real
+  production workspace, cycle, attempt, optional-role, verification, commit,
+  checkpoint, audit, and finalization owners. A separately compiled strict
+  fake remains the only model substitute and is invoked by the ordinary
+  runner as five fresh ephemeral Codex processes.
+- Deterministic production IDs and a test release manifest are injectable only
+  through unexported app test seams. The admitted manifest is propagated to
+  each Codex invocation so the strict fake exercises the same exact executable
+  identity checks; ordinary public callers continue to use the embedded
+  release-authored manifest and nondeterministic production IDs.
+- A cycle result carries the worker's role-projected dossier rather than the
+  supervisor's broader dossier. Audit admission therefore validates the exact
+  auditor role dossier against the post-commit safety workspace and separately
+  validates the supervisor dossier provenance. Profile evidence may represent
+  either exact file bytes or the prompt loader's deterministic surrounding-
+  whitespace normalization, but the supplied digest and size must match one
+  representation exactly.
+- Production step restart authority comes from durable current audit history,
+  not only the transient task-run operation projection. Missing latest
+  mutation, verification, or audit values are rehydrated before policy
+  evaluation. An optional source-changing role's required nested audit receives
+  an ephemeral state/workspace projection at the exact committed head while
+  durable checkpoint authority remains unchanged until the complete attempt
+  succeeds.
+- Checkpoint advancement is admitted from the exact verified run-owned commit
+  returned by the cycle. Completion live-evidence revalidation may unwrap only
+  the matching in-progress finalization envelope to recompute the frozen state
+  identity; a different operation/run or any unrelated state drift remains a
+  hard refusal.
+
+## EXT-05 Strict Reusable Fake-Codex Contract (2026-07-16)
+
+- The production autonomous integration fixture is a separately compiled Go
+  executable under `internal/app/testdata`, not an injected command function,
+  in-process Codex shortcut, or replacement task `StepRunner`. App tests invoke
+  it only through the ordinary bounded runner used by `codexexec.Run`.
+- One strict sibling JSON contract owns version-call and exec-call counts,
+  exact invocation order, argv, working directory, prompts, schema paths and
+  bytes, full environment identity, last-message bytes, ordered JSONL records,
+  and optional receipt bytes. Mutable sibling state contains only completed
+  counts and emitted event types, making missing, duplicate, reordered, or
+  surplus calls observable and fail-closed.
+- Every exec contract must itself be a fresh `exec --json --ephemeral`
+  invocation with one final stdin marker and no `resume`. The fake validates
+  before writing output and exits with a distinct refusal status on argv,
+  directory, schema, prompt, environment, count, or output-sequence drift.
+- Complete environment equality is represented without persisting ambient
+  values: the contract stores sorted variable names and a SHA-256 over the
+  exact sorted name/value entries. The fake compares both projections and
+  reports names only on mismatch.
+- Deterministic supervisor and worker last-message/JSONL material plus an exact
+  worker receipt are caller-supplied fixture evidence. This keeps the reusable
+  executable mechanism independent of a particular future happy path while
+  allowing later app tests to bind the real production schemas, prompts,
+  artifact paths, and output sequence exactly.
+
+## EXT-04 Release-Authored Executable Identity Authority (2026-07-15)
+
+- Release executable authority is an embedded, strict-schema manifest. The
+  first manifest contains exactly one build: the exact string `codex-cli
+  0.144.4` paired with SHA-256
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+  Semantic ranges, alternate version spellings, unlisted versions, and the
+  listed version emitted by different bytes are not authority.
+- An executable identity consists of the configured command spelling, the
+  canonical absolute symlink-resolved regular-file path, and the lowercase
+  SHA-256 of the opened bytes. Codex adds its exact discovered version. Git
+  uses the same executable identity without a release version allowlist. The
+  path lookup result or version output alone never grants execution authority.
+- Mode-aware preflight inspects and renders both identities. Production
+  autonomous execution rechecks them before computing the effective
+  fingerprint or creating task effects; `codexexec.Run` rechecks the Codex
+  identity and current release manifest again before artifact creation and
+  executes the admitted resolved path. This makes preflight a snapshot rather
+  than a transferable lease and rejects drift at the invocation boundary.
+- Effective-config schema v7 includes both identities, and supervisor and
+  worker invocation provenance records the same projections. Config check is
+  diagnostic: it retains and fingerprints a well-formed observed identity
+  even when the current release refuses it, rendering the refusal separately;
+  doctor and execution remain fail-closed. Unresolved or malformed identities
+  are never admitted.
+
+## EXT-03 Initial External Scope and Attended Bounds (2026-07-15)
+
+- One shared external-scope projection owns the initial platform, Git shape,
+  submodule, cleanliness, verification-presence, and operational-bound checks.
+  Mode-aware preflight renders that projection and public attended-task,
+  queue, and daemon execution re-runs it before acquiring the autonomous lock
+  or creating workspace, ledger, task, model, or verification effects.
+- Attended-task is admitted only on Linux, macOS, and FreeBSD. Queue and daemon
+  are admitted only on Linux. Repository authority requires a resolved
+  configured Git executable, a non-bare worktree whose exact top-level is the
+  requested repository root, no active recursive submodule, and a clean Git
+  worktree. External autonomous admission requires at least one effective
+  verification command even if a legacy missing-verification compatibility
+  switch is configured.
+- Level-1 defaults are 16 task attempts, 4 attempts for each canonical action,
+  4 hours elapsed, 1,000,000 model tokens, and 50 cycles per task. Process and
+  per-stream output bounds are the largest effective configured timeout and
+  cap (30 minutes and 256 KiB by default); retained disk bytes come from the
+  retention operation cap (1 GiB by default); enabled notification attempts
+  come from the required positive notification policy limit. Unlimited
+  attended cycles are not external authority.
+- Operational bounds are part of effective-config schema v6 and its
+  fingerprint. Config check and doctor render the same canonical projection;
+  task-run operation state and immutable ledger events record an exact copy,
+  and replay requires it to agree. An omitted config-check work directory is
+  normalized to the current directory before descriptor-backed inspection so
+  the real CLI retains its established default.
+
+## EXT-02 Mode-Aware Read-Only Preflight (2026-07-15)
+
+- `app.PreflightMode` is a closed request authority: empty normalizes to
+  `attended-task`, and the only explicit values are `attended-task`, `queue`,
+  and `daemon`. Bare doctor therefore renders byte-for-byte identically to the
+  explicit attended form. An exact task selector belongs only to attended
+  mode, uses canonical task-ID grammar without trimming, and must currently be
+  an autonomous task with shared scheduler readiness `ready`.
+- Request-shape validation precedes worktree resolution and every repository
+  read, executable lookup, command, or write. Explicit empty CLI flags,
+  unsupported modes, malformed task identities, and queue/daemon selectors
+  cannot reach preflight effects.
+- `loadAutonomousGraph` is the shared current-snapshot loader for mode-aware
+  preflight, fresh exact-task admission, and queue/daemon snapshots. It
+  strictly loads canonical tasks and every autonomous state/child-publication
+  authority, verifies protected archive evidence with the effective command
+  runner and read-only ledger, and applies the shared graph validator.
+- Preflight records the normalized mode, optional task identity, canonical and
+  autonomous task counts, and exact selected-task readiness. Unsafe protected
+  state or invalid graph authority stops before the ordinary Codex/Git doctor
+  commands. Execution independently invokes the loader again; a successful
+  preflight is never a transferable lease.
+
+## EXT-01 Shared Repository-Path Admission (2026-07-15)
+
+- `internal/repositorypath.Inspect` is the common read-only authority check for
+  present `.agent`, direct canonical task Markdown, `.revolvr`, config, and
+  ledger paths. It binds the canonical repository-root inode, uses no-follow
+  descriptor traversal, and requires safe directory modes plus single-link,
+  safe-mode regular files. Missing paths are presence facts and inspection
+  never creates directories, files, locks, SQLite sidecars, or other evidence.
+- Status initialization retains its compatibility meaning: `.revolvr` and its
+  ledger are present. Missing `.agent` remains a safe empty canonical-task
+  namespace, while any present unsafe `.agent` or `.revolvr` authority is a
+  refusal shared by doctor, status, task loading, and autonomous admission.
+- Canonical task enumeration and task/config reads reuse the inspected
+  descriptor-root identity and recheck named/opened identities around reads.
+  Existing task containment diagnostics remain an earlier compatibility check;
+  they cannot admit anything rejected by the common boundary.
+- Public exact-task and queue operations inspect before acquiring the global
+  autonomous-execution flock. This ordering is required so an unsafe no-model
+  admission probe cannot create a lock namespace or any other runtime effect.
+  Execution and later owners still recheck their narrower authority; preflight
+  remains a current snapshot rather than a transferable lease.
+
+## External Autonomous Readiness Policy (2026-07-15)
+
+- External-project readiness is approved in order: attended single task,
+  unattended bounded queue, then unattended daemon. The first queue approval
+  is sequential with one worker; parallelism is a later approval rather than a
+  prerequisite for safe external use.
+- An unprovable in-flight model or command boundary is never heuristically
+  resumed. Exact idempotent transitions still replay, while the affected task
+  is durably quarantined with immutable `unsafe_or_ambiguous` operation
+  evidence. Unrelated queue work may continue only after durable exclusion.
+  Recovery is an explicit new operator action that reconciles every authority
+  and creates a new operation identity; generic retry does not erase the old
+  occurrence.
+- The initial unattended deployment profile is Linux in a rootless OCI
+  container with only the project/control root writable, read-only container
+  root, private/bounded process and temporary resources, no host home or
+  privileged sockets/devices/capabilities, disabled Git hooks, replacement
+  environment, redacted declared Codex credentials, and externally enforced
+  default-deny egress limited to the tested Codex endpoint set. Arbitrary task
+  network access is not initially supported.
+- Mode-aware `doctor --for attended-task|queue|daemon` is the preflight
+  contract. Bare doctor remains the attended compatibility form. Preflight,
+  status, and no-model admission share local authority checks; execution
+  always rechecks and never treats preflight as a lease.
+- External autonomous admission uses a release-authored allowlist of exact
+  Codex version strings and resolved executable SHA-256 identities. The first
+  release may support one exact CLI build. Go 1.22 remains the language floor,
+  while release binaries use and record a currently supported patched Go
+  toolchain with no reachable vulnerability.
+- Unattended operation requires explicit finite positive attempt, action,
+  elapsed, token, cycle, queue-task, daemon-sweep, process, output, disk, and
+  notification bounds. Unlimited token or time authority is invalid. Every
+  bound is fingerprinted, rendered, and recorded.
+- The first supported repositories are operator-controlled non-bare Git
+  repositories without active submodules. Revolvr never pushes, merges,
+  rebases, resets, cleans, or stashes them, and never archives completion
+  automatically. Review and integration remain explicit operator actions.
+- Soak gates are quantitative. Level 1 requires 10 real task operations across
+  two external repositories and the named success/failure/input/cancel/safety
+  scenarios. Level 2 requires three sequential queues totaling 20 operations
+  plus dependency, yield, cancellation, restart, and quarantine continuation.
+  Level 3 requires 72 continuous hours, 10 external wakes, two clean restarts,
+  and one interrupted active sweep. Containment, duplication, evidence-loss,
+  manual-state-edit, or unclassified-ambiguity failures invalidate approval.
+- The complete task-authoring source is
+  `.agent/AUTONOMOUS_EXTERNAL_READINESS.md`. New backlog decomposition must
+  preserve these decisions and create small independently verifiable tasks;
+  policy is reopened only for direct contradictory evidence.
+
 ## AUDIT-R4-CLOSE-01 Final Audit Closure (2026-07-14)
 
 - Closure is requirement-by-requirement, not inferred from implementation

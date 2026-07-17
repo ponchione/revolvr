@@ -2,10 +2,1091 @@
 
 ## Current Focus
 
-`AUDIT-R4-CLOSE-01` is complete. Fresh source inspection, adversarial
-regressions, and the final verification matrix prove AP-01 through AP-06 are
-closed. `AUDIT_PROBLEMS.md` has been deleted; the audit backlog is empty and
-there are no blockers.
+The audit backlog remains closed. A new working release gate now lives at
+`.agent/AUTONOMOUS_EXTERNAL_READINESS.md` for autonomous use in external
+projects. Its previously open policy questions are settled in that document
+and `.agent/DECISIONS.md`: staged readiness levels, quarantine rather than
+heuristic in-flight resume, rootless Linux OCI isolation for unattended modes,
+mode-aware preflight, exact Codex executable/version authority, finite
+unattended budgets, sequential first queue approval, immutable tagged release
+authority, and quantitative dogfood/soak thresholds.
+
+The settled gates are now decomposed into 41 ordered, independently verifiable
+.agent/TASKS.md items. The sequence approves attended single-task operation
+first, then a Linux-only sequential bounded queue, then the Linux-only
+foreground daemon. Every item has explicit acceptance and verification
+evidence, and release commit/push/tag actions retain the repository rule that
+they require direct operator authorization.
+
+EXT-01 through EXT-17 are complete. EXT-14's previously implemented production
+interruption matrix has now passed its separate fresh verification pass.
+Doctor, status, canonical task loading, configuration reads, and exact-task/
+queue admission use one descriptor-backed, read-only repository-path
+inspection. Doctor now normalizes bare invocation to
+attended-task, supports the three settled modes, validates the strict canonical
+autonomous graph and protected task/state/archive authority, and optionally
+requires one exact attended task to be ready. Preflight and execution now share
+the initial Git repository, submodule, cleanliness, platform, verification, and
+finite attended-bound admission. External admission now binds the exact
+release-authored Codex version and resolved executable digest plus the resolved
+Git executable identity, rechecks them before execution, and records them in
+effective configuration and invocation provenance. A standalone strict fake
+Codex executable now validates the complete invocation contract and produces
+deterministic supervisor/worker evidence through the ordinary runner. The real
+production task runner now has exact strict-fake composition proofs spanning
+the direct happy path, a blocking finding through one cited correction and
+clean re-audit, and the complete attended terminal matrix: needs input,
+authorized block, verification failure, no progress, trusted safety refusal,
+caller cancellation, exact durable replay, and maximum cycle. Exact
+task-workspace proof now binds the deterministic task branch,
+baseline, control root, Git common directory, linked-worktree registration,
+ownership marker, current HEAD, and checkpoint evidence while refusing
+foreign or drifted authority before source mutation.
+The shared commit boundary now uses the same exact literal admitted path set
+for staging and `git commit --only`, so late unrelated index/worktree bytes
+cannot enter a generated commit. The unused destructive workspace restore
+surface is removed; production composition is command-spy proven free of
+push, merge, rebase, reset, clean, and stash while an unrelated linked
+worktree remains unchanged. The real-Git containment matrix now proves dirty
+and staged admission refusal, ignored-source refusal before workspace
+publication, active-submodule refusal, exact SHA-1 and SHA-256 task commits, a
+linked control worktree, and an operator commit injected during task
+publication. Exact
+control/task/unrelated branch, index, worktree, commit, and sentinel authority
+remains separated. The external recovery contract now enumerates all 30
+before/during/after transition seams for supervisor, worker, verification,
+commit, checkpoint, audit, finalization, queue reconciliation, notification,
+and archive publication. Every row binds exact durable replay, quarantine,
+readiness-level continuation, prohibited inference, and operator action.
+The next fresh task is EXT-18. Recovery inspection now uses a distinct
+read-only workspace/Git inspection path that takes no mutation lease and
+publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
+independent focused, race, and full-suite verification evidence.
+Current external-project decision remains not approved; the readiness
+document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-18 Release Candidate Blocked — Fresh Recheck (2026-07-17)
+
+- Task selected: `EXT-18`, produce a reproducible, versioned Level-1 release
+  candidate from one clean exact source commit.
+- Files changed in this pass: this state file only. `.agent/TASKS.md` remains
+  unchanged and EXT-18 remains unchecked. `.agent/DECISIONS.md` remains
+  unchanged because no durable implementation or architecture decision was
+  made.
+- Verification commands run: `git status --branch --porcelain=v2`; `git
+  rev-parse --verify HEAD`; `git describe --tags --always --dirty`; `git diff
+  --stat`; and `git ls-files --others --exclude-standard`.
+- Verification result: blocked before release construction. `HEAD` remains
+  exact commit `e76280cc93404aab403f8fe34036e6971e58bb78`, but the candidate
+  source remains outside that commit as 45 tracked-file modifications plus
+  untracked EXT-01 through EXT-17 release files. `git describe` reports
+  `e76280c-dirty`, so duplicate builds, candidate hashes, vulnerability
+  conclusions, supported-platform artifacts, and embedded source metadata
+  would not be authoritative release evidence.
+- What remains: obtain direct operator authorization to review and commit the
+  complete intended source tree as one exact candidate source commit, then run
+  EXT-18 in a fresh pass to finalize immutable build instructions, build twice
+  in fresh directories, compare hashes, run the full test/vet/module/
+  vulnerability/platform matrix, and verify embedded version/source metadata.
+- Blocker: this pass explicitly forbids commits. Making the tree clean would
+  require committing the intended release source or destructively discarding
+  or hiding repository changes; neither action is authorized. No repair was
+  attempted because every available repair would violate the pass rules or
+  destroy user-owned work.
+
+## EXT-18 Release Candidate Blocked (2026-07-17)
+
+- Task selected: `EXT-18`, produce a reproducible, versioned Level-1 release
+  candidate from one clean exact source commit.
+- Files changed in this pass: this state file only. `.agent/TASKS.md` remains
+  unchanged and EXT-18 remains unchecked. `.agent/DECISIONS.md` remains
+  unchanged because no durable implementation or architecture decision was
+  made.
+- Verification commands run: `git status --short`; `git status --branch
+  --porcelain=v2`; `git rev-parse HEAD`; `git describe --tags --always
+  --dirty`; `git tag --list --sort=-version:refname`; and a focused source scan
+  for existing version, build-metadata, and reproducibility surfaces.
+- Verification result: blocked before candidate construction. The checkout is
+  based on exact commit `e76280cc93404aab403f8fe34036e6971e58bb78` but has
+  dozens of tracked modifications and untracked files containing the completed
+  EXT-01 through EXT-17 work. It is therefore not the clean exact source
+  commit required by EXT-18, and no candidate hash, duplicate build,
+  vulnerability conclusion, supported-platform artifact, or embedded metadata
+  claim can be authoritative for this tree.
+- What remains: with direct operator commit authorization, commit the complete
+  intended source tree as one reviewed candidate source commit, then run EXT-18
+  in a fresh pass to add or finalize immutable build instructions, build twice
+  in fresh directories, compare hashes, run the full test/vet/module/
+  vulnerability/platform matrix, and verify embedded version/source metadata.
+- Blocker: this pass forbids commits. No repair was attempted because making
+  the tree clean would require either committing the intended release source or
+  destructively discarding/hiding repository changes; neither action is
+  authorized.
+
+## EXT-17 Wrong-Codex Refusal Oracle Repair (2026-07-17)
+
+- Task selected: `EXT-17`, repair and freshly verify the opt-in Level-1
+  dogfood evidence collector after the wrong-Codex no-mutation oracle failed
+  nondeterministically.
+- The failure was reproduced three times in 30 runs. `stat_fields` emitted
+  literal `\\t` text, so the Git index projection's `cut -f1-3` retained its
+  volatile mtime. A read-only status refresh crossing a one-second boundary
+  then appeared to change Git authority even though the index bytes, mode,
+  size, and link count were unchanged. Stat fields now contain real tab
+  delimiters, preserving the intended metadata while excluding only index
+  mtime from semantic Git authority. Any future Git projection mismatch prints
+  the exact recursive diff before the temporary diagnostics are removed.
+- Files changed in this fresh pass:
+  `scripts/dogfood-external-level1.sh`, `.agent/TASKS.md`, and this state file.
+  No dependency, production Go code, durable architecture decision, or commit
+  was added.
+- Verification commands: `bash -n scripts/dogfood-external-level1.sh`; 50
+  consecutive wrong-Codex fault repetitions; two independent `--fixture-only`
+  collections; canonical manifest comparison after removing only
+  `collected_at_utc`; `--verify-manifest` for both bundles; all four dirty,
+  non-disposable, wrong-binary, and wrong-Codex refusal fixtures; explicit
+  missing, changed, extra-regular-file, symlink, and hard-link tampering; `git
+  diff --check`; and a no-index whitespace check for the untracked collector.
+- Verification result: every syntax, repetition, deterministic collection,
+  manifest, refusal, no-mutation, tamper, and diff-hygiene check passed. All 50
+  wrong-Codex repetitions returned the intended status 64 with unchanged
+  authority evidence.
+- What remains: `EXT-18`, the reproducible versioned Level-1 release
+  candidate. Blockers for EXT-17: none. Real dogfood remains intentionally
+  uncollected until exact candidate and remote-CI authority exist;
+  external-project use remains unapproved.
+
+## Controller Rejection — EXT-17 Flaky Wrong-Codex Refusal Oracle (2026-07-16)
+
+- EXT-17 is not complete. In the controller's independent complete matrix, the
+  wrong-Codex fixture exited `1` with `rejected wrong-codex input changed Git
+  authority` instead of proving the required pre-mutation refusal.
+- Five immediate isolated repetitions of the same wrong-Codex case exited the
+  intended `64` with unchanged-authority evidence. That inconsistency makes
+  the refusal/no-mutation oracle nondeterministic; a passing retry does not
+  erase the failed required verification occurrence.
+- The hard-link repair itself passed: both original bundles verified, missing,
+  changed, extra-file, symlink, and hard-link tampering were rejected, and the
+  reproduced aliased files had link count two. Syntax, canonical-manifest
+  comparison, the other refusal cases, and diff hygiene also passed.
+- Repair requires reproducing and removing the wrong-Codex Git-authority
+  nondeterminism, retaining enough diagnostic evidence to identify any future
+  mismatch, and rerunning the complete EXT-17 matrix reliably.
+- EXT-17 is restored to unchecked. EXT-18 has not been assessed or authorized.
+  Blocker: none; run one fresh pass on EXT-17 only.
+
+## EXT-17 Hard-Link Alias Repair And Fresh Verification (2026-07-16)
+
+- Task selected: `EXT-17`, repair and freshly verify the opt-in Level-1
+  dogfood evidence collector after the reproduced hard-link substitution.
+- Inventory creation and manifest verification now require every regular
+  evidence file to have exactly one link before and after hashing. The
+  manifest, file inventory, and bundle digest receive the same single-link
+  check, so byte-identical paths cannot share inode authority.
+- Fixture-only collection permanently copies its completed bundle, replaces
+  `identity/doctor.err` with a hard link to the byte-identical
+  `identity/config-check.err`, and requires verification of that copied bundle
+  to fail without changing the retained fixture evidence.
+- Files changed in this fresh pass:
+  `scripts/dogfood-external-level1.sh`, `.agent/TASKS.md`, and this state file.
+  No dependency, production Go code, durable architecture decision, or commit
+  was added.
+- Verification commands: `bash -n scripts/dogfood-external-level1.sh`; two
+  independent `--fixture-only` collections; canonical manifest comparison
+  after removing only `collected_at_utc`; `--verify-manifest` for both original
+  bundles; all four dirty/non-disposable/wrong-binary/wrong-Codex refusal
+  fixtures; explicit missing, changed, extra-regular-file, symlink, and
+  reproduced hard-link tampering; `git diff --check`; and a no-index whitespace
+  check for the untracked collector.
+- Verification result: every required collection, determinism, validation,
+  refusal, tamper, and diff-hygiene check passed. The hard-linked
+  `config-check.err`/`doctor.err` pair had link count two and was rejected.
+- What remains: EXT-18, the reproducible versioned Level-1 release candidate.
+  Blockers for EXT-17: none. Real dogfood remains intentionally uncollected
+  until exact candidate and remote-CI authority exist; external-project use
+  remains unapproved.
+
+## Controller Rejection — EXT-17 Manifest Alias Verification (2026-07-16)
+
+- EXT-17 is not complete. Its durable decision says bundle verification
+  rejects aliased evidence, but independent verification replaced
+  `identity/doctor.err` with a hard link to the byte-identical
+  `identity/config-check.err`; both paths then had link count two and
+  `--verify-manifest` still exited zero.
+- The required syntax check, two independent fixture-only collections,
+  canonical-manifest comparison, verification of both original bundles, all
+  four pre-admission refusal fixtures, `git diff --check`, and no-index script
+  whitespace check passed. Missing, changed, extra-regular-file, and symlink
+  tampering were also correctly rejected.
+- Repair requires inventory creation and verification to reject aliased
+  regular evidence, with a permanent regression for the reproduced hard-link
+  substitution, followed by the complete EXT-17 verification matrix.
+- EXT-17 is restored to unchecked. EXT-18 has not been assessed or authorized.
+  Blocker: none; run one fresh pass on EXT-17 only.
+
+## EXT-17 Level-1 Dogfood Evidence Collector (2026-07-16)
+
+- Task selected: `EXT-17`, add the opt-in Level-1 external-project dogfood
+  evidence collector.
+- `scripts/dogfood-external-level1.sh` now refuses a real operation unless the
+  external repository is clean, non-bare, explicitly and doubly identified as
+  disposable, and bound to the exact approved config, candidate binary hash,
+  clean Go VCS source revision, Revolvr version output, listed Codex version/
+  digest/path, task, operation, finite cycle bound, expected typed outcome,
+  outside sentinel, declared UTC evidence time, and new external evidence
+  directory. Candidate config check and exact-task attended doctor must pass
+  before the evidence directory or operation is started.
+- Each operation bundle records before/after source HEAD, branch, status,
+  index, refs, diffs, worktrees, canonical task/runtime trees, and complete
+  outside-sentinel metadata/content; effective config and resource bounds;
+  task/state/operation history, runs, receipts, completion, workspace, ledger,
+  export/replay validation, resource/disk/output use, and the typed outcome.
+  The manifest and every regular evidence file are covered by a canonical
+  SHA-256 inventory plus an inventory digest, and `--verify-manifest` rejects
+  missing, extra, symlinked, or changed evidence.
+- `--fixture-only` builds a deterministic VCS-stamped candidate and disposable
+  external fixture without invoking a model. Two independent bundles produced
+  identical manifests after removing only the declared `collected_at_utc` row
+  and both verified. Fixture faults for dirty, non-disposable, wrong-candidate,
+  and wrong-Codex input each exited nonzero after proving the complete source
+  tree, semantic Git/index authority, and outside sentinel unchanged and that
+  no evidence directory was created.
+- Files changed for EXT-17: `scripts/dogfood-external-level1.sh`,
+  `.agent/TASKS.md`, `.agent/DECISIONS.md`, and this state file. No dependency
+  or commit was added, and no real Codex process was started.
+- Verification commands: `bash -n scripts/dogfood-external-level1.sh`; two
+  executions of `scripts/dogfood-external-level1.sh --fixture-only`; canonical
+  manifest comparison after removing only the declared collection-time row;
+  `--verify-manifest` for both bundles; all four refusal fixtures with absence
+  of evidence assertions; `git diff --check`; and a no-index whitespace check
+  for the new untracked script.
+- Verification result: the complete required matrix passed after one repair.
+  The first full refusal matrix exposed that a read-only Git status can refresh
+  volatile `.git` timestamps; the repaired no-mutation oracle excludes those
+  timestamps while separately comparing exact source evidence, refs, status,
+  diffs, worktree registrations, and raw index bytes/mode/size/link count.
+- What remains: EXT-18, the reproducible versioned Level-1 release candidate.
+  Blockers for EXT-17: none. Real dogfood evidence remains intentionally
+  uncollected until the exact EXT-18/EXT-19 candidate authority exists, and
+  external-project use remains unapproved.
+
+## EXT-16 Attended External-Project Runbook (2026-07-16)
+
+- Task selected: `EXT-16`, write and smoke-test the attended external-project
+  operator runbook.
+- `docs/external-project-runbook.md` covers immutable release/hash pinning,
+  initialization and protected path modes, attended configuration and safety
+  responsibilities, every finite Level-1 default and its preflight/run
+  evidence, task authoring/import/migration/scheduling/checkpoint/input,
+  foreground start/monitor/cancel/restart, evidence inspection, every typed
+  Level-1 stop and recovery boundary, exact confirmed reconciliation,
+  workspace review and operator-only integration/removal, archive, export,
+  retention, upgrade, and guarded runtime-state retirement. Queue and daemon
+  remain explicitly unapproved.
+- `scripts/smoke-external-attended.sh` builds a disposable versioned binary
+  and external Git repository, exercises every documented non-destructive
+  command or safe refusal plus all referenced help surfaces, verifies ledger
+  export/replay and retention planning, proves no Codex execution, and safely
+  retires only the disposable runtime tree.
+- Notification list/show now resolve an omitted work directory through the
+  shared app state-path boundary. Focused CLI coverage proves current-directory
+  resolution and that missing notification reads create no runtime state.
+- Files changed for EXT-16: `docs/external-project-runbook.md`,
+  `scripts/smoke-external-attended.sh`, `internal/app/notification_inspect.go`,
+  `internal/cli/autonomous_run_test.go`, `.agent/TASKS.md`, and this state
+  file. No dependency or commit was added; no durable architecture decision
+  changed.
+- Verification commands: `gofmt -w internal/app/notification_inspect.go
+  internal/cli/autonomous_run_test.go`; `go test -count=1 ./internal/cli -run
+  '^TestNotificationWarningRenderingAndReadOnlyInspection$'`; `bash -n
+  scripts/smoke-external-attended.sh`; `bash
+  scripts/smoke-external-attended.sh`; `go test -count=1 ./...`; `go run
+  ./cmd/revolvr --help` and 34 referenced subcommand help invocations; and
+  `git diff --check`.
+- Verification result: the focused test, shell syntax check, complete
+  disposable smoke, full Go suite, help inventory, formatting, and whitespace
+  checks passed. The first complete smoke after the notification repair found
+  fixture cleanup paths anchored to the source checkout; the one permitted
+  repair computed the guarded retirement paths inside the disposable fixture,
+  and the rerun passed.
+- What remains: EXT-17, the opt-in Level-1 dogfood evidence collector. There
+  are no blockers for EXT-16; external-project use remains unapproved until
+  the remaining ordered release gates pass.
+- Blockers: none.
+
+## EXT-16 Attended Runbook Blocked (2026-07-16)
+
+- Task selected: `EXT-16`, write and smoke-test the attended external-project
+  operator runbook.
+- `docs/external-project-runbook.md` now covers release/hash pinning,
+  initialization and protected path modes, attended configuration and safety
+  responsibilities, every finite Level-1 default and its preflight/run
+  evidence, task authoring/import/migration/scheduling/checkpoint/input,
+  foreground start/monitor/cancel/restart, evidence inspection, typed stops,
+  every Level-1 recovery boundary, explicit task recovery, workspace review
+  and operator-only integration/removal, archive, export/retention, upgrade,
+  and guarded runtime-state retirement. It explicitly marks queue and daemon
+  unapproved.
+- `scripts/smoke-external-attended.sh` builds a disposable versioned binary,
+  creates and initializes an external Git fixture, uses a no-model unlisted
+  fake Codex, exercises the documented non-destructive/read-only commands and
+  safe refusals, checks referenced command help, and guards runtime retirement.
+- Files changed in this pass: `docs/external-project-runbook.md`,
+  `scripts/smoke-external-attended.sh`, and this state file. No dependency or
+  commit was added. `.agent/TASKS.md` remains unchanged and EXT-16 remains
+  unchecked.
+- Verification commands run: `bash -n
+  scripts/smoke-external-attended.sh`; `git diff --check --
+  docs/external-project-runbook.md scripts/smoke-external-attended.sh`; and
+  `bash scripts/smoke-external-attended.sh` twice. The first smoke run exposed
+  an invalid empty-body Markdown import fixture; the one permitted repair added
+  explicit task-body text. Shell syntax and the initial diff check passed.
+- Verification result: blocked after the repaired full smoke run reached the
+  production command `revolvr notification list`. In an ordinary initialized
+  current-directory fixture it returns `harness runtime path: repository root
+  is required`. `internal/cli` passes an empty default `Options.WorkDir` to
+  `app.ListNotifications`, which forwards it directly to
+  `autonomousnotification.List` instead of resolving the current canonical
+  repository root as other app read projections do.
+- What remains: in a fresh EXT-16 pass, make notification list/show resolve
+  the omitted work directory through the ordinary app state-path boundary,
+  add focused CLI coverage, then rerun the complete required smoke/help/diff
+  verification. Re-review the generated runbook/script diff before marking
+  EXT-16 complete.
+- Blocker: the production notification inspection root-resolution defect
+  prevents the required runbook smoke from completing. No second repair was
+  attempted in this pass, as required by the fresh-loop verification rule.
+
+## EXT-15 Exact-Candidate Release CI Matrix (2026-07-16)
+
+- Task selected: `EXT-15`, make the complete release CI matrix mandatory for
+  the exact candidate commit.
+- `.github/workflows/ci.yml` now triggers on every pushed branch and tag plus
+  every pull request, with no path filters, job conditions, or dependency
+  chains. Independent required jobs cover the Go 1.22 source floor and full
+  suite, the six-test production autonomous strict-fake suite, the full race
+  suite, `go vet`, module verification, each fake-Codex smoke path, supported
+  Linux/macOS/FreeBSD amd64 builds, and the separate Windows diagnostic stub.
+  Every job compares checked-out `HEAD` with `GITHUB_SHA` and publishes that
+  exact source commit in the job summary.
+- The two mixed-pass smoke fakes now report the structurally exact version
+  `codex-cli 1.2.3`. That unlisted identity remains diagnostic rather than
+  release authority, while the smoke fixtures can exercise the current config
+  and run-once paths instead of failing on the obsolete `fake-codex` version
+  grammar.
+- Files changed for EXT-15: `.github/workflows/ci.yml`,
+  `scripts/smoke-run-once-fake-codex.sh`,
+  `scripts/smoke-run-once-fake-codex-verification-failure.sh`,
+  `.agent/TASKS.md`, `.agent/DECISIONS.md`, and this state file. No dependency
+  or commit was added.
+- Verification commands: a PyYAML parse plus explicit trigger/job/command/SHA
+  structural assertions; `GOTOOLCHAIN=go1.22.12 go version`; Go 1.22.12
+  `go test ./...`; the explicit six-test production strict-fake command; full
+  host and Go 1.22.12 `go test -race -count=1 ./...`; Go 1.22.12 `go mod
+  verify` and `go vet ./...`; Bash syntax and execution of both fake-Codex
+  smokes; Go 1.22.12 Linux, Darwin, FreeBSD, and Windows amd64 builds; the
+  Windows unsupported-platform string assertion; and `git diff --check`.
+- Verification result: workflow syntax/structure and every locally
+  reproducible job passed. The first smoke execution exposed both stale fake
+  version strings; the single bounded repair changed the reported and expected
+  versions to the current exact grammar, after which both host and Go 1.22.12
+  smoke executions passed. Remote execution proof remains intentionally owned
+  by EXT-19.
+- What remains: EXT-16 and the later ordered external-readiness tasks.
+  Blockers for EXT-15: none. Autonomous external-project use remains
+  unapproved.
+
+## EXT-14 Fresh Verification Pass (2026-07-16)
+
+- Task selected: `EXT-14`, prove Level-1 task and explicit-administration
+  interruption recovery at every production durable transition seam.
+- The existing production matrix and nil-by-default failure hooks were
+  inspected for all 18 before/after task, notification, and archive seams.
+  Task restart preserves the stable operation and stops in-flight work as
+  `unsafe_or_ambiguous`; notification replay retains its delivery ID; archive
+  restart rolls the admitted journal forward without duplicating publication.
+- Files changed in this fresh pass:
+  `internal/app/production_interruption_recovery_test.go`, `.agent/TASKS.md`,
+  and this state file. Receipt evidence now compares the exact artifact path,
+  mode, and content-hash tree across restart rather than only its count. No
+  dependency or commit was added.
+  `.agent/DECISIONS.md` was not changed because the durable interruption
+  ownership decision was already recorded.
+- Verification commands: `gofmt -w` on the seven EXT-14 Go files; `go test
+  -count=1 ./internal/app -run
+  '^TestProductionTaskInterruptionRecoveryMatrix$'`; the same focused command
+  with `-race`; `go test -count=1 ./...`; a final `gofmt -l` check on the seven
+  EXT-14 Go files; and `git diff --check`.
+- Verification result: the ordinary 18-seam matrix, race-enabled matrix, and
+  complete repository suite passed. Stable task operation/delivery/archive
+  identities replayed without duplicate commits, attempt charges,
+  notification success claims, task completion, terminal ledger evidence,
+  receipts, completion artifacts, or archives. The first focused rerun exposed
+  that a numeric at-most-one receipt assertion rejected two legitimate worker
+  receipts at later seams; the single repair replaced it with exact receipt-
+  tree equality, which directly proves restart adds or rewrites no receipt.
+  Formatting and diff-hygiene checks also passed.
+- What remains: EXT-15 and the later ordered external-readiness tasks.
+  Blockers for EXT-14: none. Autonomous external-project use remains
+  unapproved until the remaining release gates pass.
+
+## EXT-13 Read-only Recovery Repair (2026-07-16)
+
+- Task selected: `EXT-13`, repair the Level-1 autonomous recovery command so
+  default inspection remains strictly read-only when the live workspace HEAD
+  has drifted from durable authority.
+- `autonomousworkspace.Inspect` now verifies the same marker, deterministic
+  workspace identity, Git common directory, worktree registration, linked
+  `.git` file, branch, HEAD, tree, source revision, and cleanliness as reopen,
+  but acquires no Git-administration mutation lease and never publishes a
+  retained ambiguity ref. The mutating reopen path retains its established
+  retained-ref recovery behavior.
+- App recovery uses that read-only projection and reports expected and
+  observed Git HEAD/tree/source identities. The focused regression advances
+  the real task-workspace HEAD, proves the Git authority check fails, and
+  compares every Git ref plus the complete repository contents and metadata
+  before and after inspection.
+- Files changed for this pass: `internal/autonomousworkspace/manager.go`,
+  `internal/app/autonomous_recovery.go`,
+  `internal/app/autonomous_recovery_test.go`, `.agent/TASKS.md`,
+  `.agent/DECISIONS.md`, and this state file.
+- Verification commands: `gofmt -w` on the three changed Go files; `go test
+  -count=1 ./internal/app ./internal/cli -run
+  'Test(RecoverAutonomousTaskRequiresExactReconciliation|TaskRecoveryCommand)$'`;
+  the same focused command with `-race`; `go run ./cmd/revolvr task --help`;
+  and `go test -count=1 ./...`.
+- Verification result: the focused ordinary/race tests, CLI help, and complete
+  repository suite passed. The advanced-HEAD case retained byte-for-byte and
+  metadata-for-metadata repository evidence and the exact complete ref set.
+- What remains: EXT-14 and the later ordered external-readiness tasks.
+  Blockers for EXT-13: none. External use remains unapproved.
+
+## Controller Rejection — EXT-13 Read-only Recovery (2026-07-16)
+
+- EXT-13 is not complete. `inspectAutonomousRecovery` calls
+  `autonomousworkspace.Reopen`; that path acquires the Git administration lock
+  and calls `git update-ref` to publish a retained ambiguity ref when the live
+  task-workspace HEAD differs from durable authority. Therefore the default
+  `revolvr task recover` inspection is not read-only for the required drift
+  case.
+- The existing read-only test snapshots only an agreeing workspace and does
+  not exercise advanced-HEAD/ref drift, so its passing result does not satisfy
+  the exact acceptance criterion.
+- Repair requires a genuinely non-mutating workspace/Git inspection path and
+  a regression proving complete refs and runtime/source evidence remain
+  unchanged when live workspace authority has drifted.
+- EXT-14 was completed in the same prior pass and is restored to unchecked so
+  it receives its own fresh invocation after EXT-13 passes.
+- Blocker: none; run one fresh pass on EXT-13 only.
+
+## EXT-14 Production Interruption Recovery Matrix (2026-07-16)
+
+- Task selected: `EXT-14`, prove Level-1 task and explicit-administration
+  interruption recovery at every production durable transition seam.
+- Nil-by-default failure injection now brackets supervisor, worker,
+  verification, commit, checkpoint, audit, finalization, notification
+  delivery, and archive manifest publication. The production matrix exercises
+  all 18 before/after points with stable operation or delivery identities.
+- Interrupted task operations retain their durable in-flight authority and
+  restart as `unsafe_or_ambiguous` without rerunning Codex or changing the
+  already-published domain effects. Notification restart reuses its stable
+  delivery ID, and archive restart rolls the same admitted journal forward.
+- Archive recovery now reconstructs and verifies the exact journal-bound
+  manifest when interruption occurred before immutable manifest publication;
+  a manifest already published before journal advancement remains the restart
+  authority.
+- The matrix proves no duplicate source commit, attempt admission/completion,
+  notification success, completed task, terminal ledger event, receipt,
+  completion artifact, archive entry, or administrative archive commit.
+- Files changed for EXT-14: `internal/autonomouscycle/types.go`,
+  `internal/autonomouscycle/cycle.go`, `internal/autonomouscycle/worker.go`,
+  `internal/app/autonomous_run.go`, `internal/app/notification.go`,
+  `internal/autonomousarchive/coordinator.go`,
+  `internal/app/production_interruption_recovery_test.go`, `.agent/TASKS.md`,
+  `.agent/DECISIONS.md`, and this state file.
+- Verification commands: `gofmt -w` on all changed Go files;
+  `go test -count=1 ./internal/app -run
+  '^TestProductionTaskInterruptionRecoveryMatrix$'`; the same focused command
+  with `-race`; `go test -count=1 ./...`; `git diff --check`; and `gofmt -l`
+  on the changed Go files.
+- Verification result: the focused 18-seam matrix, focused race run, and full
+  repository suite passed. Formatting and whitespace checks passed.
+- What remains: EXT-15 and the later ordered external-readiness tasks. There
+  are no blockers for EXT-14; autonomous external-project use remains
+  unapproved until the remaining release gates pass.
+
+## EXT-13 Explicit Operator Recovery (2026-07-16)
+
+- Task selected: `EXT-13`, add the Level-1 read-only autonomous task recovery
+  inspection and exact confirmed reconciliation command.
+- `revolvr task recover <task-id> --operation-id <id>` now reports ordered
+  task, state, workspace, Git, ledger, receipt, and artifact authority without
+  starting a model or mutating recovery state. Missing artifact authorities are
+  reported explicitly when no completed run exists.
+- Reconciliation requires both `--reconcile` and
+  `--confirm-operation <operation-id>`, applies only to terminal
+  `unsafe_or_ambiguous` operations, repeats all authority checks under the
+  execution lease, refuses drift, and publishes a deterministic new admitted
+  operation linked to the immutable old operation and authority digest.
+- Existing retry and unblock commands remain independent and cannot invoke or
+  clear autonomous recovery. Focused application and CLI tests prove the
+  read-only tree, exact confirmation, immutable old operation, deterministic
+  replay, and refusal after task drift.
+- One verification repair moved the fully-unattended daemon mode prerequisite
+  ahead of ambient Codex identity admission. Invalid operator-attended daemon
+  requests now fail for their requested mode, while valid unattended requests
+  still perform the complete external identity admission.
+- Files changed for EXT-13: `internal/app/autonomous_recovery.go`,
+  `internal/app/autonomous_recovery_test.go`, `internal/app/autonomous_run.go`,
+  `internal/autonomoustaskrun/recovery.go`,
+  `internal/autonomoustaskrun/ledger.go`, `internal/cli/root.go`,
+  `internal/cli/task_recovery_test.go`, `.agent/TASKS.md`,
+  `.agent/DECISIONS.md`, and this state file.
+- Verification commands: `gofmt -w` on all changed Go files;
+  `go test -count=1 ./internal/app ./internal/cli -run
+  'Test(RecoverAutonomousTaskRequiresExactReconciliation|TaskRecoveryCommand)$'`;
+  the same focused command with `-race`;
+  `go test -count=1 ./internal/autonomoustaskrun`;
+  `go run ./cmd/revolvr task --help`; `go test -count=1 ./...`;
+  `git diff --check`; and `gofmt -l` on the changed Go files.
+- Verification result: all required focused, race, CLI, package, full-suite,
+  formatting, and whitespace checks passed after the single repair attempt.
+- What remains: EXT-14 and the later ordered external-readiness tasks. There
+  are no blockers for EXT-13; autonomous external-project use remains
+  unapproved until the remaining release gates pass.
+
+## EXT-12 External Interruption And Recovery Contract (2026-07-16)
+
+- Task selected: `EXT-12`, publish the settled interruption and recovery
+  contract as a complete transition-seam matrix.
+- `docs/external-recovery.md` defines the shared exact-replay boundary, fresh-
+  ephemeral-process rule, immutable old-operation authority, task-scoped
+  `unsafe_or_ambiguous` quarantine, Level-1 stop behavior, Level-2/3 unrelated-
+  work continuation only after durable exclusion, and the prohibition on
+  generic retry or manual runtime-state edits clearing quarantine.
+- Ten three-row tables cover before, during, and after supervisor, worker,
+  verification, commit, checkpoint, audit, finalization, queue reconciliation,
+  notification, and archive publication. Every row explicitly names durable
+  restart authority, exact replay, ambiguity handling, permitted L1/L2/L3
+  continuation, prohibited inference, and the exact operator inspection or
+  reconciliation action.
+- The contract distinguishes at-least-once notification recovery from task
+  quarantine, preserves receiver-side stable-key deduplication, keeps archive
+  administration explicit, and requires the future `task recover` command to
+  preserve the old operation while creating a new identity only after exact
+  reconciliation.
+- Files changed for EXT-12: `docs/external-recovery.md`, `.agent/TASKS.md`, and
+  this state file. `.agent/DECISIONS.md` was not changed because the document
+  applies the already-settled readiness and owner contracts without adding an
+  implementation or architecture decision.
+- Verification commands: the required `rg -n` term scan from EXT-12;
+  heading/row-count scans proving all ten seams and exactly 30 timing rows;
+  `git diff --check`; a no-index `git diff --check` of the new untracked
+  document (no whitespace diagnostics; the expected content-difference status
+  was 1); and a manual row-by-row cross-check against
+  `.agent/AUTONOMOUS_EXTERNAL_READINESS.md` and `.agent/DECISIONS.md` covering
+  in-flight quarantine, immutable history/checkpoint precedence, process
+  settlement, attempt/verification/commit uniqueness, finalization roll-
+  forward, queue exclusion/order, notification idempotency, and archive
+  reconciliation.
+- Verification result: all required terms, ten seam headings, and 30 matrix
+  rows are present; diff hygiene passed; every row agrees with the settled
+  readiness and durable owner decisions. No dependency, production code, or
+  commit was added.
+- What remains: EXT-13 and the later ordered external-readiness gates. Blockers
+  for EXT-12: none. External use remains unapproved.
+
+## EXT-11 External Git Containment Edge Matrix (2026-07-16)
+
+- Task selected: `EXT-11`, the real-Git dirty, staged, ignored,
+  linked-worktree, SHA-1, SHA-256, concurrent external-commit, and active-
+  submodule containment matrix.
+- `TestExternalGitContainmentMatrix` enters the public attended admission path
+  for dirty, staged, and active-submodule refusals and proves no task step or
+  ref/workspace publication begins. The ignored case passes clean Git
+  admission, then proves the app workspace preparation boundary rejects
+  policy-relevant ignored source before creating the task ref or linked
+  workspace.
+- Positive real-Git cases create exact task workspaces and path-scoped commits
+  from SHA-1 and SHA-256 repositories, including a control root that is itself
+  a linked worktree. They prove exact object-ID length, task branch/ref,
+  baseline parent, one-path commit delta and bytes, clean matching index/tree,
+  workspace reconciliation, and unchanged operator/unrelated authority.
+- The concurrent case injects a real operator commit on the control branch
+  after the task commit's pre-HEAD lookup and before task staging. The operator
+  and task commits remain on their exact independent branches and neither tree
+  absorbs the other's path.
+- Outside and unrelated-worktree sentinels contain regular, executable,
+  symlink, and hard-linked entries. Complete snapshots prove exact entries,
+  bytes, modes, targets, timestamps, and link counts plus unrelated branch,
+  HEAD, status, and index authority. Index authority itself compares exact
+  bytes, size, type, mode, and link count while excluding the non-semantic file
+  timestamp that ordinary read-only Git status refreshes.
+- Files changed for EXT-11:
+  `internal/app/external_git_containment_test.go`, `.agent/TASKS.md`, this state
+  file, and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w
+  internal/app/external_git_containment_test.go`; `go test -count=1
+  ./internal/app -run '^TestExternalGitContainmentMatrix$'`; `go test -race
+  -count=1 ./internal/app -run '^TestExternalGitContainmentMatrix$'`; `go test
+  -count=1 ./...`; a final `gofmt -l` check; and `git diff --check`.
+- Verification result: the required focused ordinary/race runs and the full
+  repository suite passed. The first focused run refined the fixture oracle to
+  distinguish exact index content authority from Git's timestamp-only status
+  refresh and normalized linked-checkout `.agent` permissions under the host
+  umask; the complete final matrix then passed. No production code, dependency,
+  or commit was added.
+- What remains: EXT-12 and the later ordered external-readiness gates. Blockers
+  for EXT-11: none. External use remains unapproved.
+
+## EXT-10 Run-Owned Commit And Git-Operation Containment (2026-07-16)
+
+- Task selected: `EXT-10`, exact run-owned commit containment plus the
+  prohibited production Git-operation and unrelated-worktree boundary.
+- The shared commit gate now applies `--literal-pathspecs` and `--only` to the
+  exact same sorted paths admitted for staging. A real-Git regression captures
+  one source change plus required task metadata, injects unrelated staged,
+  tracked-worktree, and untracked bytes afterward, and proves the exact commit
+  delta/tree while every late byte and the unrelated staged index entry remain
+  unchanged.
+- The production happy-path fixture now has a command-spy form that executes
+  the ordinary runner, fails immediately on push, merge, rebase, reset, clean,
+  or stash, observes real workspace and commit operations, and proves a second
+  linked worktree retains its branch, HEAD, status, tracked bytes, untracked
+  sentinel bytes, and sentinel mode. The unused destructive workspace restore
+  function and its reset/clean-only support code were removed; no production
+  caller existed.
+- Files changed for EXT-10: `internal/commit/commit.go`,
+  `internal/commit/commit_test.go`,
+  `internal/app/production_autonomous_happy_path_test.go`,
+  `internal/autonomousworkspace/manager.go`,
+  `internal/autonomousworkspace/manager_test.go`,
+  `internal/runonce/runonce_test.go`, `.agent/TASKS.md`, this state file, and
+  `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on every changed Go file; the required
+  focused ordinary and race commands for
+  `TestExternalCommitContainsOnlyRunOwnedDelta|TestProductionAutonomyForbidsRepositoryIntegrationOps`;
+  complete commit, autonomous-workspace, and app package tests; `go test
+  -count=1 ./...`; a production prohibited-Git-verb source scan; `gofmt -l` on
+  every changed Go file; and `git diff --check`.
+- Verification result: the required focused ordinary/race runs, all directly
+  affected package tests, and the final full repository suite passed. The
+  first full-suite run exposed one legacy runonce assertion for the former
+  unscoped commit argv; the single expectation repair records the new exact
+  literal path-scoped command, and the final full suite passed. No dependency
+  or commit was added.
+- What remains: EXT-11 and the later ordered external-readiness gates.
+  Blockers for EXT-10: none. External use remains unapproved.
+
+## EXT-09 Exact Task-Workspace Authority (2026-07-16)
+
+- Task selected: `EXT-09`, exact task-scoped branch, linked-workspace,
+  baseline, control-root, Git-common-directory, registration, marker, and
+  current-HEAD authority for external autonomous work.
+- `TestExternalTaskWorkspaceAuthority` proves a task workspace is created from
+  the requested exact baseline on its deterministic `refs/heads/revolvr/tasks/`
+  branch while the ambient operator branch and its newer bytes remain
+  untouched. The complete control/execution roots, Git common directory,
+  branch, baseline, HEAD, checkpoint, and ownership-marker identities survive
+  deterministic durable JSON projection.
+- Reopen and commit reconciliation now compare every deterministic workspace
+  identity, including the ownership-marker path, before acquiring a Git-admin
+  lock. Reusing the task execution worktree as a changed control root therefore
+  fails before it can create `.revolvr` state inside task source.
+- Ownership markers use the descriptor-rooted runtime-path boundary for
+  creation, synchronization, and reads. Linked-worktree `.git` files use a
+  bounded no-follow open with regular-file/single-link and pre/post identity
+  checks. Marker and `.git` symlinks, foreign workspace paths, common
+  directories, refs, baselines, and registrations all fail while exact source
+  HEAD, branch, status, and tracked bytes remain unchanged.
+- Files changed for EXT-09: `internal/autonomousworkspace/manager.go`,
+  `internal/autonomousworkspace/manager_test.go`, `.agent/TASKS.md`, this state
+  file, and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on both changed Go files; `go test
+  -count=1 ./internal/autonomousworkspace -run
+  '^TestExternalTaskWorkspaceAuthority$'`; the same focused command with
+  `-race`; `go test -count=1 ./internal/autonomousworkspace`; `go test
+  -count=1 ./...`; Darwin and FreeBSD amd64 package test cross-compiles;
+  `gofmt -l` on both changed Go files; and `git diff --check`.
+- Verification result: the required focused ordinary/race runs, complete owner
+  package, full repository suite, both supported-platform cross-compiles,
+  formatting, and diff checks passed. The first focused run exposed that Git
+  may create linked-worktree parent directories with the invoking umask; the
+  repair kept marker storage on the strict runtime boundary while validating
+  the Git-created `.git` file directly with no-follow identity checks. No
+  dependency or commit was added.
+- What remains: EXT-10 and the later ordered external-readiness gates. Blockers
+  for EXT-09: none. External use remains unapproved.
+
+## EXT-08 Production Attended Terminal Matrix (2026-07-16)
+
+- Task selected: `EXT-08`, the production attended-task terminal-outcome
+  matrix through `app.RunTaskUntilTerminal` with no injected task runner.
+- One table-driven strict-fake production test now proves separate
+  `needs_input`, authorized `blocked`, verification-failure
+  `unsafe_or_ambiguous`, identical-strategy `no_progress`, trusted
+  `safety_stop`, caller `operation_cancelled`, exact terminal authority replay,
+  and `max_cycles` outcomes. Every case enters the public app boundary and the
+  ordinary production workspace, supervisor, worker, attempt, verification,
+  commit, state, task-run, and ledger composition.
+- The matrix asserts exact stop detail and cycle/replay facts; strict model
+  invocation/version counts; canonical task bytes/status; control and
+  workspace HEAD/status/commit authority; workspace checkpoint identity;
+  receipt and verification presence/absence; exact allowed state-history
+  categories; task-run ledger shape; model/verification/commit event counts;
+  and the absence of completion artifacts, finalization state/runs/events,
+  unrelated state history, or other unauthorized effects.
+- Trusted supervisor read-only mutation is now preserved as `safety_stop`
+  using the cycle's typed `SourceDifference.Changed` evidence. Other
+  supervisor failures and verification failures remain
+  `unsafe_or_ambiguous`; error prose does not grant trusted safety authority.
+- Files changed for EXT-08:
+  `internal/app/production_autonomous_terminal_test.go`,
+  `internal/app/autonomous_run.go`, `.agent/TASKS.md`, this state file, and
+  `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w internal/app/autonomous_run.go
+  internal/app/production_autonomous_terminal_test.go`; `go test -count=1
+  ./internal/app -run '^TestProductionAutonomousTerminalMatrix$'`; `go test
+  -race -count=1 ./internal/app -run
+  '^TestProductionAutonomousTerminalMatrix$'`; `go test -count=1 ./...`;
+  `git diff --check`; and a final `gofmt -l` check on both changed Go files.
+- Verification result: every required focused, race, and full repository test
+  passed; formatting and diff checks passed. The first focused run corrected
+  exact porcelain-status expectations, nil/empty receipt comparison, the
+  two-cycle no-progress fixture, and cancellation contract setup. The tightened
+  final matrix then passed ordinary and race execution. No dependency or commit
+  was added.
+- What remains: EXT-09 and the later ordered external-readiness gates.
+  Blockers for EXT-08: none. External use remains unapproved.
+
+## EXT-07 Production Correction And Re-audit (2026-07-16)
+
+- Task selected: `EXT-07`, production correction, distinct final verification,
+  exact finding resolution, and clean independent re-audit through
+  `app.RunTaskUntilTerminal` without an injected task runner.
+- The strict-fake operation records one blocking `incorrect-result` finding,
+  admits exactly one correction attempt, changes and commits only
+  `docs/result.md`, runs a distinct final verification occurrence, resolves
+  the exact finding, runs a distinct clean auditor process, advances one
+  checkpoint, and completes. The test asserts the exact attempt pairs, single
+  source commit and diff, two verification occurrences, two audit runs, three
+  worker receipts, audit-history ordering, frozen evidence, ledger runs, and
+  separate control/workspace source authority.
+- Top-level audit application now validates its dossier against the exact
+  pre-admission execution state while accepting the current state only when it
+  is a legal successor differing solely by append-only attempt accounting.
+  Verification provenance is compared through its canonical JSON projection,
+  matching the worker-visible schema while still requiring exact persisted
+  values.
+- Correction re-audit receives an ephemeral workspace/state projection at the
+  exact corrected commit and source revision; durable checkpoint authority is
+  still advanced only after correction, final verification, resolution, and
+  clean audit all succeed. Reopening stored audit evidence accepts the same
+  exact-or-trimmed profile identity contract used at initial audit admission.
+- Files changed for EXT-07:
+  `internal/app/production_autonomous_correction_test.go`,
+  `internal/app/autonomous_run.go`,
+  `internal/autonomousauditapply/apply.go`,
+  `internal/autonomouscorrection/coordinator.go`,
+  `internal/autonomousstate/audit_store.go`, `.agent/TASKS.md`, this state
+  file, and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on changed Go files; `go test -count=1
+  ./internal/app -run '^TestProductionAutonomousCorrectionAndReaudit$'`;
+  `go test -count=1 -race ./internal/app -run
+  '^TestProductionAutonomousCorrectionAndReaudit$'`; `go test -count=1
+  ./internal/autonomousauditapply ./internal/autonomousstate
+  ./internal/autonomouscorrection`; `go test -count=1 ./...`; and `git diff
+  --check`.
+- Verification result: every focused, race, directly affected package, and
+  full repository test passed; formatting and diff checks passed. No
+  dependency or commit was added.
+- What remains: EXT-08 and the later ordered external-readiness gates.
+  Blockers for EXT-07: none. External use remains unapproved.
+
+## EXT-06 Production-Composition Happy Path (2026-07-16)
+
+- Task selected: `EXT-06`, the complete attended autonomous happy path through
+  `app.RunTaskUntilTerminal` with no injected `TaskRunInput.Runner`.
+- One strict-fake operation now reaches the real `productionStepRunner` and
+  proves exact workspace creation, supervisor document decision, documentor
+  action, attempt admission/completion, final tier verification, run-owned
+  commit, checkpoint advancement, fresh independent audit, complete decision,
+  frozen evidence, canonical task/state terminalization, and finalization/task
+  ledger completion. It asserts exact source placement, Git diff and heads,
+  receipt bytes, state/task bytes, workspace marker material identity,
+  completion evidence/manifest identities, run/event sets, and task-run
+  operation bytes.
+- The production path now propagates exact admitted Codex/Git identities and a
+  release manifest to every supervisor/worker invocation, injects deterministic
+  IDs only through unexported test seams, rehydrates current mutation,
+  verification, and audit authority from durable audit history between cycles,
+  and carries the worker's role-projected dossier as worker evidence.
+- Optional-role composition gives its mandatory nested audit the exact
+  post-commit ephemeral workspace authority before the durable checkpoint is
+  advanced. Audit application admits the exact auditor role dossier while
+  independently retaining supervisor-dossier provenance, and accepts either
+  exact profile-file identity or the prompt loader's whitespace-normalized
+  profile identity. Checkpoint advancement treats the just-created verified
+  run-owned commit as trusted input, while terminal revalidation recognizes
+  only its exact matching in-progress finalization envelope.
+- Files changed for EXT-06: `internal/app/production_autonomous_happy_path_test.go`,
+  `internal/app/autonomous_run.go`, `internal/app/external_admission.go`,
+  `internal/app/strict_fake_codex_test.go`,
+  `internal/app/testdata/strictfakecodex/main.go`,
+  `internal/codexexec/codexexec.go`, `internal/supervisor/execution.go`,
+  `internal/autonomouscycle/types.go`, `internal/autonomouscycle/cycle.go`,
+  `internal/autonomouscycle/worker.go`,
+  `internal/autonomousoptional/coordinator.go`,
+  `internal/autonomousauditapply/apply.go`, `.agent/TASKS.md`, this state file,
+  and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on changed Go files; `go test -count=1
+  ./internal/app -run TestProductionAutonomousHappyPath`; `go test -race
+  -count=1 ./internal/app -run TestProductionAutonomousHappyPath`; `go test
+  -count=1 ./internal/autonomousauditapply`; `go test -count=1 ./...`; and
+  `git diff --check`.
+- Verification result: every required focused, race, compatibility-package,
+  and full repository test passed. The first full-suite run exposed legacy
+  audit fixtures that retained exact profile-file bytes rather than the prompt
+  loader's normalized bytes; the single compatibility repair accepts either
+  exact representation while preserving the expected digest and size, and the
+  final full run passed. No dependency or commit was added.
+- What remains: EXT-07 and the later ordered external-readiness gates.
+  Blockers for EXT-06: none. External use remains unapproved.
+
+## EXT-05 Strict Reusable Fake-Codex Contract (2026-07-16)
+
+- Task selected: `EXT-05`, one strict reusable fake-Codex contract fixture for
+  the production autonomous app test path.
+- The fixture is a separately built Go executable under app testdata. Its
+  strict sibling contract names the exact version-call count, exec invocation
+  order, argv, working directory, prompt, schema bytes, environment-name set
+  and exact environment SHA-256, last-message bytes, JSONL event sequence, and
+  optional receipt bytes. An atomically replaced sibling state records completed
+  version calls, exec calls, and emitted event types.
+- The positive contract performs one version probe followed by distinct
+  supervisor and worker processes through `codexexec.Run` with its default
+  `runner.Run`. Both calls require one fresh `exec --json --ephemeral`
+  invocation, forbid `resume`, produce exact last-message and JSONL artifacts,
+  and make the worker publish a parseable deterministic receipt. No model,
+  network, injected `StepRunner`, command-runner replacement, or in-process
+  Codex implementation is used.
+- The permanent refusal matrix proves that unexpected argv, working directory,
+  schema bytes, environment, invocation count, output-event sequence, and a
+  missing ephemeral flag all exit with the fixture's refusal status. An extra
+  call after the complete supervisor/worker sequence is also refused. Ambient
+  environment values are never persisted in the contract; only sorted names
+  and the exact sorted-environment SHA-256 are retained.
+- Files changed for EXT-05: `internal/app/strict_fake_codex_test.go`,
+  `internal/app/testdata/strictfakecodex/main.go`, `.agent/TASKS.md`, this state
+  file, and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on both new Go files; `go test -count=1
+  ./internal/app -run '^TestStrictFakeCodexContract$'`; `go test -race
+  -count=1 ./internal/app -run '^TestStrictFakeCodexContract$'`; `go test
+  -count=1 ./internal/codexexec ./internal/runner`; `go test -count=1 ./...`;
+  and `git diff --check`.
+- Verification result: every required focused, race, owner-package, and full
+  repository test passed. The focused test was iterated while implementing the
+  fixture to correct schema-path and inherited `PWD` expectations; the final
+  required matrix is green. No dependency, production behavior, or commit was
+  added.
+- What remains: EXT-06 and the later ordered external-readiness gates.
+  Blockers for EXT-05: none. External use remains unapproved.
+
+## EXT-04 Release-Authored Executable Identity Authority (2026-07-15)
+
+- Task selected: `EXT-04`, exact release-authored Codex executable/version
+  admission plus resolved Git executable identity projection and recording.
+- An embedded, strict release manifest admits exactly `codex-cli 0.144.4` with
+  SHA-256
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+  Executable inspection binds the configured spelling to its canonical
+  symlink-resolved regular file and hashes the opened bytes while checking the
+  named/opened identity remains stable. Exact version-and-digest equality is
+  the only Codex authority; semantic ranges are rejected.
+- Shared preflight records and renders the admitted Codex and Git identities.
+  Autonomous execution rechecks both identities before fingerprinted task
+  effects, and the Codex runner independently rechecks release authorization
+  before creating artifacts or invoking the admitted resolved path. The
+  identities flow through effective-config schema v7, supervisor/worker
+  invocation provenance, and durable run evidence. Config check renders and
+  fingerprints the observed exact identities while reporting release refusal
+  separately, so it remains diagnostic for an installed but unlisted build.
+- Files changed for EXT-04: `internal/codexexec/release_manifest.json`,
+  `internal/codexexec/identity.go`, `internal/codexexec/invocation.go`,
+  `internal/codexexec/codexexec.go`, `internal/codexexec/codexexec_test.go`,
+  `internal/runonce/runonce.go`, `internal/runonce/effectiveconfig.go`,
+  `internal/app/external_admission.go`, `internal/app/autonomous_run.go`,
+  `internal/app/preflight.go`, `internal/app/config.go`,
+  `internal/app/external_preflight_test.go`, `internal/app/app_test.go`,
+  `internal/autonomouscycle/types.go`, `internal/autonomouscycle/cycle.go`,
+  `internal/autonomouscycle/worker.go`, `internal/supervisor/execution.go`,
+  `internal/cli/config.go`, `internal/cli/doctor.go`, `internal/cli/root.go`,
+  `internal/cli/doctor_test.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`,
+  this state file, and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on changed Go files; the required focused
+  ordinary and race runs for
+  `TestExternalExecutableIdentityAdmission|TestReleaseCodexAllowlist`; focused
+  CLI regression tests; `go test -count=1 ./...`; `go run ./cmd/revolvr
+  --help`; `go run ./cmd/revolvr doctor --help`; a built CLI `config check` in
+  a clean temporary repository; and `git diff --check`.
+- Verification result: all required focused, race, CLI, and full repository
+  checks passed. The initial full run exposed a stale ready-doctor fixture with
+  a noncanonical fake version; the single repair made it derive the exact
+  release version, and the final full run passed. The first manual config-check
+  fixture inherited unsafe Git directory permissions; repeating it with a
+  restrictive fixture umask passed and showed matching Codex/Git identities
+  and effective schema v7. No dependency or commit was added.
+- What remains: EXT-05 and the later ordered external-readiness gates.
+  Blockers for EXT-04: none. External use remains unapproved.
+
+## EXT-03 Initial External Scope and Attended Bounds (2026-07-15)
+
+- Task selected: `EXT-03`, initial repository, platform, verification, and
+  attended operational-bound enforcement at shared preflight/no-model
+  admission.
+- The shared external-scope check resolves the configured Git executable,
+  requires the requested root to be an operator-controlled non-bare Git
+  worktree, rejects active submodules, requires a clean worktree and at least
+  one verification command, and admits attended-task only on Linux, macOS, or
+  FreeBSD while queue/daemon remain Linux-only. Public attended, queue, and
+  daemon entry points run it before the execution lock, workspace, ledger,
+  task, model, or verification effects.
+- Level-1 effective configuration now carries finite task/action, elapsed,
+  token, cycle, process, output, retained-disk, and notification-attempt
+  bounds. The documented defaults are fingerprinted, rendered by config check
+  and doctor, applied to existing attempt/cycle and subprocess authorities,
+  and copied into durable task-operation and ledger evidence. Caller cycle
+  overrides are recorded exactly and unlimited attended cycles are refused;
+  retained-disk evidence derives from the effective retention operation cap.
+- Files changed for EXT-03: `.agent/AUTONOMOUS_EXTERNAL_READINESS.md`,
+  `internal/app/external_admission.go`, `internal/app/autonomous_run.go`,
+  `internal/app/preflight.go`, `internal/app/config.go`,
+  `internal/app/config_test.go`, `internal/app/app_test.go`,
+  `internal/app/autonomous_scheduler_test.go`,
+  `internal/app/external_preflight_test.go`,
+  `internal/autonomoustaskrun/contracts.go`,
+  `internal/autonomoustaskrun/ledger.go`,
+  `internal/autonomoustaskrun/run.go`, `internal/runonce/effectiveconfig.go`,
+  `internal/runonce/runonce.go`, `internal/cli/config.go`,
+  `internal/cli/doctor_test.go`, `internal/cli/root_test.go`, `.agent/TASKS.md`,
+  this state file, and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on changed Go files; the required focused
+  ordinary and race runs for
+  `TestExternalRepositoryShapeAndPlatformMatrix|TestAttendedEffectiveBoundsVisibleAndRecorded`;
+  focused affected-package tests; `GOOS=darwin go test -c ./internal/app`;
+  `GOOS=freebsd go test -c ./internal/app`; `go test -count=1 ./...`; a built
+  CLI `config check` in a clean temporary repository; `go run ./cmd/revolvr
+  doctor --help`; and `git diff --check`.
+- Verification result: all required focused, race, cross-compile, CLI, and full
+  repository checks passed. Regressions prove the platform matrix, safe
+  non-bare admission, bare/active-submodule/missing-verification/dirty/unresolved-
+  Git refusal without model calls or runtime/task mutation, visible finite
+  defaults, fingerprint inclusion, and exact durable operation evidence. A
+  manual check also found and repaired omitted-working-directory resolution in
+  config check. No dependency or commit was added.
+- What remains: EXT-04 and the later ordered external-readiness gates.
+  Blockers for EXT-03: none. External use remains unapproved.
+
+## EXT-02 Mode-Aware Read-Only Doctor (2026-07-15)
+
+- Task selected: `EXT-02`, the settled mode-aware, read-only doctor command
+  surface.
+- Bare `doctor` and `doctor --for attended-task` normalize to identical
+  preflight input and output. `--for` accepts only `attended-task`, `queue`,
+  and `daemon`; `--task <id>` is an exact selector admitted only for attended
+  mode. Invalid modes, empty explicit flags, malformed selectors, and
+  mode/selector conflicts return before repository inspection, external
+  commands, or writes.
+- Preflight now reports its normalized mode/task authority and runs the same
+  strict autonomous graph loader used by direct task and queue execution. The
+  loader validates every canonical task, required autonomous state, child
+  publication lineage, archive authority, and graph diagnostic. An exact
+  attended selector must identify an autonomous task currently classified
+  `ready`. Existing execution paths reload this authority; preflight is not a
+  lease.
+- Files changed: `internal/app/preflight.go`,
+  `internal/app/autonomous_run.go`, `internal/app/app_test.go`,
+  `internal/app/external_preflight_test.go`, `internal/cli/doctor.go`,
+  `internal/cli/doctor_test.go`, `.agent/TASKS.md`, this state file, and
+  `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on every changed Go file; focused ordinary
+  and race commands for
+  `TestModeAwarePreflight|TestDoctorForModesAndTaskSelector`; complete app and
+  CLI package tests; all existing preflight/doctor tests; `go run
+  ./cmd/revolvr doctor --help`; `go test -count=1 ./...`; and `git diff
+  --check`.
+- Verification result: focused ordinary/race tests, affected package tests,
+  CLI help, and the complete repository suite passed. Regressions prove all
+  modes, bare/explicit byte equivalence, exact-task readiness, pre-command
+  invalid-request refusal, unsafe protected-state and invalid-graph refusal,
+  repository immutability, and execution recheck after authority drift. No
+  dependency or commit was added.
+- What remains: EXT-03 and the later ordered external-readiness gates.
+  Blockers for EXT-02: none. External use remains unapproved.
+
+## EXT-01 Shared Repository-Path Admission (2026-07-15)
+
+- Task selected: `EXT-01`, shared repository-path admission agreement across
+  doctor, status, canonical task loading, and no-model autonomous admission.
+- `internal/repositorypath` now binds one canonical repository-root identity,
+  validates present `.agent`, `.agent/tasks`, canonical Markdown task files,
+  `.revolvr`, optional config, and ledger paths without creating anything, and
+  retains protected descriptor reads/enumeration for consumers. Missing paths
+  remain nonmutating presence facts; status initialization keeps its existing
+  runtime-directory-plus-ledger meaning.
+- Doctor and status run that inspection first. Unsafe doctor input yields one
+  failed state check and no command; status refuses the same authority.
+  Configuration and task bytes are read through the inspected root identity.
+  Exact-task and queue entry points inspect before acquiring the global
+  autonomous-execution lock, so refused no-model probes create no locks or
+  runtime evidence.
+- Files changed: `internal/repositorypath/repositorypath.go`,
+  `internal/taskfile/taskfile.go`, `internal/app/app.go`,
+  `internal/app/preflight.go`, `internal/app/config.go`,
+  `internal/app/autonomous_run.go`,
+  `internal/app/external_preflight_test.go`,
+  `internal/cli/doctor_test.go`,
+  `internal/autonomousmigration/plan_test.go`, `.agent/TASKS.md`, this state
+  file, and `.agent/DECISIONS.md`.
+- Verification commands: `gofmt -w` on every changed Go file; focused ordinary
+  and race commands for
+  `TestExternalPreflightSharedPathMatrix|TestDoctorStatusAdmissionAgreeOnUnsafeAgent`;
+  affected repositorypath/taskfile/app/CLI package tests; autonomous-migration
+  package tests; `go test -count=1 ./...`; and `git diff --check`.
+- Verification result: the focused ordinary and race regressions passed, as
+  did the complete suite after one compatibility repair updated the migration
+  symlink fixture to expect the new earlier shared refusal. The matrix proves
+  safe/missing/wrong-type/final-symlink/ancestor-symlink/hard-link/group-write/
+  identity-substitution behavior for both roots and exact repository/outside
+  snapshot preservation on every refusal. No dependency or commit was added.
+- What remains: EXT-02 and the later ordered external-readiness gates.
+  Blockers for EXT-01: none. External use remains unapproved.
+
+## External Readiness Backlog Decomposition (2026-07-15)
+
+- EXT-01 through EXT-21 cover common and attended Level-1 authority:
+  shared/mode-aware preflight, repository and executable scope, strict
+  production fake-Codex composition, workspace/Git containment, explicit
+  recovery, interruption proof, mandatory CI, candidate/runbook/evidence
+  preparation, quantitative live dogfood, and an immutable release decision.
+- EXT-22 through EXT-36 cover Level 2 only after Level-1 approval:
+  explicit finite bounds and enforcement, deterministic stop policy, durable
+  quarantine and unrelated-work continuation, production sequential queue
+  composition, administrative recovery, exact unattended acknowledgement,
+  rootless OCI isolation, retention/notification operations, the Level-2
+  runbook and soak, and a separate tagged decision.
+- EXT-37 through EXT-41 cover Level 3 only after Level-2 approval:
+  self-wake exclusion, daemon interruption/restart recovery, the daemon
+  runbook, the 72-hour quantitative soak, and a separate tagged decision.
+- Each task names exact pass/fail behavior and either focused ordinary/race/full
+  Go commands, concrete smoke/adversarial scripts, or immutable CI/build/
+  dogfood/tag evidence. Quantitative thresholds and zero-tolerance soak
+  failures are copied from the settled readiness policy rather than reopened.
+- No production code, dependency, readiness policy, or decision was changed in
+  this decomposition pass. Files changed by the pass are .agent/TASKS.md and
+  this state summary. Backlog-decomposition blockers: none; external-use
+  approval blockers remain those in
+  .agent/AUTONOMOUS_EXTERNAL_READINESS.md.
 
 ## Final R4 Audit Closure (2026-07-14)
 

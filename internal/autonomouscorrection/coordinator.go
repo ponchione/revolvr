@@ -228,7 +228,22 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 
 	auditCfg := n.AuditCycle
-	auditCfg.RepositoryRoot, auditCfg.Workspace, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, n.Workspace, n.TaskID, current.State
+	auditWorkspace := n.Workspace
+	auditState := current.State
+	if n.Workspace != nil {
+		// The correction commit advances the checked-out harness branch before
+		// the enclosing attempt may durably advance its checkpoint. Give the
+		// independent read-only audit the exact corrected head/source identity
+		// while durable workspace authority remains unchanged until every
+		// correction stage succeeds.
+		workspace := *n.Workspace
+		workspace.HeadSHA = correction.Worker.Commit.CommitSHA
+		workspace.SourceRevision = beforeRevision
+		workspace.UpdatedAt = n.Clock().UTC()
+		auditWorkspace = &workspace
+		auditState.Workspace = &workspace
+	}
+	auditCfg.RepositoryRoot, auditCfg.Workspace, auditCfg.TaskID, auditCfg.State = n.RepositoryRoot, auditWorkspace, n.TaskID, auditState
 	auditCfg.SourceSafety, auditCfg.Verification, auditCfg.Audit, auditCfg.CorrectionFailure = autonomouspolicy.SourceSafetySafe, &finalEvidence, nil, nil
 	auditCfg.LatestMutation = &autonomouspolicy.SourceMutation{TaskID: n.TaskID, RunID: correction.Worker.RunID, DecisionID: correction.Route.DecisionID, Action: autonomous.ActionCorrect, ResultingRevision: beforeRevision}
 	auditResult, auditErr := n.CycleRunner(ctx, auditCfg)

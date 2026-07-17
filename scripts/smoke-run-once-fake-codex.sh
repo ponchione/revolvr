@@ -74,7 +74,7 @@ if [[ "$#" -eq 0 ]]; then
   fail "missing subcommand"
 fi
 if [[ "$#" -eq 1 && "$1" == "--version" ]]; then
-  printf 'fake-codex 1.2.3\n'
+  printf 'codex-cli 1.2.3\n'
   exit 0
 fi
 if [[ "$1" != "exec" ]]; then
@@ -337,7 +337,7 @@ assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md" "## Selected Task"
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.md" "## Required Receipt Schema"
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"context_payload_path"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"context_payload_sha256"'
-assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"version": "fake-codex 1.2.3"'
+assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"version": "codex-cli 1.2.3"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"model": "gpt-5.6-sol"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"reasoning_effort": "xhigh"'
 assert_contains "$WORK_DIR/.revolvr/runs/$RUN_ID/context.json" '"ephemeral": true'

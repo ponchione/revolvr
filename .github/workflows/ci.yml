@@ -2,6 +2,10 @@ name: CI
 
 on:
   push:
+    branches:
+      - "**"
+    tags:
+      - "**"
   pull_request:
 
 permissions:
@@ -9,16 +13,116 @@ permissions:
 
 jobs:
   test:
+    name: Go 1.22 source floor and tests
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22.x"
+          cache: true
+      - run: go version
+      - run: go test ./...
+
+  production-autonomous-strict-fake:
+    name: Production autonomous strict-fake suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
-      - run: go test ./...
+      - name: Run production autonomous strict-fake suite
+        run: >-
+          go test -count=1 ./internal/app -run
+          '^(TestStrictFakeCodexContract|TestProductionAutonomousHappyPath|TestProductionAutonomyForbidsRepositoryIntegrationOps|TestProductionAutonomousCorrectionAndReaudit|TestProductionAutonomousTerminalMatrix|TestProductionTaskInterruptionRecoveryMatrix)$'
+
+  race:
+    name: Race tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race -count=1 ./...
+
+  static-analysis:
+    name: Vet and module verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go mod verify
+      - run: go vet ./...
+
+  fake-codex-smoke-success:
+    name: Fake-Codex success smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: bash scripts/smoke-run-once-fake-codex.sh
+
+  fake-codex-smoke-verification-failure:
+    name: Fake-Codex verification-failure smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: bash scripts/smoke-run-once-fake-codex-verification-failure.sh
 
   cross-build:
+    name: Build ${{ matrix.goos }}/amd64
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,6 +133,12 @@ jobs:
           - freebsd
     steps:
       - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -41,9 +151,16 @@ jobs:
         run: go build -trimpath -o "${RUNNER_TEMP}/revolvr-${GOOS}-${GOARCH}" ./cmd/revolvr
 
   unsupported-platform-stub:
+    name: Build Windows diagnostic stub
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Report exact source commit
+        run: |
+          source_commit="$(git rev-parse HEAD)"
+          echo "Source commit: ${source_commit}"
+          echo "Source commit: \`${source_commit}\`" >> "${GITHUB_STEP_SUMMARY}"
+          test "${source_commit}" = "${GITHUB_SHA}"
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod

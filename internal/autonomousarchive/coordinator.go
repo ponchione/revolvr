@@ -32,6 +32,7 @@ const (
 	FailureBeforeTaskPublish          FailurePoint = "before_task_publish"
 	FailureBeforeCapsulePublish       FailurePoint = "before_capsule_publish"
 	FailureBeforeManifestPublish      FailurePoint = "before_manifest_publish"
+	FailureAfterManifestPublish       FailurePoint = "after_manifest_publish"
 	FailureBeforeActiveRemoval        FailurePoint = "before_active_task_removal"
 	FailureAfterActiveRemoval         FailurePoint = "after_active_task_removal"
 	FailureBeforeStage                FailurePoint = "before_git_stage"
@@ -140,6 +141,9 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 			return ArchiveResult{}, errors.New("archive task: existing journal conflicts with operation identity")
 		}
 		manifest, manifestBytes, err = storage.loadManifest(journal.Manifest.Path)
+		if errors.Is(err, os.ErrNotExist) && stageOrder(journal.Stage) < stageOrder(StageFilesPublished) {
+			manifest, manifestBytes, err = prepareManifest(ctx, storage, cfg.Ledger, request, archiveID)
+		}
 		if err != nil {
 			return ArchiveResult{}, err
 		}
@@ -224,6 +228,9 @@ func Archive(ctx context.Context, cfg Config, request ArchiveRequest) (ArchiveRe
 			return ArchiveResult{}, err
 		}
 		if err := storage.writeImmutable(journal.Manifest, manifestBytes); err != nil {
+			return ArchiveResult{}, err
+		}
+		if err := fail(cfg, FailureAfterManifestPublish); err != nil {
 			return ArchiveResult{}, err
 		}
 		journal.Stage = StageFilesPublished

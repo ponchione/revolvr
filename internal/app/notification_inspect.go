@@ -13,11 +13,19 @@ type NotificationEvidence struct {
 }
 
 func ListNotifications(cfg Config) ([]autonomousnotification.Summary, error) {
-	return autonomousnotification.List(cfg.WorkDir)
+	paths, err := resolveStatePaths(cfg.WorkDir)
+	if err != nil {
+		return nil, err
+	}
+	return autonomousnotification.List(paths.WorkDir)
 }
 
 func ShowNotification(cfg Config, deliveryID string) (NotificationEvidence, error) {
-	intent, payload, journal, found, err := autonomousnotification.Inspect(cfg.WorkDir, deliveryID)
+	paths, err := resolveStatePaths(cfg.WorkDir)
+	if err != nil {
+		return NotificationEvidence{}, err
+	}
+	intent, payload, journal, found, err := autonomousnotification.Inspect(paths.WorkDir, deliveryID)
 	if err != nil {
 		return NotificationEvidence{}, err
 	}

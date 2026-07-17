@@ -38,23 +38,26 @@ import (
 const defaultVersion = "dev"
 
 type Options struct {
-	Version              string
-	Out                  io.Writer
-	Err                  io.Writer
-	WorkDir              string
-	RunOnce              RunOnceFunc
-	RunTaskUntilTerminal TaskRunFunc
-	RunQueue             QueueRunFunc
-	RunDaemon            DaemonRunFunc
-	TUIRunner            TUIRunFunc
-	DoctorCommandRunner  DoctorCommandRunner
-	ExecutableLookPath   ExecutableLookPath
-	PlanArtifactGC       ArtifactGCPlanFunc
-	ApplyArtifactGC      ArtifactGCApplyFunc
-	ResumeArtifactGC     ArtifactGCResumeFunc
-	FulfillCheckpoint    CheckpointFulfillFunc
-	PlanTaskMigration    MigrationPlanFunc
-	ApplyTaskMigration   MigrationApplyFunc
+	Version                string
+	Out                    io.Writer
+	Err                    io.Writer
+	WorkDir                string
+	RunOnce                RunOnceFunc
+	RunTaskUntilTerminal   TaskRunFunc
+	RunQueue               QueueRunFunc
+	RunDaemon              DaemonRunFunc
+	TUIRunner              TUIRunFunc
+	DoctorCommandRunner    DoctorCommandRunner
+	ExecutableLookPath     ExecutableLookPath
+	ExecutableInspector    app.ExecutableInspector
+	CodexIdentityInspector app.CodexIdentityInspector
+	PlanArtifactGC         ArtifactGCPlanFunc
+	ApplyArtifactGC        ArtifactGCApplyFunc
+	ResumeArtifactGC       ArtifactGCResumeFunc
+	FulfillCheckpoint      CheckpointFulfillFunc
+	PlanTaskMigration      MigrationPlanFunc
+	ApplyTaskMigration     MigrationApplyFunc
+	RecoverTask            TaskRecoveryFunc
 }
 
 type TaskRunFunc func(context.Context, app.Config, app.TaskRunInput) (autonomoustaskrun.Result, error)
@@ -66,6 +69,7 @@ type ArtifactGCResumeFunc func(context.Context, app.Config, string) (artifactret
 type CheckpointFulfillFunc func(context.Context, app.Config, app.FulfillCheckpointInput) (app.FulfillCheckpointResult, error)
 type MigrationPlanFunc func(context.Context, app.Config, app.MigrationPlanInput) (autonomousmigration.Plan, error)
 type MigrationApplyFunc func(context.Context, app.Config, app.MigrationPlanInput) (autonomousmigration.ApplyResult, error)
+type TaskRecoveryFunc func(context.Context, app.Config, app.RecoverAutonomousTaskInput) (app.RecoverAutonomousTaskResult, error)
 
 type RunOnceFunc = app.RunOnceRunner
 type TUIRunFunc func(context.Context, app.StatusResult, tuiapp.RunOptions) error
@@ -635,10 +639,79 @@ func newTaskCommand(opts Options) *cobra.Command {
 		newTaskListCommand(opts),
 		newTaskShowCommand(opts),
 		newTaskWhyCommand(opts),
+		newTaskRecoverCommand(opts),
 		newTaskRetryCommand(opts),
 		newTaskUnblockCommand(opts),
 	)
 	return cmd
+}
+
+func newTaskRecoverCommand(opts Options) *cobra.Command {
+	recoverTask := opts.RecoverTask
+	if recoverTask == nil {
+		recoverTask = app.RecoverAutonomousTask
+	}
+	var operationID, confirmOperation string
+	var reconcile bool
+	cmd := &cobra.Command{
+		Use:   "recover <task-id>",
+		Short: "Inspect or explicitly reconcile an autonomous task operation",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !reconcile && cmd.Flags().Changed("confirm-operation") {
+				return errors.New("task recovery: --confirm-operation requires --reconcile")
+			}
+			if reconcile && confirmOperation != operationID {
+				return errors.New("task recovery: --confirm-operation must exactly match --operation-id")
+			}
+			result, err := recoverTask(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.RecoverAutonomousTaskInput{
+				TaskID: args[0], OperationID: operationID, Reconcile: reconcile, ConfirmOperation: confirmOperation,
+			})
+			if writeErr := writeTaskRecovery(cmd.OutOrStdout(), result); writeErr != nil {
+				return errors.Join(err, writeErr)
+			}
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "exact old autonomous task-operation identity")
+	cmd.Flags().BoolVar(&reconcile, "reconcile", false, "create a new operation only after every authority agrees")
+	cmd.Flags().StringVar(&confirmOperation, "confirm-operation", "", "repeat the exact old operation identity for reconciliation")
+	_ = cmd.MarkFlagRequired("operation-id")
+	return cmd
+}
+
+func writeTaskRecovery(out io.Writer, result app.RecoverAutonomousTaskResult) error {
+	if result.SchemaVersion == "" {
+		return nil
+	}
+	mode := "read-only"
+	if result.Reconciled {
+		mode = "reconciled"
+	}
+	if _, err := fmt.Fprintf(out, "Autonomous task recovery (%s)\nTask: %s\nOperation: %s\nStop reason: %s\nAuthority SHA-256: %s\nReady: %t\nReconcile eligible: %t\n", mode, result.TaskID, result.OperationID, result.StopReason, result.AuthoritySHA256, result.Ready, result.ReconcileEligible); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(out, "AUTHORITY\tSTATUS\tDETAIL\n"); err != nil {
+		return err
+	}
+	for _, check := range result.Checks {
+		status := "FAIL"
+		if check.Passed {
+			status = "PASS"
+		}
+		if _, err := fmt.Fprintf(out, "%s\t%s\t%s\n", check.Name, status, check.Detail); err != nil {
+			return err
+		}
+	}
+	if result.Reconciled {
+		disposition := "created"
+		if result.Replayed {
+			disposition = "replayed"
+		}
+		_, err := fmt.Fprintf(out, "New operation: %s (%s)\nOld operation: %s (unchanged)\n", result.NewOperationID, disposition, result.OperationID)
+		return err
+	}
+	return nil
 }
 
 func newTaskMigrateCommand(opts Options) *cobra.Command {
@@ -1477,8 +1550,10 @@ func newTUICommand(opts Options) *cobra.Command {
 				},
 				Preflight: func() (app.PreflightResult, error) {
 					return app.Preflight(ctx, cfg, app.PreflightInput{
-						CommandRunner: opts.DoctorCommandRunner,
-						LookPath:      opts.ExecutableLookPath,
+						CommandRunner:          opts.DoctorCommandRunner,
+						LookPath:               opts.ExecutableLookPath,
+						ExecutableInspector:    opts.ExecutableInspector,
+						CodexIdentityInspector: opts.CodexIdentityInspector,
 					})
 				},
 				RunOnce: func(runCtx context.Context, progress app.RunProgress) (runonce.Result, error) {

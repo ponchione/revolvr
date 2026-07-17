@@ -704,7 +704,9 @@ verification:
 `)
 
 	result, err := Preflight(ctx, Config{WorkDir: workDir}, PreflightInput{
-		CommandRunner: readyPreflightCommandRunner(t),
+		CommandRunner:          readyPreflightCommandRunner(t),
+		ExecutableInspector:    testPreflightExecutableInspector,
+		CodexIdentityInspector: testPreflightCodexIdentityInspector,
 		LookPath: preflightLookPath(map[string]string{
 			"codex-test": "/fake/bin/codex-test",
 			"git-test":   "/fake/bin/git-test",
@@ -716,23 +718,32 @@ verification:
 	if !result.Ready {
 		t.Fatalf("preflight ready = false, checks = %#v", result.Checks)
 	}
+	manifest, err := codexexec.CurrentReleaseManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := []PreflightCheck{
 		{Status: PreflightOK, Name: "state", Detail: "initialized at " + filepath.Join(workDir, ".revolvr")},
 		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
+		{Status: PreflightOK, Name: "task graph", Detail: "mode=attended-task canonical_tasks=0 autonomous_tasks=0"},
+		{Status: PreflightOK, Name: "platform", Detail: "mode=attended-task os=linux"},
+		{Status: PreflightOK, Name: "operational bounds", Detail: "task_attempts=16 action_attempts=[audit=4,correct=4,document=4,implement=4,plan=4,simplify=4] elapsed=4h0m0s model_tokens=1000000 cycles_per_task=50 process_duration=30m0s output_bytes_per_stream=262144 retained_disk_bytes=1073741824 notification_attempts=0"},
+		{Status: PreflightOK, Name: "git executable", Detail: "configured=\"git-test\" resolved=\"/fake/bin/git-test\" sha256=" + strings.Repeat("b", 64)},
+		{Status: PreflightOK, Name: "repository shape", Detail: "operator-controlled non-bare Git worktree at " + workDir},
+		{Status: PreflightOK, Name: "active submodules", Detail: "none"},
+		{Status: PreflightOK, Name: "worktree clean", Detail: "no changes"},
+		{Status: PreflightOK, Name: "verification commands", Detail: "1 command configured"},
 		{Status: PreflightOK, Name: "autonomy safety", Detail: "mode=operator_attended; operator remains responsible for host, network, hooks, and credentials; worktree isolation is Git/source isolation only"},
 		{Status: PreflightOK, Name: "autonomous queue", Detail: "schema=autonomous-queue-policy-v1 maximum_workers=1"},
 		{Status: PreflightOK, Name: "artifact retention", Detail: "schema=revolvr-artifact-retention-policy-v1 mutation_enabled=false recent_runs=20"},
 		{Status: PreflightOK, Name: "notification hooks", Detail: "disabled; no executable lookup, environment load, outbox write, or process start"},
-		{Status: PreflightOK, Name: "codex executable", Detail: "/fake/bin/codex-test"},
+		{Status: PreflightOK, Name: "codex executable", Detail: "configured=\"codex-test\" resolved=\"/fake/bin/codex-test\" sha256=" + manifest.Codex[0].SHA256},
 		{Status: PreflightOK, Name: "codex model", Detail: "gpt-5.6-sol"},
 		{Status: PreflightOK, Name: "codex reasoning effort", Detail: "xhigh"},
 		{Status: PreflightOK, Name: "codex session", Detail: "ephemeral (ephemeral=true)"},
-		{Status: PreflightOK, Name: "codex version", Detail: "codex-test 1.2.3"},
-		{Status: PreflightOK, Name: "git executable", Detail: "/fake/bin/git-test"},
+		{Status: PreflightOK, Name: "codex version", Detail: manifest.Codex[0].Version + " (release-authorized exact identity)"},
 		{Status: PreflightOK, Name: "git identity", Detail: "Revolvr Doctor <doctor@example.invalid>"},
-		{Status: PreflightOK, Name: "worktree clean", Detail: "no changes"},
 		{Status: PreflightOK, Name: "runtime state ignored", Detail: ".revolvr/ ignored by Git"},
-		{Status: PreflightOK, Name: "verification commands", Detail: "1 command configured"},
 	}
 	if !reflect.DeepEqual(result.Checks, want) {
 		t.Fatalf("preflight checks = %#v, want %#v", result.Checks, want)
@@ -752,7 +763,9 @@ verification:
 `)
 
 	result, err := Preflight(ctx, Config{WorkDir: workDir}, PreflightInput{
-		CommandRunner: failedPreflightCommandRunner(t),
+		CommandRunner:          failedPreflightCommandRunner(t),
+		ExecutableInspector:    testPreflightExecutableInspector,
+		CodexIdentityInspector: testPreflightCodexIdentityInspector,
 		LookPath: preflightLookPath(map[string]string{
 			"git-test": "/fake/bin/git-test",
 		}),
@@ -766,6 +779,14 @@ verification:
 	want := []PreflightCheck{
 		{Status: PreflightFail, Name: "state", Detail: "not initialized; run `revolvr init`"},
 		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
+		{Status: PreflightOK, Name: "task graph", Detail: "mode=attended-task canonical_tasks=0 autonomous_tasks=0"},
+		{Status: PreflightOK, Name: "platform", Detail: "mode=attended-task os=linux"},
+		{Status: PreflightOK, Name: "operational bounds", Detail: "task_attempts=16 action_attempts=[audit=4,correct=4,document=4,implement=4,plan=4,simplify=4] elapsed=4h0m0s model_tokens=1000000 cycles_per_task=50 process_duration=30m0s output_bytes_per_stream=262144 retained_disk_bytes=1073741824 notification_attempts=0"},
+		{Status: PreflightOK, Name: "git executable", Detail: "configured=\"git-test\" resolved=\"/fake/bin/git-test\" sha256=" + strings.Repeat("b", 64)},
+		{Status: PreflightOK, Name: "repository shape", Detail: "operator-controlled non-bare Git worktree at " + workDir},
+		{Status: PreflightOK, Name: "active submodules", Detail: "none"},
+		{Status: PreflightFail, Name: "worktree clean", Detail: "dirty files: internal/app/preflight.go, scratch.txt"},
+		{Status: PreflightFail, Name: "verification commands", Detail: "no verification commands configured"},
 		{Status: PreflightOK, Name: "autonomy safety", Detail: "mode=operator_attended; operator remains responsible for host, network, hooks, and credentials; worktree isolation is Git/source isolation only"},
 		{Status: PreflightOK, Name: "autonomous queue", Detail: "schema=autonomous-queue-policy-v1 maximum_workers=1"},
 		{Status: PreflightOK, Name: "artifact retention", Detail: "schema=revolvr-artifact-retention-policy-v1 mutation_enabled=false recent_runs=20"},
@@ -774,12 +795,9 @@ verification:
 		{Status: PreflightOK, Name: "codex model", Detail: "gpt-5.6-sol"},
 		{Status: PreflightOK, Name: "codex reasoning effort", Detail: "xhigh"},
 		{Status: PreflightOK, Name: "codex session", Detail: "ephemeral (ephemeral=true)"},
-		{Status: PreflightFail, Name: "codex version", Detail: "not checked because the configured Codex executable is unavailable"},
-		{Status: PreflightOK, Name: "git executable", Detail: "/fake/bin/git-test"},
+		{Status: PreflightFail, Name: "codex version", Detail: `"missing-codex" not found: executable missing-codex not found`},
 		{Status: PreflightFail, Name: "git identity", Detail: "missing user.name and user.email"},
-		{Status: PreflightFail, Name: "worktree clean", Detail: "dirty files: internal/app/preflight.go, scratch.txt"},
 		{Status: PreflightFail, Name: "runtime state ignored", Detail: ".revolvr/ is not ignored; run `revolvr init`"},
-		{Status: PreflightFail, Name: "verification commands", Detail: "no verification commands configured"},
 	}
 	if !reflect.DeepEqual(result.Checks, want) {
 		t.Fatalf("preflight checks = %#v, want %#v", result.Checks, want)
@@ -828,7 +846,7 @@ autonomy:
 verification:
   commands: [{name: go}]
 `)
-	result, err := Preflight(context.Background(), Config{WorkDir: workDir}, PreflightInput{CommandRunner: readyPreflightCommandRunner(t), LookPath: preflightLookPath(map[string]string{"codex": "/fake/bin/codex", "git": "/fake/bin/git"})})
+	result, err := Preflight(context.Background(), Config{WorkDir: workDir}, PreflightInput{CommandRunner: readyPreflightCommandRunner(t), LookPath: preflightLookPath(map[string]string{"codex": "/fake/bin/codex", "git": "/fake/bin/git"}), ExecutableInspector: testPreflightExecutableInspector, CodexIdentityInspector: testPreflightCodexIdentityInspector})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -864,7 +882,9 @@ func TestPreflightCodexVersionFailuresAreNotReady(t *testing.T) {
 			createAppPreflightState(t, workDir)
 			writeAppTestFile(t, filepath.Join(workDir, ".revolvr", "config.yaml"), "verification:\n  commands:\n    - name: go\n")
 			result, err := Preflight(context.Background(), Config{WorkDir: workDir}, PreflightInput{
-				CommandRunner: preflightCommandRunnerWithVersion(t, tt.result),
+				CommandRunner:          preflightCommandRunnerWithVersion(t, tt.result),
+				ExecutableInspector:    testPreflightExecutableInspector,
+				CodexIdentityInspector: testPreflightCodexIdentityInspector,
 				LookPath: preflightLookPath(map[string]string{
 					"codex": "/fake/bin/codex",
 					"git":   "/fake/bin/git",
@@ -2030,7 +2050,41 @@ func preflightLookPath(paths map[string]string) ExecutableLookPath {
 
 func readyPreflightCommandRunner(t *testing.T) PreflightCommandRunner {
 	t.Helper()
-	return preflightCommandRunnerWithVersion(t, runner.Result{ExitCode: 0, Stdout: "codex-test 1.2.3\n"})
+	manifest, err := codexexec.CurrentReleaseManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return preflightCommandRunnerWithVersion(t, runner.Result{ExitCode: 0, Stdout: manifest.Codex[0].Version + "\n"})
+}
+
+func testPreflightExecutableInspector(configured string, lookPath codexexec.ExecutableLookPath) (codexexec.ExecutableIdentity, error) {
+	path, err := lookPath(configured)
+	if err != nil {
+		return codexexec.ExecutableIdentity{}, fmt.Errorf("%q not found: %w", configured, err)
+	}
+	return codexexec.ExecutableIdentity{Configured: configured, Resolved: path, SHA256: strings.Repeat("b", 64)}, nil
+}
+
+func testPreflightCodexIdentityInspector(ctx context.Context, configured, workDir string, cfg codexexec.VersionConfig, lookPath codexexec.ExecutableLookPath) (codexexec.CodexExecutableIdentity, error) {
+	path, err := lookPath(configured)
+	if err != nil {
+		return codexexec.CodexExecutableIdentity{}, fmt.Errorf("%q not found: %w", configured, err)
+	}
+	manifest, err := codexexec.CurrentReleaseManifest()
+	if err != nil {
+		return codexexec.CodexExecutableIdentity{}, err
+	}
+	cfg.Executable = path
+	cfg.WorkingDir = workDir
+	version, err := codexexec.DiscoverVersion(ctx, cfg)
+	if err != nil {
+		return codexexec.CodexExecutableIdentity{}, err
+	}
+	identity := codexexec.CodexExecutableIdentity{Version: version, Executable: codexexec.ExecutableIdentity{Configured: configured, Resolved: path, SHA256: manifest.Codex[0].SHA256}}
+	if err := manifest.Authorize(identity); err != nil {
+		return codexexec.CodexExecutableIdentity{}, err
+	}
+	return identity, nil
 }
 
 func preflightCommandRunnerWithVersion(t *testing.T, version runner.Result) PreflightCommandRunner {
@@ -2040,6 +2094,12 @@ func preflightCommandRunnerWithVersion(t *testing.T, version runner.Result) Pref
 			return version
 		}
 		switch strings.Join(command.Args, "\x00") {
+		case "rev-parse\x00--is-bare-repository":
+			return runner.Result{ExitCode: 0, Stdout: "false\n"}
+		case "rev-parse\x00--show-toplevel":
+			return runner.Result{ExitCode: 0, Stdout: command.Dir + "\n"}
+		case "submodule\x00status\x00--recursive":
+			return runner.Result{ExitCode: 0}
 		case "config\x00--get\x00user.name":
 			return runner.Result{ExitCode: 0, Stdout: "Revolvr Doctor\n"}
 		case "config\x00--get\x00user.email":
@@ -2059,6 +2119,12 @@ func failedPreflightCommandRunner(t *testing.T) PreflightCommandRunner {
 	t.Helper()
 	return func(_ context.Context, command runner.Command) runner.Result {
 		switch strings.Join(command.Args, "\x00") {
+		case "rev-parse\x00--is-bare-repository":
+			return runner.Result{ExitCode: 0, Stdout: "false\n"}
+		case "rev-parse\x00--show-toplevel":
+			return runner.Result{ExitCode: 0, Stdout: command.Dir + "\n"}
+		case "submodule\x00status\x00--recursive":
+			return runner.Result{ExitCode: 0}
 		case "config\x00--get\x00user.name", "config\x00--get\x00user.email":
 			return runner.Result{ExitCode: 1}
 		case "status\x00--porcelain=v1\x00-z\x00--untracked-files=all":

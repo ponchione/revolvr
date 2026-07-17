@@ -210,12 +210,14 @@ func (s *Store) LoadCurrentAudit(ctx context.Context, taskID string) (AuditSnaps
 		selected.Record.TaskSource,
 		selected.Record.RawOutput,
 		selected.Record.CanonicalOutput,
-		{Path: selected.Record.Profile.Path, SHA256: selected.Record.Profile.SHA256, ByteSize: selected.Record.Profile.ByteSize},
 	}
 	for _, artifact := range artifacts {
 		if err := s.verifyArtifact(artifact); err != nil {
 			return AuditSnapshot{}, false, err
 		}
+	}
+	if err := s.verifyProfileArtifact(selected.Record.Profile); err != nil {
+		return AuditSnapshot{}, false, err
 	}
 	rawOutput, err := s.readArtifactBytes(selected.Record.RawOutput)
 	if err != nil {
@@ -558,4 +560,21 @@ func (s *Store) readArtifactBytes(identity ArtifactIdentity) ([]byte, error) {
 		return nil, fmt.Errorf("%w: immutable artifact %s no longer matches its identity", ErrOperationConflict, identity.Path)
 	}
 	return raw, nil
+}
+
+func (s *Store) verifyProfileArtifact(identity autonomousaudit.ProfileIdentity) error {
+	raw, found, err := s.readFile(identity.Path, false)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return os.ErrNotExist
+	}
+	normalized := []byte(strings.TrimSpace(string(raw)))
+	exact := hashBytes(raw) == identity.SHA256 && len(raw) == identity.ByteSize
+	trimmed := hashBytes(normalized) == identity.SHA256 && len(normalized) == identity.ByteSize
+	if !exact && !trimmed {
+		return fmt.Errorf("%w: immutable artifact %s no longer matches its identity", ErrOperationConflict, identity.Path)
+	}
+	return nil
 }

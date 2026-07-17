@@ -15,6 +15,7 @@ import (
 	"revolvr/internal/id"
 	"revolvr/internal/operatorcheckpoint"
 	"revolvr/internal/pathguard"
+	"revolvr/internal/repositorypath"
 	"revolvr/internal/runtimepath"
 )
 
@@ -457,13 +458,27 @@ func Load(repositoryRoot string, path string) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
-	sourcePath, absPath, err := resolveTaskPath(root, path)
+	if _, _, err := resolveTaskPath(root, path); err != nil {
+		return Task{}, err
+	}
+	authority, err := repositorypath.Inspect(repositoryRoot, repositorypath.InspectOptions{})
 	if err != nil {
 		return Task{}, err
 	}
-	raw, err := os.ReadFile(absPath)
+	return loadWithAuthority(authority, authority.Root(), path)
+}
+
+func loadWithAuthority(authority repositorypath.Authority, root string, path string) (Task, error) {
+	sourcePath, _, err := resolveTaskPath(root, path)
+	if err != nil {
+		return Task{}, err
+	}
+	raw, found, err := authority.ReadFile(filepath.ToSlash(sourcePath), false)
 	if err != nil {
 		return Task{}, fmt.Errorf("load task file %s: %w", sourcePath, err)
+	}
+	if !found {
+		return Task{}, fmt.Errorf("load task file %s: %w", sourcePath, os.ErrNotExist)
 	}
 	task, err := parse(raw, sourcePath, root)
 	if err != nil {
@@ -497,12 +512,16 @@ func LoadAll(repositoryRoot string) ([]Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(root, TasksDir)
-	if err := validateResolvedTaskDirectory(root, dir); err != nil {
+	if err := validateResolvedTaskDirectory(root, filepath.Join(root, TasksDir)); err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
+	authority, err := repositorypath.Inspect(repositoryRoot, repositorypath.InspectOptions{})
+	if err != nil {
+		return nil, err
+	}
+	root = authority.Root()
+	entries, found, err := authority.ReadDir(TasksDir, true)
+	if !found {
 		return nil, nil
 	}
 	if err != nil {
@@ -520,7 +539,7 @@ func LoadAll(repositoryRoot string) ([]Task, error) {
 
 	tasks := make([]Task, 0, len(names))
 	for _, name := range names {
-		task, err := Load(root, filepath.Join(TasksDir, name))
+		task, err := loadWithAuthority(authority, root, filepath.Join(TasksDir, name))
 		if err != nil {
 			return nil, err
 		}
