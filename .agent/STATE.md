@@ -60,14 +60,46 @@ and archive publication. Every row binds exact durable replay, quarantine,
 readiness-level continuation, prohibited inference, and operator action.
 The next fresh task remains EXT-20. RC.1 and its remote evidence are immutable
 rejected history after the omitted-work-directory defect. Replacement RC.2 is
-now built and locally verified from the exact fix commit; fresh exact-commit CI
-and supplemental remote artifact attestation remain required before any new
-collision-free live dogfood suite may start. Recovery inspection uses a distinct
+now built and locally verified from the exact fix commit; its fresh exact-commit
+CI and supplemental remote artifact attestation have both passed. The next
+bounded pass may prepare a new collision-free RC.2 live dogfood suite, but it
+must not start live model work without the separate explicit confirmation.
+Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.2 Remote Artifact Attestation Result (2026-07-17)
+
+- Raw Git published collision-free attestation ref
+  `level1-v0.1.0-rc.2-attestation` at exact workflow commit
+  `7038030d07c9eb1b76e0af2a3fdc84154d9b6fe2`; remote readback preserved the
+  candidate ref at exact source commit
+  `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`.
+- Dedicated GitHub Actions run `29621464972` completed `success` at the exact
+  workflow commit. Job `88017202674`, `Rebuild and attest Level 1 RC.2
+  candidate`, passed its exact-candidate checkout, pinned Go setup, two-clean-
+  clone rebuild and attestation, and retained-authority upload steps. The
+  workflow therefore enforced all six recorded hashes, all three byte-for-byte
+  build-pair comparisons, embedded build/version metadata, and the authority
+  manifest before upload. Run evidence:
+  `https://github.com/ponchione/revolvr/actions/runs/29621464972`.
+- The retained unexpired artifact is
+  `level1-v0.1.0-rc.2-attestation`, artifact ID `8422371223`, size
+  70,182,577 bytes, with GitHub artifact digest
+  `sha256:f68f6b5a02ce5f18c31ba50b11dc4a0e653145161b0636dce265401216902018`
+  and expiry `2026-10-15T23:44:45Z`. The public REST metadata was inspected;
+  its archive endpoint requires authentication and returned HTTP 401, so no
+  independent claim of downloading the remote ZIP is made.
+- General push-triggered CI run `29621464929` also completed `success` at exact
+  workflow commit `7038030d07c9eb1b76e0af2a3fdc84154d9b6fe2`.
+- The RC.2 remote prerequisites are complete. EXT-20 remains unchecked. The
+  next bounded pass is to update and verify the external Level-1 suite against
+  immutable RC.2, prepare a new collision-free no-model run root, and stop
+  before the separately confirmed live real-Codex invocation. No tag or
+  external-use approval was created.
 
 ## EXT-20 RC.2 Remote Artifact Attestation Workflow (2026-07-17)
 
@@ -122,13 +154,10 @@ document's remaining blockers stay open until their ordered tasks pass.
   and commit: `refs/heads/level1-v0.1.0-rc.2-attestation`. Raw Git found that
   ref absent both locally and at `origin`; publication should use the reviewed
   workflow commit as its tip and must not move the exact candidate ref.
-- What remains: commit the reviewed workflow independently, publish only that
-  collision-free attestation ref with raw Git, require its remote job to
-  succeed, record the run URL and conclusion, verify its exact checkout SHA,
-  inspect the retained artifact and remote digest, and compare all six
-  binaries/hashes/metadata/authority files with this contract. Only then may a
-  new collision-free RC.2 EXT-20 real-Codex suite be prepared. External use
-  remains unapproved; blocker for this local subtask: none.
+- Completion is recorded in `EXT-20 RC.2 Remote Artifact Attestation Result`
+  above. A new collision-free RC.2 EXT-20 real-Codex suite may now be prepared,
+  but live model execution still requires its separate explicit confirmation.
+  External use remains unapproved; blocker for the next local subtask: none.
 
 ## EXT-20 RC.2 Exact-Candidate Remote CI (2026-07-17)
 
