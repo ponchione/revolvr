@@ -79,6 +79,11 @@ func NewRootCommand(opts Options) *cobra.Command {
 	if version == "" {
 		version = defaultVersion
 	}
+	if strings.TrimSpace(opts.WorkDir) == "" {
+		if workDir, err := os.Getwd(); err == nil {
+			opts.WorkDir = workDir
+		}
+	}
 
 	root := &cobra.Command{
 		Use:           "revolvr",

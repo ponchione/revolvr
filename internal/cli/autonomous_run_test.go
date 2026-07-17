@@ -35,6 +35,25 @@ func TestRunUntilTerminalFlagsAndDeterministicSummary(t *testing.T) {
 	}
 }
 
+func TestRunUntilTerminalDefaultsToCurrentWorkingDirectory(t *testing.T) {
+	want, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	root := NewRootCommand(Options{Out: &bytes.Buffer{}, RunTaskUntilTerminal: func(_ context.Context, cfg app.Config, _ app.TaskRunInput) (autonomoustaskrun.Result, error) {
+		got = cfg.WorkDir
+		return autonomoustaskrun.Result{OperationID: "operation-one", TaskID: "task-one", StopReason: autonomoustaskrun.StopNeedsInput}, nil
+	}})
+	root.SetArgs([]string{"run", "--until-terminal", "--task", "task-one", "--operation-id", "operation-one", "--max-cycles", "1"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("work directory=%q want=%q", got, want)
+	}
+}
+
 func TestRunModesAreMutuallyExclusive(t *testing.T) {
 	root := NewRootCommand(Options{Out: &bytes.Buffer{}, WorkDir: t.TempDir()})
 	root.SetArgs([]string{"run", "--once", "--until-terminal"})

@@ -68,6 +68,43 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 Candidate Rejected: CLI Work Directory (2026-07-17)
+
+- The second live attempt reached the exact RC.1 binary but stopped before
+  supervisor/model admission. `revolvr run --until-terminal` returned
+  `inspect repository paths: harness runtime path: repository root is required`
+  for operation `ext20-579a7316af31-01`; the collector consequently retained
+  an incomplete, non-manifest diagnostic tree at
+  `/tmp/revolvr-ext20-live2.3ZVQcm/suite/evidence/repo-a/01-successful-source-change-1`.
+  No task-operation directory, run, receipt, source change, commit, or model
+  invocation exists. The suite root is retired because incomplete evidence is
+  collision authority and must not be overwritten.
+- Root cause: the production entry point constructs `cli.Options` without
+  `WorkDir`. Read-oriented commands normalize an empty work directory through
+  `resolveStatePaths`, but autonomous `run` passes it directly to external
+  admission. The immutable RC.1 candidate therefore cannot start any real
+  attended task, even when its process current directory is the repository.
+- Fix: `cli.NewRootCommand` now resolves an omitted work directory from
+  `os.Getwd` once before constructing subcommands. A CLI regression test calls
+  autonomous run with production-style empty options and proves the exact
+  current directory reaches `app.Config`.
+- Verification passed: `gofmt`; focused CLI, app, repository-path, and runtime-
+  path tests; `go test -count=1 ./...`; `git diff --check`; and a newly built
+  production CLI invoked from the pristine second external repository. The
+  smoke command passed repository/external admission and refused only the
+  intentionally absent task at scheduler selection, created no operation, and
+  left Git clean.
+- Release consequence: candidate RC.1 at source commit
+  `ed65049fba6bf82852fd406ebc17afa90a953e3f` is rejected for Level-1 external
+  use. Its EXT-18/EXT-19 evidence remains immutable historical evidence but
+  cannot satisfy EXT-20. A replacement candidate must be built reproducibly
+  from the work-directory fix, receive fresh local/remote attestation, and use
+  a new collision-free EXT-20 suite. The old candidate binary, bundles, remote
+  refs, artifacts, and failed roots must not be edited or relabeled.
+- EXT-20 remains unchecked. The next fresh bounded pass is replacement local
+  candidate construction and verification only; it must not start live Codex,
+  push, tag, or mark external use approved.
+
 ## EXT-20 Live Preflight Bound-Rendering Fix (2026-07-17)
 
 - The first confirmation-gated live command stopped during EXT-17 collector
