@@ -18,7 +18,7 @@ foreground daemon. Every item has explicit acceptance and verification
 evidence, and release commit/push/tag actions retain the repository rule that
 they require direct operator authorization.
 
-EXT-01 through EXT-17 are complete. EXT-14's previously implemented production
+EXT-01 through EXT-18 are complete. EXT-14's previously implemented production
 interruption matrix has now passed its separate fresh verification pass.
 Doctor, status, canonical task loading, configuration reads, and exact-task/
 queue admission use one descriptor-backed, read-only repository-path
@@ -58,12 +58,70 @@ before/during/after transition seams for supervisor, worker, verification,
 commit, checkpoint, audit, finalization, queue reconciliation, notification,
 and archive publication. Every row binds exact durable replay, quarantine,
 readiness-level continuation, prohibited inference, and operator action.
-The next fresh task is EXT-18. Recovery inspection now uses a distinct
+The next fresh task is EXT-19, which requires explicit operator authorization
+before pushing the exact candidate commit. Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-18 Reproducible Level-1 Release Candidate (2026-07-17)
+
+- Task selected: `EXT-18`, produce a reproducible, versioned Level-1 release
+  candidate from one clean exact source commit.
+- Candidate `level1-v0.1.0-rc.1` uses release version `0.1.0`, exact source
+  commit `ed65049fba6bf82852fd406ebc17afa90a953e3f`, and the current official
+  stable patched toolchain `go1.26.5`. The exact future artifact is versioned
+  now so Level-1 dogfood tests the bytes eligible for the later `v0.1.0`
+  decision rather than a differently versioned development build.
+- The ignored local bundle at
+  `.revolvr/release-candidates/level1-v0.1.0-rc.1-ed65049fba6b/` contains the
+  pinned build instructions, Linux/Darwin/FreeBSD amd64 artifacts, `go version
+  -m` evidence, byte-for-byte duplicate-build comparison, canonical candidate
+  manifest, complete SHA-256 inventory, and inventory digest. Its inventory
+  SHA-256 is
+  `7a87c571f59a758fcf979acd9980e9799fda0a0c06bc9be4dce8ca44f37b1dde`;
+  build-instruction SHA-256 is
+  `6e1782dedfd56b6e0ac4350d35a8379650ac2aa7af34e1f1b41057272cae9b84`.
+- Artifact SHA-256 values are Linux amd64
+  `6239ec551a01b96b95dbaa2aac50ff3036f8f1ccccfff785f1136cd82323591a`,
+  Darwin amd64
+  `1c28e844196e88dd03daffde2a24a417d88571ab31bba2b022438b9453aa9fdb`,
+  and FreeBSD amd64
+  `8b7860b801e30f7d36258cde1da4a8af5e9cb312177bd46fc0003a439fca0e17`.
+  Both independent clean-clone builds produced those exact hashes.
+- The sibling `-verification` bundle retains source-floor, host, vet, module,
+  vulnerability, and candidate-verification logs under complete read-only
+  SHA-256 inventory. Its inventory SHA-256 is
+  `0dcccc3ae6051791fd10effeac754ad2d5c6dcdc8b61fd0900e3c862aefe68f2`.
+  `govulncheck` found zero reachable and zero imported-package
+  vulnerabilities. Its one separately retained module-only finding is
+  `GO-2026-5024` in `golang.org/x/sys@v0.30.0`, a Windows-only
+  `NewNTUnicodeString` symbol Revolvr does not call; the report names v0.44.0
+  as fixed.
+- Files changed in this pass: `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/DECISIONS.md`; ignored local candidate instructions, artifacts, and
+  verification evidence were added under `.revolvr/release-candidates/`. No
+  Go source, dependency, commit, push, tag, or real Codex operation changed.
+  The first generated bundle failed its own verification because its recorded
+  `go version -m` filename named a temporary artifact. The one permitted
+  repair records metadata from the final installed artifact; the failed
+  diagnostic bundle is retained with suffix `.failed-metadata-path`.
+- Verification commands: clean-source Git admission; official Go release
+  inspection; `bash -n` on the pinned instructions; two independent clean
+  builds of every supported target; bundle inventory/metadata/version
+  verification; `go version`; `GOTOOLCHAIN=go1.22.12 go version`;
+  `GOTOOLCHAIN=go1.22.12 go test -count=1 ./...`; `go test -count=1 ./...`;
+  `go vet ./...`; `go mod verify`; `govulncheck ./...`; `govulncheck -show
+  verbose ./...`; and complete verification-evidence inventory checks.
+- Verification result: all required source-floor, host, static, module,
+  vulnerability, supported-build, reproducibility, metadata, and inventory
+  checks passed after the single metadata-path repair.
+- What remains: `EXT-19`, push this exact candidate commit and obtain remote
+  CI evidence. That task must not push without direct operator authorization.
+  External-project use remains unapproved pending EXT-19 through EXT-21.
+- Blockers for EXT-18: none.
 
 ## EXT-18 Release Candidate Blocked — Fresh Recheck (2026-07-17)
 

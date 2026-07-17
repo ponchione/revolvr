@@ -261,7 +261,7 @@
     dirty/non-disposable/wrong-binary/wrong-Codex inputs fail before mutation;
     run git diff --check.
 
-- [ ] EXT-18 — Produce a reproducible, versioned Level-1 release candidate.
+- [x] EXT-18 — Produce a reproducible, versioned Level-1 release candidate.
   - Acceptance: From one clean exact source commit, reproducible instructions
     produce binaries recording Revolvr version, exact patched supported Go
     toolchain, target platform, and source commit. Go 1.22 source-floor tests

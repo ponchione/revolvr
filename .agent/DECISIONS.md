@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## EXT-18 Reproducible Level-1 Candidate Authority (2026-07-17)
+
+- Candidate `level1-v0.1.0-rc.1` binds release version `0.1.0` to exact clean
+  source commit `ed65049fba6bf82852fd406ebc17afa90a953e3f`. The binary carries
+  the final proposed release version so subsequent dogfood and the possible
+  `v0.1.0` decision evaluate the same bytes; the candidate label itself is not
+  an approval tag.
+- Release builds require exact official stable toolchain `go1.26.5`, local
+  toolchain selection, module-readonly mode, disabled CGO, `amd64`,
+  `-trimpath`, explicit VCS metadata, an empty Go build ID, and exact
+  `main.version`. Supported Level-1 artifacts are Linux, Darwin, and FreeBSD.
+  Two independent non-local clean clones of the exact commit must produce
+  byte-identical artifacts for every target.
+- The ignored `.revolvr/release-candidates/` bundle is local immutable dogfood
+  input, not source authority. Its canonical manifest binds source, version,
+  toolchain, targets, build-instruction hash, and artifact hashes; a sorted
+  complete regular-file inventory plus separate inventory digest detects
+  missing, extra, aliased, symlinked, or changed evidence. Embedded Go build
+  metadata must independently show the exact toolchain, target, source commit,
+  and `vcs.modified=false`.
+- Go 1.22.12 remains the tested language floor while release artifacts use the
+  patched Go 1.26.5 toolchain. A release scan blocks on any reachable or
+  imported-package vulnerability. Module-only unreachable findings are
+  retained separately; this candidate records `GO-2026-5024` in the
+  Windows-only `golang.org/x/sys/windows` surface without treating it as a
+  supported-platform or reachable finding.
+- Candidate construction grants no external-use approval and performs no
+  commit, push, or tag. EXT-19 still requires direct operator authorization to
+  push the exact candidate commit and prove the mandatory remote CI jobs;
+  EXT-20 and EXT-21 retain dogfood and immutable approval authority.
+
 ## EXT-17 Level-1 Dogfood Evidence Authority (2026-07-16)
 
 - Real collection is opt-in and never initializes or authors the external
