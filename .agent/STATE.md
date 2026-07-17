@@ -18,7 +18,7 @@ foreground daemon. Every item has explicit acceptance and verification
 evidence, and release commit/push/tag actions retain the repository rule that
 they require direct operator authorization.
 
-EXT-01 through EXT-18 are complete. EXT-14's previously implemented production
+EXT-01 through EXT-19 are complete. EXT-14's previously implemented production
 interruption matrix has now passed its separate fresh verification pass.
 Doctor, status, canonical task loading, configuration reads, and exact-task/
 queue admission use one descriptor-backed, read-only repository-path
@@ -58,16 +58,92 @@ before/during/after transition seams for supervisor, worker, verification,
 commit, checkpoint, audit, finalization, queue reconciliation, notification,
 and archive publication. Every row binds exact durable replay, quarantine,
 readiness-level continuation, prohibited inference, and operator action.
-The current fresh task is EXT-19. The exact candidate exists on the remote and
-its complete push-triggered CI matrix passed. A local supplemental attestation
-workflow now checks out the exact candidate, rebuilds and hashes all supported
-artifacts, and retains them for remote inspection; it still requires controller
-publication and a successful remote run. Recovery inspection uses a distinct
+The next fresh task is EXT-20. The exact candidate exists on the remote, its
+complete push-triggered CI matrix passed, and the supplemental remote
+attestation rebuilt all supported artifacts with the exact EXT-18 hashes and
+retained the attested bundle. Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-19 Exact Candidate Remote CI And Artifact Attestation (2026-07-17)
+
+- Task selected: `EXT-19`, push the exact Level-1 candidate and obtain remote
+  CI plus tested-binary evidence.
+- Under the operator's explicit raw-Git publication authorization, remote
+  branch `level1-v0.1.0-rc.1` names exact candidate source commit
+  `ed65049fba6bf82852fd406ebc17afa90a953e3f`. Push-triggered CI run
+  `29612464054` completed successfully on that SHA; all ten mandatory EXT-15
+  jobs succeeded.
+- Supplemental workflow commit
+  `a1afdd73a7bfb03e9e5ef361616604115f9db5b8` is published at remote branch
+  `level1-v0.1.0-rc.1-attestation`. It checks out the immutable candidate SHA,
+  uses Go 1.26.5 and the exact EXT-18 release commands, verifies embedded
+  version/source metadata, and compares the Linux, Darwin, and FreeBSD amd64
+  binaries with the recorded EXT-18 SHA-256 values.
+- Attestation run `29615752091` completed successfully and retained artifact
+  `level1-v0.1.0-rc.1-attestation`, size 35,090,832 bytes, with GitHub artifact
+  digest
+  `sha256:def158256b667447248a0370ee6e2dbe724b2dc1971216300e21751d706ff94f`.
+  The artifact is not expired. Its run URL is
+  `https://github.com/ponchione/revolvr/actions/runs/29615752091`; the candidate
+  CI URL is `https://github.com/ponchione/revolvr/actions/runs/29612464054`.
+- Controller verification used raw `git` for local and remote refs and the
+  official read-only GitHub Actions REST projections for run, job, and artifact
+  conclusions. No `gh`, tag, merge, rebase, or Revolvr publication operation
+  was used.
+- Verification result: the remote candidate identity, complete required CI
+  matrix, exact release-binary hashes, and retained artifact evidence all
+  passed. EXT-19 is complete.
+- What remains: `EXT-20`, the quantitative Level-1 real-Codex dogfood gate.
+  External-project use remains unapproved pending EXT-20 and EXT-21.
+- Blockers for EXT-19: none.
+
+## EXT-19 Supplemental Candidate Attestation — Fresh Local Verification (2026-07-17)
+
+- Task selected: `EXT-19`, add the smallest supplemental remote attestation
+  workflow for exact Level-1 candidate commit
+  `ed65049fba6bf82852fd406ebc17afa90a953e3f` while leaving completion gated on
+  its remote result.
+- The already-present
+  `.github/workflows/level1-candidate-attestation.yml` requires no repair. It
+  triggers only on pushes to `level1-v0.1.0-rc.1-attestation`, checks out the
+  exact candidate commit, installs Go 1.26.5, reproduces the EXT-18 Linux,
+  Darwin, and FreeBSD amd64 command/environment/version metadata, compares the
+  three recorded SHA-256 values, and uploads the binaries, metadata, and
+  `SHA256SUMS` as one artifact.
+- Files changed in this pass: this state file only. The workflow remains
+  unchanged, `.agent/TASKS.md` remains unchanged with EXT-19 unchecked, and
+  `.agent/DECISIONS.md` remains unchanged because no implementation or
+  architecture authority changed. Candidate source commit
+  `ed65049fba6bf82852fd406ebc17afa90a953e3f` remains the exact immutable build
+  source.
+- Verification commands run: all required durable-state reads; raw `git`
+  worktree, history, candidate-object, ancestry, and workflow inspection;
+  PyYAML BaseLoader parsing plus exact trigger/checkout/toolchain/build/hash/
+  artifact assertions; host `go1.26.5` verification; execution of the actual
+  embedded workflow shell block in a fresh detached clone of the candidate;
+  hash-manifest verification; the pinned EXT-18 bundle `--verify` command; and
+  `git diff --check`. An initial command wrapper was rejected before execution
+  because of its temporary-cleanup spelling; the same check was rerun with an
+  exact temporary path and completed successfully without repository changes.
+- Verification result: local workflow structure and execution passed. The
+  rebuilt Linux, Darwin, and FreeBSD amd64 artifacts matched the recorded
+  EXT-18 SHA-256 values
+  `6239ec551a01b96b95dbaa2aac50ff3036f8f1ccccfff785f1136cd82323591a`,
+  `1c28e844196e88dd03daffde2a24a417d88571ab31bba2b022438b9453aa9fdb`,
+  and `8b7860b801e30f7d36258cde1da4a8af5e9cb312177bd46fc0003a439fca0e17`.
+  The uploaded-file projection contained the three binaries, their build
+  metadata, Go/source/version metadata, and `SHA256SUMS`; the complete EXT-18
+  bundle also reverified.
+- What remains: the controller must verify the workflow commit/ref, confirm a
+  successful remote attestation job, and record its run URL, conclusion, and
+  retained artifact evidence. Only then may EXT-19 be marked complete.
+- Blockers: this local pass does not establish the remote workflow conclusion
+  or artifact retention. No commit, push, tag, `gh`, or nested Codex operation
+  was used.
 
 ## EXT-19 Supplemental Candidate Attestation Workflow (2026-07-17)
 

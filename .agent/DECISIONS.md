@@ -1,5 +1,24 @@
 # Agent Decisions
 
+## EXT-19 Remote Candidate And Attestation Authority (2026-07-17)
+
+- The Level-1 candidate source authority is remote branch
+  `level1-v0.1.0-rc.1` at exact commit
+  `ed65049fba6bf82852fd406ebc17afa90a953e3f`; branch names alone are not
+  authority. Push-triggered CI run `29612464054` binds all ten mandatory EXT-15
+  job conclusions to that source SHA.
+- Release-binary comparison is a separate exact-checkout attestation because
+  the mandatory source-floor CI cross-builds do not use the release toolchain,
+  version flags, or retained outputs. Workflow commit
+  `a1afdd73a7bfb03e9e5ef361616604115f9db5b8` checks out the immutable candidate,
+  reproduces the EXT-18 Go 1.26.5 builds, fails on any metadata or SHA-256
+  difference, and retains the binaries, metadata, and hash manifest.
+- Successful attestation run `29615752091` and its unexpired artifact digest
+  `sha256:def158256b667447248a0370ee6e2dbe724b2dc1971216300e21751d706ff94f`
+  complete remote build evidence for EXT-19. This evidence grants no tag or
+  external-use approval; EXT-20 dogfood and EXT-21 release decision authority
+  remain separate.
+
 ## EXT-18 Reproducible Level-1 Candidate Authority (2026-07-17)
 
 - Candidate `level1-v0.1.0-rc.1` binds release version `0.1.0` to exact clean

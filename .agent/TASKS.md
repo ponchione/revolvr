@@ -274,7 +274,7 @@
     govulncheck ./..., supported-platform builds, and verify the embedded
     version/source metadata.
 
-- [ ] EXT-19 — Push the exact Level-1 candidate and obtain remote CI evidence.
+- [x] EXT-19 — Push the exact Level-1 candidate and obtain remote CI evidence.
   - Acceptance: With explicit operator authorization, the complete candidate
     commit is pushed without using Revolvr to push or integrate project work.
     The remote commit equals the dogfood source commit, all EXT-15 required
