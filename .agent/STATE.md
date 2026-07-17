@@ -68,6 +68,136 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 Guarded Level-1 Suite Driver (2026-07-17)
+
+- Task selected: `EXT-20`, implement the guarded driver for the complete
+  quantitative Level-1 real-Codex dogfood suite without starting live model
+  work in this pass.
+- `scripts/dogfood-external-level1-suite.sh` now has four explicit modes:
+  no-write/no-model `--static`, no-model `--prepare`, confirmation-gated
+  `--live`, and independent `--verify-suite`. Live execution is impossible
+  without the exact value
+  `EXT20_LIVE_REAL_CODEX_MODEL_CALLS` supplied to
+  `--confirm-live-real-codex`.
+- Preparation either installs isolated `@openai/codex@0.144.4` or accepts an
+  explicit isolated npm prefix, then requires exact output
+  `codex-cli 0.144.4` and SHA-256
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+  It separately verifies the complete immutable EXT-18 bundle and Linux
+  candidate SHA-256
+  `6239ec551a01b96b95dbaa2aac50ff3036f8f1ccccfff785f1136cd82323591a`
+  at source commit `ed65049fba6bf82852fd406ebc17afa90a953e3f`.
+- The prepared plan contains 11 unique operations across two new disposable
+  repositories: five named successful source changes, a completed correction
+  with final verification and re-audit, a retained production verification
+  failure, needs input, graceful cancellation followed by a new-operation
+  restart, and a hostile-instruction supervisor safety refusal. Every
+  operation invokes `scripts/dogfood-external-level1.sh` once. Existing
+  terminal bundles are verified and reused; incomplete path collisions fail
+  without overwrite.
+- Aggregate verification independently verifies every EXT-17 manifest,
+  outside-sentinel equality, control-HEAD containment, candidate/Codex/config
+  identity, terminal operation/history, every retained ledger/receipt
+  validation result, attempt charge equality, exact task-branch commit counts,
+  unique commit heads, all quantitative thresholds, and every zero-tolerance
+  counter. Its sorted operation table and report are deterministic and
+  hash-listed; conflicting retained rows, report, or checksum authority are
+  never overwritten. Failed verification removes its unpublished temporary
+  aggregate files. The driver never edits task-run, state, history, receipt,
+  recovery, or other live runtime evidence.
+- Controller review found and repaired two evidence-quality defects before any
+  live call: failed pre-live verification retained an unpublished aggregate
+  temporary file, and aggregate verification did not independently inspect
+  every hashed collector ledger/receipt result. It also narrowed permitted
+  control-root metadata changes to the selected task, checkpoints them after
+  every terminal outcome, makes retained-bundle replay recheck exact task and
+  outcome authority, and counts only the five explicit successful-source
+  scenarios toward that threshold.
+- Files changed in this pass:
+  `scripts/dogfood-external-level1-suite.sh`, `agent-ext20.sh`, and this state
+  file. The helper preserves the fresh-session implementation command used to
+  create the driver; the live model suite remains a separate confirmation-
+  gated command.
+  `.agent/TASKS.md` remains unchanged with EXT-20 unchecked, and
+  `.agent/DECISIONS.md` remains unchanged because this applies the settled
+  EXT-17 through EXT-20 evidence authority without changing architecture.
+- Verification commands run: all required durable-state reads; shell syntax
+  checks for the new driver and EXT-17 collector; the driver's `--static`
+  mode; the pinned candidate bundle `--verify` path; a fresh standalone
+  no-model `--prepare --install-codex` run; a second no-model preparation using
+  the accepted-prefix path; exact installed package/version/executable hash
+  inspection; clean Git/status and exact-task doctor checks for both prepared
+  repositories; refusal of live mode without the confirmation value; refusal
+  of a colliding preparation root; refusal of pre-live aggregate validation
+  with no manifests and no aggregate publication; independent controller
+  syntax/static review; confirmation-refusal testing; source scans for nested
+  Codex, `gh`, push, and source-runtime edits; `go test ./...`; focused CLI and
+  task-run persistence/cancellation tests; and `git diff --check`. One
+  initial preparation found a same-line Bash `local` expansion under
+  `set -u`; the single repair split the derived assignment, after which both
+  preparation forms and the complete static verification passed. A later
+  attempt to remove two temporary preparation-check roots was rejected before
+  execution by the command guard and changed no repository or suite evidence.
+- Verification result: implementation and no-model preparation passed. The old
+  preparation root was retired after it retained a temporary file produced by
+  the pre-repair verifier. A fresh standalone prepared suite with zero
+  operation manifests and an empty aggregate directory is retained at
+  `/tmp/revolvr-ext20-fresh.OmCBwv/suite`; both external repositories are
+  clean, every task doctor reported ready during preparation, and its isolated
+  Codex path reports the exact required version and digest.
+- What remains: run the real suite with the unmistakable explicit
+  confirmation, retain all 11 terminal bundles, and independently validate
+  the aggregate:
+  `scripts/dogfood-external-level1-suite.sh --live --run-root
+  /tmp/revolvr-ext20-fresh.OmCBwv/suite --confirm-live-real-codex
+  EXT20_LIVE_REAL_CODEX_MODEL_CALLS`. EXT-20 must remain unchecked until this
+  command finishes and `--verify-suite` passes every retained manifest and
+  threshold.
+- Blockers: this implementation pass explicitly forbids live or nested Codex
+  operations, so it cannot produce qualifying manifests. No live model call,
+  current-repository commit, push, tag, or remote mutation was started.
+
+## EXT-20 Real-Codex Dogfood Gate Blocked (2026-07-17)
+
+- Task selected: `EXT-20`, execute and independently validate the quantitative
+  Level-1 real-Codex dogfood gate for the exact release candidate.
+- Files changed in this pass: this state file only. `.agent/TASKS.md` remains
+  unchanged and EXT-20 remains unchecked. `.agent/DECISIONS.md` remains
+  unchanged because no durable implementation or architecture decision was
+  made.
+- Verification commands run: all required durable-state reads; `git status
+  --branch --porcelain=v2`; exact HEAD and remote candidate-ref inspection;
+  candidate-bundle inventory, version, SHA-256, and Go build-metadata checks;
+  the pinned candidate bundle `--verify` command; installed Codex path,
+  SHA-256, and version inspection; the embedded release-manifest inspection;
+  searches for dogfood manifests under the repository, `/tmp`, and
+  `/home/gernsback`; inspection of every discovered intact manifest; current
+  collector `--verify-manifest` for all four intact bundles; and `git diff
+  --check`.
+- Verification result: blocked. The Linux candidate remains intact at exact
+  SHA-256
+  `6239ec551a01b96b95dbaa2aac50ff3036f8f1ccccfff785f1136cd82323591a`,
+  reports `revolvr 0.1.0`, and records source commit
+  `ed65049fba6bf82852fd406ebc17afa90a953e3f`. The only discovered Level-1
+  manifests are four valid EXT-17 fixture bundles whose manifests explicitly
+  record `fixture_only\ttrue`, the synthetic candidate, and synthetic Codex
+  identity. They prove the collector mechanism but contribute zero real-Codex
+  operations, repositories, successful source changes, or required production
+  scenarios to EXT-20.
+- What remains: collect at least ten qualifying manifests from real-Codex task
+  operations across at least two disposable external repositories, including
+  five successful source changes plus verification failure/correction, needs
+  input, cancellation/restart, and safety refusal. Then verify every manifest,
+  total the independent thresholds, compare Git and outside-sentinel
+  authority, and validate every ledger and receipt before completing EXT-20.
+- Blockers: this pass explicitly forbids starting a nested Codex run, so it
+  cannot generate the missing real-operation evidence. In addition, the only
+  installed Codex reports `codex-cli 0.144.5`; the candidate's embedded
+  release manifest admits exactly `codex-cli 0.144.4` with the observed
+  executable SHA-256, so current admission would reject it before model work.
+  No model, repository fixture, operation, commit, push, tag, or remote
+  mutation was started.
+
 ## EXT-19 Exact Candidate Remote CI And Artifact Attestation (2026-07-17)
 
 - Task selected: `EXT-19`, push the exact Level-1 candidate and obtain remote
