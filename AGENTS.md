@@ -38,6 +38,7 @@ There is no separate lint or typecheck command configured. `go test ./...` is th
 
 Use these files as durable memory between fresh Codex sessions:
 
+- `.agent/HANDOFF.md` for the active pause/resume point and exact next command
 - `.agent/TASKS.md` for the task backlog
 - `.agent/STATE.md` for current status and recent progress
 - `.agent/DECISIONS.md` for durable implementation and architecture decisions

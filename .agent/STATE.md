@@ -2737,6 +2737,8 @@ remained unchanged.
 
 - `README.md`: operator setup, commands, workflows, and safety guidance.
 - `AGENTS.md`: repository working and verification rules.
+- `.agent/HANDOFF.md`: active pause/resume point, exact next command, and
+  compact release authority needed to continue safely.
 - `.agent/TASKS.md`: current backlog and compact completed-program index.
 - `.agent/DECISIONS.md`: durable architecture and implementation decisions.
 - `.agent/LOOP_PROMPT.md`: reusable fresh-session pass instructions.
@@ -2764,7 +2766,9 @@ in a local pass. The matching local test and cross-build matrix passes.
 
 ## Notes For Next Fresh Session
 
-- Read `AGENTS.md`, `.agent/TASKS.md`, `.agent/STATE.md`, and
-  `.agent/DECISIONS.md` before acting.
+- Read `AGENTS.md` and `.agent/HANDOFF.md` first, then `.agent/TASKS.md`,
+  `.agent/STATE.md`, and `.agent/DECISIONS.md` before acting.
+- Resume with the exact command recorded in `.agent/HANDOFF.md`; at this
+  boundary it is `./agent-ext20-rc3-attestation.sh`.
 - Do one bounded task, verify it, update durable state, and stop.
 - Do not use `codex resume` or depend on an old session transcript.
