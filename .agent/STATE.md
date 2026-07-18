@@ -61,15 +61,81 @@ readiness-level continuation, prohibited inference, and operator action.
 The next fresh task remains EXT-20. RC.1 and its remote evidence are immutable
 rejected history after the omitted-work-directory defect. Replacement RC.2 is
 now built and locally verified from the exact fix commit; its fresh exact-commit
-CI and supplemental remote artifact attestation have both passed. The next
-bounded pass may prepare a new collision-free RC.2 live dogfood suite, but it
-must not start live model work without the separate explicit confirmation.
+CI and supplemental remote artifact attestation have both passed. A new
+collision-free RC.2 no-model dogfood suite is prepared, but live model work
+still requires the separate explicit confirmation.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.2 Guarded No-Model Suite Preparation (2026-07-18)
+
+- Task selected: the bounded RC.2 no-model preparation subtask of `EXT-20`.
+  The guarded external Level-1 suite now binds exact candidate source
+  `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`, exact Linux SHA-256
+  `06c1258a947def8c53e03bfd79944bb002351358fc8dfecd35682ab7532b5010`,
+  and immutable bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.2-eeaaf50b52fd`. Release output
+  remains exactly `revolvr 0.1.0`; Codex authority remains exactly
+  `@openai/codex@0.144.4`, `codex-cli 0.144.4`, and SHA-256
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+  No plan, schema, scenario, threshold, configuration, or confirmation value
+  changed.
+- Files changed: `scripts/dogfood-external-level1-suite.sh`, the controller-
+  created fresh-session helper `agent-ext20-rc2-suite.sh`, and this state file.
+  `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked, and
+  `.agent/DECISIONS.md` remains unchanged because this applies already settled
+  RC.2 authority.
+- Verification commands run: all required durable-state and newest RC.2
+  local/remote authority reads; raw-Git readback of all four RC.1/RC.2 refs;
+  before/after content and layout fingerprints for both attestation workflows,
+  the RC.1/RC.2 candidate and verification bundles, the retained RC.2 failed
+  diagnostic, both retired RC.1 live roots, and the pre-existing helper;
+  `bash -n` for the suite and collector; the complete RC.2 candidate bundle
+  `--verify`; suite `--static`; two collector `--fixture-only` runs, both
+  `--verify-manifest` checks, and their canonical-manifest comparison after
+  removing only `collected_at_utc`; `git diff --check`; and
+  `go test -count=1 ./...`. All passed.
+- A new parent was created with exact template
+  `/tmp/revolvr-ext20-rc2.XXXXXX`, and no-model preparation with
+  `--prepare --run-root <parent>/suite --install-codex` passed. The retained
+  prepared suite is `/tmp/revolvr-ext20-rc2.96ibla/suite`. Its authority hash
+  verifies; candidate version/hash/source and isolated Codex package/version/
+  hash agree exactly; the 11-row plan names exactly 10 ready tasks; repository
+  `repo-a` is clean at `ea72ad021d711b21522e4cd586400ae625ce308f`
+  and `repo-b` is clean at `99e41baade47d24abc17e6ff0d6b18acd9765bbb`;
+  both retain the exact tracked disposable marker. There are zero collector
+  manifests, zero runtime operation manifests, and zero aggregate entries.
+- Independent inspection left the prepared suite byte-for-byte and
+  metadata-for-metadata unchanged, with regular-file fingerprint
+  `37546e2d33e0239e63a029e8ca303a52a3c22d4c10abd939d50c6f72551f32b0`
+  and layout/metadata fingerprint
+  `ee0babb21f61731de593870b20e7c5693215608ffc6007faa86245c1cf56cb5d`.
+  The exact empty-confirmation guard was executed in isolation and refused
+  before the first prepared-root read or collector call. In accordance with
+  the operator direction, no `--live` argument or confirmation value was
+  passed to the suite, and no live, nested Codex, or model operation started.
+- Verification result: the tracked shell-only RC.2 update and the new no-model
+  suite preparation passed. RC.1, both retired live roots, every RC.1/RC.2
+  ref, bundle, workflow, artifact, hash, and retained diagnostic remained
+  unchanged. No commit, push, tag, or external-use approval was created.
+- Independent controller verification repeated helper/suite/collector syntax,
+  suite static verification, RC.2 bundle verification, exact prepared
+  authority/candidate/Codex checks, all ten task-ready doctor checks, both Git
+  cleanliness checks, and the zero-manifest/zero-aggregate assertions. A full
+  prepared-file content inventory was identical before and after inspection.
+- What remains: a separately confirmed live pass must execute and then
+  independently verify all retained manifests and aggregate thresholds with
+  the exact command below. It was recorded but not executed:
+  `scripts/dogfood-external-level1-suite.sh --live --run-root
+  /tmp/revolvr-ext20-rc2.96ibla/suite --confirm-live-real-codex
+  EXT20_LIVE_REAL_CODEX_MODEL_CALLS`. `EXT-20` remains unchecked until that
+  live suite and `--verify-suite` complete successfully.
+- Blocker for the remaining EXT-20 work: the separate live confirmation was
+  intentionally not supplied in this no-model pass.
 
 ## EXT-20 RC.2 Remote Artifact Attestation Result (2026-07-17)
 
