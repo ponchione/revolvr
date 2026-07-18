@@ -1,5 +1,24 @@
 # Agent Decisions
 
+## EXT-20 Effective Source-Writer Window Authority (2026-07-18)
+
+- `internal/lock.RequiredSourceWriterTimeout` is the single authority for the
+  complete supervisor source lease: `CodexTimeout + 2*GitTimeout + 1m`. It
+  validates positive inputs and fails before arithmetic overflow. Effective
+  configuration, supervisor validation, and autonomous-cycle validation all
+  use this calculation rather than retaining duplicate formulas.
+- Effective run configuration derives an omitted source-writer timeout only
+  after Codex and Git timeouts have reached their final values. A valid
+  explicit timeout at or above the required window remains authoritative;
+  negative or shorter explicit authority and an overflowing derived window
+  fail closed. Default heartbeat authority is derived only after that final
+  timeout, while valid explicit heartbeat authority remains unchanged.
+- Config check and mode-aware doctor expose the final timeout/heartbeat and the
+  required execution window. The default Level-1 30m Codex/30s Git authority
+  is therefore 32m with a 10m40s heartbeat at every admission and execution
+  boundary. Because this changes effective authority and fingerprints, the
+  effective-run configuration schema advances from v7 to v8.
+
 ## EXT-20 RC.2 Replacement Candidate Authority (2026-07-17)
 
 - RC.1 at `ed65049fba6bf82852fd406ebc17afa90a953e3f` and all of its local,

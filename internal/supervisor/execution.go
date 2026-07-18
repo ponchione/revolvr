@@ -627,9 +627,14 @@ func normalize(cfg Config) (normalizedConfig, error) {
 	if cfg.SourceSnapshotter == nil {
 		cfg.SourceSnapshotter = gitstate.CaptureSourceSnapshot
 	}
-	minimumLock := cfg.CodexTimeout + 2*cfg.GitTimeout + time.Minute
-	if cfg.SourceLockTimeout <= 0 {
+	minimumLock, err := lock.RequiredSourceWriterTimeout(cfg.CodexTimeout, cfg.GitTimeout)
+	if err != nil {
+		return normalizedConfig{}, fmt.Errorf("run supervisor: %w", err)
+	}
+	if cfg.SourceLockTimeout == 0 {
 		cfg.SourceLockTimeout = minimumLock
+	} else if cfg.SourceLockTimeout < 0 {
+		return normalizedConfig{}, errors.New("run supervisor: source lock timeout must be positive")
 	} else if cfg.SourceLockTimeout < minimumLock {
 		return normalizedConfig{}, fmt.Errorf("run supervisor: source lock timeout %s is shorter than required pass window %s", cfg.SourceLockTimeout, minimumLock)
 	}

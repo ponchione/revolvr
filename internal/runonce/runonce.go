@@ -36,7 +36,6 @@ const (
 	defaultCodexApprovalPolicy = "never"
 	defaultGitExecutable       = "git"
 	defaultOutputCap           = 256 * 1024
-	defaultLockTimeout         = 5 * time.Minute
 	defaultLockReleaseTimeout  = 5 * time.Second
 	defaultGitTimeout          = 30 * time.Second
 	defaultCommitTimeout       = 30 * time.Second
@@ -707,8 +706,16 @@ func normalizeConfig(cfg Config) (Config, string, error) {
 			return Config{}, "", errors.New("run once: Git executable identity does not match configured executable")
 		}
 	}
-	if cfg.SourceWriterLockTimeout <= 0 {
-		cfg.SourceWriterLockTimeout = defaultLockTimeout
+	minimumSourceWriterLock, err := lock.RequiredSourceWriterTimeout(cfg.CodexTimeout, cfg.GitTimeout)
+	if err != nil {
+		return Config{}, "", fmt.Errorf("run once: %w", err)
+	}
+	if cfg.SourceWriterLockTimeout == 0 {
+		cfg.SourceWriterLockTimeout = minimumSourceWriterLock
+	} else if cfg.SourceWriterLockTimeout < 0 {
+		return Config{}, "", errors.New("run once: source-writer lock timeout must be positive")
+	} else if cfg.SourceWriterLockTimeout < minimumSourceWriterLock {
+		return Config{}, "", fmt.Errorf("run once: source-writer lock timeout %s is shorter than required supervisor window %s", cfg.SourceWriterLockTimeout, minimumSourceWriterLock)
 	}
 	if cfg.SourceWriterLockHeartbeatInterval <= 0 {
 		cfg.SourceWriterLockHeartbeatInterval = defaultHeartbeatInterval(cfg.SourceWriterLockTimeout)

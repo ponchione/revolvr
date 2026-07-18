@@ -1876,6 +1876,7 @@ func TestConfigCheckMissingConfigSucceeds(t *testing.T) {
 		"Codex timeout: 30m0s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
+		"Source-writer lock: timeout=32m0s heartbeat_interval=10m40s\n" +
 		defaultAutonomyConfigOutput() +
 		operationalBoundsConfigOutput(262144) +
 		defaultRetentionConfigOutput() +
@@ -1920,6 +1921,7 @@ func TestConfigCheckMissingConfigPrintsDefaultVerificationCommand(t *testing.T) 
 		"Codex timeout: 30m0s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
+		"Source-writer lock: timeout=32m0s heartbeat_interval=10m40s\n" +
 		defaultAutonomyConfigOutput() +
 		operationalBoundsConfigOutput(262144) +
 		defaultRetentionConfigOutput() +
@@ -2030,6 +2032,7 @@ output:
 		"Codex timeout: 45s\n" +
 		"Effective config schema: " + configResult.EffectiveConfigSchema + "\n" +
 		"Effective config SHA-256: " + configResult.EffectiveConfigSHA256 + "\n" +
+		"Source-writer lock: timeout=2m9s heartbeat_interval=43s\n" +
 		defaultAutonomyConfigOutput() +
 		operationalBoundsConfigOutput(108) +
 		defaultRetentionConfigOutput() +

@@ -55,12 +55,13 @@ func TestConfigNonNegativeNumbersAcceptZeroAndRejectInvalidValues(t *testing.T) 
 func TestConfigDurationBoundaries(t *testing.T) {
 	overflow := fmt.Sprint(maximumDurationSeconds + 1)
 	fields := []struct {
-		path           string
-		maximumConfig  string
-		overflowConfig string
+		path                string
+		maximumConfig       string
+		maximumCheckFailure bool
+		overflowConfig      string
 	}{
-		{path: "codex.timeout_seconds", maximumConfig: scalarConfig("codex", "timeout_seconds")(fmt.Sprint(maximumDurationSeconds)), overflowConfig: scalarConfig("codex", "timeout_seconds")(overflow)},
-		{path: "git.timeout_seconds", maximumConfig: scalarConfig("git", "timeout_seconds")(fmt.Sprint(maximumDurationSeconds)), overflowConfig: scalarConfig("git", "timeout_seconds")(overflow)},
+		{path: "codex.timeout_seconds", maximumConfig: scalarConfig("codex", "timeout_seconds")(fmt.Sprint(maximumDurationSeconds)), maximumCheckFailure: true, overflowConfig: scalarConfig("codex", "timeout_seconds")(overflow)},
+		{path: "git.timeout_seconds", maximumConfig: scalarConfig("git", "timeout_seconds")(fmt.Sprint(maximumDurationSeconds)), maximumCheckFailure: true, overflowConfig: scalarConfig("git", "timeout_seconds")(overflow)},
 		{path: "verification.commands[0].timeout_seconds", maximumConfig: verificationCommandConfig(false, "timeout_seconds", fmt.Sprint(maximumDurationSeconds)), overflowConfig: verificationCommandConfig(false, "timeout_seconds", overflow)},
 		{path: "verification.tiers[0].commands[0].timeout_seconds", maximumConfig: verificationCommandConfig(true, "timeout_seconds", fmt.Sprint(maximumDurationSeconds)), overflowConfig: verificationCommandConfig(true, "timeout_seconds", overflow)},
 		{path: "commit.timeout_seconds", maximumConfig: scalarConfig("commit", "timeout_seconds")(fmt.Sprint(maximumDurationSeconds)), overflowConfig: scalarConfig("commit", "timeout_seconds")(overflow)},
@@ -72,7 +73,18 @@ func TestConfigDurationBoundaries(t *testing.T) {
 	for _, field := range fields {
 		field := field
 		t.Run(field.path+"/maximum", func(t *testing.T) {
-			assertConfigSuccessFromLoadAndCheck(t, field.maximumConfig)
+			if !field.maximumCheckFailure {
+				assertConfigSuccessFromLoadAndCheck(t, field.maximumConfig)
+				return
+			}
+			root := t.TempDir()
+			writeConfigTestFile(t, root, field.maximumConfig)
+			if _, err := LoadRunOnceConfig(root, DefaultRunOnceConfig(root)); err != nil {
+				t.Fatalf("LoadRunOnceConfig error = %v", err)
+			}
+			if _, err := CheckRunConfig(root); err == nil || !strings.Contains(err.Error(), "source-writer lock window overflows time.Duration") {
+				t.Fatalf("CheckRunConfig error = %v, want derived source-writer overflow", err)
+			}
 		})
 		t.Run(field.path+"/overflow", func(t *testing.T) {
 			assertConfigErrorFromLoadAndCheck(t, field.overflowConfig, field.path, "overflows time.Duration")

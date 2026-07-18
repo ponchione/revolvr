@@ -443,7 +443,10 @@ func normalizeConfig(cfg Config) (normalizedConfig, error) {
 	if cfg.SourceWriterLockTimeout <= 0 || cfg.SourceWriterLockHeartbeatInterval <= 0 {
 		return normalizedConfig{}, errors.New("autonomous cycle: positive source-lock timeout and heartbeat interval are required")
 	}
-	minimumSupervisorLock := cfg.CodexTimeout + 2*cfg.GitTimeout + time.Minute
+	minimumSupervisorLock, err := lock.RequiredSourceWriterTimeout(cfg.CodexTimeout, cfg.GitTimeout)
+	if err != nil {
+		return normalizedConfig{}, fmt.Errorf("autonomous cycle: %w", err)
+	}
 	if cfg.SourceWriterLockTimeout < minimumSupervisorLock {
 		return normalizedConfig{}, fmt.Errorf("autonomous cycle: source-lock timeout %s is shorter than required supervisor window %s", cfg.SourceWriterLockTimeout, minimumSupervisorLock)
 	}

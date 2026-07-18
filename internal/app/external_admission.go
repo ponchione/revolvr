@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"revolvr/internal/codexexec"
+	"revolvr/internal/lock"
 	"revolvr/internal/repositorypath"
 	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
@@ -168,6 +169,17 @@ func inspectExternalScope(ctx context.Context, input externalScopeInput) externa
 		add(PreflightFail, "operational bounds", err.Error())
 	} else {
 		add(PreflightOK, "operational bounds", FormatOperationalBounds(input.RunConfig.OperationalBounds))
+	}
+	requiredSourceLock, err := lock.RequiredSourceWriterTimeout(input.RunConfig.CodexTimeout, input.RunConfig.GitTimeout)
+	switch {
+	case err != nil:
+		add(PreflightFail, "source-writer lock", err.Error())
+	case input.RunConfig.SourceWriterLockTimeout < requiredSourceLock:
+		add(PreflightFail, "source-writer lock", fmt.Sprintf("timeout=%s is shorter than required supervisor window %s", input.RunConfig.SourceWriterLockTimeout, requiredSourceLock))
+	case input.RunConfig.SourceWriterLockHeartbeatInterval <= 0:
+		add(PreflightFail, "source-writer lock", "heartbeat interval must be positive")
+	default:
+		add(PreflightOK, "source-writer lock", fmt.Sprintf("timeout=%s heartbeat_interval=%s required=%s", input.RunConfig.SourceWriterLockTimeout, input.RunConfig.SourceWriterLockHeartbeatInterval, requiredSourceLock))
 	}
 
 	gitExecutable := preflightEffectiveString(cfg.GitExecutable, DefaultGitExecutable)

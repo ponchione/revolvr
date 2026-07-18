@@ -43,6 +43,81 @@ func TestFingerprintEffectiveConfigIsDeterministicAndCopiesSlices(t *testing.T) 
 	}
 }
 
+func TestEffectiveConfigDerivesSafeSourceWriterLockWindow(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		cfg           Config
+		wantTimeout   time.Duration
+		wantHeartbeat time.Duration
+	}{
+		{
+			name:          "level one external defaults",
+			cfg:           Config{WorkingDir: t.TempDir(), CodexTimeout: 30 * time.Minute, GitTimeout: 30 * time.Second},
+			wantTimeout:   32 * time.Minute,
+			wantHeartbeat: 10*time.Minute + 40*time.Second,
+		},
+		{
+			name:          "custom finalized timeouts",
+			cfg:           Config{WorkingDir: t.TempDir(), CodexTimeout: 45 * time.Second, GitTimeout: 12 * time.Second},
+			wantTimeout:   2*time.Minute + 9*time.Second,
+			wantHeartbeat: 43 * time.Second,
+		},
+		{
+			name: "explicit valid authority",
+			cfg: Config{
+				WorkingDir:                        t.TempDir(),
+				CodexTimeout:                      45 * time.Second,
+				GitTimeout:                        12 * time.Second,
+				SourceWriterLockTimeout:           5 * time.Minute,
+				SourceWriterLockHeartbeatInterval: 30 * time.Second,
+			},
+			wantTimeout:   5 * time.Minute,
+			wantHeartbeat: 30 * time.Second,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			effective, err := EffectiveConfig(test.cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if effective.SourceWriterLockTimeout != test.wantTimeout || effective.SourceWriterLockHeartbeatInterval != test.wantHeartbeat {
+				t.Fatalf("source-writer authority = timeout %s heartbeat %s, want %s/%s", effective.SourceWriterLockTimeout, effective.SourceWriterLockHeartbeatInterval, test.wantTimeout, test.wantHeartbeat)
+			}
+		})
+	}
+}
+
+func TestEffectiveConfigRejectsInvalidSourceWriterLockAuthority(t *testing.T) {
+	const maxDuration = time.Duration(1<<63 - 1)
+	for _, test := range []struct {
+		name string
+		cfg  Config
+		want string
+	}{
+		{
+			name: "short explicit timeout",
+			cfg:  Config{WorkingDir: t.TempDir(), CodexTimeout: 30 * time.Minute, GitTimeout: 30 * time.Second, SourceWriterLockTimeout: 31 * time.Minute},
+			want: "shorter than required supervisor window 32m0s",
+		},
+		{
+			name: "negative explicit timeout",
+			cfg:  Config{WorkingDir: t.TempDir(), SourceWriterLockTimeout: -time.Second},
+			want: "source-writer lock timeout must be positive",
+		},
+		{
+			name: "derived window overflow",
+			cfg:  Config{WorkingDir: t.TempDir(), CodexTimeout: maxDuration, GitTimeout: time.Second},
+			want: "source-writer lock window overflows time.Duration",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := EffectiveConfig(test.cfg); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("EffectiveConfig error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestFingerprintEffectiveConfigChangesForMaterialSettings(t *testing.T) {
 	base := Config{
 		WorkingDir:           t.TempDir(),

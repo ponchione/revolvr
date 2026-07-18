@@ -59,17 +59,93 @@ commit, checkpoint, audit, finalization, queue reconciliation, notification,
 and archive publication. Every row binds exact durable replay, quarantine,
 readiness-level continuation, prohibited inference, and operator action.
 The next fresh task remains EXT-20. RC.1 and its remote evidence are immutable
-rejected history after the omitted-work-directory defect. Replacement RC.2 is
-now built and locally verified from the exact fix commit; its fresh exact-commit
-CI and supplemental remote artifact attestation have both passed. A new
-collision-free RC.2 no-model dogfood suite is prepared, but live model work
-still requires the separate explicit confirmation.
+rejected history after the omitted-work-directory defect. RC.2 and its fresh
+exact-commit CI/artifact attestation are also immutable rejected history after
+its first live operation exposed inconsistent source-lock default authority.
+That configuration defect is repaired and verified in the working source, but
+a new reproducible RC.3 candidate, exact remote authority, and collision-free
+dogfood suite remain required before any further live model work.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.2 Source-Lock Configuration Defect (2026-07-18)
+
+- Task selected: the bounded `EXT-20` configuration-normalization/preflight
+  repair only. The retained terminal evidence for operation
+  `ext20-3601e63c616b-01` was read before source changes. Its `config check`
+  recorded Codex timeout `30m0s`, Git timeout `30s`, and effective-config
+  schema v7; doctor reported `Ready: true`; execution then terminalized
+  `unsafe_or_ambiguous` because the effective source-writer timeout was `5m0s`
+  while autonomous execution required `32m0s`.
+- The retained operation proves zero model attempts: task-operation statistics
+  contain one started/completed cycle but zero attempts, verification runs,
+  audits, corrections, commits, and checkpoints. No Codex `exec` evidence,
+  receipt, or model run exists. The failure occurred at autonomous-cycle
+  configuration validation before supervisor/model invocation.
+- Root cause: `runonce` finalized Codex and Git timeouts but independently used
+  a fixed five-minute source-writer default. Supervisor and autonomous-cycle
+  validation separately required `CodexTimeout + 2*GitTimeout + 1m`, allowing
+  config check/doctor to admit authority that execution rejected.
+- Fix: `internal/lock` now owns one overflow-safe required-window calculation
+  shared by effective normalization, supervisor, and autonomous cycle.
+  Unspecified effective lock authority is derived only after final Codex/Git
+  timeouts; valid explicit longer authority is preserved; negative, too-short,
+  and overflowing authority fails closed; heartbeat authority is derived only
+  after the final lock timeout. Config check and doctor now render the exact
+  effective timeout, heartbeat, and required window. The changed effective
+  contract is fingerprinted as `revolvr-effective-run-config-v8`.
+- Files changed: `internal/lock/source_writer_window.go` and its test;
+  `internal/runonce/runonce.go`, `effectiveconfig.go`, and focused tests;
+  `internal/supervisor/execution.go`; `internal/autonomouscycle/cycle.go`;
+  `internal/app/external_admission.go`, `external_preflight_test.go`,
+  `config_numeric_test.go`, and `app_test.go`; `internal/cli/config.go`,
+  `root_test.go`, and `doctor_test.go`; the EXT-17 fixture's effective-schema
+  projection in `scripts/dogfood-external-level1.sh`; the controller-created
+  fresh-session helper `agent-ext20-source-lock.sh`; this state file; and
+  `.agent/DECISIONS.md`.
+- Verification commands run: `gofmt` on every changed Go file; focused
+  ordinary tests across `internal/lock`, `internal/runonce`, `internal/app`,
+  and `internal/cli`; the same source-window/config/preflight/CLI regressions
+  with `-race`; ordinary supervisor/autonomous-cycle and package tests;
+  `bash -n scripts/dogfood-external-level1.sh`; `go test -count=1 ./...` after
+  the final repair; CLI `config check` and `doctor --for attended-task`
+  no-model probes; tracked/untracked Go formatting inspection; source-schema
+  scans; raw-Git candidate/attestation ref inspection; protected evidence and
+  bundle content/layout fingerprints; and `git diff --check`.
+- Verification result: passed. The focused 30m Codex/30s Git regression
+  derives timeout `32m0s` and heartbeat `10m40s`; a ready attended doctor
+  exposes the same required authority with zero model invocations. Custom
+  45s/12s authority derives `2m9s`, explicit valid 5m/30s authority is
+  retained, and short, negative, or overflowing authority is refused. The
+  standalone CLI probe printed schema v8 and the same 32m/10m40s authority;
+  its doctor source-lock check was OK (the disposable probe as a whole was not
+  ready because initialization refused its umask-created `.git` mode 0775).
+- Independent controller verification reviewed every production/test diff,
+  repeated changed-Go formatting and shell syntax checks, ran the focused
+  source-window/config/preflight tests ordinarily and with the race detector,
+  ran supervisor and autonomous-cycle package tests, collected and verified a
+  fresh EXT-17 fixture manifest, ran focused CLI race tests, and reran
+  `go test -count=1 ./...` plus `git diff --check`; all passed.
+- Preservation: RC.1, RC.2, all candidate/attestation refs and bundles, both
+  earlier retired roots, and failed RC.2 suite root
+  `/tmp/revolvr-ext20-rc2.96ibla/suite` were not edited. Repeated content and
+  layout/metadata fingerprints agreed at close. No live/nested Codex or model
+  operation, external-repository edit, commit, push, tag, ref update, candidate
+  build, or publication was performed.
+- Release consequence: RC.2 remains immutable rejected historical evidence for
+  the quantitative gate; this material configuration defect invalidates its
+  affected live operation and prevents RC.2 from satisfying `EXT-20`. No RC.3
+  was built or published in this pass. `EXT-20` remains unchecked.
+- What remains: after independent controller verification/commit, build a new
+  collision-free replacement candidate (RC.3), reproduce and attest its exact
+  supported-platform artifacts and remote CI, prepare a fresh collision-free
+  no-model suite, then separately confirm and run all quantitative real-Codex
+  scenarios and independently verify every manifest/aggregate. Blockers for
+  this bounded code repair: none.
 
 ## EXT-20 RC.2 Guarded No-Model Suite Preparation (2026-07-18)
 

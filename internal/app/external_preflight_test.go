@@ -13,9 +13,11 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"revolvr/internal/autonomoustaskrun"
 	"revolvr/internal/codexexec"
+	"revolvr/internal/lock"
 	"revolvr/internal/repositorypath"
 	"revolvr/internal/runner"
 	"revolvr/internal/runonce"
@@ -415,6 +417,73 @@ verification:
 	recorded := operation.EffectiveBounds
 	if recorded.TaskAttempts != 16 || recorded.ModelTokens != 1_000_000 || recorded.CyclesPerTask != 3 || recorded.ProcessNanoseconds != int64(30*60*1e9) || recorded.OutputBytesPerStream != 262144 || recorded.RetainedDiskBytes != 1<<30 || recorded.NotificationAttempts != 2 || len(recorded.ActionAttempts) != 6 || operation.MaxCycles.Limit != 3 {
 		t.Fatalf("recorded bounds = %+v operation=%+v", recorded, operation)
+	}
+}
+
+func TestExternalSourceWriterLockWindowAdmission(t *testing.T) {
+	repository := t.TempDir()
+	createSchedulingTask(t, repository, "lock-window-task", nil)
+	createAppPreflightState(t, repository)
+	mustWriteExternalPath(t, filepath.Join(repository, ".revolvr", "config.yaml"), `codex:
+  timeout_seconds: 1800
+git:
+  timeout_seconds: 30
+verification:
+  commands: [{name: go}]
+`, 0o644)
+
+	checked, err := CheckRunConfig(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	required, err := lock.RequiredSourceWriterTimeout(checked.Effective.CodexTimeout, checked.Effective.GitTimeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if required != 32*time.Minute || checked.Effective.SourceWriterLockTimeout != required || checked.Effective.SourceWriterLockHeartbeatInterval != 10*time.Minute+40*time.Second {
+		t.Fatalf("effective source-writer authority = timeout %s heartbeat %s required %s", checked.Effective.SourceWriterLockTimeout, checked.Effective.SourceWriterLockHeartbeatInterval, required)
+	}
+	if checked.EffectiveConfigSchema != "revolvr-effective-run-config-v8" {
+		t.Fatalf("effective config schema = %q", checked.EffectiveConfigSchema)
+	}
+	fingerprint := mustFingerprintEffectiveConfig(t, checked.Effective)
+	if fingerprint.Schema != runonce.EffectiveConfigSchema || fingerprint.Projection.SourceWriterLock.Timeout != required || fingerprint.Projection.SourceWriterLock.HeartbeatInterval != checked.Effective.SourceWriterLockHeartbeatInterval {
+		t.Fatalf("fingerprinted source-writer authority = %+v", fingerprint.Projection.SourceWriterLock)
+	}
+
+	modelAttempts := 0
+	readyRunner := readyPreflightCommandRunner(t)
+	preflight, err := Preflight(context.Background(), Config{WorkDir: repository}, PreflightInput{
+		Mode:   PreflightModeAttendedTask,
+		TaskID: "lock-window-task",
+		CommandRunner: func(ctx context.Context, command runner.Command) runner.Result {
+			if len(command.Args) > 0 && command.Args[0] == "exec" {
+				modelAttempts++
+				return runner.Result{ExitCode: 64, Err: errors.New("model invocation is forbidden in preflight")}
+			}
+			return readyRunner(ctx, command)
+		},
+		LookPath:               preflightLookPath(map[string]string{"codex": "/fake/bin/codex", "git": "/fake/bin/git"}),
+		ExecutableInspector:    testPreflightExecutableInspector,
+		CodexIdentityInspector: testPreflightCodexIdentityInspector,
+	})
+	if err != nil || !preflight.Ready || modelAttempts != 0 {
+		t.Fatalf("preflight=%+v model_attempts=%d err=%v", preflight, modelAttempts, err)
+	}
+	lockReady := false
+	for _, check := range preflight.Checks {
+		if check.Name == "source-writer lock" && check.Status == PreflightOK && check.Detail == "timeout=32m0s heartbeat_interval=10m40s required=32m0s" {
+			lockReady = true
+		}
+	}
+	if !lockReady {
+		t.Fatalf("source-writer lock authority not visible in ready preflight: %+v", preflight.Checks)
+	}
+
+	invalid := checked.Effective
+	invalid.SourceWriterLockTimeout = required - time.Second
+	if _, err := loadEffectiveExternalConfig(repository, 0, &invalid); err == nil || !strings.Contains(err.Error(), "shorter than required supervisor window") {
+		t.Fatalf("invalid external source-writer authority error = %v", err)
 	}
 }
 

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	EffectiveConfigSchema   = "revolvr-effective-run-config-v7"
+	EffectiveConfigSchema   = "revolvr-effective-run-config-v8"
 	OperationalBoundsSchema = "revolvr-attended-operational-bounds-v1"
 )
 

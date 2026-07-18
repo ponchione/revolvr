@@ -289,6 +289,7 @@ verification:
 		"OK task graph: mode=attended-task canonical_tasks=0 autonomous_tasks=0\n" +
 		"OK platform: mode=attended-task os=linux\n" +
 		"OK operational bounds: task_attempts=16 action_attempts=[audit=4,correct=4,document=4,implement=4,plan=4,simplify=4] elapsed=4h0m0s model_tokens=1000000 cycles_per_task=50 process_duration=30m0s output_bytes_per_stream=262144 retained_disk_bytes=1073741824 notification_attempts=0\n" +
+		"OK source-writer lock: timeout=32m0s heartbeat_interval=10m40s required=32m0s\n" +
 		"OK git executable: configured=\"git-test\" resolved=\"/fake/bin/git-test\" sha256=" + strings.Repeat("b", 64) + "\n" +
 		"OK repository shape: operator-controlled non-bare Git worktree at " + workDir + "\n" +
 		"OK active submodules: none\n" +

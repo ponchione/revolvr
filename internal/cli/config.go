@@ -51,6 +51,7 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Codex timeout: %s", cfg.CodexTimeout),
 		fmt.Sprintf("Effective config schema: %s", result.EffectiveConfigSchema),
 		fmt.Sprintf("Effective config SHA-256: %s", result.EffectiveConfigSHA256),
+		fmt.Sprintf("Source-writer lock: timeout=%s heartbeat_interval=%s", cfg.SourceWriterLockTimeout, cfg.SourceWriterLockHeartbeatInterval),
 		fmt.Sprintf("Autonomy safety schema: %s", cfg.SafetyDeclaration.SchemaVersion),
 		fmt.Sprintf("Autonomy mode: %s", cfg.SafetyDeclaration.Mode),
 		fmt.Sprintf("Worktree isolation: Git/source isolation only; not a security sandbox"),
