@@ -64,15 +64,40 @@ exact-commit CI/artifact attestation are also immutable rejected history after
 its first live operation exposed inconsistent source-lock default authority.
 That configuration defect is repaired and verified at exact source commit
 `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`; collision-free RC.3 is now
-locally reproduced and verified from that source. Exact RC.3 remote candidate
-CI/artifact authority and a fresh collision-free dogfood suite remain required
-before any further live model work.
+locally reproduced and verified from that source, and exact-source RC.3 remote
+candidate CI has passed. A separate RC.3 artifact attestation and fresh
+collision-free dogfood suite remain required before any further live model
+work.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.3 Exact-Candidate Remote CI (2026-07-18)
+
+- Independent controller verification passed both sealed RC.3 bundles, exact
+  inventory digests, source/tree authority, a third non-local clean-clone
+  rebuild, byte equality for all three supported artifacts, and a fresh
+  no-model RC.3 binary config/doctor smoke.
+- The local evidence/helper update was committed as `41d5319`. Raw Git pushed
+  `main` and published collision-free candidate branch
+  `level1-v0.1.0-rc.3` at exact source commit
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`; remote readback resolves that
+  ref to the same SHA. RC.1 and RC.2 refs were not moved.
+- Push-triggered GitHub Actions CI run `29642126354` completed `success` on
+  that exact candidate SHA. All ten required jobs passed: Go 1.22 source floor
+  and tests; Darwin, Linux, and FreeBSD amd64 builds; Windows diagnostic stub;
+  vet and module verification; fake-Codex success and verification-failure
+  smokes; race tests; and the production autonomous strict-fake suite. Run
+  evidence: `https://github.com/ponchione/revolvr/actions/runs/29642126354`.
+- No `gh`, tag, attestation workflow, live/nested Codex, model operation, or
+  external-use approval was used or created. EXT-20 remains unchecked.
+- The next bounded pass is a separate collision-free RC.3 exact-checkout
+  Go 1.26.5 artifact-attestation workflow. It must reproduce both clean build
+  passes, all three recorded RC.3 hashes and embedded identities, retain the
+  remote authority artifact, and preserve RC.1/RC.2 workflows and evidence.
 
 ## EXT-20 RC.3 Replacement Candidate — Local Verification (2026-07-18)
 
@@ -166,13 +191,11 @@ document's remaining blockers stay open until their ordered tasks pass.
   schema v8 and `32m0s`/`10m40s` lock authority, doctor reported the same
   required window and `Ready: true`, Git stayed clean, and no task operation
   was created.
-- Exact next bounded step: after independent controller verification, use raw
-  Git to publish collision-free ref `refs/heads/level1-v0.1.0-rc.3` at exact
-  source `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`, verify remote readback, and
-  require every EXT-15 CI job on that SHA to pass. A later separate pass must
+- Exact candidate-ref publication and mandatory CI completion are recorded in
+  `EXT-20 RC.3 Exact-Candidate Remote CI` above. The next separate pass must
   add and run a collision-free exact-checkout Go 1.26.5 RC.3 artifact
-  attestation before preparing a new no-model dogfood suite. Blockers for this
-  bounded local task: none.
+  attestation before preparing a new no-model dogfood suite. Blockers for that
+  bounded workflow task: none.
 
 ## EXT-20 RC.2 Source-Lock Configuration Defect (2026-07-18)
 
