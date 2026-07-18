@@ -75,6 +75,91 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.3 Remote Artifact Attestation Workflow (2026-07-18)
+
+- Task selected: the bounded RC.3 remote-artifact prerequisite of `EXT-20`
+  only. New separate workflow
+  `.github/workflows/level1-rc3-candidate-attestation.yml` triggers only on a
+  push to `level1-v0.1.0-rc.3-attestation` and checks out exact candidate
+  source `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`, not the trigger HEAD.
+- The workflow installs exact Go 1.26.5 with cache restoration disabled and
+  makes two independent clean `--no-local` clones. Each pass has its own Go
+  build and module caches and builds Linux, Darwin, and FreeBSD amd64 with
+  disabled CGO, local toolchain selection, module-readonly mode, trimpath,
+  explicit clean VCS metadata, an empty build ID, and
+  `main.version=0.1.0`.
+- Every pass artifact must expose exact Go version, command path, compiler,
+  trimpath, target, CGO, Git source revision, and `vcs.modified=false`
+  metadata plus one exact 16-byte `main.version` symbol and one exact `0.1.0`
+  string. Both Linux copies must report `revolvr 0.1.0`. The workflow requires
+  byte-identical pass pairs and exact SHA-256 values Linux
+  `9e9c13f43977edf49e7e6385c595aa20a01c16308ddfea1c30455ea88252ae9b`,
+  Darwin
+  `ee6db29cfcbcbd2e645184927fc5d7348ed924d6036a46d7b23eae55b5b43fd4`,
+  and FreeBSD
+  `6a42dc423ab1975e8ea4296f56be6c9a3773d9ccfda1c57244a50261e64f368a`.
+  One uploaded artifact retains both binary sets, all six build-metadata and
+  version assertions, all six hashes, the three-pair reproducibility table,
+  and the exact tabular authority manifest.
+- Files changed: the new RC.3 workflow and this state file only.
+  `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked, and
+  `.agent/DECISIONS.md` remains unchanged because the workflow implements the
+  already settled RC.3 authority. No Go source or dependency changed.
+- Verification commands run: all required durable-state and newest RC.3
+  local/remote authority reads; raw-Git exact candidate object/tree and remote
+  ref/collision checks; PyYAML BaseLoader parsing with exact trigger, checkout,
+  toolchain, cache, clone, target, build, metadata, version, hash, and upload
+  assertions; `bash -n` on the extracted embedded shell; and execution of the
+  complete unmodified embedded shell under host Go 1.26.5 from a fresh
+  detached exact-source clone. The shell created two further independent clean
+  clones and passed all six builds and hashes. An independent retained-output
+  inspection verified 21 regular single-link files, six hash-manifest rows,
+  three byte-identical pairs, three exact authority rows, two clean source
+  passes with separate caches, and the complete authority/reproducibility
+  manifests. The retained local verification root is
+  `/tmp/revolvr-ext20-rc3-attestation.desFNJ`; its relative-file/hash stream
+  digest is
+  `3303495dac203c5206c36d477f173c11c0ccc57e850ac92ab11e46aa6cd3daaa`.
+  Workflow-only whitespace checks and final `git diff --check` passed. No Go
+  test was required because no Go file changed.
+- Preservation evidence: the RC.1 and RC.2 workflows remain exact SHA-256
+  `d1314182a0cffd78927e6a5cc688e370c42f3d17a4e4ffe426f647a384c40a41`
+  and
+  `4c96ec62a3757878926b62aee65ce8ba3ec6ac2148ac251622ab294109312c6d`.
+  Every available RC.1/RC.2/RC.3 sealed candidate and verification inventory,
+  plus both inventoried RC.1/RC.2 failed candidate diagnostics, reverified.
+  The two RC.3 fail-closed verification diagnostics were not used or written.
+  Raw Git still resolves RC.1, RC.1 attestation, RC.2, RC.2 attestation, and
+  RC.3 candidate refs to `ed65049fba6bf82852fd406ebc17afa90a953e3f`,
+  `a1afdd73a7bfb03e9e5ef361616604115f9db5b8`,
+  `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`,
+  `7038030d07c9eb1b76e0af2a3fdc84154d9b6fe2`, and
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`, respectively. No remote
+  artifact or ref was mutated. The three historical temporary suite roots
+  `/tmp/revolvr-ext20-fresh.OmCBwv/suite`,
+  `/tmp/revolvr-ext20-live2.3ZVQcm/suite`, and
+  `/tmp/revolvr-ext20-rc2.96ibla/suite` were already absent during the initial
+  pre-change inspection and remained absent; this pass did not remove,
+  recreate, or represent them as locally available. Their prior recorded
+  fingerprints remain unchanged in the sealed RC.3 verification bundle.
+- Verification result: passed for the workflow structure, exact constants,
+  embedded shell syntax, complete two-pass execution, hashes, byte equality,
+  metadata, version authority, retained output, available sealed inventories,
+  raw refs, and diff hygiene. No remote workflow, live/nested Codex, model,
+  commit, push, tag, candidate-source/ref mutation, or external-use approval
+  was started.
+- Collision-free raw-Git attestation ref to publish after controller review
+  and commit: `refs/heads/level1-v0.1.0-rc.3-attestation`. Raw Git found it
+  absent at `origin`; publication must use the reviewed workflow commit as its
+  tip and must not move exact candidate ref `level1-v0.1.0-rc.3`.
+- What remains: the controller must independently verify and commit this local
+  change, publish only the collision-free attestation ref, require the remote
+  job to succeed, and record its exact workflow commit, run/job URL and
+  conclusions, uploaded artifact ID/name/size/digest/expiry, and comparison
+  with the local RC.3 authority. Only after that remote evidence exists may a
+  fresh collision-free no-model RC.3 dogfood suite be prepared. `EXT-20`
+  remains unchecked; external use remains unapproved.
+
 ## EXT-20 RC.3 Exact-Candidate Remote CI (2026-07-18)
 
 - Independent controller verification passed both sealed RC.3 bundles, exact
