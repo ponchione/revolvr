@@ -6,35 +6,39 @@ Updated: 2026-07-18
 
 The first unchecked backlog task remains `EXT-20`, the quantitative Level-1
 real-Codex dogfood gate. Do not restart RC.1 or RC.2 work and do not run a live
-suite yet. RC.3 local reproducibility and exact-source remote CI have passed;
-the next bounded task is the separate RC.3 artifact-attestation workflow.
+suite yet. RC.3 local reproducibility, exact-source remote CI, and remote
+artifact attestation have passed. The next bounded task is a fresh RC.3
+no-model suite preparation.
 
 Run this from the repository root:
 
 ```bash
-./agent-ext20-rc3-attestation.sh
+./agent-ext20-rc3-suite.sh
 ```
 
-This starts one fresh `codex exec` pass. It must add and locally validate only
-the RC.3 attestation workflow, make no model call through Revolvr, and perform
-no commit or push. When it finishes, return control to the controller for
-independent verification, raw-Git commit/push, attestation-ref publication,
-and remote-run monitoring.
+This starts one fresh `codex exec` pass. It must update only the guarded suite
+from rejected RC.2 to immutable RC.3 authority, validate it, and prepare a new
+collision-free no-model root. It must not pass `--live`, supply the live
+confirmation, commit, or push. When it finishes, return control to the
+controller for independent verification and raw-Git commit/push.
 
 ## Git And Release Authority
 
-- Last evidence commit before this handoff: `8b37a6e` (`Record RC.3 remote
-  candidate CI`). The handoff and helper are committed on top of it; use
-  `git rev-parse HEAD` for the exact resumed `main` tip.
+- Reviewed workflow commit: `80441464d55af466bbea15f20448099e2a163684`
+  (`Add RC.3 artifact attestation workflow`). The updated handoff, evidence,
+  and next helper are committed on top of it; use `git rev-parse HEAD` for the
+  exact resumed `main` tip.
 - RC.3 candidate source: `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`.
 - RC.3 source tree: `23c0d27fc62be5f41feb45192e74f1df8ecff3fa`.
 - Remote candidate ref: `refs/heads/level1-v0.1.0-rc.3` at the exact source
   commit above.
 - Candidate CI: run `29642126354`, exact source SHA, conclusion `success`, all
   ten mandatory jobs passed.
-- RC.3 attestation ref `refs/heads/level1-v0.1.0-rc.3-attestation` is absent at
-  the handoff boundary. It must remain collision-free until the reviewed
-  workflow commit is ready.
+- RC.3 attestation ref `refs/heads/level1-v0.1.0-rc.3-attestation` resolves to
+  exact reviewed workflow commit `80441464d55af466bbea15f20448099e2a163684`.
+- Dedicated attestation run `29651665454` and job `88098916882` completed
+  `success`; general CI run `29651665483` also completed `success` with all ten
+  required jobs passing.
 - Use raw `git` only. Never use `gh`. The standing operator direction is to
   commit and push confirmed passing work with raw Git.
 
@@ -58,6 +62,11 @@ and remote-run monitoring.
   `006cb0b7f2215878e757ae8ee104bb1b88d5ae31b8661168bcf5c705d08353ff`.
 - Build-instruction SHA-256:
   `2deaa06d380dfd7d86277e2090229ba1d212e1bad85c6b3db6a83a31036c1405`.
+- Remote attestation artifact: ID `8431664217`, name
+  `level1-v0.1.0-rc.3-attestation`, size 70,202,355 bytes, digest
+  `sha256:8ac9f82795233b4808fc8c2fc895a11d1fb622e30272f73f90b1f68218c99cd1`,
+  expiry `2026-10-16T16:17:29Z`. Its public archive endpoint returned HTTP 401,
+  so no authenticated-download claim is made.
 
 The controller independently reran both bundle verifiers, performed a third
 non-local clean-clone rebuild, reproduced all three binaries byte-for-byte,
@@ -71,28 +80,26 @@ window `32m0s`, and `Ready: true` without creating an operation.
   autonomous CLI invocation omitted the working directory.
 - RC.2 source `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec` is rejected because
   admitted effective lock authority was shorter than the supervisor window.
-- RC.2 failed operation `ext20-3601e63c616b-01` retained a terminal
-  `unsafe_or_ambiguous` bundle with zero model attempts, zero verification,
-  and zero commits at
-  `/tmp/revolvr-ext20-rc2.96ibla/suite/evidence/repo-a/01-successful-source-change-1`.
+- RC.2 failed operation `ext20-3601e63c616b-01` historically retained a
+  terminal `unsafe_or_ambiguous` bundle with zero model attempts, zero
+  verification, and zero commits below `/tmp/revolvr-ext20-rc2.96ibla/suite`.
+  That temporary root was already absent during the RC.3 attestation pass; do
+  not reuse, recreate, or relabel it.
 - Preserve every RC.1/RC.2 candidate and attestation ref, workflow, bundle,
   artifact, hash, retired root, and diagnostic. Do not relabel or reuse them.
 
 ## Remaining Ordered Work
 
-1. Run `agent-ext20-rc3-attestation.sh` and independently review its local
-   workflow execution and preservation evidence.
-2. If it passes, commit and push the workflow/helper/state on `main` with raw
-   Git, then publish only the collision-free RC.3 attestation ref at that
-   reviewed workflow commit.
-3. Require the remote attestation job and artifact upload to pass; record the
-   exact run, checkout SHA, job conclusions, artifact ID/size/digest/expiry,
-   and any authenticated-download limitation.
-4. Update the guarded Level-1 suite to RC.3 and prepare a new collision-free
-   no-model root. Do not reuse the failed RC.2 suite.
-5. Only after a new explicit live confirmation, run all 11 planned operations
+1. Run `agent-ext20-rc3-suite.sh` to update the guarded Level-1 suite to RC.3
+   and prepare a new collision-free no-model root. Do not reuse the failed
+   RC.2 suite.
+2. Independently verify the prepared root, exact candidate/Codex/lock
+   authority, both clean repositories, ten ready tasks, zero operations, empty
+   aggregate, and live-confirmation refusal; then commit/push the passing
+   suite/helper/state/handoff changes with raw Git.
+3. Only after a new explicit live confirmation, run all 11 planned operations
    and independently verify every EXT-17 manifest and EXT-20 aggregate.
-6. Keep `EXT-20` unchecked and external use unapproved until every threshold
+4. Keep `EXT-20` unchecked and external use unapproved until every threshold
    passes. Tagging/release decision remains the later `EXT-21` task.
 
 ## Session Rules

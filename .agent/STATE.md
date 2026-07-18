@@ -75,6 +75,50 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.3 Remote Artifact Attestation Result (2026-07-18)
+
+- The controller independently parsed the new workflow, asserted its exact
+  trigger, permissions, candidate checkout, toolchain, cache policy, constants,
+  upload contract, and shell syntax, then executed the complete unmodified
+  embedded shell under host Go 1.26.5 from a fresh detached candidate clone.
+  Both independent no-local build passes reproduced all three exact artifact
+  hashes and passed byte, metadata, version, authority-manifest, and retained-
+  output checks. The controller root is
+  `/tmp/revolvr-controller-rc3-attestation.wzxrrfaj`; it contains 21 retained
+  regular single-link files. Historical RC.1/RC.2 workflow hashes, the five
+  pre-existing remote release refs, exact RC.3 source commit/tree, and diff
+  hygiene also passed independent readback before commit.
+- Raw Git committed the reviewed workflow and state as
+  `80441464d55af466bbea15f20448099e2a163684` (`Add RC.3 artifact attestation
+  workflow`), pushed `main`, and published the previously absent ref
+  `level1-v0.1.0-rc.3-attestation` at that exact workflow commit. Remote
+  readback preserved candidate ref `level1-v0.1.0-rc.3` at exact source
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`. No historical ref moved.
+- Dedicated GitHub Actions run `29651665454` completed `success` at the exact
+  workflow commit. Job `88098916882`, `Rebuild and attest Level 1 RC.3
+  candidate`, passed checkout, pinned Go setup, both clean-clone rebuilds and
+  attestations, retained-authority upload, and all post steps. Run evidence:
+  `https://github.com/ponchione/revolvr/actions/runs/29651665454`.
+- The retained unexpired artifact is
+  `level1-v0.1.0-rc.3-attestation`, artifact ID `8431664217`, size 70,202,355
+  bytes, GitHub artifact digest
+  `sha256:8ac9f82795233b4808fc8c2fc895a11d1fb622e30272f73f90b1f68218c99cd1`,
+  creation `2026-07-18T16:20:16Z`, and expiry
+  `2026-10-16T16:17:29Z`. Public REST metadata was inspected; the archive
+  endpoint requires authentication and returned HTTP 401, so no independent
+  claim of downloading the remote ZIP is made.
+- General push-triggered CI run `29651665483` also completed `success` at the
+  exact workflow commit. All ten required jobs passed: Go 1.22 source floor
+  and tests; Darwin, Linux, and FreeBSD amd64 builds; Windows diagnostic stub;
+  vet and module verification; both fake-Codex smokes; race tests; and the
+  production autonomous strict-fake suite.
+- RC.3 remote candidate and artifact prerequisites are complete. `EXT-20`
+  remains unchecked and external use remains unapproved. The next bounded pass
+  is to update the guarded Level-1 suite from rejected RC.2 to immutable RC.3,
+  prepare a fresh collision-free no-model root, and stop before any separately
+  confirmed live real-Codex invocation. No `gh`, tag, live/nested Codex, or
+  model operation was used.
+
 ## EXT-20 RC.3 Remote Artifact Attestation Workflow (2026-07-18)
 
 - Task selected: the bounded RC.3 remote-artifact prerequisite of `EXT-20`
