@@ -1,5 +1,46 @@
 # Agent Decisions
 
+## EXT-20 RC.3 Replacement Candidate Authority (2026-07-18)
+
+- RC.1 and RC.2 remain immutable rejected release history with all local and
+  remote evidence preserved. RC.3 is a distinct collision-free candidate and
+  binds release version `0.1.0` to exact source commit
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c` and tree
+  `23c0d27fc62be5f41feb45192e74f1df8ecff3fa`, which include the verified
+  source-writer-window repair. The controller helper `agent-ext20-rc3.sh` is
+  not source authority and is excluded from the commit and clean clones.
+- RC.3 retains the settled EXT-18 construction authority: Go 1.22.12 is the
+  source floor; release artifacts use exact Go 1.26.5, local toolchain
+  selection, module-readonly mode, disabled CGO, amd64, trimpath, explicit
+  clean VCS metadata, an empty Go build ID, and exact `main.version=0.1.0`.
+  Linux, Darwin, and FreeBSD are the supported targets. Two independent
+  non-local clean clones must produce byte-identical artifacts.
+- The locally reproduced RC.3 SHA-256 values are Linux
+  `9e9c13f43977edf49e7e6385c595aa20a01c16308ddfea1c30455ea88252ae9b`,
+  Darwin
+  `ee6db29cfcbcbd2e645184927fc5d7348ed924d6036a46d7b23eae55b5b43fd4`,
+  and FreeBSD
+  `6a42dc423ab1975e8ea4296f56be6c9a3773d9ccfda1c57244a50261e64f368a`.
+  The pinned build-instruction SHA-256 is
+  `2deaa06d380dfd7d86277e2090229ba1d212e1bad85c6b3db6a83a31036c1405`.
+- The ignored immutable candidate bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.3-a16ea1bdc1a4/` has inventory
+  SHA-256
+  `766856c2783073c8ffa10cbce0e3c0a9f8ebee4db1785c309f6c5680f5e5ddae`.
+  Its separate verification bundle at the sibling `-verification` path has
+  inventory SHA-256
+  `006cb0b7f2215878e757ae8ee104bb1b88d5ae31b8661168bcf5c705d08353ff`
+  and retains source-lock, Go-floor/full-suite, vet, module, vulnerability,
+  metadata/version, reproducibility, collision, raw-ref, and preservation
+  proof. Fail-closed partial assembly diagnostics are retained under the two
+  recorded failure suffixes; they are not candidate or verification authority.
+- Local construction grants no remote, dogfood, tag, or external-use
+  authority. RC.3 cannot enter EXT-20 dogfood until raw Git publishes a new
+  `level1-v0.1.0-rc.3` candidate ref at the exact source SHA, every EXT-15 job
+  passes on that SHA, and a separate collision-free exact-checkout Go 1.26.5
+  attestation reproduces the three recorded artifact hashes and embedded
+  identities. None of those remote actions are part of local construction.
+
 ## EXT-20 Effective Source-Writer Window Authority (2026-07-18)
 
 - `internal/lock.RequiredSourceWriterTimeout` is the single authority for the

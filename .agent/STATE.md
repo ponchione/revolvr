@@ -62,15 +62,117 @@ The next fresh task remains EXT-20. RC.1 and its remote evidence are immutable
 rejected history after the omitted-work-directory defect. RC.2 and its fresh
 exact-commit CI/artifact attestation are also immutable rejected history after
 its first live operation exposed inconsistent source-lock default authority.
-That configuration defect is repaired and verified in the working source, but
-a new reproducible RC.3 candidate, exact remote authority, and collision-free
-dogfood suite remain required before any further live model work.
+That configuration defect is repaired and verified at exact source commit
+`a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`; collision-free RC.3 is now
+locally reproduced and verified from that source. Exact RC.3 remote candidate
+CI/artifact authority and a fresh collision-free dogfood suite remain required
+before any further live model work.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.3 Replacement Candidate — Local Verification (2026-07-18)
+
+- Task selected: the bounded RC.3 local replacement-candidate subtask of
+  `EXT-20` only. Candidate `level1-v0.1.0-rc.3` binds release version `0.1.0`
+  to exact clean source commit
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c` and tree
+  `23c0d27fc62be5f41feb45192e74f1df8ecff3fa`. Local and remote candidate/
+  attestation refs, RC.3 bundle paths, and `/tmp` RC.3 construction roots were
+  absent before construction. The controller-created untracked
+  `agent-ext20-rc3.sh` was absent from the source commit and every clean clone.
+- The focused source-lock proof ran before candidate construction against the
+  exact clean source. Ordinary and race tests across `internal/lock`,
+  `internal/runonce`, `internal/app`, and `internal/cli` passed the required
+  window calculation, safe defaulting, invalid/overflow refusal, effective
+  fingerprint, config rendering, ready doctor, and zero-model preflight
+  regressions. Exact retained outputs are `source-lock-test.txt` and
+  `source-lock-race-test.txt` in the verification bundle.
+- The immutable candidate bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.3-a16ea1bdc1a4/`. Its pinned
+  build-instruction SHA-256 is
+  `2deaa06d380dfd7d86277e2090229ba1d212e1bad85c6b3db6a83a31036c1405`;
+  its 13-entry complete evidence inventory SHA-256 is
+  `766856c2783073c8ffa10cbce0e3c0a9f8ebee4db1785c309f6c5680f5e5ddae`.
+  Two independent `--no-local` clean clones produced byte-identical artifacts:
+  Linux amd64
+  `9e9c13f43977edf49e7e6385c595aa20a01c16308ddfea1c30455ea88252ae9b`,
+  Darwin amd64
+  `ee6db29cfcbcbd2e645184927fc5d7348ed924d6036a46d7b23eae55b5b43fd4`,
+  and FreeBSD amd64
+  `6a42dc423ab1975e8ea4296f56be6c9a3773d9ccfda1c57244a50261e64f368a`.
+- Every artifact independently records Go 1.26.5, compiler `gc`, trimpath,
+  its exact `GOOS/amd64`, `CGO_ENABLED=0`, Git VCS authority, source revision
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`, and
+  `vcs.modified=false`. Each contains the exact 16-byte `main.version` symbol
+  and exactly one `0.1.0` release string; the Linux artifact prints exactly
+  `revolvr 0.1.0`.
+- The separate immutable verification bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.3-a16ea1bdc1a4-verification/`.
+  Its 29-entry complete evidence inventory SHA-256 is
+  `006cb0b7f2215878e757ae8ee104bb1b88d5ae31b8661168bcf5c705d08353ff`.
+  It retains exact source/tree/tool identities, commands and raw logs, focused
+  source-lock proof, candidate manifest and inventory, two-build
+  reproducibility, independent build metadata/version assertions, collision
+  checks, all four preserved remote refs, and before/after preservation
+  inventories.
+- Required verification passed: Go 1.22.12 source-floor tests; Go 1.26.5 full
+  tests; `go vet ./...`; `go mod verify`; `govulncheck ./...` and verbose scan;
+  Linux/Darwin/FreeBSD amd64 release builds; exact two-pass artifact comparison;
+  embedded version/source/tool/target/CGO/VCS metadata; candidate self-check;
+  verification-bundle inventory check; clean-clone authority; and exclusion of
+  the controller helper. Govulncheck found zero reachable and zero imported-
+  package vulnerabilities. The retained module-only finding remains
+  `GO-2026-5024` in the Windows-only `golang.org/x/sys/windows` surface at
+  `v0.30.0`, which Revolvr does not call; the report names `v0.44.0` as fixed.
+- Two fail-closed verification-assembly diagnostics are retained unchanged at
+  suffixes `.failed-readonly-commands-append` and
+  `.failed-sealed-before-inventory`. The first refused an append after an
+  early read-only install; the second refused inventory creation after an
+  early directory seal. Their relative content/layout fingerprints are,
+  respectively,
+  `5b0a359ff8432730dad07e25b290bc6b3c52b7811d9b9e2c8f2324e4804bd8e7` /
+  `6264d0f32ac7f08d413d245cf85a122b226f9fa33811348efe9d14f7605aee65`
+  and
+  `006cb0b7f2215878e757ae8ee104bb1b88d5ae31b8661168bcf5c705d08353ff` /
+  `69d555e7193ea069b7a2be176d1f3455434bd4b3a748a9580fee08d333c8fba9`.
+  The authoritative finalization created and verified both inventories before
+  sealing the completed bundle read-only.
+- Preservation passed. RC.1 and RC.2 candidate/verification/failed bundles,
+  both existing attestation workflows, both earlier retired roots, and failed
+  RC.2 suite `/tmp/revolvr-ext20-rc2.96ibla/suite` retained identical content
+  and layout/metadata fingerprints. Raw Git readback preserved candidate refs
+  RC.1 `ed65049fba6bf82852fd406ebc17afa90a953e3f`, RC.2
+  `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec`, and attestation refs RC.1
+  `a1afdd73a7bfb03e9e5ef361616604115f9db5b8` and RC.2
+  `7038030d07c9eb1b76e0af2a3fdc84154d9b6fe2`. No old artifact, hash,
+  workflow, ref, run root, or evidence file changed.
+- Files changed: this state file, `.agent/DECISIONS.md`, the new ignored RC.3
+  pinned build script, candidate bundle, verification bundle, two retained
+  assembly diagnostics, and controller-created fresh-session helper
+  `agent-ext20-rc3.sh`. `.agent/TASKS.md` remains unchanged with `EXT-20`
+  unchecked. No Go source, dependency, candidate ref, workflow, dogfood suite,
+  tag, live/nested Codex, model operation, remote CI request, or external-use
+  approval was created during local candidate construction.
+- Independent controller verification passed both sealed-bundle self-checks,
+  exact inventory digests, candidate source/tree authority, retained Go-floor/
+  release/focused-race/vulnerability evidence, and collision-free RC.3 refs.
+  A third independent non-local clean clone rebuilt both passes and reproduced
+  all three artifact bytes exactly. The rebuilt Linux binary then passed a
+  fresh disposable-repository no-model smoke: config check reported effective
+  schema v8 and `32m0s`/`10m40s` lock authority, doctor reported the same
+  required window and `Ready: true`, Git stayed clean, and no task operation
+  was created.
+- Exact next bounded step: after independent controller verification, use raw
+  Git to publish collision-free ref `refs/heads/level1-v0.1.0-rc.3` at exact
+  source `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`, verify remote readback, and
+  require every EXT-15 CI job on that SHA to pass. A later separate pass must
+  add and run a collision-free exact-checkout Go 1.26.5 RC.3 artifact
+  attestation before preparing a new no-model dogfood suite. Blockers for this
+  bounded local task: none.
 
 ## EXT-20 RC.2 Source-Lock Configuration Defect (2026-07-18)
 
