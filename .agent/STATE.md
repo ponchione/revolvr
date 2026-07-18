@@ -64,16 +64,102 @@ exact-commit CI/artifact attestation are also immutable rejected history after
 its first live operation exposed inconsistent source-lock default authority.
 That configuration defect is repaired and verified at exact source commit
 `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`; collision-free RC.3 is now
-locally reproduced and verified from that source, and exact-source RC.3 remote
-candidate CI has passed. A separate RC.3 artifact attestation and fresh
-collision-free dogfood suite remain required before any further live model
-work.
+locally reproduced and verified from that source, and its exact-source remote
+candidate CI and separate artifact attestation have passed. A fresh guarded
+RC.3 no-model suite is prepared and independently verified. The separately
+confirmed live dogfood pass remains required before any further model work.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.3 Guarded No-Model Suite Preparation (2026-07-18)
+
+- Task selected: the bounded RC.3 no-model suite-preparation subtask of
+  `EXT-20`. The guarded suite now binds exact source
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`, Linux SHA-256
+  `9e9c13f43977edf49e7e6385c595aa20a01c16308ddfea1c30455ea88252ae9b`,
+  and immutable bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.3-a16ea1bdc1a4`. Release
+  output remains `revolvr 0.1.0`; Codex authority remains exact package
+  `@openai/codex@0.144.4`, output `codex-cli 0.144.4`, and SHA-256
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+  No plan, schema, scenario, threshold, configuration, confirmation value,
+  Go source, or dependency changed.
+- Files changed: `scripts/dogfood-external-level1-suite.sh`, this state file,
+  and `.agent/HANDOFF.md`. `.agent/TASKS.md` remains unchanged with `EXT-20`
+  unchecked. `.agent/DECISIONS.md` remains unchanged because this pass applies
+  the already settled immutable RC.3 authority.
+- No-model verification passed: `bash -n` for suite and collector; the complete
+  RC.3 candidate bundle verifier; suite `--static`; two collector
+  `--fixture-only` collections; both `--verify-manifest` checks; canonical
+  manifest comparison after excluding only `collected_at_utc`; `go test
+  -count=1 ./...`; and `git diff --check`. The retained fixture root is
+  `/tmp/revolvr-ext20-rc3-collector.Uad2DH`; both raw manifest hashes are
+  `5169090fe855302da1fe70ca98535d7b66e4769c1af81ddec27affd9e9fc64e9`
+  and the timestamp-excluded canonical manifest hash is
+  `01a47fd5ab7f7eb8e7def144ce7cbef17d5b306366cb2967896fb7b874e8452c`.
+- The retained prepared suite authority is
+  `/tmp/revolvr-ext20-rc3.Qghf19/suite`. Preparation used a new parent from
+  exact template `/tmp/revolvr-ext20-rc3.XXXXXX` and only `--prepare
+  --run-root <parent>/suite --install-codex`; it installed the pinned package
+  and started no model. `authority.tsv` SHA-256 is
+  `adc8095701e1fa6fdcd6180df93ea88ccac6f1d4d21cba1a751476a7a1ef3fb4`;
+  `operation-plan.tsv` SHA-256 is
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+- Independent read-only inspection verified the authority hash; exact
+  candidate hash/version/source metadata and `vcs.modified=false`; exact
+  Codex package/version/hash; effective configuration schema v8; source-writer
+  lock `timeout=32m0s heartbeat_interval=10m40s required=32m0s`; the exact
+  11-row plan and ten unique ready tasks; tracked disposable markers; and both
+  clean `main` repositories. `repo-a` is at
+  `07239693a95a1c73b61de77b74ade0a234e84075`; `repo-b` is at
+  `2de82370e6c8bd3775e25da783fc7d6dcf0e0b5c`. There are zero runtime
+  operation manifests, zero collector manifests, and zero aggregate entries.
+- Inspection set `GIT_OPTIONAL_LOCKS=0` so read-only Git commands could not
+  persist optional index refreshes. Complete regular-file content fingerprint
+  `90424fc5544fd3be146eef965a95b5300a910036e0a19703672fc95f1fb756ae`
+  and layout/type/mode/owner/size/link/inode/mtime/ctime fingerprint
+  `8fdd4272d36eefe1f9c99c4793bc47d51db5751ed12450b986755a875ae467b7`
+  were identical before and after every authority, config, doctor, Git,
+  manifest, and aggregate check. The exact empty-confirmation guard was tested
+  in isolation and refused before any prepared-root read or collector call;
+  neither `--live` nor the confirmation value was passed to the suite.
+- A first preparation at `/tmp/revolvr-ext20-rc3.5TQPha/suite` is retained
+  only as a failed inspection diagnostic. An independent doctor/status sweep
+  was run without disabling Git optional locks, and the whole-root comparison
+  caught an optional stat-cache rewrite of `repo-b/.git/index`. Its source
+  worktree stayed clean, both HEADs stayed fixed, and it has zero operations,
+  collector manifests, and aggregate entries, but it is not live authority and
+  must not be used. The single repair attempt produced the verified root above.
+- Verification result: passed for the tracked three-constant RC.3 update and
+  the repaired no-model prepared suite. RC.1 and RC.2 remain rejected history;
+  no historical ref, bundle, workflow, artifact record, hash, diagnostic, or
+  available root was reused or changed. No `gh`, commit, push, tag, live or
+  nested Codex/model operation, or external-use approval occurred.
+- Independent controller verification repeated shell syntax, the complete
+  candidate-bundle verifier, suite `--static`, exact candidate and Codex
+  identities, prepared-authority verification, the 11-row/ten-task plan, both
+  fixed clean repository heads, effective schema v8, and all ten task-specific
+  doctor checks with the exact 32-minute lock authority. It confirmed zero
+  runtime operations, collector manifests, and aggregate files. Controller
+  content fingerprint
+  `ba6436c19168f9af8b615f16b655b6f12e8fd86c6829bafbab45105230af6e9c`
+  and layout fingerprint
+  `154879f66815174b9bb4f5e3ae30380327b92a6da7d811b5eca75780d191f403`
+  were unchanged before/after inspection with `GIT_OPTIONAL_LOCKS=0`.
+  `go test -count=1 ./...` and final diff hygiene passed. No live argument,
+  confirmation value, model operation, or prepared-root mutation occurred.
+- Remaining separately confirmed live command, recorded but not executed:
+  `scripts/dogfood-external-level1-suite.sh --live --run-root
+  /tmp/revolvr-ext20-rc3.Qghf19/suite --confirm-live-real-codex
+  EXT20_LIVE_REAL_CODEX_MODEL_CALLS`. After that pass, every EXT-17 manifest
+  and the EXT-20 aggregate still require independent validation. `EXT-20`
+  remains unchecked until all quantitative and zero-tolerance thresholds pass.
+  The intentional blocker is the separate live confirmation, which was not
+  supplied in this no-model pass.
 
 ## EXT-20 RC.3 Remote Artifact Attestation Result (2026-07-18)
 

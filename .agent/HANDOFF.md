@@ -5,29 +5,24 @@ Updated: 2026-07-18
 ## Resume Point
 
 The first unchecked backlog task remains `EXT-20`, the quantitative Level-1
-real-Codex dogfood gate. Do not restart RC.1 or RC.2 work and do not run a live
-suite yet. RC.3 local reproducibility, exact-source remote CI, and remote
-artifact attestation have passed. The next bounded task is a fresh RC.3
-no-model suite preparation.
+real-Codex dogfood gate. Do not restart RC.1 or RC.2 work. RC.3 local
+reproducibility, exact-source remote CI, remote artifact attestation, the
+guarded suite update, and a fresh collision-free no-model preparation have
+passed. No live model operation has started.
 
-Run this from the repository root:
-
-```bash
-./agent-ext20-rc3-suite.sh
-```
-
-This starts one fresh `codex exec` pass. It must update only the guarded suite
-from rejected RC.2 to immutable RC.3 authority, validate it, and prepare a new
-collision-free no-model root. It must not pass `--live`, supply the live
-confirmation, commit, or push. When it finishes, return control to the
-controller for independent verification and raw-Git commit/push.
+Prepared live authority is `/tmp/revolvr-ext20-rc3.Qghf19/suite`. The
+controller independently verified it and committed/pushed the tracked suite,
+state, and handoff changes with raw Git. A new explicit live confirmation is
+now required before the recorded command may run. Do not use the
+failed-inspection diagnostic root
+`/tmp/revolvr-ext20-rc3.5TQPha/suite`.
 
 ## Git And Release Authority
 
 - Reviewed workflow commit: `80441464d55af466bbea15f20448099e2a163684`
-  (`Add RC.3 artifact attestation workflow`). The updated handoff, evidence,
-  and next helper are committed on top of it; use `git rev-parse HEAD` for the
-  exact resumed `main` tip.
+  (`Add RC.3 artifact attestation workflow`). The remote-attestation evidence,
+  suite-preparation evidence, and current handoff are committed on top of it;
+  use `git rev-parse HEAD` for the exact resumed `main` tip.
 - RC.3 candidate source: `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`.
 - RC.3 source tree: `23c0d27fc62be5f41feb45192e74f1df8ecff3fa`.
 - Remote candidate ref: `refs/heads/level1-v0.1.0-rc.3` at the exact source
@@ -74,6 +69,32 @@ and ran an RC.3 no-model config/doctor smoke. The binary reported effective
 config schema v8, source-writer timeout `32m0s`, heartbeat `10m40s`, required
 window `32m0s`, and `Ready: true` without creating an operation.
 
+## Prepared RC.3 No-Model Suite Authority
+
+- Prepared root: `/tmp/revolvr-ext20-rc3.Qghf19/suite`.
+- Authority SHA-256:
+  `adc8095701e1fa6fdcd6180df93ea88ccac6f1d4d21cba1a751476a7a1ef3fb4`.
+- Operation-plan SHA-256:
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+- Candidate output/hash/source and exact Codex package/output/hash agree with
+  the RC.3 authority above. Both repositories are clean on `main`; `repo-a`
+  HEAD is `07239693a95a1c73b61de77b74ade0a234e84075`, and `repo-b` HEAD is
+  `2de82370e6c8bd3775e25da783fc7d6dcf0e0b5c`.
+- The 11 plan rows name exactly ten unique tasks, and every task reports
+  `Ready: true` with source-writer lock `timeout=32m0s`, heartbeat `10m40s`,
+  and required window `32m0s`.
+- There are zero runtime operation manifests, zero collector manifests, and
+  zero aggregate entries. Whole-root content fingerprint
+  `90424fc5544fd3be146eef965a95b5300a910036e0a19703672fc95f1fb756ae`
+  and layout/metadata fingerprint
+  `8fdd4272d36eefe1f9c99c4793bc47d51db5751ed12450b986755a875ae467b7`
+  remained identical across independent inspection with
+  `GIT_OPTIONAL_LOCKS=0`.
+- The empty-confirmation guard refused in isolation before prepared-root or
+  collector access. No `--live` argument or confirmation value was passed to
+  the suite. The first root `/tmp/revolvr-ext20-rc3.5TQPha/suite` retained a
+  Git optional index-refresh diagnostic and is not live authority.
+
 ## Rejected History To Preserve
 
 - RC.1 source `ed65049fba6bf82852fd406ebc17afa90a953e3f` is rejected because
@@ -90,17 +111,17 @@ window `32m0s`, and `Ready: true` without creating an operation.
 
 ## Remaining Ordered Work
 
-1. Run `agent-ext20-rc3-suite.sh` to update the guarded Level-1 suite to RC.3
-   and prepare a new collision-free no-model root. Do not reuse the failed
-   RC.2 suite.
-2. Independently verify the prepared root, exact candidate/Codex/lock
-   authority, both clean repositories, ten ready tasks, zero operations, empty
-   aggregate, and live-confirmation refusal; then commit/push the passing
-   suite/helper/state/handoff changes with raw Git.
-3. Only after a new explicit live confirmation, run all 11 planned operations
+1. Obtain a new explicit live confirmation for the exact command below.
+2. Only after that confirmation, run all 11 planned operations
    and independently verify every EXT-17 manifest and EXT-20 aggregate.
-4. Keep `EXT-20` unchecked and external use unapproved until every threshold
+3. Keep `EXT-20` unchecked and external use unapproved until every threshold
    passes. Tagging/release decision remains the later `EXT-21` task.
+
+Exact confirmation-gated command to run only after that separate approval:
+
+```bash
+scripts/dogfood-external-level1-suite.sh --live --run-root /tmp/revolvr-ext20-rc3.Qghf19/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+```
 
 ## Session Rules
 
