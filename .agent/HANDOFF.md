@@ -34,12 +34,13 @@ separate backlog task or external-use approval. Fresh no-model suite
 preparation completed, but the direct confirmed suite is now terminally failed
 and RC.4 is immutable rejected history. Its first supervisor chose an action
 that the pending lifecycle did not admit after the prompt failed to communicate
-that exact authority. The bounded no-model source remediation is now complete
-in the uncommitted working tree and has passed focused ordinary/race,
-production happy-path/strict-fake, full-suite, diff, candidate, and immutable
-evidence-preservation checks. The next gate is independent review followed by
-separately authorized raw-Git commit/push if clean; the RC.4 suite must never
-be retried.
+that exact authority. The bounded no-model source remediation passed focused
+ordinary/race, production happy-path/strict-fake, full-suite, diff, candidate,
+and immutable evidence-preservation checks, then passed independent review and
+was published as exact source commit
+`19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+`2fb39c93694e72d986e7a8a849a542fc1bf1728d`. The next gate is collision-free
+local RC.5 construction; the RC.4 suite must never be retried.
 
 ## Lifecycle-Authority Remediation Handoff
 
@@ -83,13 +84,11 @@ be retried.
   `3535d7a2b46a0dbd3101428b4177e4c46baabc29190e5b1c580d90e6ff033f5d`
   and
   `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`.
-- Remaining gate: a fresh independent read-only review must inspect the entire
-  diff and repeat focused/race/production/full/preservation checks. Only with
-  separate operator authority may the controller commit and push with raw
-  Git. After exact publication and readback, a later pass may construct a
-  collision-free RC.5 from that exact repair commit. Do not construct RC.5,
-  call a model, mutate a remote, or reuse any RC.4 authority in the review
-  pass.
+- Independent review and raw-Git publication are complete. Exact RC.5 source
+  authority is commit `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. A fresh pass may now construct
+  RC.5 locally; it may not publish a ref, call a model, mutate RC.4, or grant
+  release/external-use authority.
 
 ## RC.4 Terminal Live Failure Authority
 
@@ -452,13 +451,16 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Independently review the lifecycle-authority repair and durable-state diff;
-   rerun focused/race/production/full and RC.4 preservation checks.
-2. With separate explicit operator authority only, commit and publish the
-   reviewed repair using raw Git and verify exact remote readback.
-3. Only after exact publication may a later pass construct a collision-free RC.5
-   candidate. RC.4 is terminal and must never be rerun. Keep `EXT-20`
-   unchecked; do not tag, release, or approve external use.
+1. Run exactly one fresh local-candidate pass with `agent-ext20-rc5.sh` using
+   published source commit `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` and tree
+   `2fb39c93694e72d986e7a8a849a542fc1bf1728d`.
+2. Construct and fully verify a collision-free immutable RC.5 candidate and
+   separate verification bundle without committing, pushing a candidate ref,
+   starting remote CI, preparing a suite, or calling a model.
+3. Retain exact hashes/inventories and hand off the later independent
+   candidate-review and raw-Git candidate-ref/remote-CI gate. RC.4 is terminal
+   and must never be rerun. Keep `EXT-20` unchecked; do not tag, release, or
+   approve external use.
 
 The completed remote-CI pass did not create an attestation launcher. Do not
 rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
@@ -472,7 +474,7 @@ attestation, or suite-preparation launchers.
 Exact next command:
 
 ```bash
-git diff -- internal/autonomouspolicy internal/supervisor internal/autonomouscycle .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
+./agent-ext20-rc5.sh
 ```
 
 ## Session Rules
@@ -486,8 +488,8 @@ git diff -- internal/autonomouspolicy internal/supervisor internal/autonomouscyc
 - Never use `gh`.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation completed, but RC.4 then failed terminally on its first
-  operation and is retired. The lifecycle-authority remediation is locally
-  complete but uncommitted. Independent review is next; live-model, RC.5
-  construction, commit/push without separate authority, tag, release, and
-  external-use authority remain excluded.
+  operation and is retired. The lifecycle-authority remediation is published.
+  The next launcher authorizes local RC.5 construction only; candidate-ref
+  publication, remote CI, live-model work, tag, release, and external-use
+  authority remain excluded.
 - The repository is durable memory; this handoff is only the resume pointer.

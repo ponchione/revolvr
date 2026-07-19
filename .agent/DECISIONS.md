@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## EXT-20 Lifecycle-Authority Repair Publication (2026-07-19)
+
+- Independent review accepted and raw Git published the lifecycle-authority
+  repair as exact source commit
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. This commit, not later
+  controller state or launcher commits, is the sole permitted source for local
+  RC.5 construction.
+- Publication verification repeated formatting, focused ordinary/race tests
+  for policy/supervisor/cycle, production happy-path and strict-fake ordinary/
+  race tests, the complete Go suite, diff hygiene, and exact RC.4 terminal
+  evidence/candidate preservation. Raw-Git pre-push parent and post-push
+  readback matched.
+- Publication grants only a later collision-free local RC.5 construction gate.
+  It grants no candidate ref, remote CI, attestation, suite, live-model, tag,
+  release, external-use, or `EXT-20` completion authority.
+
 ## EXT-20 Lifecycle Routing Authority (2026-07-19)
 
 - `internal/autonomouspolicy` owns the versioned deterministic lifecycle

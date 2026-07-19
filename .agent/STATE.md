@@ -90,6 +90,35 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 Lifecycle-Authority Controller Review And Publication (2026-07-19)
+
+- Independent controller review found the repair bounded to the lifecycle
+  authority projection, supervisor prompt/provenance, cycle handoff, and focused
+  tests. Runtime lifecycle enforcement remains fail-closed; pending still
+  admits only `plan`, `block`, and `needs_input`, and the model receives that
+  exact ordered authority before deciding. No Structured Outputs, downstream
+  action/profile, attempts, verification, audit, source-lock, or commit gate was
+  weakened.
+- Controller verification passed formatting; focused and race tests for
+  `internal/autonomouspolicy`, `internal/supervisor`, and
+  `internal/autonomouscycle`; production `TestProductionAutonomousHappyPath`
+  and `TestStrictFakeCodexContract` in ordinary and race modes; `go test
+  -count=1 ./...`; and `git diff --check`.
+- RC.4 terminal preservation passed again: collector manifest, all 112
+  inventoried files, evidence and whole-suite fingerprints, both candidate
+  inventories, exact remote candidate/attestation refs, clean repository
+  heads, and sentinels remained unchanged.
+- Raw Git committed the reviewed repair and local state as
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` (`Expose lifecycle routing
+  authority to supervisor`), tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`, after a fresh `origin/main`
+  parent check, then pushed it to `main`. This exact repair commit is the only
+  allowed RC.5 source; the later `agent-ext20-rc5.sh` launcher/state commit is
+  controller authority only.
+- No candidate, ref, workflow, remote CI, attestation, suite, live/nested model
+  operation, tag, release, external-use approval, or `EXT-20` completion
+  occurred. The next bounded pass is collision-free local RC.5 construction.
+
 ## EXT-20 RC.4 Lifecycle-Authority Remediation (2026-07-19)
 
 - Task selected: the bounded no-model lifecycle-authority remediation within
@@ -151,13 +180,11 @@ document's remaining blockers stay open until their ordered tasks pass.
   `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`;
   RC.4 refs and workflow hash remain exact. Both disposable repositories stay
   clean at their recorded heads and the sentinel comparison remains exact.
-- Result: the bounded local repair is complete with no blocker. What remains
-  is a separate read-only review of the complete diff, repetition of focused,
-  race, production, full-suite, preservation, and diff checks, then an
-  explicitly authorized controller commit/push using raw Git if clean. Only
-  that published exact repair can become source authority for a fresh,
-  collision-free RC.5 candidate; RC.5 must not reuse RC.4 suite, operation,
-  evidence, refs, workflows, artifacts, identities, or failed authority.
+- Result: the bounded repair and its independent publication gate are complete
+  with no blocker. Exact published commit/tree authority is recorded above.
+  A fresh collision-free local RC.5 candidate may now be constructed, but it
+  must not reuse RC.4 suite, operation, evidence, refs, workflows, artifacts,
+  identities, or failed authority.
 
 ## EXT-20 RC.4 Terminal Live Failure And Root Cause (2026-07-19)
 
