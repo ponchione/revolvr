@@ -64,6 +64,9 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		return failed(Result{TaskID: cfg.TaskID}, OutcomeInvalidConfiguration, "configuration", err)
 	}
 	result = Result{TaskID: n.TaskID}
+	if _, err := autonomouspolicy.RoutingAuthorityForLifecycle(n.state.Lifecycle); err != nil {
+		return failed(result, OutcomePolicyRejected, "lifecycle_authority", err)
+	}
 
 	task, found, err := n.TaskLoader(n.root, n.TaskID)
 	if err != nil {
@@ -172,6 +175,7 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		ExecutionRoot:                  n.executionRoot,
 		WorkspaceID:                    workspaceID(n.Workspace),
 		TaskID:                         n.TaskID,
+		Lifecycle:                      n.state.Lifecycle,
 		Dossier:                        dossier,
 		Audit:                          audit,
 		VerificationFailure:            n.CorrectionFailure,
@@ -679,6 +683,13 @@ func validateSupervisorResult(n normalizedConfig, dossier autonomous.TaskDossier
 	}
 	if result.Dossier.SchemaVersion != dossier.Manifest.SchemaVersion || result.Dossier.TaskID != n.TaskID || result.Dossier.SHA256 != dossier.Manifest.DossierSHA256 || result.Dossier.ByteSize != dossier.Manifest.DossierByteSize {
 		return errors.New("supervisor did not retain the exact dossier identity")
+	}
+	routingAuthority, err := autonomouspolicy.RoutingAuthorityForLifecycle(n.state.Lifecycle)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(result.RoutingAuthority, routingAuthority) {
+		return errors.New("supervisor did not retain the exact lifecycle routing authority")
 	}
 	if result.Profile.Name != workerProfileName {
 		return fmt.Errorf("supervisor used profile %q, want %q", result.Profile.Name, workerProfileName)

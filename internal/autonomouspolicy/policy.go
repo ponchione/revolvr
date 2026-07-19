@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	"revolvr/internal/autonomous"
@@ -21,6 +22,80 @@ const (
 	RouteKindBlock      RouteKind = "block"
 	RouteKindNeedsInput RouteKind = "needs_input"
 )
+
+const LifecycleRoutingAuthoritySchemaVersion = "autonomous-lifecycle-routing-authority-v1"
+
+// LifecycleRoutingAuthority is the exact current action vocabulary admitted
+// by the lifecycle gate. Callers must obtain it from
+// RoutingAuthorityForLifecycle rather than constructing it independently.
+type LifecycleRoutingAuthority struct {
+	SchemaVersion   string                    `json:"schema_version"`
+	Lifecycle       autonomous.LifecycleState `json:"lifecycle"`
+	AdmittedActions []autonomous.Action       `json:"admitted_actions"`
+}
+
+// RoutingAuthorityForLifecycle returns the deterministic prompt- and
+// policy-facing action authority for a lifecycle. Lifecycles that cannot
+// accept a new supervisor decision fail closed.
+func RoutingAuthorityForLifecycle(lifecycle autonomous.LifecycleState) (LifecycleRoutingAuthority, error) {
+	authority := LifecycleRoutingAuthority{
+		SchemaVersion: LifecycleRoutingAuthoritySchemaVersion,
+		Lifecycle:     lifecycle,
+	}
+	switch lifecycle {
+	case autonomous.LifecycleStatePending:
+		authority.AdmittedActions = []autonomous.Action{
+			autonomous.ActionPlan,
+			autonomous.ActionBlock,
+			autonomous.ActionNeedsInput,
+		}
+	case autonomous.LifecycleStateReady:
+		authority.AdmittedActions = []autonomous.Action{
+			autonomous.ActionPlan,
+			autonomous.ActionImplement,
+			autonomous.ActionAudit,
+			autonomous.ActionCorrect,
+			autonomous.ActionDocument,
+			autonomous.ActionSimplify,
+			autonomous.ActionComplete,
+			autonomous.ActionBlock,
+			autonomous.ActionNeedsInput,
+		}
+	case autonomous.LifecycleStatePlanning, autonomous.LifecycleStateWorking, autonomous.LifecycleStateVerifying, autonomous.LifecycleStateAuditing, autonomous.LifecycleStateCorrecting:
+		return authority, fmt.Errorf("lifecycle %q already has an operation in flight and admits no new routing", lifecycle)
+	case autonomous.LifecycleStateNeedsInput:
+		return authority, errors.New("needs_input lifecycle admits no routing until an exact durable answer and explicit resume transition")
+	case autonomous.LifecycleStateFinalizing:
+		return authority, errors.New("finalizing lifecycle admits no new routing")
+	case autonomous.LifecycleStateCompleted, autonomous.LifecycleStateBlocked, autonomous.LifecycleStateCancelled, autonomous.LifecycleStateSuperseded, autonomous.LifecycleStateAbandoned:
+		return authority, fmt.Errorf("terminal lifecycle %q admits no new routing without an explicit reopen operation", lifecycle)
+	default:
+		return LifecycleRoutingAuthority{}, fmt.Errorf("unknown lifecycle %q", lifecycle)
+	}
+	return authority, nil
+}
+
+// Validate proves that the authority is the exact deterministic projection of
+// its lifecycle, including action order.
+func (a LifecycleRoutingAuthority) Validate() error {
+	want, err := RoutingAuthorityForLifecycle(a.Lifecycle)
+	if err != nil {
+		return err
+	}
+	if a.SchemaVersion != want.SchemaVersion || !slices.Equal(a.AdmittedActions, want.AdmittedActions) {
+		return fmt.Errorf("lifecycle routing authority for %q does not match deterministic policy", a.Lifecycle)
+	}
+	return nil
+}
+
+// Admits reports whether the exact validated lifecycle authority contains an
+// action. It never broadens malformed authority.
+func (a LifecycleRoutingAuthority) Admits(action autonomous.Action) bool {
+	if err := a.Validate(); err != nil {
+		return false
+	}
+	return slices.Contains(a.AdmittedActions, action)
+}
 
 type SourceSafety string
 
@@ -390,25 +465,25 @@ func findingResolution(state autonomous.ExecutionState, findingID string) (auton
 }
 
 func admitLifecycle(lifecycle autonomous.LifecycleState, action autonomous.Action) error {
-	switch lifecycle {
-	case autonomous.LifecycleStatePending:
-		if action == autonomous.ActionPlan || action == autonomous.ActionBlock || action == autonomous.ActionNeedsInput {
-			return nil
-		}
-		return fmt.Errorf("pending lifecycle admits only %q, %q, or %q, not %q", autonomous.ActionPlan, autonomous.ActionBlock, autonomous.ActionNeedsInput, action)
-	case autonomous.LifecycleStateReady:
-		return nil
-	case autonomous.LifecycleStatePlanning, autonomous.LifecycleStateWorking, autonomous.LifecycleStateVerifying, autonomous.LifecycleStateAuditing, autonomous.LifecycleStateCorrecting:
-		return fmt.Errorf("lifecycle %q already has an operation in flight and admits no new routing", lifecycle)
-	case autonomous.LifecycleStateNeedsInput:
-		return errors.New("needs_input lifecycle admits no routing until an exact durable answer and explicit resume transition")
-	case autonomous.LifecycleStateFinalizing:
-		return errors.New("finalizing lifecycle admits no new routing")
-	case autonomous.LifecycleStateCompleted, autonomous.LifecycleStateBlocked, autonomous.LifecycleStateCancelled:
-		return fmt.Errorf("terminal lifecycle %q admits no new routing without an explicit reopen operation", lifecycle)
-	default:
-		return fmt.Errorf("unknown lifecycle %q", lifecycle)
+	authority, err := RoutingAuthorityForLifecycle(lifecycle)
+	if err != nil {
+		return err
 	}
+	if authority.Admits(action) {
+		return nil
+	}
+	return fmt.Errorf("%s lifecycle admits only %s, not %q", lifecycle, quotedActions(authority.AdmittedActions), action)
+}
+
+func quotedActions(actions []autonomous.Action) string {
+	values := make([]string, len(actions))
+	for i, action := range actions {
+		values[i] = fmt.Sprintf("%q", action)
+	}
+	if len(values) == 1 {
+		return values[0]
+	}
+	return strings.Join(values[:len(values)-1], ", ") + ", or " + values[len(values)-1]
 }
 
 func rejectDecisionReplay(state autonomous.ExecutionState, current autonomous.DecisionReference) error {

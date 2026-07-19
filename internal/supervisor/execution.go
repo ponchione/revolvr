@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/autonomoussafety"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
@@ -23,7 +24,7 @@ import (
 	"revolvr/internal/redact"
 )
 
-const supervisorProvenanceSchemaVersion = "revolvr-supervisor-provenance-v1"
+const supervisorProvenanceSchemaVersion = "revolvr-supervisor-provenance-v2"
 
 type Ledger interface {
 	CreateRun(context.Context, ledger.RunSpec) (ledger.Run, error)
@@ -38,6 +39,7 @@ type Config struct {
 	ExecutionRoot       string
 	WorkspaceID         string
 	TaskID              string
+	Lifecycle           autonomous.LifecycleState
 	Dossier             autonomous.TaskDossier
 	Audit               *autonomous.AuditReport
 	VerificationFailure *autonomous.VerificationFailureTarget
@@ -123,6 +125,7 @@ type Result struct {
 	Artifacts         Artifacts
 	Dossier           DossierProvenance
 	Profile           ProfileProvenance
+	RoutingAuthority  autonomouspolicy.LifecycleRoutingAuthority
 	Invocation        codexexec.InvocationProvenance
 	Codex             codexexec.Result
 	SourceBefore      *gitstate.SourceSnapshot
@@ -132,10 +135,11 @@ type Result struct {
 
 type normalizedConfig struct {
 	Config
-	root          string
-	executionRoot string
-	runID         string
-	decisionID    string
+	root             string
+	executionRoot    string
+	runID            string
+	decisionID       string
+	routingAuthority autonomouspolicy.LifecycleRoutingAuthority
 }
 
 type artifactPaths struct {
@@ -153,18 +157,19 @@ type artifactPaths struct {
 }
 
 type supervisorProvenance struct {
-	SchemaVersion        string                            `json:"schema_version"`
-	RunID                string                            `json:"run_id"`
-	TaskID               string                            `json:"task_id"`
-	Dossier              autonomous.TaskDossierManifest    `json:"dossier_manifest"`
-	Profile              ProfileProvenance                 `json:"profile"`
-	Invocation           codexexec.InvocationProvenance    `json:"invocation"`
-	Artifacts            Artifacts                         `json:"artifacts"`
-	PromptByteSize       int                               `json:"prompt_byte_size"`
-	PromptTokenEstimator string                            `json:"prompt_token_estimator"`
-	PromptTokenEstimate  int                               `json:"prompt_token_estimate"`
-	SafetyPolicy         *autonomoussafety.Policy          `json:"safety_policy,omitempty"`
-	SafetyPreflight      *autonomoussafety.PreflightResult `json:"safety_preflight,omitempty"`
+	SchemaVersion        string                                     `json:"schema_version"`
+	RunID                string                                     `json:"run_id"`
+	TaskID               string                                     `json:"task_id"`
+	Dossier              autonomous.TaskDossierManifest             `json:"dossier_manifest"`
+	Profile              ProfileProvenance                          `json:"profile"`
+	RoutingAuthority     autonomouspolicy.LifecycleRoutingAuthority `json:"lifecycle_routing_authority"`
+	Invocation           codexexec.InvocationProvenance             `json:"invocation"`
+	Artifacts            Artifacts                                  `json:"artifacts"`
+	PromptByteSize       int                                        `json:"prompt_byte_size"`
+	PromptTokenEstimator string                                     `json:"prompt_token_estimator"`
+	PromptTokenEstimate  int                                        `json:"prompt_token_estimate"`
+	SafetyPolicy         *autonomoussafety.Policy                   `json:"safety_policy,omitempty"`
+	SafetyPreflight      *autonomoussafety.PreflightResult          `json:"safety_preflight,omitempty"`
 }
 
 type sourceEvidence struct {
@@ -206,8 +211,9 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		return Result{RunID: normalized.runID}, err
 	}
 	result := Result{
-		RunID:     normalized.runID,
-		Artifacts: artifactsWithPaths(paths),
+		RunID:            normalized.runID,
+		Artifacts:        artifactsWithPaths(paths),
+		RoutingAuthority: normalized.routingAuthority,
 	}
 
 	run, err := normalized.Ledger.CreateRun(ctx, ledger.RunSpec{
@@ -261,7 +267,12 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "schema", err, sourceEvidence{}, false)
 	}
-	promptBytes, err := BuildPrompt(PromptInput{TaskID: normalized.TaskID, Dossier: normalized.Dossier, Profile: runProfile})
+	promptBytes, err := BuildPrompt(PromptInput{
+		TaskID:           normalized.TaskID,
+		Dossier:          normalized.Dossier,
+		Profile:          runProfile,
+		RoutingAuthority: normalized.routingAuthority,
+	})
 	if err != nil {
 		return reject(ctx, normalized, paths, result, "prompt", err, sourceEvidence{}, false)
 	}
@@ -321,6 +332,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		TaskID:               normalized.TaskID,
 		Dossier:              normalized.Dossier.Manifest,
 		Profile:              result.Profile,
+		RoutingAuthority:     normalized.routingAuthority,
 		Invocation:           invocation,
 		Artifacts:            result.Artifacts,
 		PromptByteSize:       len(promptBytes),
@@ -578,6 +590,10 @@ func normalize(cfg Config) (normalizedConfig, error) {
 	if err := validateTaskID(cfg.TaskID); err != nil {
 		return normalizedConfig{}, err
 	}
+	routingAuthority, err := autonomouspolicy.RoutingAuthorityForLifecycle(cfg.Lifecycle)
+	if err != nil {
+		return normalizedConfig{}, fmt.Errorf("run supervisor: lifecycle routing authority: %w", err)
+	}
 	if cfg.Ledger == nil {
 		return normalizedConfig{}, errors.New("run supervisor: writable ledger is required")
 	}
@@ -638,7 +654,7 @@ func normalize(cfg Config) (normalizedConfig, error) {
 	} else if cfg.SourceLockTimeout < minimumLock {
 		return normalizedConfig{}, fmt.Errorf("run supervisor: source lock timeout %s is shorter than required pass window %s", cfg.SourceLockTimeout, minimumLock)
 	}
-	return normalizedConfig{Config: cfg, root: abs, executionRoot: executionRoot, runID: runID, decisionID: decisionID}, nil
+	return normalizedConfig{Config: cfg, root: abs, executionRoot: executionRoot, runID: runID, decisionID: decisionID, routingAuthority: routingAuthority}, nil
 }
 
 func prepareArtifactPaths(root, runID string) (artifactPaths, error) {

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/prompt"
 )
 
@@ -20,11 +21,15 @@ func TestBuildPromptIsDeterministicAndIncludesExactInputs(t *testing.T) {
 		SourcePath:  ".agent/profiles/supervisor.md",
 		Description: "Exact profile line one.\n\nExact profile line two.",
 	}
-	first, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile})
+	authority, err := autonomouspolicy.RoutingAuthorityForLifecycle(autonomous.LifecycleStateReady)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile})
+	first, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile, RoutingAuthority: authority})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile, RoutingAuthority: authority})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,6 +46,9 @@ func TestBuildPromptIsDeterministicAndIncludesExactInputs(t *testing.T) {
 		"Dossier schema: " + autonomous.DossierManifestSchemaVersion,
 		"Dossier SHA-256: " + dossier.Manifest.DossierSHA256,
 		fmt.Sprintf("Dossier byte size: %d", len(dossier.Markdown)),
+		"Lifecycle routing schema: " + autonomouspolicy.LifecycleRoutingAuthoritySchemaVersion,
+		"Current lifecycle: ready",
+		"Admitted next actions: plan, implement, audit, correct, document, simplify, complete, block, needs_input",
 		"fresh, ephemeral, decision-only",
 		"Return exactly one JSON object",
 		"explicit structured strategy material",
@@ -51,6 +59,73 @@ func TestBuildPromptIsDeterministicAndIncludesExactInputs(t *testing.T) {
 		if !strings.Contains(string(first), phrase) {
 			t.Fatalf("prompt missing %q", phrase)
 		}
+	}
+}
+
+func TestBuildPromptPendingLifecycleExposesOnlyExactAdmittedActions(t *testing.T) {
+	dossier := testDossier([]byte("# Pending task\n\nLifecycle: pending\nPlan progress: no current plan\n"))
+	profile := prompt.RunProfile{
+		Name:        SupervisorProfileName,
+		SourcePath:  ".agent/profiles/supervisor.md",
+		Description: "The global vocabulary includes plan, implement, audit, correct, document, simplify, complete, block, and needs_input.",
+	}
+	authority, err := autonomouspolicy.RoutingAuthorityForLifecycle(autonomous.LifecycleStatePending)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile, RoutingAuthority: authority})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile, RoutingAuthority: authority})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatal("pending prompt rendering is not deterministic")
+	}
+	promptText := string(first)
+	start := strings.Index(promptText, "## Exact Current Lifecycle Routing Authority")
+	end := strings.Index(promptText, "## Exact Validated Task Dossier")
+	if start < 0 || end <= start {
+		t.Fatalf("prompt lifecycle authority section is missing:\n%s", promptText)
+	}
+	section := promptText[start:end]
+	for _, phrase := range []string{
+		"Current lifecycle: pending",
+		"Admitted next actions: plan, block, needs_input",
+		"Choose exactly one of these legal next actions: `plan`, `block`, `needs_input`.",
+	} {
+		if !strings.Contains(promptText, phrase) {
+			t.Fatalf("pending prompt missing %q", phrase)
+		}
+	}
+	if strings.Contains(section, "`implement`") {
+		t.Fatalf("pending lifecycle authority exposes implement:\n%s", section)
+	}
+	if authority.Admits(autonomous.ActionImplement) {
+		t.Fatal("policy authority admitted implement for pending lifecycle")
+	}
+}
+
+func TestBuildPromptRejectsClosedOrDriftedLifecycleAuthority(t *testing.T) {
+	dossier := testDossier([]byte("# Exact dossier\n"))
+	profile := prompt.RunProfile{Name: SupervisorProfileName, SourcePath: ".agent/profiles/supervisor.md", Description: "Exact profile."}
+	closed, err := autonomouspolicy.RoutingAuthorityForLifecycle(autonomous.LifecycleStateWorking)
+	if err == nil {
+		t.Fatal("working lifecycle unexpectedly admitted supervisor routing")
+	}
+	if _, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile, RoutingAuthority: closed}); err == nil || !strings.Contains(err.Error(), "operation in flight") {
+		t.Fatalf("closed authority error = %v", err)
+	}
+
+	drifted, err := autonomouspolicy.RoutingAuthorityForLifecycle(autonomous.LifecycleStatePending)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drifted.AdmittedActions = append(drifted.AdmittedActions, autonomous.ActionImplement)
+	if _, err := BuildPrompt(PromptInput{TaskID: "task-1", Dossier: dossier, Profile: profile, RoutingAuthority: drifted}); err == nil || !strings.Contains(err.Error(), "does not match deterministic policy") {
+		t.Fatalf("drifted authority error = %v", err)
 	}
 }
 

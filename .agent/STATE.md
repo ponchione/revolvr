@@ -73,21 +73,91 @@ The follow-up closes all four production schemas and adds a recursive
 supported-subset guard. Its complete dirty-tree scope passed a separate
 read-only review and was committed and pushed with explicit operator authority
 as exact source `2546913e38ec273f64417dece2f91df78fd42fc2`, tree
-`8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. Local tests do not establish API
-acceptance, and no live model call is authorized. Collision-free RC.4 now
-exists as a locally verified immutable candidate and separate verification
-bundle from that exact source. Its exact candidate ref is published, and its
-complete ten-job push-triggered EXT-15 CI matrix passed. A separate RC.4
-exact-source artifact-attestation workflow now passes both complete local and
-remote verification, and its exact artifact is retained. A fresh guarded RC.4
-suite is now prepared and independently inspected without a model call; no
-live operation exists yet.
+`8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. RC.4's candidate, exact ref,
+ten-job CI run, artifact-attestation workflow/run/artifact, guarded suite, and
+terminal failure are now immutable rejected history. Its first supervisor
+selected `implement` from `pending` because the prompt omitted exact lifecycle
+routing authority; runtime enforcement correctly rejected it before any
+worker attempt. The bounded no-model source remediation is implemented and
+locally verified in the current uncommitted tree. It awaits independent
+review and separately authorized raw-Git publication before any collision-free
+RC.5 construction. Local tests do not establish live API acceptance, and no
+live model call is authorized.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.4 Lifecycle-Authority Remediation (2026-07-19)
+
+- Task selected: the bounded no-model lifecycle-authority remediation within
+  unchecked `EXT-20`. RC.4 operation `ext20-2bd21aea4f72-01` remains
+  `unsafe_or_ambiguous`: one supervisor decision selected `implement` from a
+  `pending` lifecycle with no plan, while zero worker attempts, verification,
+  audits, corrections, commits, or source changes occurred. The runtime gate
+  remains unchanged in authority and still rejects `implement` from pending.
+- Implementation: `internal/autonomouspolicy` now owns
+  `autonomous-lifecycle-routing-authority-v1`, the single deterministic
+  lifecycle-to-actions projection used by enforcement, prompt construction,
+  and provenance. Pending exposes only `plan`, `block`, and `needs_input`;
+  ready exposes the complete settled action vocabulary; every in-flight,
+  suspended, finalizing, terminal, or unknown lifecycle fails closed before a
+  supervisor call. The supervisor prompt renders the exact authority after the
+  global profile, supervisor provenance advances to
+  `revolvr-supervisor-provenance-v2`, and the cycle checks exact retained
+  authority before accepting the supervisor result. Structured Outputs,
+  action/profile validation, lifecycle enforcement, and all downstream gates
+  remain intact.
+- Files changed: `internal/autonomouspolicy/policy.go`,
+  `internal/autonomouspolicy/policy_test.go`, `internal/supervisor/prompt.go`,
+  `internal/supervisor/prompt_schema_test.go`,
+  `internal/supervisor/execution.go`,
+  `internal/supervisor/execution_test.go`,
+  `internal/autonomouscycle/cycle.go`,
+  `internal/autonomouscycle/cycle_test.go`, this file,
+  `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`. No suite, candidate,
+  workflow, dependency, configuration, release, or task-backlog content
+  changed; `EXT-20` remains unchecked.
+- Verification passed:
+  - `gofmt -w` on all eight changed Go files;
+  - focused lifecycle/prompt/provenance/cycle regressions across
+    `./internal/autonomouspolicy`, `./internal/supervisor`, and
+    `./internal/autonomouscycle`;
+  - `go test -count=1 ./internal/autonomouspolicy ./internal/supervisor
+    ./internal/autonomouscycle`;
+  - `go test -race -count=1 ./internal/autonomouspolicy
+    ./internal/supervisor ./internal/autonomouscycle`;
+  - `go test -count=1 ./internal/app -run
+    'Test(ProductionAutonomousHappyPath|StrictFakeCodexContract)$'` and the
+    same command with `-race`;
+  - `go test -count=1 ./...`;
+  - `git diff --check`.
+- RC.4 preservation passed before editing and after all code checks. The
+  collector manifest and all 112 bundle files verify; manifest SHA-256 remains
+  `33a6e800fdd32b0e5873f3c59b2d90d4d47d73ae93f6700acf572e88bbd85a23`,
+  inventory SHA-256 remains
+  `81028ea618dee019fb37b95e91ac0863d105b31426893b10e633798ecca5d43b`,
+  evidence content remains
+  `b253ebb96f8c6e7989db20fa820aa14fd12f323b910a73aaae039d4fa2fbdc9a`,
+  whole-suite content remains
+  `a44d88d7419db1d6b325daaf792dd775fe46523d63e42f9503289e0059b7c2e2`,
+  and the fresh pre/post metadata/layout fingerprint remains
+  `7e1d80bb37022da5874c01db09cf07cefb6e39b86941117f75efc8dc69d0b722`.
+  Candidate and verification inventory SHA-256 values remain
+  `3535d7a2b46a0dbd3101428b4177e4c46baabc29190e5b1c580d90e6ff033f5d`
+  and
+  `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`;
+  RC.4 refs and workflow hash remain exact. Both disposable repositories stay
+  clean at their recorded heads and the sentinel comparison remains exact.
+- Result: the bounded local repair is complete with no blocker. What remains
+  is a separate read-only review of the complete diff, repetition of focused,
+  race, production, full-suite, preservation, and diff checks, then an
+  explicitly authorized controller commit/push using raw Git if clean. Only
+  that published exact repair can become source authority for a fresh,
+  collision-free RC.5 candidate; RC.5 must not reuse RC.4 suite, operation,
+  evidence, refs, workflows, artifacts, identities, or failed authority.
 
 ## EXT-20 RC.4 Terminal Live Failure And Root Cause (2026-07-19)
 
@@ -130,9 +200,9 @@ document's remaining blockers stay open until their ordered tasks pass.
   sentinel evidence is identical.
 - RC.4 and this suite are immutable rejected history and must never be retried,
   reconciled, relabeled, mutated, or reused. `EXT-20` remains unchecked. The
-  next bounded pass is the no-model source repair launched by
-  `agent-ext20-lifecycle-remediation.sh`; RC.5 construction remains a later
-  separately reviewed and published gate.
+  bounded no-model source repair is recorded above and its launcher must not
+  be rerun. Independent review and separately authorized publication are next;
+  RC.5 construction remains a later collision-free gate.
 
 ## EXT-20 RC.4 First Confirmed Live No-Start Diagnostic (2026-07-19)
 

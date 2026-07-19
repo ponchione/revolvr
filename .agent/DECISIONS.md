@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## EXT-20 Lifecycle Routing Authority (2026-07-19)
+
+- `internal/autonomouspolicy` owns the versioned deterministic lifecycle
+  routing projection `autonomous-lifecycle-routing-authority-v1`. `pending`
+  admits exactly `plan`, `block`, and `needs_input`; `ready` admits the settled
+  global action vocabulary in canonical order. Planning, working, verifying,
+  auditing, correcting, needs-input, finalizing, completed, blocked,
+  cancelled, superseded, and abandoned admit no new supervisor routing.
+  Unknown lifecycles also fail closed.
+- Runtime lifecycle enforcement and model-facing authority use that same
+  projection. The autonomous cycle requires an open projection before calling
+  the supervisor, passes the exact current lifecycle, and rejects a supervisor
+  result that does not retain the same authority. The existing policy gate
+  remains authoritative and does not admit `implement` directly from
+  `pending`.
+- The exact routing projection appears after the global supervisor profile in
+  every prompt and is retained in supervisor provenance. Supervisor provenance
+  advances to `revolvr-supervisor-provenance-v2`; the Structured Outputs action
+  and profile schema, strict parsing, and Go action/profile validation remain
+  unchanged. A malformed, reordered, widened, or closed projection cannot be
+  rendered as decision authority.
+- This repair adds no fallback, coercion, retry, dogfood special case, worker,
+  verification, source, attempt, commit, or release authority. RC.4 and
+  operation `ext20-2bd21aea4f72-01` remain immutable rejected history. A
+  separate independent review and explicitly authorized raw-Git publication
+  must pass before any collision-free RC.5 candidate may be constructed.
+
 ## EXT-20 RC.4 Terminal Lifecycle-Authority Failure (2026-07-19)
 
 - RC.4 live suite `/tmp/revolvr-ext20-rc4.DGg1pW/suite` is terminally rejected
@@ -21,9 +48,10 @@
   `a75d4f059721ec7c9320650bd49d6d4cef9526cf`, and the outside sentinel stayed
   unchanged. RC.4 and its prepared suite must never be retried, reconciled,
   relabeled, or used as later candidate authority.
-- `EXT-20` remains open. A bounded lifecycle-authority source repair and
-  independent publication must precede any separate collision-free RC.5
-  candidate construction. No tag, release, or external-use approval exists.
+- `EXT-20` remains open. The bounded lifecycle-authority source repair is now
+  locally complete; independent review and publication must precede any
+  separate collision-free RC.5 candidate construction. No tag, release, or
+  external-use approval exists.
 
 ## EXT-20 RC.4 First Confirmed Live No-Start (2026-07-19)
 

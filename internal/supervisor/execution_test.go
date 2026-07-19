@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
@@ -44,6 +45,9 @@ func TestRunAcceptsEverySupervisorAction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fixture := newPassFixture(t, "run-"+tt.name)
 			defer fixture.close()
+			if tt.action == autonomous.ActionPlan || tt.action == autonomous.ActionBlock || tt.action == autonomous.ActionNeedsInput {
+				fixture.cfg.Lifecycle = autonomous.LifecycleStatePending
+			}
 			decision := testDecision(tt.action, tt.profile)
 			decision.FindingIDs = tt.findingIDs
 			rawJSON, err := json.Marshal(decision)
@@ -90,6 +94,20 @@ func TestRunAcceptsEverySupervisorAction(t *testing.T) {
 			assertArtifactHash(t, fixture.root, result.Artifacts.SourceEvidence)
 			if result.Dossier.SHA256 != fixture.cfg.Dossier.Manifest.DossierSHA256 || result.Profile.Name != SupervisorProfileName || result.Profile.Path != ".agent/profiles/supervisor.md" {
 				t.Fatalf("dossier/profile provenance = %+v / %+v", result.Dossier, result.Profile)
+			}
+			wantAuthority, err := autonomouspolicy.RoutingAuthorityForLifecycle(fixture.cfg.Lifecycle)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(result.RoutingAuthority, wantAuthority) || !result.RoutingAuthority.Admits(tt.action) {
+				t.Fatalf("routing authority = %+v, want %+v admitting %q", result.RoutingAuthority, wantAuthority, tt.action)
+			}
+			var provenance supervisorProvenance
+			if err := json.Unmarshal(readTestFile(t, filepath.Join(fixture.root, filepath.FromSlash(result.Artifacts.Provenance.Path))), &provenance); err != nil {
+				t.Fatal(err)
+			}
+			if provenance.SchemaVersion != supervisorProvenanceSchemaVersion || !reflect.DeepEqual(provenance.RoutingAuthority, wantAuthority) {
+				t.Fatalf("provenance lifecycle authority = %q / %+v, want %q / %+v", provenance.SchemaVersion, provenance.RoutingAuthority, supervisorProvenanceSchemaVersion, wantAuthority)
 			}
 			if result.Invocation.Model != codexexec.DefaultModel || result.Invocation.ReasoningEffort != codexexec.DefaultReasoningEffort || !result.Invocation.Ephemeral {
 				t.Fatalf("invocation = %+v", result.Invocation)
@@ -486,6 +504,24 @@ func TestRunBlocksBeforeCodexOnInvalidPreparation(t *testing.T) {
 	}
 }
 
+func TestRunFailsClosedBeforeLedgerOrCodexWhenLifecycleAdmitsNoRouting(t *testing.T) {
+	fixture := newPassFixture(t, "run-working-lifecycle")
+	defer fixture.close()
+	fixture.cfg.Lifecycle = autonomous.LifecycleStateWorking
+	called := false
+	fixture.cfg.CodexCommandRunner = func(context.Context, runner.Command) runner.Result {
+		called = true
+		return runner.Result{}
+	}
+	result, err := Run(context.Background(), fixture.cfg)
+	if err == nil || !strings.Contains(err.Error(), "operation in flight") || result.RunID != "" || called {
+		t.Fatalf("Run() result=%+v called=%t error=%v", result, called, err)
+	}
+	if _, found, err := fixture.store.GetRun(context.Background(), fixture.cfg.RunID); err != nil || found {
+		t.Fatalf("closed lifecycle ledger lookup = found %t, error %v", found, err)
+	}
+}
+
 func TestRunSurfacesLedgerWriteFailure(t *testing.T) {
 	fixture := newPassFixture(t, "run-ledger-failure")
 	defer fixture.close()
@@ -578,6 +614,7 @@ func newPassFixture(t *testing.T, runID string) passFixture {
 		cfg: Config{
 			RepositoryRoot:        root,
 			TaskID:                "task-1",
+			Lifecycle:             autonomous.LifecycleStateReady,
 			Dossier:               testDossier([]byte("# Validated task dossier\n\nExact evidence.\n")),
 			Ledger:                store,
 			RunID:                 runID,

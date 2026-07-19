@@ -34,8 +34,62 @@ separate backlog task or external-use approval. Fresh no-model suite
 preparation completed, but the direct confirmed suite is now terminally failed
 and RC.4 is immutable rejected history. Its first supervisor chose an action
 that the pending lifecycle did not admit after the prompt failed to communicate
-that exact authority. The next gate is a bounded no-model source remediation;
-the RC.4 suite must never be retried.
+that exact authority. The bounded no-model source remediation is now complete
+in the uncommitted working tree and has passed focused ordinary/race,
+production happy-path/strict-fake, full-suite, diff, candidate, and immutable
+evidence-preservation checks. The next gate is independent review followed by
+separately authorized raw-Git commit/push if clean; the RC.4 suite must never
+be retried.
+
+## Lifecycle-Authority Remediation Handoff
+
+- Exact source changes are limited to `internal/autonomouspolicy`,
+  `internal/supervisor`, and `internal/autonomouscycle` plus their focused
+  tests. `autonomous-lifecycle-routing-authority-v1` is the single mapping used
+  by policy, prompt construction, supervisor provenance, and cycle evidence
+  validation. Pending admits only `plan`, `block`, and `needs_input`; ready
+  admits the complete settled vocabulary; all other valid lifecycle states
+  and unknown values fail closed before supervisor execution.
+- The exact current authority is rendered after the global supervisor profile
+  and retained by `revolvr-supervisor-provenance-v2`. The Structured Outputs
+  schema, action/profile parsing and validation, runtime lifecycle gate,
+  attempts, verification, audit, source locks, commit authority, and release
+  configuration are unchanged.
+- Changed Go files:
+  `internal/autonomouspolicy/policy.go`,
+  `internal/autonomouspolicy/policy_test.go`,
+  `internal/supervisor/prompt.go`,
+  `internal/supervisor/prompt_schema_test.go`,
+  `internal/supervisor/execution.go`,
+  `internal/supervisor/execution_test.go`,
+  `internal/autonomouscycle/cycle.go`, and
+  `internal/autonomouscycle/cycle_test.go`. Durable state changes are this
+  file, `.agent/STATE.md`, and `.agent/DECISIONS.md`; `.agent/TASKS.md` is
+  unchanged with `EXT-20` unchecked.
+- Passed commands: focused exact regression selection; full ordinary and race
+  tests for all three changed packages; production
+  `TestProductionAutonomousHappyPath` and `TestStrictFakeCodexContract` in
+  ordinary and race modes; `go test -count=1 ./...`; and `git diff --check`.
+  All changed Go files were formatted with `gofmt`.
+- Immutable RC.4 preservation passed again. Manifest/inventory/evidence/suite
+  SHA-256 values remain
+  `33a6e800fdd32b0e5873f3c59b2d90d4d47d73ae93f6700acf572e88bbd85a23`,
+  `81028ea618dee019fb37b95e91ac0863d105b31426893b10e633798ecca5d43b`,
+  `b253ebb96f8c6e7989db20fa820aa14fd12f323b910a73aaae039d4fa2fbdc9a`,
+  and `a44d88d7419db1d6b325daaf792dd775fe46523d63e42f9503289e0059b7c2e2`.
+  The pre/post layout hash is
+  `7e1d80bb37022da5874c01db09cf07cefb6e39b86941117f75efc8dc69d0b722`;
+  candidate/verification inventories remain exact at
+  `3535d7a2b46a0dbd3101428b4177e4c46baabc29190e5b1c580d90e6ff033f5d`
+  and
+  `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`.
+- Remaining gate: a fresh independent read-only review must inspect the entire
+  diff and repeat focused/race/production/full/preservation checks. Only with
+  separate operator authority may the controller commit and push with raw
+  Git. After exact publication and readback, a later pass may construct a
+  collision-free RC.5 from that exact repair commit. Do not construct RC.5,
+  call a model, mutate a remote, or reuse any RC.4 authority in the review
+  pass.
 
 ## RC.4 Terminal Live Failure Authority
 
@@ -398,12 +452,11 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run one fresh no-model pass with
-   `agent-ext20-lifecycle-remediation.sh` to repair only the supervisor
-   lifecycle-authority mismatch and add focused prompt/policy agreement tests.
-2. Independently review the repair, rerun focused/race/production/full tests,
-   then separately commit and publish it with raw Git if clean.
-3. Only after publication may a later pass construct a collision-free RC.5
+1. Independently review the lifecycle-authority repair and durable-state diff;
+   rerun focused/race/production/full and RC.4 preservation checks.
+2. With separate explicit operator authority only, commit and publish the
+   reviewed repair using raw Git and verify exact remote readback.
+3. Only after exact publication may a later pass construct a collision-free RC.5
    candidate. RC.4 is terminal and must never be rerun. Keep `EXT-20`
    unchecked; do not tag, release, or approve external use.
 
@@ -419,7 +472,7 @@ attestation, or suite-preparation launchers.
 Exact next command:
 
 ```bash
-./agent-ext20-lifecycle-remediation.sh
+git diff -- internal/autonomouspolicy internal/supervisor internal/autonomouscycle .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
 ```
 
 ## Session Rules
@@ -433,7 +486,8 @@ Exact next command:
 - Never use `gh`.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation completed, but RC.4 then failed terminally on its first
-  operation and is retired. The next launcher authorizes only no-model
-  lifecycle-authority remediation; live-model, candidate construction, tag,
-  release, and external-use authority remain excluded.
+  operation and is retired. The lifecycle-authority remediation is locally
+  complete but uncommitted. Independent review is next; live-model, RC.5
+  construction, commit/push without separate authority, tag, release, and
+  external-use authority remain excluded.
 - The repository is durable memory; this handoff is only the resume pointer.

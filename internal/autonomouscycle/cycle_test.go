@@ -524,6 +524,20 @@ func TestRunTerminalAuthorizationsHaveNoWorkerVerificationCommitOrPersistence(t 
 	}
 }
 
+func TestRunFailsClosedBeforeSupervisorWhenLifecycleAdmitsNoRouting(t *testing.T) {
+	f := newCycleFixture(t, autonomous.ActionImplement)
+	f.state.Lifecycle = autonomous.LifecycleStateWorking
+	f.cfg.State = f.state
+
+	result, err := Run(context.Background(), f.cfg)
+	if err == nil || result.Outcome != OutcomePolicyRejected || result.Failure == nil || result.Failure.Stage != "lifecycle_authority" || !strings.Contains(err.Error(), "operation in flight") {
+		t.Fatalf("Run() result=%+v error=%v", result, err)
+	}
+	if f.supervisorCalls != 0 || f.codexCalls != 0 || f.verificationCalls != 0 || f.commitCalls != 0 {
+		t.Fatalf("closed lifecycle calls supervisor/codex/verification/commit = %d/%d/%d/%d", f.supervisorCalls, f.codexCalls, f.verificationCalls, f.commitCalls)
+	}
+}
+
 func TestRunRejectsPreparationAndRaceFailuresBeforeWorker(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1492,6 +1506,10 @@ func (f *cycleFixture) runSupervisor(ctx context.Context, cfg supervisor.Config)
 		decisionPointer = &decision
 		referencePointer = &reference
 	}
+	routingAuthority, err := autonomouspolicy.RoutingAuthorityForLifecycle(cfg.Lifecycle)
+	if err != nil {
+		return supervisor.Result{}, err
+	}
 	return supervisor.Result{
 		RunID:             cfg.RunID,
 		Decision:          decisionPointer,
@@ -1499,6 +1517,7 @@ func (f *cycleFixture) runSupervisor(ctx context.Context, cfg supervisor.Config)
 		Artifacts:         supervisor.Artifacts{Prompt: supervisor.Artifact{Path: filepath.Join(".revolvr", "runs", cfg.RunID, "supervisor-prompt.md"), SHA256: strings.Repeat("1", 64), ByteSize: 1}},
 		Dossier:           supervisor.DossierProvenance{SchemaVersion: cfg.Dossier.Manifest.SchemaVersion, TaskID: cfg.TaskID, SHA256: cfg.Dossier.Manifest.DossierSHA256, ByteSize: cfg.Dossier.Manifest.DossierByteSize},
 		Profile:           supervisor.ProfileProvenance{Name: supervisor.SupervisorProfileName, Path: ".agent/profiles/supervisor.md", SHA256: strings.Repeat("2", 64), ByteSize: 10},
+		RoutingAuthority:  routingAuthority,
 		Invocation: testInvocationWithSafety(func() string {
 			if cfg.ExecutionRoot != "" {
 				return cfg.ExecutionRoot

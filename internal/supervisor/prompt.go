@@ -11,15 +11,17 @@ import (
 	"unicode/utf8"
 
 	"revolvr/internal/autonomous"
+	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/prompt"
 )
 
 const SupervisorProfileName = "supervisor"
 
 type PromptInput struct {
-	TaskID  string
-	Dossier autonomous.TaskDossier
-	Profile prompt.RunProfile
+	TaskID           string
+	Dossier          autonomous.TaskDossier
+	Profile          prompt.RunProfile
+	RoutingAuthority autonomouspolicy.LifecycleRoutingAuthority
 }
 
 func BuildPrompt(in PromptInput) ([]byte, error) {
@@ -38,6 +40,9 @@ func BuildPrompt(in PromptInput) ([]byte, error) {
 	if strings.TrimSpace(in.Profile.Description) == "" {
 		return nil, errors.New("build supervisor prompt: profile content is required")
 	}
+	if err := in.RoutingAuthority.Validate(); err != nil {
+		return nil, fmt.Errorf("build supervisor prompt: lifecycle routing authority: %w", err)
+	}
 
 	var out bytes.Buffer
 	out.WriteString("# Revolvr Fresh Supervisor Decision Pass\n\n")
@@ -50,8 +55,20 @@ func BuildPrompt(in PromptInput) ([]byte, error) {
 	out.WriteString(in.Dossier.Manifest.DossierSHA256)
 	out.WriteString("\nDossier byte size: ")
 	out.WriteString(fmt.Sprintf("%d", in.Dossier.Manifest.DossierByteSize))
+	out.WriteString("\nLifecycle routing schema: ")
+	out.WriteString(in.RoutingAuthority.SchemaVersion)
+	out.WriteString("\nCurrent lifecycle: ")
+	out.WriteString(string(in.RoutingAuthority.Lifecycle))
+	out.WriteString("\nAdmitted next actions: ")
+	out.WriteString(joinActions(in.RoutingAuthority.AdmittedActions))
 	out.WriteString("\n\n## Exact Supervisor Profile\n\n")
 	out.WriteString(in.Profile.Description)
+	out.WriteString("\n\n## Exact Current Lifecycle Routing Authority\n\n")
+	out.WriteString("The current lifecycle is `")
+	out.WriteString(string(in.RoutingAuthority.Lifecycle))
+	out.WriteString("`. Choose exactly one of these legal next actions: ")
+	out.WriteString(joinCodeActions(in.RoutingAuthority.AdmittedActions))
+	out.WriteString(". The broader action vocabulary in the profile and output schema is structural only; actions outside this exact list are not admitted for this decision.\n")
 	out.WriteString("\n\n## Exact Validated Task Dossier\n\n")
 	out.Write(in.Dossier.Markdown)
 	if len(in.Dossier.Markdown) == 0 || in.Dossier.Markdown[len(in.Dossier.Markdown)-1] != '\n' {
@@ -61,6 +78,22 @@ func BuildPrompt(in PromptInput) ([]byte, error) {
 	out.WriteString("Return exactly one JSON object representing one SupervisorDecision. Follow the harness-supplied JSON schema directly. For a worker action, include explicit structured strategy material whose approach, techniques, and evidence targets materially describe this retry; formatting, run IDs, timestamps, or rationale-only changes are not a changed strategy. When an operator product decision is indispensable, use only the needs_input action and include the exact versioned question, mutually exclusive stable option IDs, one offered recommendation and rationale, typed evidence, deterministic content identity, and only genuinely option-independent read-only work. Never select the recommendation automatically. Do not include surrounding prose, Markdown fences, or multiple objects. Do not invoke Codex recursively or start a nested Codex session. Do not execute or route a worker. Do not edit repository source, task files, plans, findings, receipts, runtime state, or other evidence, and do not create a commit.\n\n")
 	out.WriteString("Revolvr retains safety, verification, legal-transition, retry, commit, and terminal-state authority. A structurally valid complete or block recommendation is only a supervisor output; this pass does not transition or finalize the task.\n")
 	return out.Bytes(), nil
+}
+
+func joinActions(actions []autonomous.Action) string {
+	values := make([]string, len(actions))
+	for i, action := range actions {
+		values[i] = string(action)
+	}
+	return strings.Join(values, ", ")
+}
+
+func joinCodeActions(actions []autonomous.Action) string {
+	values := make([]string, len(actions))
+	for i, action := range actions {
+		values[i] = "`" + string(action) + "`"
+	}
+	return strings.Join(values, ", ")
 }
 
 func ValidateDossier(taskID string, dossier autonomous.TaskDossier) error {

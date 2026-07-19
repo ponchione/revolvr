@@ -3,6 +3,7 @@ package autonomouspolicy
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -131,6 +132,8 @@ func TestEvaluateLifecycleMatrix(t *testing.T) {
 		autonomous.LifecycleStateCompleted,
 		autonomous.LifecycleStateBlocked,
 		autonomous.LifecycleStateCancelled,
+		autonomous.LifecycleStateSuperseded,
+		autonomous.LifecycleStateAbandoned,
 	}
 	for _, action := range allActions() {
 		for _, lifecycle := range lifecycles {
@@ -138,8 +141,8 @@ func TestEvaluateLifecycleMatrix(t *testing.T) {
 				in := validInput(action)
 				setLifecycle(&in.State, lifecycle)
 				_, err := Evaluate(in)
-				wantAllowed := lifecycle == autonomous.LifecycleStateReady ||
-					(lifecycle == autonomous.LifecycleStatePending && (action == autonomous.ActionPlan || action == autonomous.ActionBlock || action == autonomous.ActionNeedsInput))
+				authority, authorityErr := RoutingAuthorityForLifecycle(lifecycle)
+				wantAllowed := authorityErr == nil && authority.Admits(action)
 				if wantAllowed && err != nil {
 					t.Fatalf("Evaluate() error = %v", err)
 				}
@@ -148,6 +151,69 @@ func TestEvaluateLifecycleMatrix(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestRoutingAuthorityForLifecycleIsExactAndDeterministic(t *testing.T) {
+	all := allActions()
+	tests := []struct {
+		lifecycle autonomous.LifecycleState
+		want      []autonomous.Action
+		wantErr   string
+	}{
+		{lifecycle: autonomous.LifecycleStatePending, want: []autonomous.Action{autonomous.ActionPlan, autonomous.ActionBlock, autonomous.ActionNeedsInput}},
+		{lifecycle: autonomous.LifecycleStateReady, want: all},
+		{lifecycle: autonomous.LifecycleStatePlanning, wantErr: "operation in flight"},
+		{lifecycle: autonomous.LifecycleStateWorking, wantErr: "operation in flight"},
+		{lifecycle: autonomous.LifecycleStateVerifying, wantErr: "operation in flight"},
+		{lifecycle: autonomous.LifecycleStateAuditing, wantErr: "operation in flight"},
+		{lifecycle: autonomous.LifecycleStateCorrecting, wantErr: "operation in flight"},
+		{lifecycle: autonomous.LifecycleStateNeedsInput, wantErr: "exact durable answer"},
+		{lifecycle: autonomous.LifecycleStateFinalizing, wantErr: "admits no new routing"},
+		{lifecycle: autonomous.LifecycleStateCompleted, wantErr: "terminal lifecycle"},
+		{lifecycle: autonomous.LifecycleStateBlocked, wantErr: "terminal lifecycle"},
+		{lifecycle: autonomous.LifecycleStateCancelled, wantErr: "terminal lifecycle"},
+		{lifecycle: autonomous.LifecycleStateSuperseded, wantErr: "terminal lifecycle"},
+		{lifecycle: autonomous.LifecycleStateAbandoned, wantErr: "terminal lifecycle"},
+		{lifecycle: autonomous.LifecycleState("unknown"), wantErr: "unknown lifecycle"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.lifecycle), func(t *testing.T) {
+			first, firstErr := RoutingAuthorityForLifecycle(tt.lifecycle)
+			second, secondErr := RoutingAuthorityForLifecycle(tt.lifecycle)
+			if errorText(firstErr) != errorText(secondErr) || !reflect.DeepEqual(first, second) {
+				t.Fatalf("repeated authority = %+v/%v and %+v/%v", first, firstErr, second, secondErr)
+			}
+			if tt.wantErr != "" {
+				if firstErr == nil || !strings.Contains(firstErr.Error(), tt.wantErr) || len(first.AdmittedActions) != 0 {
+					t.Fatalf("authority = %+v, error = %v; want closed %q", first, firstErr, tt.wantErr)
+				}
+				return
+			}
+			if firstErr != nil || first.SchemaVersion != LifecycleRoutingAuthoritySchemaVersion || first.Lifecycle != tt.lifecycle || !reflect.DeepEqual(first.AdmittedActions, tt.want) {
+				t.Fatalf("authority = %+v, error = %v; want actions %v", first, firstErr, tt.want)
+			}
+			if err := first.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v", err)
+			}
+			for _, action := range all {
+				if first.Admits(action) != slices.Contains(tt.want, action) {
+					t.Fatalf("Admits(%q) = %t, want %t", action, first.Admits(action), slices.Contains(tt.want, action))
+				}
+			}
+		})
+	}
+
+	pending, err := RoutingAuthorityForLifecycle(autonomous.LifecycleStatePending)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.Admits(autonomous.ActionImplement) {
+		t.Fatal("pending lifecycle authority admitted implement")
+	}
+	pending.AdmittedActions[0] = autonomous.ActionImplement
+	if pending.Validate() == nil || pending.Admits(autonomous.ActionImplement) {
+		t.Fatal("mutated lifecycle authority did not fail closed")
 	}
 }
 
@@ -701,7 +767,7 @@ func setLifecycle(state *autonomous.ExecutionState, lifecycle autonomous.Lifecyc
 		latest := decisionReference("decision-old", "run-old-supervisor", autonomous.ActionComplete, "")
 		state.LatestDecision = &latest
 		state.Terminal = &autonomous.TerminalDetail{Reason: "The task completed earlier."}
-	case autonomous.LifecycleStateBlocked, autonomous.LifecycleStateCancelled:
+	case autonomous.LifecycleStateBlocked, autonomous.LifecycleStateCancelled, autonomous.LifecycleStateSuperseded, autonomous.LifecycleStateAbandoned:
 		state.Terminal = &autonomous.TerminalDetail{Reason: "The task is terminal."}
 	}
 }
