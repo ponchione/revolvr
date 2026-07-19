@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## EXT-20 Structured Outputs Repair Publication Authority (2026-07-19)
+
+- Explicit operator authority published the independently reviewed follow-up
+  repair with raw Git as exact source commit
+  `2546913e38ec273f64417dece2f91df78fd42fc2` and tree
+  `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. Pre-push fetch proved the remote
+  had not moved; post-push fetch proved `HEAD` and `origin/main` matched.
+- Publication verification repeated formatting, focused ordinary and race
+  tests, the production autonomous happy path, the recursive four-builder
+  Structured Outputs guard, the complete repository suite, staged-scope
+  inspection, and diff hygiene. This satisfies the prior independent-review
+  and explicit-commit gates for local RC.4 construction.
+- RC.4 candidate source authority is exactly the published repair commit and
+  tree above. Later controller-only state or launcher commits are not candidate
+  source. Local candidate construction must use fresh clean clones of that
+  exact commit and remain collision-safe.
+- Publication grants no live/API acceptance, candidate-ref publication,
+  remote-CI or attestation authority, live-suite authority, tag, release, or
+  external-use approval. `EXT-20` remains open. RC.1, RC.2, and RC.3 remain
+  immutable rejected history and none of their authority or evidence may be
+  reused or mutated.
+
 ## EXT-20 Structured Outputs First-Repair Audit Failure And Follow-up (2026-07-18)
 
 - RC.3 candidate source `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`

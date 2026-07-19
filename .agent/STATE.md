@@ -69,17 +69,44 @@ before inference because the supervisor Structured Outputs schema emitted
 unsupported `uniqueItems`. The suite is permanently retired. The first local
 schema repair passed tests but failed independent audit because its objects
 were not all strict-compatible and its regression guard was only a denylist.
-The current uncommitted follow-up closes all four production schemas and adds a
-recursive supported-subset guard, but it still requires a new independent
-audit and a separate authorized commit before RC.4 construction. Local tests
-do not establish API acceptance, and no live model call is authorized. No RC.4
-exists in this pass.
+The follow-up closes all four production schemas and adds a recursive
+supported-subset guard. Its complete dirty-tree scope passed a separate
+read-only review and was committed and pushed with explicit operator authority
+as exact source `2546913e38ec273f64417dece2f91df78fd42fc2`, tree
+`8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. Local tests do not establish API
+acceptance, and no live model call is authorized. No RC.4 exists yet; the next
+bounded pass may construct and locally verify it from that exact source.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 Structured Outputs Repair Publication And RC.4 Handoff (2026-07-19)
+
+- The operator explicitly authorized committing and pushing the already
+  reviewed Structured Outputs follow-up with raw Git. The pre-publication base,
+  fetched `origin/main`, and `FETCH_HEAD` all matched
+  `45e92302843ad1cafe7a4a6bc58a319d606fb497`; no remote divergence existed.
+- Verification passed immediately before publication: formatting of every
+  changed Go file; the six-package focused suite; the same focused suite with
+  `-race`; the production autonomous happy path; the recursive four-builder
+  Structured Outputs guard; `go test -count=1 ./...`; staged and unstaged
+  `git diff --check`; and exact staged-scope inspection.
+- Raw Git created commit `2546913e38ec273f64417dece2f91df78fd42fc2`
+  (`Make model output schemas strict-compatible`) with tree
+  `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`, then pushed `main` from
+  `45e9230` to `2546913`. A subsequent fetch confirmed local `HEAD` and
+  `origin/main` matched exactly.
+- The controller-only `agent-ext20-rc4.sh` binds local RC.4 construction to
+  that exact source and tree. It forbids `gh`, commit, push, ref publication,
+  remote attestation, suite preparation, live/nested model calls, tags,
+  release, or external-use approval. It also forbids reuse or mutation of all
+  RC.1, RC.2, and RC.3 authority and evidence.
+- What remains: run one fresh bounded pass with `./agent-ext20-rc4.sh` to
+  construct and locally verify collision-free RC.4. `EXT-20` remains unchecked;
+  no API-acceptance or external-use claim is authorized.
 
 ## EXT-20 RC.3 Rejection, Failed First Repair Audit, And Follow-up (2026-07-18)
 

@@ -1,6 +1,6 @@
 # Agent Handoff
 
-Updated: 2026-07-18
+Updated: 2026-07-19
 
 ## Resume Point
 
@@ -10,20 +10,20 @@ Structured Outputs repair passed tests but failed independent audit because
 not every object was strict-compatible and its regression guard was only a
 finite denylist.
 
-The current uncommitted working tree, based on exact `main` commit
-`45e92302843ad1cafe7a4a6bc58a319d606fb497`, contains the follow-up repair for
-all four production model-facing schemas. The follow-up implementation and its
-complete dirty-tree scope have now received a separate read-only review. The
-four generated production schemas satisfy the documented structural rules
-that caused the live RC.3 rejection and the failed first-repair audit. Focused,
-race, production-happy-path, and full repository tests pass without a live
-model call.
+The follow-up repair for all four production model-facing schemas received a
+separate read-only review, then explicit operator commit/push authority. It is
+published on `main` as exact source commit
+`2546913e38ec273f64417dece2f91df78fd42fc2` and tree
+`8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. `origin/main` readback matched
+that commit after the raw-Git push. Focused, race, production-happy-path, and
+full repository tests passed again immediately before publication without a
+live model call.
 
-Work is paused for the day. Do not start another speculative schema-repair
-loop. The next operator decision is whether to authorize committing and
-pushing this already-verified repair. No new release candidate exists. If a
-later pass creates one from the committed repair, `RC.4` is only its sequential
-candidate label; it is not a separate backlog task or completed artifact.
+No new release candidate exists yet. The next bounded pass may construct the
+collision-free local candidate labeled `RC.4` from that exact source commit.
+The controller launcher `agent-ext20-rc4.sh` is not candidate source. RC.4 is
+only the sequential candidate label inside open backlog task `EXT-20`; it is
+not a separate backlog task or completed artifact.
 
 ## RC.3 Rejection And Preservation Authority
 
@@ -82,7 +82,7 @@ projection and deterministically reattaches the exact trusted full tiered
 verification result before canonicalization and persistence. The smaller
 optional final-gate projection remains exact and closed.
 
-The untracked `internal/autonomouscycle/schema_compatibility_test.go` is the new
+The committed `internal/autonomouscycle/schema_compatibility_test.go` is the new
 stdlib-only recursive guard. It enumerates all four builders, uses an explicit
 keyword allowlist, distinguishes property/`$defs` names from keywords,
 validates nullable objects, arrays, local refs, and all definitions, and
@@ -98,7 +98,7 @@ the current repair is API-incompatible. Do not turn this observation into
 another repair loop unless the operator explicitly chooses to expand the
 guard before the next candidate.
 
-## Dirty Tree Scope
+## Published Repair Scope
 
 - `.agent/DECISIONS.md`
 - `.agent/HANDOFF.md`
@@ -112,15 +112,17 @@ guard before the next candidate.
 - `internal/autonomousaudit/schema.go`
 - `internal/autonomousauditapply/apply.go`
 - `internal/autonomousauditapply/apply_test.go`
-- `internal/autonomouscycle/schema_compatibility_test.go` (untracked)
+- `internal/autonomouscycle/schema_compatibility_test.go`
 - `internal/autonomouscycle/worker_prompt.go`
 - `internal/autonomousplanning/contracts_test.go`
 - `internal/autonomousplanning/schema.go`
 - `internal/supervisor/prompt_schema_test.go`
 - `internal/supervisor/schema.go`
 
-No dependency was added. No commit, push, tag, branch/ref publication, release,
-live/nested model call, or external-use approval occurred.
+No dependency was added. The exact scope above was committed as
+`2546913e38ec273f64417dece2f91df78fd42fc2` and pushed to raw-Git
+`origin/main`. No candidate ref, tag, release, live/nested model call, or
+external-use approval occurred.
 
 ## Local Verification
 
@@ -160,23 +162,21 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Start a fresh session and read the durable state plus the complete dirty
-   tree. Confirm the base remains `45e92302843ad1cafe7a4a6bc58a319d606fb497`
-   and that no other terminal changed the candidate.
-2. Wait for explicit operator authority before committing or pushing the
-   verified repair. Do not require another audit merely because a new session
-   starts.
-3. Keep `EXT-20` unchecked and external use unapproved. Local tests do not
-   replace the required fresh live/API acceptance pass.
-4. Only after the repair is committed and pushed may a separately bounded pass
-   construct the next immutable candidate. That candidate would be labeled
-   RC.4. Never reuse RC.3's suite, evidence, operation, run, ref, workflow,
-   artifact, or diagnostic.
+1. Start one fresh session with `agent-ext20-rc4.sh` and read the durable state.
+2. Verify exact candidate source commit
+   `2546913e38ec273f64417dece2f91df78fd42fc2`, tree
+   `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`, and published reachability from
+   `origin/main` before local construction.
+3. Construct and locally verify only the collision-free RC.4 candidate. Do not
+   publish a ref, add remote attestation, prepare a live suite, or start a model
+   operation in that pass.
+4. Keep `EXT-20` unchecked and external use unapproved. Never reuse RC.3's
+   suite, evidence, operation, run, ref, workflow, artifact, or diagnostic.
 
-Exact next read-only command:
+Exact next command:
 
 ```bash
-GIT_OPTIONAL_LOCKS=0 git status --short && git diff --check
+./agent-ext20-rc4.sh
 ```
 
 ## Session Rules
@@ -188,6 +188,7 @@ GIT_OPTIONAL_LOCKS=0 git status --short && git diff --check
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- Do not commit, push, tag, publish refs, release, construct RC.4, or run a
-  live/nested model without exact separate authority.
+- The RC.4 launcher authorizes only local candidate construction and
+  verification. Do not commit, push, tag, publish refs, release, prepare a live
+  suite, or run a live/nested model in that pass.
 - The repository is durable memory; this handoff is only the resume pointer.
