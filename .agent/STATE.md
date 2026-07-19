@@ -93,6 +93,25 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Independent Local Review And Handoff (2026-07-19)
+
+- Independent controller review reverified the 15-file candidate and 44-file
+  verification bundle, their inventory seals, exact source commit/tree,
+  artifact and build-instructions hashes, binary build metadata using the
+  sealed absolute paths, empty Go build IDs, and exact `main.version` symbols.
+  The full `go test ./...` suite and focused `go test -race ./internal/app`
+  both passed. `git diff --check` passed.
+- The durable local-candidate result was committed and raw-Git pushed to
+  `origin/main` as `13973d8952d5de3ad20c5e13a7e6a419c8d8b9e2` (`Record local RC.5
+  candidate`). Exact candidate source remains
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, not the controller commit.
+- Local and remote `refs/heads/level1-v0.1.0-rc.5` remained absent after that
+  publication. `agent-ext20-rc5-remote.sh` is prepared for the next bounded
+  pass: reverify authority, create only that collision-free candidate ref with
+  an empty-expected raw-Git lease, and require its exact push-triggered ten-job
+  CI run. It must stop before attestation, suite preparation, any model call,
+  tag, release, external-use approval, or `EXT-20` completion.
+
 ## EXT-20 RC.5 Replacement Candidate — Local Verification (2026-07-19)
 
 - Task selected: construct and locally verify collision-free candidate

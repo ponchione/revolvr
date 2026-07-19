@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Independent Local Review And Remote-CI Launcher (2026-07-19)
+
+- Independent controller review accepted the sealed RC.5 candidate and
+  verification bundles. Both inventories and seals, exact source/tree,
+  artifact and build-instructions hashes, absolute-path binary metadata,
+  empty build IDs, version symbols, historical preservation evidence, and the
+  full Go suite plus focused race/app checks passed. The local candidate state
+  is published on `main` at controller commit
+  `13973d8952d5de3ad20c5e13a7e6a419c8d8b9e2`; this controller commit is not
+  candidate source.
+- `agent-ext20-rc5-remote.sh` is the sole next launcher. Running it grants one
+  narrow external mutation: create the still-absent
+  `refs/heads/level1-v0.1.0-rc.5` at exact source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` with an empty-expected raw-Git
+  lease. The pass must then read back that exact ref and require its exact
+  push-triggered ten-job CI run to succeed.
+- The launcher grants no `main` publication, attestation workflow/ref, suite,
+  model call, tag, release, external-use approval, or `EXT-20` completion.
+  Those remain separate gates, and RC.1 through RC.4 remain immutable history.
+
 ## EXT-20 RC.5 Local Candidate Authority (2026-07-19)
 
 - The sole local RC.5 candidate authority is exact published source commit

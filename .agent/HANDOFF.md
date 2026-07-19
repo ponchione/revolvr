@@ -40,10 +40,11 @@ and immutable evidence-preservation checks, then passed independent review and
 was published as exact source commit
 `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
 `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. Collision-free local RC.5
-construction and verification now pass from that exact source. The next gate
-is independent read-only bundle review, followed only with separate authority
-by collision-free raw-Git candidate-ref publication and remote CI. The RC.4
-suite must never be retried.
+construction and independent review now pass from that exact source. The
+local-candidate record is published at controller commit
+`13973d8952d5de3ad20c5e13a7e6a419c8d8b9e2`; it is not candidate source. The
+next gate is collision-free raw-Git candidate-ref publication and remote CI via
+`agent-ext20-rc5-remote.sh`. The RC.4 suite must never be retried.
 
 ## RC.5 Local Candidate Handoff
 
@@ -507,14 +508,12 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Independently inspect the sealed RC.5 candidate and verification bundles,
-   reverify both inventories, exact source/tree, artifact metadata/hashes,
-   preservation evidence, and the continued absence of the local and remote
-   RC.5 candidate ref.
-2. Only with separate publication authority, use raw Git with an empty-ref
-   lease to publish `refs/heads/level1-v0.1.0-rc.5` at exact source
-   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, read it back, and inspect the
-   push-triggered remote CI on that exact SHA.
+1. Run exactly one fresh candidate-ref/remote-CI pass with
+   `agent-ext20-rc5-remote.sh`. The launcher must reverify both sealed bundles
+   and all exact RC.5 authority before mutation.
+2. Publish only `refs/heads/level1-v0.1.0-rc.5` at exact source
+   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` with raw Git and an empty-ref
+   lease, read it back, and require its exact push-triggered ten-job CI run.
 3. Stop after the candidate-ref/remote-CI gate. Do not add an attestation
    workflow, prepare an RC.5 suite, call a model, tag, release, approve external
    use, or check `EXT-20`. RC.4 is terminal and must never be rerun.
@@ -531,13 +530,11 @@ attestation, or suite-preparation launchers.
 Exact next command:
 
 ```bash
-git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
-git push --force-with-lease=refs/heads/level1-v0.1.0-rc.5: origin \
-  19c1ef4b6a610016487880aa8ad69ec0204bd4f7:refs/heads/level1-v0.1.0-rc.5
+./agent-ext20-rc5-remote.sh
 ```
 
-This command requires the independent checks and separate publication
-authority above; it was not run during local candidate construction.
+Running this launcher is the separate candidate-ref publication authority. It
+has not yet been run.
 
 ## Session Rules
 
