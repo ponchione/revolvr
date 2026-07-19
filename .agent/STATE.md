@@ -89,6 +89,51 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.4 Terminal Live Failure And Root Cause (2026-07-19)
+
+- Exact suite `/tmp/revolvr-ext20-rc4.DGg1pW/suite` entered its first guarded
+  live operation and stopped immediately. Operation
+  `ext20-2bd21aea4f72-01`, task `ext20-success-a1`, scenario
+  `successful-source-change-1`, expected `completed`, observed
+  `unsafe_or_ambiguous`, exit status 1. Terminal bundle:
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite/evidence/repo-a/01-successful-source-change-1`.
+- Supervisor run `019f7afa-562a-732e-948a-920096198000` and Codex thread
+  `019f7afa-5a6e-7c11-8f05-4e1ec8541a3e` produced a structurally valid
+  `implement` / `implementer` decision with a bounded one-file strategy. The
+  durable task lifecycle was `pending` with no plan. Runtime policy correctly
+  failed closed: `pending lifecycle admits only "plan", "block", or
+  "needs_input", not "implement"`.
+- Root cause: the supervisor profile lists every global action and the dossier
+  shows `Lifecycle: pending`, but the model-facing prompt does not state exact
+  lifecycle-admitted actions. The model therefore lacked authority necessary
+  to distinguish a reasonable implementation recommendation from an illegal
+  route. No model coercion, retry, policy weakening, or dogfood exception is
+  authorized; lifecycle authority must be communicated from a deterministic
+  source shared with enforcement.
+- Independent verification passed the collector's `--verify-manifest`, the
+  bundle checksum and all 112 inventoried files, ledger export/replay evidence,
+  exact candidate/Codex/config identities, and terminal operation/state JSON.
+  Manifest SHA-256 is
+  `33a6e800fdd32b0e5873f3c59b2d90d4d47d73ae93f6700acf572e88bbd85a23`;
+  `files.sha256` and recorded bundle SHA-256 are
+  `81028ea618dee019fb37b95e91ac0863d105b31426893b10e633798ecca5d43b`;
+  evidence content fingerprint is
+  `b253ebb96f8c6e7989db20fa820aa14fd12f323b910a73aaae039d4fa2fbdc9a`;
+  whole-suite content fingerprint is
+  `a44d88d7419db1d6b325daaf792dd775fe46523d63e42f9503289e0059b7c2e2`.
+- Exactly one collector manifest and no aggregate exist. The supervisor
+  completed once; worker attempts, verification, audits, corrections, commits,
+  and source changes are all zero. Control repo-a and its retained workspace
+  remain clean at exact head
+  `a75d4f059721ec7c9320650bd49d6d4cef9526cf`; repo-b remains clean and
+  untouched at `11eb46ae242cf2a3cb5ce32cf94e0df3aab2ab0b`; before/after outside
+  sentinel evidence is identical.
+- RC.4 and this suite are immutable rejected history and must never be retried,
+  reconciled, relabeled, mutated, or reused. `EXT-20` remains unchecked. The
+  next bounded pass is the no-model source repair launched by
+  `agent-ext20-lifecycle-remediation.sh`; RC.5 construction remains a later
+  separately reviewed and published gate.
+
 ## EXT-20 RC.4 First Confirmed Live No-Start Diagnostic (2026-07-19)
 
 - After the operator returned from the first confirmation-gated launcher, the

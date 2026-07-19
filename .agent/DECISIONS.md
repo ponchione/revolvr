@@ -1,5 +1,30 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Terminal Lifecycle-Authority Failure (2026-07-19)
+
+- RC.4 live suite `/tmp/revolvr-ext20-rc4.DGg1pW/suite` is terminally rejected
+  after its first operation `ext20-2bd21aea4f72-01`. Scenario
+  `successful-source-change-1` expected `completed` but retained
+  `unsafe_or_ambiguous` because the supervisor chose `implement` while the
+  task lifecycle was `pending`; the unchanged policy correctly admits only
+  `plan`, `block`, or `needs_input` from pending.
+- The product defect is an authority mismatch: the model-facing supervisor
+  profile enumerates the global action vocabulary and the dossier reports
+  lifecycle, but neither communicates exact lifecycle-admitted next actions.
+  The model's decision was structurally valid and grounded, yet illegal under
+  authority it was not shown. The repair must project lifecycle admission from
+  one deterministic authority shared with policy enforcement, not weaken the
+  gate, coerce decisions, retry, or add dogfood-specific behavior.
+- The terminal evidence is valid and immutable. Exactly one supervisor pass
+  completed, zero workers/attempts/verification/audits/commits ran, both
+  control and workspace source stayed at
+  `a75d4f059721ec7c9320650bd49d6d4cef9526cf`, and the outside sentinel stayed
+  unchanged. RC.4 and its prepared suite must never be retried, reconciled,
+  relabeled, or used as later candidate authority.
+- `EXT-20` remains open. A bounded lifecycle-authority source repair and
+  independent publication must precede any separate collision-free RC.5
+  candidate construction. No tag, release, or external-use approval exists.
+
 ## EXT-20 RC.4 First Confirmed Live No-Start (2026-07-19)
 
 - Post-launch controller inspection found that

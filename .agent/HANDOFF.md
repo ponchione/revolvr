@@ -19,7 +19,7 @@ that commit after the raw-Git push. Focused, race, production-happy-path, and
 full repository tests passed again immediately before publication without a
 live model call.
 
-Collision-free RC.4 now exists as a locally verified immutable candidate from
+Collision-free RC.4 existed as a locally verified immutable candidate from
 that exact source commit. Raw Git published only
 `refs/heads/level1-v0.1.0-rc.4` at the candidate SHA, and push-triggered CI run
 `29688941202` passed exactly all ten mandatory EXT-15 jobs on that SHA. A new
@@ -31,10 +31,36 @@ same push's ten-job CI run `29690065840` also succeeded. The controller
 launchers and workflow commit are not candidate source. RC.4 is only the
 sequential candidate label inside open backlog task `EXT-20`; it is not a
 separate backlog task or external-use approval. Fresh no-model suite
-preparation using immutable RC.4 authority is now complete. The first
-confirmation-gated wrapper returned without entering the suite and retained no
-diagnostic; the prepared root remains untouched. The next gate uses a
-deterministic direct launcher and requires a new explicit confirmation.
+preparation completed, but the direct confirmed suite is now terminally failed
+and RC.4 is immutable rejected history. Its first supervisor chose an action
+that the pending lifecycle did not admit after the prompt failed to communicate
+that exact authority. The next gate is a bounded no-model source remediation;
+the RC.4 suite must never be retried.
+
+## RC.4 Terminal Live Failure Authority
+
+- Failed suite: `/tmp/revolvr-ext20-rc4.DGg1pW/suite`.
+- Terminal bundle:
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite/evidence/repo-a/01-successful-source-change-1`.
+- Operation `ext20-2bd21aea4f72-01`; supervisor run
+  `019f7afa-562a-732e-948a-920096198000`; Codex thread
+  `019f7afa-5a6e-7c11-8f05-4e1ec8541a3e`.
+- Expected `completed`; observed `unsafe_or_ambiguous`; exit 1.
+- Exact stop: pending lifecycle admits only `plan`, `block`, or `needs_input`,
+  not the supervisor's structurally valid `implement` decision.
+- Zero worker attempts, verification, audits, corrections, commits, or source
+  changes. Both repo-a control/workspace heads stayed exact at
+  `a75d4f059721ec7c9320650bd49d6d4cef9526cf`; repo-b and both sentinels are
+  unchanged.
+- Collector manifest and all 112 inventoried evidence files verified. Manifest
+  SHA-256:
+  `33a6e800fdd32b0e5873f3c59b2d90d4d47d73ae93f6700acf572e88bbd85a23`;
+  inventory SHA-256:
+  `81028ea618dee019fb37b95e91ac0863d105b31426893b10e633798ecca5d43b`.
+- Root cause is missing model-facing lifecycle-admission authority, not an API
+  schema failure. Preserve the enforcement gate and expose the same exact
+  authority to the supervisor from one deterministic source.
+- Never retry, reconcile, relabel, mutate, or reuse RC.4 or this suite.
 
 ## RC.4 First Confirmed Live No-Start
 
@@ -372,15 +398,14 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Obtain fresh explicit operator confirmation by invoking the direct live launcher
-   with its exact confirmation argument. Without that exact argument, the
-   launcher fails before any live work.
-2. The launcher must reverify the exact retained prepared authority before
-   any live call, run the guarded suite exactly once, and preserve terminal
-   evidence without retry on any failure or interruption.
-3. After success, independently verify every retained operation/collector
-   manifest and the aggregate. Mark `EXT-20` complete only if every acceptance
-   condition passes; do not tag, release, or approve external use.
+1. Run one fresh no-model pass with
+   `agent-ext20-lifecycle-remediation.sh` to repair only the supervisor
+   lifecycle-authority mismatch and add focused prompt/policy agreement tests.
+2. Independently review the repair, rerun focused/race/production/full tests,
+   then separately commit and publish it with raw Git if clean.
+3. Only after publication may a later pass construct a collision-free RC.5
+   candidate. RC.4 is terminal and must never be rerun. Keep `EXT-20`
+   unchecked; do not tag, release, or approve external use.
 
 The completed remote-CI pass did not create an attestation launcher. Do not
 rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
@@ -391,11 +416,10 @@ attestation refs, the successful dedicated run/job/artifact, and the ten-job CI
 run through raw Git and public REST. Do not rerun the completed remote,
 attestation, or suite-preparation launchers.
 
-Exact next command. Executing it supplies explicit authority for real model
-calls through the guarded RC.4 suite:
+Exact next command:
 
 ```bash
-./agent-ext20-rc4-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+./agent-ext20-lifecycle-remediation.sh
 ```
 
 ## Session Rules
@@ -408,9 +432,8 @@ calls through the guarded RC.4 suite:
   evidence.
 - Never use `gh`.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
-  suite preparation are complete and the controller published the verified
-  suite binding as `3284971acfc542fa64d600f7c40a58891b16cb7c`. The first live
-  wrapper produced no suite activity and is retired. Live-model work requires
-  the direct launcher's exact explicit argument; tag, release, and external-use
-  authority remain excluded.
+  suite preparation completed, but RC.4 then failed terminally on its first
+  operation and is retired. The next launcher authorizes only no-model
+  lifecycle-authority remediation; live-model, candidate construction, tag,
+  release, and external-use authority remain excluded.
 - The repository is durable memory; this handoff is only the resume pointer.
