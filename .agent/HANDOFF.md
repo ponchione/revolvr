@@ -264,10 +264,21 @@ made, so no API-acceptance claim is authorized.
    preparation and any separately confirmed live work remain later passes.
    Keep `EXT-20` unchecked and external use unapproved.
 
-No attestation launcher has been created yet. The next controller must create
-one with authority limited to the step above; do not rerun
-`agent-ext20-rc4-remote.sh` because the candidate ref is now intentionally
-nonempty.
+The completed remote-CI pass did not create an attestation launcher. Do not
+rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
+intentionally nonempty.
+
+Independent controller readback reconfirmed the exact candidate ref, successful
+run identity, and all ten successful jobs through raw Git and the public REST
+API. The remote-CI state was committed and pushed as
+`8c0379aa3fb6824fb56d4f3c1180f4cc411ada2a`. The bounded attestation-workflow
+launcher is now `agent-ext20-rc4-attestation.sh`.
+
+Exact next command:
+
+```bash
+./agent-ext20-rc4-attestation.sh
+```
 
 ## Session Rules
 
@@ -278,7 +289,7 @@ nonempty.
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- The completed RC.4 remote launcher authority is exhausted. Any attestation
-  mutation requires a new separately scoped launcher and must remain isolated
-  from suite, live/nested model, tag, release, and external-use work.
+- The RC.4 attestation launcher authorizes only local workflow construction and
+  verification. It grants no commit, push, ref publication, suite,
+  live/nested model, tag, release, or external-use authority.
 - The repository is durable memory; this handoff is only the resume pointer.

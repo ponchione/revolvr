@@ -86,6 +86,26 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.4 Remote-CI Verification And Attestation Handoff (2026-07-19)
+
+- Independent controller raw-Git and public-REST readback reconfirmed exact
+  candidate ref `level1-v0.1.0-rc.4` at
+  `2546913e38ec273f64417dece2f91df78fd42fc2`, run `29688941202` as
+  `completed` / `success` for that push branch/SHA, and exactly ten distinct
+  mandatory jobs as `completed` / `success` on the same SHA.
+- Both RC.4 inventories, the candidate self-verifier, and all eight historical
+  inventories passed again. The remote-CI state was committed as
+  `8c0379aa3fb6824fb56d4f3c1180f4cc411ada2a` (`Record RC.4 remote candidate
+  CI`) and pushed to raw-Git `origin/main`.
+- `agent-ext20-rc4-attestation.sh` is the next controller-only launcher. It is
+  limited to local construction and complete local verification of the
+  collision-free exact-checkout Go 1.26.5 RC.4 attestation workflow. It grants
+  no commit, push, remote workflow/ref, suite, live model, tag, release, or
+  external-use authority.
+- What remains: run `./agent-ext20-rc4-attestation.sh`, then independently
+  verify and publish its reviewed workflow/ref in a later controller step.
+  `EXT-20` remains unchecked.
+
 ## EXT-20 RC.4 Exact-Candidate Remote CI (2026-07-19)
 
 - Task selected: the bounded RC.4 candidate-ref and remote-CI subtask of

@@ -1,5 +1,17 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Attestation-Workflow Construction Gate (2026-07-19)
+
+- Independent controller verification published the exact-candidate remote-CI
+  state as `8c0379aa3fb6824fb56d4f3c1180f4cc411ada2a`. The candidate ref and source
+  remain immutable at `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Executing `agent-ext20-rc4-attestation.sh` authorizes only local construction
+  and verification of a collision-free exact-source Go 1.26.5 attestation
+  workflow. The controller retains all commit, push, attestation-ref, and
+  remote-evidence authority for a later reviewed step.
+- This gate excludes suite preparation, live/nested model work, tags, release,
+  external-use approval, and completion of `EXT-20`.
+
 ## EXT-20 RC.4 Exact-Candidate Remote CI Authority (2026-07-19)
 
 - Remote candidate authority is exact branch
