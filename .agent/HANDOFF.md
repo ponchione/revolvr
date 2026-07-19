@@ -22,11 +22,55 @@ live model call.
 Collision-free RC.4 now exists as a locally verified immutable candidate from
 that exact source commit. Raw Git published only
 `refs/heads/level1-v0.1.0-rc.4` at the candidate SHA, and push-triggered CI run
-`29688941202` passed exactly all ten mandatory EXT-15 jobs on that SHA. The
-controller launchers are not candidate source. RC.4 is only the sequential
-candidate label inside open backlog task `EXT-20`; it is not a separate
-backlog task or external-use approval. The next bounded pass is a separate
-RC.4 exact-checkout Go 1.26.5 release-artifact attestation workflow/ref.
+`29688941202` passed exactly all ten mandatory EXT-15 jobs on that SHA. A new
+separate RC.4 exact-checkout Go 1.26.5 artifact-attestation workflow has now
+passed complete local validation, including its unmodified embedded shell and
+both clean build passes. The controller launchers and workflow commit are not
+candidate source. RC.4 is only the sequential candidate label inside open
+backlog task `EXT-20`; it is not a separate backlog task or external-use
+approval. The next bounded pass is independent controller review, commit, and
+collision-safe publication of the attestation workflow/ref followed by exact
+remote run/job/artifact evidence.
+
+## RC.4 Local Artifact Attestation Workflow
+
+- Workflow: `.github/workflows/level1-rc4-candidate-attestation.yml`.
+- Locally reviewed workflow SHA-256:
+  `340b82093d469e86e2e27e4729a51caa1da88f814017d6f6ab1bcabd89a56101`.
+- Sole trigger: push to `level1-v0.1.0-rc.4-attestation`.
+- Collision-free raw-Git ref reserved for later publication:
+  `refs/heads/level1-v0.1.0-rc.4-attestation`.
+- Checkout authority: exact candidate source
+  `2546913e38ec273f64417dece2f91df78fd42fc2`, not trigger HEAD.
+- Toolchain: exact Go 1.26.5 with action cache disabled. Each of two clean
+  `--no-local` source clones has separate build and module caches.
+- Targets: Linux, Darwin, and FreeBSD amd64 with CGO disabled, module-readonly
+  mode, local toolchain, trimpath, explicit clean VCS metadata, empty build
+  ID, and `main.version=0.1.0`.
+- Exact pair hashes are Linux
+  `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`,
+  Darwin
+  `042563f350b71ec8cd5be1b49fc9d948383caa28087c0a5689bd6eb12f3808ab`,
+  and FreeBSD
+  `128b9f8ced3038a51534da63b9d9ffbaa5ea7341e0ab8dd17102fba86084a8e6`.
+- Exact upload name: `level1-v0.1.0-rc.4-attestation`. It retains both binary
+  sets, hashes, build metadata, empty build IDs, exact per-binary version
+  authority, Linux version output, reproducibility evidence, and the complete
+  authority manifest.
+- Local YAML, constants, embedded-shell syntax, complete detached-source
+  execution, and retained-output checks passed. Retained verification root:
+  `/tmp/revolvr-ext20-rc4-attestation.Y4TLEM`; its 29-file relative hash-stream
+  digest is
+  `1c08a35517d12e1993184143c43a97c753644d1f0dae68de1cbd2a59ee07e4b9`.
+- The first full-shell harness call failed before building because its process
+  began in controller `main`; the one harness repair changed only CWD to the
+  detached candidate clone and reran the same embedded shell unchanged.
+- Remote candidate/ref/tag/workflow/artifact namespace checks passed before
+  construction. All ten sealed inventories, three historical workflow hashes,
+  seven candidate/attestation refs including exact RC.4 candidate authority,
+  and four retired-suite absences were preserved.
+- No commit, push, remote workflow/ref/run/artifact, suite, live/nested model,
+  tag, release, external-use approval, or `EXT-20` completion occurred.
 
 ## RC.4 Candidate Ref And Remote CI Authority
 
@@ -110,8 +154,9 @@ RC.4 exact-checkout Go 1.26.5 release-artifact attestation workflow/ref.
   local-candidate state was committed and pushed on `main` as
   `1917df5c374f8337a7bebb429478e7e16ea8420d`.
 - The exact candidate ref and source-floor remote CI authority are recorded
-  above. No attestation workflow, suite, live/nested model, tag, release, or
-  external-use authority exists yet. `EXT-20` remains open.
+  above. The attestation workflow has local verification authority only; no
+  remote attestation ref/run/artifact, suite, live/nested model, tag, release,
+  or external-use authority exists yet. `EXT-20` remains open.
 
 ## RC.3 Rejection And Preservation Authority
 
@@ -250,19 +295,26 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Start one fresh, separately authorized session for only the RC.4
-   exact-checkout Go 1.26.5 release-artifact attestation workflow/ref.
-2. Preserve the candidate ref at its exact SHA. Fail closed unless the proposed
-   `refs/heads/level1-v0.1.0-rc.4-attestation`, RC.4 workflow path, artifact
-   name, and related namespace remain collision-free.
-3. The workflow must check out
-   `2546913e38ec273f64417dece2f91df78fd42fc2`, perform two clean release build
-   passes with exact Go 1.26.5, and require the recorded Linux/Darwin/FreeBSD
-   hashes and embedded version/source/tool/target/CGO/VCS identities.
-4. Record exact workflow commit/ref, run and job IDs/URLs/conclusions, and
-   retained artifact ID/name/size/digest/expiry, then stop. No-model suite
-   preparation and any separately confirmed live work remain later passes.
-   Keep `EXT-20` unchecked and external use unapproved.
+1. Start one fresh controller pass to independently inspect the local workflow
+   and durable-state diff, rerun YAML/constants/shell/full-build verification,
+   and repeat every collision and preservation check.
+2. With controller commit/publication authority only, commit the reviewed
+   workflow and state, then immediately fetch/read back raw Git. Preserve
+   `refs/heads/level1-v0.1.0-rc.4` at exact source
+   `2546913e38ec273f64417dece2f91df78fd42fc2`; fail closed if any workflow,
+   ref, tag, artifact-name, or RC.4 namespace identity changed.
+3. Publish only previously absent
+   `refs/heads/level1-v0.1.0-rc.4-attestation` at the reviewed workflow commit
+   with an empty-expected force-with-lease. The required raw-Git publication
+   form is `git push
+   --force-with-lease=refs/heads/level1-v0.1.0-rc.4-attestation: origin
+   <reviewed-workflow-commit>:refs/heads/level1-v0.1.0-rc.4-attestation`.
+4. Require the exact push-triggered attestation job to succeed, download and
+   compare the retained authority when authorized, and record exact workflow
+   commit/ref, run/job IDs/URLs/status/conclusions plus artifact
+   ID/name/size/digest/creation/expiry and local comparison. Then stop.
+   No-model suite preparation and any separately confirmed live work remain
+   later passes. Keep `EXT-20` unchecked and external use unapproved.
 
 The completed remote-CI pass did not create an attestation launcher. Do not
 rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
@@ -271,13 +323,14 @@ intentionally nonempty.
 Independent controller readback reconfirmed the exact candidate ref, successful
 run identity, and all ten successful jobs through raw Git and the public REST
 API. The remote-CI state was committed and pushed as
-`8c0379aa3fb6824fb56d4f3c1180f4cc411ada2a`. The bounded attestation-workflow
-launcher is now `agent-ext20-rc4-attestation.sh`.
+`8c0379aa3fb6824fb56d4f3c1180f4cc411ada2a`. The bounded
+`agent-ext20-rc4-attestation.sh` launcher has now produced the locally verified
+workflow and must not be rerun.
 
 Exact next command:
 
 ```bash
-./agent-ext20-rc4-attestation.sh
+git diff --check
 ```
 
 ## Session Rules
@@ -289,7 +342,8 @@ Exact next command:
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- The RC.4 attestation launcher authorizes only local workflow construction and
-  verification. It grants no commit, push, ref publication, suite,
-  live/nested model, tag, release, or external-use authority.
+- The local workflow construction pass is complete. A later controller pass
+  owns any explicit commit, push, attestation-ref publication, and remote
+  evidence collection; suite/live-model/tag/release/external-use authority
+  remains excluded.
 - The repository is durable memory; this handoff is only the resume pointer.

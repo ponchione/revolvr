@@ -1,5 +1,33 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Local Artifact-Attestation Workflow Authority (2026-07-19)
+
+- The only locally admitted RC.4 attestation implementation is the separate
+  `.github/workflows/level1-rc4-candidate-attestation.yml`, triggered solely
+  by a push to `level1-v0.1.0-rc.4-attestation`. Trigger HEAD is workflow
+  authority only; release source remains exact candidate commit
+  `2546913e38ec273f64417dece2f91df78fd42fc2` and tree
+  `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`.
+- Exact Go 1.26.5, two independent clean non-local clones with distinct build
+  and module caches, and the settled release environment/flags must reproduce
+  byte-identical Linux/Darwin/FreeBSD amd64 pairs and the sealed RC.4 hashes.
+  Each retained binary carries independently checked tool/path/compiler/
+  trimpath/target/CGO/source/clean-VCS metadata, an empty build ID, and exact
+  `main.version=0.1.0` authority.
+- The single remote artifact authority name is
+  `level1-v0.1.0-rc.4-attestation`. Its authority manifest binds the workflow
+  path, attestation ref and namespace, artifact name, candidate ref/ID/source/
+  tree, toolchain, environment, flags, clean source passes, targets, and exact
+  hashes. Both binary sets and all hash, metadata, version, build-ID, and
+  reproducibility evidence remain in that one upload.
+- Local construction and full detached-source execution do not grant commit,
+  push, remote-run, suite, live-model, tag, release, external-use, or
+  `EXT-20` completion authority. A later controller gate must independently
+  verify and commit the workflow, publish only previously absent raw-Git ref
+  `refs/heads/level1-v0.1.0-rc.4-attestation` with an empty-expected lease,
+  preserve the exact candidate ref, and collect exact run/job/artifact
+  readback. RC.1, RC.2, and RC.3 remain immutable rejected history.
+
 ## EXT-20 RC.4 Attestation-Workflow Construction Gate (2026-07-19)
 
 - Independent controller verification published the exact-candidate remote-CI

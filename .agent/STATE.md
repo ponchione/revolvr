@@ -77,14 +77,106 @@ as exact source `2546913e38ec273f64417dece2f91df78fd42fc2`, tree
 acceptance, and no live model call is authorized. Collision-free RC.4 now
 exists as a locally verified immutable candidate and separate verification
 bundle from that exact source. Its exact candidate ref is published, and its
-complete ten-job push-triggered EXT-15 CI matrix passed; no attestation,
-dogfood suite, or live operation exists yet.
+complete ten-job push-triggered EXT-15 CI matrix passed. A separate RC.4
+exact-source artifact-attestation workflow now passes complete local
+verification; no remote attestation ref/run/artifact, dogfood suite, or live
+operation exists yet.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.4 Remote Artifact Attestation Workflow (2026-07-19)
+
+- Task selected: the bounded RC.4 release-artifact attestation-workflow
+  prerequisite of `EXT-20` only. `EXT-20` remains unchecked.
+- New separate workflow
+  `.github/workflows/level1-rc4-candidate-attestation.yml` triggers only on a
+  push to `level1-v0.1.0-rc.4-attestation`. It checks out exact candidate
+  source `2546913e38ec273f64417dece2f91df78fd42fc2` and tree
+  `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`, not trigger HEAD, and requires
+  the published candidate ref to remain at that source while the triggering
+  attestation ref and complete RC.4 ref/tag namespace match exact authority.
+  The locally reviewed workflow SHA-256 is
+  `340b82093d469e86e2e27e4729a51caa1da88f814017d6f6ab1bcabd89a56101`.
+- The workflow installs exact Go 1.26.5 with setup cache disabled, makes two
+  independent clean `--no-local` clones, and gives each pass separate
+  `GOCACHE` and `GOMODCACHE` paths. Both passes build Linux, Darwin, and
+  FreeBSD amd64 with disabled CGO, local toolchain selection, module-readonly
+  mode, `-trimpath`, explicit VCS metadata, an empty build ID, and exact
+  `main.version=0.1.0`.
+- Every artifact must expose exact Go version, command path, `gc` compiler,
+  trimpath, target, CGO, Git source revision, and `vcs.modified=false`
+  metadata; an empty retained build-ID result; exactly one 16-byte
+  `main.version` data symbol; and exactly one `0.1.0` string. Both Linux
+  copies must print exactly `revolvr 0.1.0`.
+- Each pass must reproduce sealed SHA-256 values Linux
+  `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`,
+  Darwin
+  `042563f350b71ec8cd5be1b49fc9d948383caa28087c0a5689bd6eb12f3808ab`,
+  and FreeBSD
+  `128b9f8ced3038a51534da63b9d9ffbaa5ea7341e0ab8dd17102fba86084a8e6`.
+  Corresponding pass artifacts must also be byte-identical.
+- One upload named `level1-v0.1.0-rc.4-attestation` retains both binary sets,
+  all six build metadata files, empty build-ID records, per-binary version
+  authority, both Linux version outputs, the six-row hash manifest, the
+  three-pair reproducibility table, and an exact authority manifest naming the
+  workflow path, ref/namespace, artifact, candidate ref/ID/source/tree,
+  toolchain, environment, flags, passes, targets, and hashes.
+- Collision checks passed before construction. Raw Git read `origin/main` and
+  local `HEAD` at launcher commit
+  `e6cd453931b5fa1c0261e984749425e4409b0bb0`; remote candidate ref
+  `refs/heads/level1-v0.1.0-rc.4` remained exact at the candidate SHA; proposed
+  ref `refs/heads/level1-v0.1.0-rc.4-attestation`, every RC.4 tag, and the new
+  workflow path on both remote main and candidate source were absent. Public
+  REST listed only the three historical RC.1/RC.2/RC.3 artifacts, so the
+  exact RC.4 artifact name and namespace were absent.
+- Verification passed: PyYAML `BaseLoader` structure and exact-constant
+  assertions; extracted embedded-shell `bash -n`; workflow-only whitespace
+  checks; and execution of the complete unmodified embedded shell under host
+  Go 1.26.5 from a detached exact-source clone with a collision-safe local
+  raw-Git ref fixture. The shell created two further clean non-local clones
+  and independently downloaded/built through separate caches. Retained-output
+  inspection found exactly 29 regular single-link files, six exact hash rows,
+  three identical pairs, six empty build-ID records, six exact version
+  authorities, two exact Linux outputs, and complete authority and
+  reproducibility manifests. The retained verification root is
+  `/tmp/revolvr-ext20-rc4-attestation.Y4TLEM`; the relative-file/hash stream
+  digest is
+  `1c08a35517d12e1993184143c43a97c753644d1f0dae68de1cbd2a59ee07e4b9`.
+- The first complete-shell harness invocation correctly failed before any
+  build because the harness started Bash in controller `main` rather than the
+  detached candidate workspace. The single harness repair changed only the
+  invocation working directory and reran the same extracted shell unchanged;
+  the successful retained root above contains the complete result. No
+  workflow repair or candidate byte change was required.
+- Preservation passed. Historical workflow SHA-256 values remain RC.1
+  `d1314182a0cffd78927e6a5cc688e370c42f3d17a4e4ffe426f647a384c40a41`,
+  RC.2
+  `4c96ec62a3757878926b62aee65ce8ba3ec6ac2148ac251622ab294109312c6d`,
+  and RC.3
+  `76b0b9c3e683a4df5fa4103588ea668459b00efa18eee4930baa81c440df4da6`.
+  All ten available RC.1/RC.2/RC.3/RC.4 inventory manifests and contents
+  reverified. All six historical remote refs remained exact, the RC.4
+  candidate ref remained exact, and the four retired suite roots remained
+  absent. No historical workflow, ref, bundle, artifact, hash, suite,
+  operation, run, or diagnostic was reused or changed.
+- Files changed: the new RC.4 workflow, this file, `.agent/DECISIONS.md`, and
+  `.agent/HANDOFF.md`. `.agent/TASKS.md` remains unchanged with `EXT-20`
+  unchecked. No Go source or dependency changed, so no Go test was required.
+  No `gh`, commit, push, remote CI, suite preparation, live/nested Codex or
+  model operation, candidate source/ref mutation, tag, release, or
+  external-use approval occurred. Blockers for this bounded local task: none.
+- Collision-free raw-Git ref reserved for the controller's later reviewed
+  publication is `refs/heads/level1-v0.1.0-rc.4-attestation`. The controller
+  must independently verify and commit this workflow, publish only that absent
+  ref with an empty-expected lease while preserving the candidate ref, require
+  the exact remote job to pass, and record workflow commit/ref, run/job
+  IDs/URLs/status/conclusions plus artifact ID/name/size/digest/creation/expiry
+  and retained-archive comparison. No-model suite preparation and live
+  quantitative dogfood remain later gates.
 
 ## EXT-20 RC.4 Remote-CI Verification And Attestation Handoff (2026-07-19)
 
