@@ -1,5 +1,21 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Attestation Review And Suite Launcher (2026-07-19)
+
+- Independent controller review accepted the exact workflow specialization,
+  retained local output, raw-Git commit/ref readbacks, dedicated remote
+  run/job/artifact, and companion ten-job CI result. The remote attestation
+  result is published on `main` at controller commit
+  `6d32de0c9c932e202ea37ecb9d435fd70ad013ad`; this controller state commit is
+  not candidate or workflow authority.
+- `agent-ext20-rc5-suite.sh` is the sole next launcher. It authorizes only the
+  minimal RC.4-to-RC.5 suite-authority update, no-model verification, and one
+  fresh collision-free prepared RC.5 suite root. It may install the already
+  fixed Codex package but may not start a model or commit/push.
+- The later confirmation-gated live suite, tag, release, external-use
+  approval, and `EXT-20` completion remain separate gates. Terminal RC.4 and
+  all earlier evidence remain immutable.
+
 ## EXT-20 RC.5 Remote Artifact Attestation Authority (2026-07-19)
 
 - The reviewed RC.5 workflow and local attestation state are published on

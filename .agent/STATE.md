@@ -93,6 +93,23 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Attestation Controller Review And Suite Handoff (2026-07-19)
+
+- Independent controller review reverified the workflow's exact minimal
+  specialization, YAML/embedded-shell structure, 29-file retained local
+  artifact evidence, exact raw-Git main/candidate/attestation refs, successful
+  dedicated run/job/artifact, and successful companion ten-job CI run.
+- The remote attestation result was committed and raw-Git pushed to
+  `origin/main` as `6d32de0c9c932e202ea37ecb9d435fd70ad013ad` (`Record RC.5 remote
+  artifact attestation`). Candidate source and workflow authority remain
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` and
+  `109b38cdb309b50c38ab2ef0df33998e92dfd5e6`, respectively.
+- `agent-ext20-rc5-suite.sh` is prepared for the next fresh bounded pass. It
+  may update only the guarded suite's three candidate-authority constants,
+  verify without model calls, and prepare one collision-free RC.5 suite root.
+  It must stop before the confirmation-gated live pass, tag, release,
+  external-use approval, or `EXT-20` completion.
+
 ## EXT-20 RC.5 Remote Artifact Attestation Result (2026-07-19)
 
 - Independent controller review passed workflow SHA-256

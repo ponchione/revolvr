@@ -52,8 +52,11 @@ RC.5 artifact-attestation workflow passed local review and remote execution.
 Workflow/main commit and attestation ref are exact at
 `109b38cdb309b50c38ab2ef0df33998e92dfd5e6`; dedicated run `29698647782`,
 job `88223716039`, artifact `8445792045`, and companion ten-job CI run
-`29698647807` succeeded. The next separate gate is fresh no-model RC.5 suite
-preparation. The RC.4 suite must never be retried.
+`29698647807` succeeded. The remote result is published in controller state
+commit `6d32de0c9c932e202ea37ecb9d435fd70ad013ad`; it is not candidate or
+workflow authority. The next separate gate is fresh no-model RC.5 suite
+preparation via `agent-ext20-rc5-suite.sh`. The RC.4 suite must never be
+retried.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 
