@@ -85,6 +85,30 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.4 Independent Verification And Remote Handoff (2026-07-19)
+
+- Independent controller verification passed both sealed RC.4 inventories,
+  exact inventory digests, the candidate self-verifier, all three artifact
+  hashes and Go/VCS metadata, source tree and published ancestry, candidate
+  ref/attestation-ref/tag collision absence, retained vulnerability and test
+  results, eight historical inventories, six historical remote refs, the
+  focused Structured Outputs and production happy-path tests, and a fresh
+  `go test -count=1 ./...`.
+- The local candidate state was committed as
+  `1917df5c374f8337a7bebb429478e7e16ea8420d` (`Record reproducible RC.4
+  candidate`) and pushed to raw-Git `origin/main`; no candidate ref, workflow,
+  CI request, suite, live model operation, tag, release, or external-use
+  approval was created by that publication.
+- `agent-ext20-rc4-remote.sh` is the next controller-only launcher. Executing
+  it supplies explicit authority only to create absent remote ref
+  `refs/heads/level1-v0.1.0-rc.4` at exact source
+  `2546913e38ec273f64417dece2f91df78fd42fc2` with an empty-expected raw-Git
+  force-with-lease and to collect the complete ten-job EXT-15 CI result on that
+  SHA. It forbids main publication, attestation, suite preparation, live model
+  work, tags, release, and external-use approval.
+- What remains: run `./agent-ext20-rc4-remote.sh`, then independently verify
+  its ref/CI evidence before committing state. `EXT-20` remains unchecked.
+
 ## EXT-20 RC.4 Replacement Candidate — Local Verification (2026-07-19)
 
 - Task selected: the bounded RC.4 local replacement-candidate subtask of

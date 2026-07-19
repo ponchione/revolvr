@@ -1,5 +1,23 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Candidate-Ref And Remote-CI Gate Authority (2026-07-19)
+
+- Independent controller verification satisfied the local-candidate review
+  gate and published its durable state on `main` as
+  `1917df5c374f8337a7bebb429478e7e16ea8420d`. Candidate source remains only
+  `2546913e38ec273f64417dece2f91df78fd42fc2`; no later controller commit is
+  candidate authority.
+- Executing `agent-ext20-rc4-remote.sh` grants one narrow external mutation:
+  create previously absent `refs/heads/level1-v0.1.0-rc.4` at that exact source
+  with an empty-expected raw-Git force-with-lease. Collision, identity drift,
+  or a nonempty ref fails closed. Existing refs may never be moved or deleted.
+- The same bounded pass must identify an unambiguous push-triggered Actions run
+  with the exact branch and source SHA and require all ten EXT-15 jobs to
+  conclude success. Raw Git and read-only public REST evidence replace `gh`.
+- This authority excludes `main` commit/push, attestation workflow/ref,
+  suite preparation, live/nested model work, tags, release, external-use
+  approval, and completion of `EXT-20`. Those remain later separate gates.
+
 ## EXT-20 RC.4 Local Candidate Authority (2026-07-19)
 
 - Replacement candidate `level1-v0.1.0-rc.4` binds release version `0.1.0`

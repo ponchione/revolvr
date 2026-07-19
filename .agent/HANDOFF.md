@@ -70,6 +70,13 @@ remote-CI gate.
 - The first independent metadata assertion contained a read-only `go tool nm`
   field-index error. Its single repair reran the full check without changing
   candidate bytes; the diagnostic is sealed in the verification bundle.
+- Independent controller verification reran both complete inventories, the
+  candidate self-verifier, artifact hashes and embedded identities, exact
+  source publication/ancestry, candidate/ref/tag collisions, all eight
+  historical inventories, all six historical remote refs, the focused schema
+  and happy-path tests, and `go test -count=1 ./...`; all passed. The recorded
+  local-candidate state was committed and pushed on `main` as
+  `1917df5c374f8337a7bebb429478e7e16ea8420d`.
 - No candidate ref, remote CI, attestation workflow, suite, live/nested model,
   tag, release, or external-use authority exists yet. `EXT-20` remains open.
 
@@ -210,12 +217,11 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. In a new session, independently verify both sealed RC.4 inventories, source
-   publication/ancestry, all three artifact hashes and embedded identities,
-   the retained test/vulnerability evidence, and historical preservation.
-2. Obtain explicit operator authority for the candidate-ref publication. Raw
-   Git must recheck that `refs/heads/level1-v0.1.0-rc.4` is absent immediately
-   before a collision-safe create at exact source
+1. Start one fresh session with `agent-ext20-rc4-remote.sh`. Running that
+   launcher is explicit authority for only the collision-safe candidate-ref
+   creation described below.
+2. Raw Git must recheck that `refs/heads/level1-v0.1.0-rc.4` is absent
+   immediately before creating it at exact source
    `2546913e38ec273f64417dece2f91df78fd42fc2`; it must not move any historical
    ref or use a later controller/state commit as candidate source.
 3. Require the complete EXT-15 push-triggered CI matrix to pass on that exact
@@ -224,14 +230,10 @@ made, so no API-acceptance claim is authorized.
    no-model suite preparation, and any separately confirmed live model work are
    later bounded passes. Keep `EXT-20` unchecked and external use unapproved.
 
-Exact raw-Git publication step after independent verification and explicit
-operator authorization (recorded here, not executed in the local-build pass):
+Exact next command:
 
 ```bash
-git fetch --no-tags origin main
-test -z "$(git ls-remote --heads origin refs/heads/level1-v0.1.0-rc.4)"
-git push --force-with-lease=refs/heads/level1-v0.1.0-rc.4: origin 2546913e38ec273f64417dece2f91df78fd42fc2:refs/heads/level1-v0.1.0-rc.4
-git ls-remote --heads origin refs/heads/level1-v0.1.0-rc.4
+./agent-ext20-rc4-remote.sh
 ```
 
 ## Session Rules
@@ -243,7 +245,8 @@ git ls-remote --heads origin refs/heads/level1-v0.1.0-rc.4
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- The completed RC.4 local-build pass grants no push. Candidate-ref publication
-  requires new explicit authority and must be isolated from later attestation,
-  suite, live/nested model, tag, release, and external-use work.
+- The RC.4 remote launcher authorizes only collision-safe candidate-ref
+  creation and exact-source remote CI evidence. It must remain isolated from
+  later attestation, suite, live/nested model, tag, release, and external-use
+  work.
 - The repository is durable memory; this handoff is only the resume pointer.
