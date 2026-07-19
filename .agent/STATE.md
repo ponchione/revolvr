@@ -89,6 +89,28 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.4 First Confirmed Live No-Start Diagnostic (2026-07-19)
+
+- After the operator returned from the first confirmation-gated launcher, the
+  controller found no repository diff and no live-suite activity. Exact root
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite` still contains zero operation
+  manifests, zero collector manifests, an empty aggregate, and only its two
+  unchanged preparation logs. Both disposable repositories remain clean on
+  `main` at exact prepared heads; no evidence, operation, Codex run, source
+  change, or terminal suite result exists.
+- Read-only diagnosis reconfirmed the exact prepared regular-file content
+  fingerprint
+  `5e988363634a5aa4739c3b4bfccce865d2cf6e2c7ddb634aaa4eb25750641305`,
+  authority and plan, candidate/Codex identities, repository heads, sentinels,
+  and zero-runtime state. No root mutation or model retry occurred.
+- Because the orchestration wrapper retained no failure diagnostic, it is
+  retired. The replacement `agent-ext20-rc4-live-direct.sh` requires a new
+  exact confirmation argument, performs deterministic raw-Git, bundle,
+  content, identity, repository, sentinel, and zero-runtime checks, and then
+  directly executes the guarded suite once. Any preflight drift stops before
+  live work. Any later suite failure or interruption remains terminal.
+- `EXT-20` remains unchecked. No tag, release, or external-use approval exists.
+
 ## EXT-20 RC.4 Prepared-Suite Controller Verification (2026-07-19)
 
 - Independent controller inspection confirmed the implementation diff changes

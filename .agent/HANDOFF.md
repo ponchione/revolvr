@@ -31,8 +31,23 @@ same push's ten-job CI run `29690065840` also succeeded. The controller
 launchers and workflow commit are not candidate source. RC.4 is only the
 sequential candidate label inside open backlog task `EXT-20`; it is not a
 separate backlog task or external-use approval. Fresh no-model suite
-preparation using immutable RC.4 authority is now complete. The next gate is a
-separately confirmed live pass against the exact retained prepared root.
+preparation using immutable RC.4 authority is now complete. The first
+confirmation-gated wrapper returned without entering the suite and retained no
+diagnostic; the prepared root remains untouched. The next gate uses a
+deterministic direct launcher and requires a new explicit confirmation.
+
+## RC.4 First Confirmed Live No-Start
+
+- Post-launch evidence: zero operation manifests, zero collector manifests,
+  empty aggregate, no new suite logs, clean exact prepared repository heads,
+  and no working-repository diff.
+- Prepared content fingerprint remains exact at
+  `5e988363634a5aa4739c3b4bfccce865d2cf6e2c7ddb634aaa4eb25750641305`.
+- No suite operation or model call is evidenced, so there is no failed suite or
+  operation to retry. The first wrapper must not be rerun.
+- Replacement `agent-ext20-rc4-live-direct.sh` performs deterministic
+  fail-closed preflight and directly starts the guarded suite only with a
+  newly supplied exact confirmation argument.
 
 ## RC.4 Prepared Suite Authority
 
@@ -357,10 +372,10 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Obtain explicit operator confirmation by invoking the new live launcher
+1. Obtain fresh explicit operator confirmation by invoking the direct live launcher
    with its exact confirmation argument. Without that exact argument, the
-   launcher fails before starting the fresh Codex pass.
-2. The fresh pass must reverify the exact retained prepared authority before
+   launcher fails before any live work.
+2. The launcher must reverify the exact retained prepared authority before
    any live call, run the guarded suite exactly once, and preserve terminal
    evidence without retry on any failure or interruption.
 3. After success, independently verify every retained operation/collector
@@ -380,7 +395,7 @@ Exact next command. Executing it supplies explicit authority for real model
 calls through the guarded RC.4 suite:
 
 ```bash
-./agent-ext20-rc4-live.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+./agent-ext20-rc4-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
 ## Session Rules
@@ -394,7 +409,8 @@ calls through the guarded RC.4 suite:
 - Never use `gh`.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation are complete and the controller published the verified
-  suite binding as `3284971acfc542fa64d600f7c40a58891b16cb7c`. Live-model work
-  requires the launcher's exact explicit argument; tag, release, and
-  external-use authority remain excluded.
+  suite binding as `3284971acfc542fa64d600f7c40a58891b16cb7c`. The first live
+  wrapper produced no suite activity and is retired. Live-model work requires
+  the direct launcher's exact explicit argument; tag, release, and external-use
+  authority remain excluded.
 - The repository is durable memory; this handoff is only the resume pointer.

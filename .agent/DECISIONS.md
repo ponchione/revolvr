@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## EXT-20 RC.4 First Confirmed Live No-Start (2026-07-19)
+
+- Post-launch controller inspection found that
+  `agent-ext20-rc4-live.sh` returned without entering the guarded suite. The
+  exact retained root still has zero operation and collector manifests, an
+  empty aggregate, unchanged clean repository heads, no new suite logs, and
+  exact prepared content SHA-256
+  `5e988363634a5aa4739c3b4bfccce865d2cf6e2c7ddb634aaa4eb25750641305`.
+  No failed or interrupted suite/operation exists and no model acceptance or
+  failure may be inferred from this no-start.
+- The first wrapper retained no diagnostic, so its orchestration layer must not
+  be rerun. A new `agent-ext20-rc4-live-direct.sh` performs deterministic
+  shell preflight against the same immutable authority and executes the
+  guarded suite directly only after a newly supplied exact confirmation
+  argument. This is a new start against an untouched prepared root, not a retry
+  of a failed operation.
+- The direct launcher preserves the existing fail-closed rules: any authority
+  drift or nonempty runtime evidence stops before live work; once the suite
+  starts, failure or interruption is terminal and must never be retried.
+
 ## EXT-20 RC.4 Live-Suite Confirmation Gate (2026-07-19)
 
 - Independent controller verification accepted the prepared RC.4 suite and
