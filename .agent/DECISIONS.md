@@ -1,5 +1,23 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Prepared-Suite Review And Direct Live Gate (2026-07-19)
+
+- Independent controller review accepted the exact three-line RC.5 suite
+  authority change, both sealed bundles, static/collector checks, full Go
+  suite, prepared checksum, candidate/Codex identities, clean repository
+  heads, ten pristine pending task states, sentinels, and empty runtime
+  evidence. The tracked preparation result is raw-Git published on `main` as
+  `f5ba71d3be8c13b201c7609101a5269b6f463af5`.
+- `agent-ext20-rc5-live-direct.sh` is the only admitted next launcher. Its
+  `--check` mode repeats the complete fail-closed preflight without model
+  calls. Actual live execution additionally requires the exact explicit token
+  `EXT20_LIVE_REAL_CODEX_MODEL_CALLS`, uses only retained root
+  `/tmp/revolvr-ext20-rc5.weLZtI/suite`, and executes the guarded suite once.
+- Any drift, failed start, or interruption fails closed and becomes terminal
+  retained evidence; the suite or an operation must never be retried. The
+  launcher grants no tag, release, or external-use approval. `EXT-20` can be
+  completed only from a successful fully verified retained aggregate.
+
 ## EXT-20 RC.5 Prepared-Suite Authority (2026-07-19)
 
 - The guarded external Level-1 suite now admits only RC.5 source

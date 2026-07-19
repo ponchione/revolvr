@@ -96,6 +96,33 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Prepared-Suite Controller Review And Day-End Handoff (2026-07-19)
+
+- Independent controller verification passed the suite/collector shell
+  syntax, both sealed RC.5 bundles, suite static mode, exact three-line tracked
+  delta, full `go test -count=1 ./...`, and `git diff --check`. Read-only
+  prepared-root inspection passed `prepared.sha256`, authority/plan hashes,
+  exact candidate and Codex identities, exact clean repository heads, ten
+  pristine pending task states, zero operation/collector evidence, and empty
+  aggregate authority.
+- The suite preparation result was committed and raw-Git pushed to
+  `origin/main` as `f5ba71d3be8c13b201c7609101a5269b6f463af5` (`Prepare RC.5 live
+  dogfood suite`). Candidate and attestation refs remained exact. No model
+  call occurred.
+- `agent-ext20-rc5-live-direct.sh` is prepared for the next fresh session. It
+  binds the exact retained root, refs, candidate/Codex hashes, authority/plan,
+  repository heads, script hashes, sentinels, task counts/lifecycles, and empty
+  evidence. Its path-bearing null-sorted `sha256sum` stream is independently
+  bound at
+  `c945bb72f24c226215565ac868bb2c255d0a9f75be31819a1dafc030cb032009`;
+  this is a separate representation from the preparation pass's retained
+  content fingerprint. `--check` performs preflight only. The exact live token
+  is still required before the launcher can execute the guarded suite.
+- Day-end state: stop here. No live/nested model call, tag, release,
+  external-use approval, or `EXT-20` completion occurred. The next session
+  must first run the no-model `--check` preflight, then obtain fresh explicit
+  live confirmation before the one admitted execution.
+
 ## EXT-20 RC.5 Guarded No-Model Suite Preparation (2026-07-19)
 
 - Task selected: only the bounded RC.5 no-model suite-preparation sub-gate of

@@ -55,9 +55,10 @@ job `88223716039`, artifact `8445792045`, and companion ten-job CI run
 `29698647807` succeeded. The remote result is published in controller state
 commit `6d32de0c9c932e202ea37ecb9d435fd70ad013ad`; it is not candidate or
 workflow authority. Fresh no-model RC.5 suite preparation now passes at exact
-root `/tmp/revolvr-ext20-rc5.weLZtI/suite`. The next separate gate is an
-independently controlled confirmation-gated live pass against only that root.
-The RC.4 suite must never be retried.
+root `/tmp/revolvr-ext20-rc5.weLZtI/suite` and its tracked result is published
+at controller commit `f5ba71d3be8c13b201c7609101a5269b6f463af5`. The next separate
+gate is an independently controlled confirmation-gated live pass through only
+`agent-ext20-rc5-live-direct.sh`. The RC.4 suite must never be retried.
 
 ## RC.5 Prepared Suite Authority
 
@@ -88,11 +89,20 @@ The RC.4 suite must never be retried.
   call. `EXT-20` remains unchecked. RC.1 through RC.4, including terminal
   RC.4 root `/tmp/revolvr-ext20-rc4.DGg1pW/suite` and operation
   `ext20-2bd21aea4f72-01`, remain immutable.
-- After independent controller verification of the tracked preparation
-  change, the remaining separately confirmed live command is exactly:
+- Independent controller verification accepted and published the tracked
+  preparation change as
+  `f5ba71d3be8c13b201c7609101a5269b6f463af5`. First run the launcher's
+  no-model preflight:
 
   ```sh
-  scripts/dogfood-external-level1-suite.sh --live --run-root /tmp/revolvr-ext20-rc5.weLZtI/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+  ./agent-ext20-rc5-live-direct.sh --check
+  ```
+
+  Only after fresh explicit live confirmation, the one admitted live command
+  is exactly:
+
+  ```sh
+  ./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
   ```
 
   Do not run it without a new explicit live-model confirmation. A failed or
@@ -665,26 +675,23 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run exactly one fresh no-model suite-preparation pass with
-   `agent-ext20-rc5-suite.sh`. It must first reverify exact RC.5 candidate,
-   remote CI, workflow/ref, run/job/artifact, bundle, and preservation
-   authority.
-2. Update only the guarded external Level-1 suite's candidate authority from
-   terminal RC.4 to RC.5 source
-   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, Linux hash
-   `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
-   and bundle `level1-v0.1.0-rc.5-19c1ef4b6a61`; preserve all scenarios,
-   thresholds, confirmation guards, and exact Codex authority.
-3. Verify shell/static/collector behavior and full Go tests, then prepare one
-   fresh collision-free RC.5 suite root without making a model call. Inspect
-   its exact candidate/Codex/source-lock/task authority and retain the later
-   confirmation-gated live command.
-4. Stop before the live pass, any model call, tagging, release, external-use
-   approval, or checking `EXT-20`. RC.4 is terminal and must never be rerun.
+1. In a fresh session, read all durable state and run exactly
+   `./agent-ext20-rc5-live-direct.sh --check`. This performs the complete
+   fail-closed preflight without a model call.
+2. Only after new explicit live-model confirmation, execute exactly once:
+   `./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS`.
+   Never run an operation separately or prepare another suite first.
+3. Let the guarded suite finish normally. On any failure or interruption,
+   preserve all terminal evidence, leave `EXT-20` unchecked, and never retry.
+   On success, verify the complete retained suite and every acceptance gate
+   before changing task status.
+4. Do not tag, release, or approve external use in the live-suite pass. RC.4
+   remains terminal and must never be rerun.
 
-The RC.5 remote-CI and artifact-attestation gates are complete. Do not rerun
-`agent-ext20-rc5-remote.sh` or `agent-ext20-rc5-attestation.sh`; their refs and
-remote evidence are intentionally nonempty and immutable.
+The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
+complete. Do not rerun `agent-ext20-rc5-remote.sh`,
+`agent-ext20-rc5-attestation.sh`, or `agent-ext20-rc5-suite.sh`; their refs,
+remote evidence, and prepared root are intentionally nonempty and immutable.
 
 Earlier RC.4 controller readback reconfirmed its exact candidate, workflow, and
 attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
@@ -694,11 +701,11 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-suite.sh
+./agent-ext20-rc5-live-direct.sh --check
 ```
 
-This launcher authorizes no-model suite preparation only. It has not yet been
-run.
+This exact next command is a no-model preflight. The token-bearing live command
+above remains separately confirmation-gated and was not run today.
 
 ## Session Rules
 
@@ -712,7 +719,8 @@ run.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation completed, but RC.4 then failed terminally on its first
   operation and is retired. The lifecycle-authority remediation is published.
-  RC.5 local construction, candidate-ref publication, remote CI, and artifact
-  attestation are complete. Suite preparation, live-model work, tag, release,
-  and external-use authority remain excluded until their separate gates.
+  RC.5 local construction, candidate-ref publication, remote CI, artifact
+  attestation, and no-model suite preparation are complete. Live-model work,
+  tag, release, and external-use authority remain excluded until their
+  separate gates.
 - The repository is durable memory; this handoff is only the resume pointer.
