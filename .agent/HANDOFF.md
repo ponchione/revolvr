@@ -357,13 +357,15 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Independently verify and commit/push the tracked RC.4 suite-authority and
-   durable-state changes; this pass intentionally did neither.
-2. Obtain separate explicit confirmation for the live real-Codex gate. Without
-   that confirmation, do not run or mutate the retained prepared suite.
-3. In one later fresh pass, reverify the exact prepared authority and run the
-   exact confirmation-gated command below, then independently verify every
-   retained manifest and the aggregate before considering `EXT-20` complete.
+1. Obtain explicit operator confirmation by invoking the new live launcher
+   with its exact confirmation argument. Without that exact argument, the
+   launcher fails before starting the fresh Codex pass.
+2. The fresh pass must reverify the exact retained prepared authority before
+   any live call, run the guarded suite exactly once, and preserve terminal
+   evidence without retry on any failure or interruption.
+3. After success, independently verify every retained operation/collector
+   manifest and the aggregate. Mark `EXT-20` complete only if every acceptance
+   condition passes; do not tag, release, or approve external use.
 
 The completed remote-CI pass did not create an attestation launcher. Do not
 rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
@@ -374,11 +376,11 @@ attestation refs, the successful dedicated run/job/artifact, and the ten-job CI
 run through raw Git and public REST. Do not rerun the completed remote,
 attestation, or suite-preparation launchers.
 
-Exact separately confirmation-gated live command (do not execute without new
-explicit authority):
+Exact next command. Executing it supplies explicit authority for real model
+calls through the guarded RC.4 suite:
 
 ```bash
-scripts/dogfood-external-level1-suite.sh --live --run-root /tmp/revolvr-ext20-rc4.DGg1pW/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+./agent-ext20-rc4-live.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
 ## Session Rules
@@ -391,7 +393,8 @@ scripts/dogfood-external-level1-suite.sh --live --run-root /tmp/revolvr-ext20-rc
   evidence.
 - Never use `gh`.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
-  suite preparation are complete. Live-model work still requires separate
-  explicit confirmation; tag, release, and external-use authority remain
-  excluded.
+  suite preparation are complete and the controller published the verified
+  suite binding as `3284971acfc542fa64d600f7c40a58891b16cb7c`. Live-model work
+  requires the launcher's exact explicit argument; tag, release, and
+  external-use authority remain excluded.
 - The repository is durable memory; this handoff is only the resume pointer.

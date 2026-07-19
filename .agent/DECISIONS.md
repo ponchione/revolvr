@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Live-Suite Confirmation Gate (2026-07-19)
+
+- Independent controller verification accepted the prepared RC.4 suite and
+  published its exact three-constant authority update on `main` as
+  `3284971acfc542fa64d600f7c40a58891b16cb7c`. Candidate bundle/static checks,
+  the full Go suite, prepared checksum, exact candidate/Codex identities,
+  repository heads/cleanliness, and zero-operation state all passed again.
+- `agent-ext20-rc4-live.sh` is the sole next launcher. It fails before starting
+  Codex unless invoked with the one exact argument
+  `EXT20_LIVE_REAL_CODEX_MODEL_CALLS`. Supplying that argument explicitly
+  authorizes the guarded suite's real model calls against only
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite`; it grants no unrelated model work.
+- The fresh live pass must reverify all recorded prepared authority before any
+  call, execute the complete suite exactly once, preserve terminal evidence on
+  either success or failure, and never retry a failed operation or suite.
+  `EXT-20` may be checked only after the suite and independent retained-evidence
+  verification satisfy every acceptance condition.
+- This gate grants no controller commit/push, tag, release, or external-use
+  approval. Those remain separately controlled after the live result.
+
 ## EXT-20 RC.4 Prepared-Suite Authority (2026-07-19)
 
 - The guarded Level-1 suite now admits only RC.4 source

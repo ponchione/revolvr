@@ -89,6 +89,29 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.4 Prepared-Suite Controller Verification (2026-07-19)
+
+- Independent controller inspection confirmed the implementation diff changes
+  exactly the RC.3-to-RC.4 source commit, Linux hash, and bundle constants in
+  `scripts/dogfood-external-level1-suite.sh`; the release, Codex, plan,
+  scenarios, thresholds, configuration, and confirmation gate did not change.
+- Verification reran `bash -n` for the suite and collector, the complete RC.4
+  bundle verifier, suite `--static`, `go test -count=1 ./...`, and
+  `git diff --check`; all passed without a model call. Read-only retained-root
+  checks reconfirmed `prepared.sha256`, authority/plan hashes, candidate hash
+  and version, Codex hash and version, exact clean repo-a/repo-b heads, zero
+  operation and collector manifests, and an empty aggregate.
+- Raw Git fetched and reverified `origin/main`, exact RC.4 candidate ref
+  `2546913e38ec273f64417dece2f91df78fd42fc2`, and exact attestation ref
+  `52c2db07a86677e67921bcbfbcbdf26397b47615`. The suite-authority and durable
+  changes were committed as
+  `3284971acfc542fa64d600f7c40a58891b16cb7c` (`Bind Level 1 suite to RC.4
+  candidate`) and pushed to `main` after a fresh remote-parent check.
+- No model call, live operation, evidence mutation, retry, tag, release, or
+  external-use approval occurred. The next separately confirmed pass must use
+  `agent-ext20-rc4-live.sh` with its exact confirmation argument. `EXT-20`
+  remains unchecked until live and retained-evidence verification pass.
+
 ## EXT-20 RC.4 Guarded No-Model Suite Preparation (2026-07-19)
 
 - Task selected: the bounded RC.4 no-model suite-preparation subtask of
