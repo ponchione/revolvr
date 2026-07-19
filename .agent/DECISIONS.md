@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Local Artifact-Attestation Workflow Authority (2026-07-19)
+
+- The only locally admitted RC.5 attestation implementation is the separate
+  `.github/workflows/level1-rc5-candidate-attestation.yml`, triggered solely
+  by a push to `level1-v0.1.0-rc.5-attestation`. Trigger HEAD is workflow
+  authority only; release source remains exact candidate commit
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`.
+- Exact Go 1.26.5, two independent clean non-local clones with distinct build
+  and module caches, and the settled release environment/flags must reproduce
+  byte-identical Linux/Darwin/FreeBSD amd64 pairs and sealed hashes
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  `a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d`,
+  and `f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6`.
+  Each retained binary carries independently checked tool/path/compiler/
+  trimpath/target/CGO/source/clean-VCS metadata, an empty build ID, and exact
+  `main.version=0.1.0` authority.
+- The single remote artifact authority name is
+  `level1-v0.1.0-rc.5-attestation`. Its authority manifest binds the workflow
+  path, attestation ref and namespace, artifact name, candidate ref/ID/source/
+  tree, toolchain, environment, flags, clean source passes, targets, and exact
+  hashes. Both binary sets and all hash, metadata, version, build-ID, and
+  reproducibility evidence remain in that one upload.
+- Local construction and complete detached-source execution do not grant a
+  commit, push, remote run/artifact, suite, live-model call, tag, release,
+  external-use approval, or `EXT-20` completion. A later controller gate must
+  independently verify and commit the workflow, publish only previously
+  absent raw-Git ref `refs/heads/level1-v0.1.0-rc.5-attestation` with an
+  empty-expected lease, preserve candidate ref
+  `refs/heads/level1-v0.1.0-rc.5` at the exact candidate SHA, and collect exact
+  run/job/artifact readback. RC.1 through RC.4 remain immutable rejected
+  history.
+
 ## EXT-20 RC.5 Remote-CI Review And Attestation Launcher (2026-07-19)
 
 - Independent controller readback accepted exact RC.5 candidate ref

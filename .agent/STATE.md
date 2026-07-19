@@ -93,6 +93,106 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Local Artifact-Attestation Workflow (2026-07-19)
+
+- Task selected: the bounded local RC.5 release-artifact attestation-workflow
+  prerequisite of `EXT-20` only. `EXT-20` remains unchecked.
+- Added the separate
+  `.github/workflows/level1-rc5-candidate-attestation.yml`, triggered only by
+  a push to `level1-v0.1.0-rc.5-attestation`. Trigger HEAD is workflow
+  authority only: the workflow checks out exact candidate source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` and requires tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. The locally reviewed workflow
+  SHA-256 is
+  `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`.
+- Exact Go 1.26.5 is installed with action caching disabled. Two independent
+  clean `--no-local` clones use distinct `GOCACHE` and `GOMODCACHE` paths and
+  build Linux, Darwin, and FreeBSD amd64 with `CGO_ENABLED=0`, local
+  toolchain selection, module-readonly mode, `-trimpath`, explicit clean VCS
+  metadata, an empty build ID, and exact `main.version=0.1.0`.
+- Every pass artifact must carry exact Go/tool/path/compiler/trimpath/target/
+  CGO/source/`vcs.modified=false` metadata, one exact 16-byte `main.version`
+  symbol, exactly one `0.1.0` string, and an empty retained build-ID result.
+  Both Linux binaries must print exactly `revolvr 0.1.0`. Corresponding pass
+  artifacts must be byte-identical and reproduce exact SHA-256 values Linux
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  Darwin
+  `a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d`,
+  and FreeBSD
+  `f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6`.
+- One upload named `level1-v0.1.0-rc.5-attestation` retains both binary sets,
+  all hashes, build metadata, empty build IDs, exact per-binary version
+  authority, Linux version outputs, pairwise reproducibility evidence, and an
+  exact authority manifest binding the workflow/ref/artifact namespace,
+  candidate source/tree/ref/ID, toolchain, build environment and flags,
+  source passes, targets, and hashes.
+- Pre-edit authority passed. The 15-file candidate and 44-file verification
+  bundles reverified against their complete sealed inventories and retained
+  inventory/seal SHA-256 values
+  `ba718e4bef733a370cff72570b96e3c2f0db0af4b9ad8eedc77db2c965ca0b88` /
+  `8bf947efd3d7f6467d500f88278913c0bcf5dd922331e558d483176a777584ab`
+  and
+  `e57353d8b929758b44d234458dfb2c3b4bae0cf347eccc206ba9424312a0e366` /
+  `2cded484b787daa903ebf457f3f96bb9520af122bd48114300d78e543f39ccb8`.
+  Raw Git fetched `origin/main` at
+  `76cef08c9b3739f9745663e9c5ecf15a2d02131b`, re-read the exact candidate
+  ref, and found the proposed attestation ref, every `*rc.5*` tag, and the
+  workflow path absent. Public REST found the artifact name absent and
+  independently revalidated run `29697069305` plus its exact ten recorded
+  jobs at the candidate SHA as `completed` / `success`.
+- Local verification passed: PyYAML `BaseLoader` structure and exact-constant
+  assertions; extracted embedded-shell `bash -n`; an exact minimal
+  RC.4-to-RC.5 specialization comparison; workflow diff hygiene; and complete
+  execution of the unmodified embedded shell from a detached exact-source
+  clone against a collision-safe local raw-Git ref fixture. The retained root
+  is `/tmp/revolvr-ext20-rc5-attestation.qYVLU1`; its output has exactly 29
+  regular single-link files, six exact hash rows, three byte-identical pairs,
+  six exact metadata/version authorities, six empty build-ID records, two
+  exact Linux version outputs, and complete authority/reproducibility
+  manifests. Its relative-file/hash-stream SHA-256 is
+  `7323a9872b7a9fb8ac4a9b3cf8826bbc0455d929b05b27d7c22c4c568c3daf89`.
+  The first minimal-delta command used an incomplete read-only `rc.4`
+  replacement; correcting only that comparison transform produced an exact
+  match. Final closeout-harness probes also first assumed a colon rather than
+  the task line's em dash and treated a seal file's own digest as its embedded
+  inventory digest. Direct inspection corrected those read-only harness
+  assumptions; the copied candidate seal intentionally retains basename
+  `files.sha256` while its exact copy is named `candidate-files.sha256`.
+  Digest and byte-copy comparisons then passed. No workflow, candidate, or
+  evidence repair was required.
+- Preservation passed. All available historical sealed inventories and the
+  RC.4 terminal prepared/collector inventories reverified. RC.1 through RC.4
+  workflow SHA-256 values remain
+  `d1314182a0cffd78927e6a5cc688e370c42f3d17a4e4ffe426f647a384c40a41`,
+  `4c96ec62a3757878926b62aee65ce8ba3ec6ac2148ac251622ab294109312c6d`,
+  `76b0b9c3e683a4df5fa4103588ea668459b00efa18eee4930baa81c440df4da6`,
+  and `340b82093d469e86e2e27e4729a51caa1da88f814017d6f6ab1bcabd89a56101`.
+  The fresh 40-target historical content/layout fingerprints were identical
+  before and after at
+  `e4a0fbfa7527e683d5bc3e81ee038bf9b50e0e175ef98d08f130554891c13c04`
+  and `8cde67fa6c5fdd1a575d8818eb7faa0cd62f805d5383e5e6f6db39e599057bce`.
+  RC.4 suite `/tmp/revolvr-ext20-rc4.DGg1pW/suite` and operation
+  `ext20-2bd21aea4f72-01` remain unchanged terminal rejected history. The
+  exact RC.5 candidate ref remains unchanged; the attestation ref and tag
+  namespace remain absent. Final public-REST readback again found run
+  `29697069305` and all ten exact jobs `completed` / `success`, with the
+  proposed attestation artifact name still absent.
+- Files changed: the new RC.5 workflow, this file, `.agent/DECISIONS.md`, and
+  `.agent/HANDOFF.md`. `.agent/TASKS.md` is unchanged. No Go source or
+  dependency changed, so no Go test was required. No `gh`, commit, push,
+  attestation ref, remote run/artifact, suite, live/nested Codex or model
+  operation, candidate source/ref mutation, tag, release, external-use
+  approval, or `EXT-20` completion occurred. Blockers for this bounded local
+  task: none.
+- Collision-free raw-Git ref reserved for later controller publication is
+  `refs/heads/level1-v0.1.0-rc.5-attestation`. After independent review and a
+  workflow commit, the controller must publish only that still-absent ref with
+  an empty-expected lease while preserving the exact candidate ref, require
+  the dedicated remote job to pass, and record the workflow commit/ref, run
+  and job IDs/URLs/status/conclusions, artifact ID/name/size/digest/creation/
+  expiry, and retained-archive comparison. Suite preparation and live
+  quantitative dogfood remain later separate gates.
+
 ## EXT-20 RC.5 Remote-CI Controller Review And Handoff (2026-07-19)
 
 - Independent raw-Git readback reconfirmed

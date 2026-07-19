@@ -47,9 +47,11 @@ remote-gate launcher/controller commit is its direct child
 `4bcd73d5ae35517cd5fd09ed0a6dca8d1af43f2b`; it is also not candidate source.
 Raw Git has now published only `refs/heads/level1-v0.1.0-rc.5` at the exact
 candidate SHA, and push-triggered CI run `29697069305` passed exactly all ten
-mandatory EXT-15 jobs on that SHA. The next separate gate is local construction
-and full verification of a collision-free exact-checkout Go 1.26.5 RC.5
-artifact-attestation workflow. The RC.4 suite must never be retried.
+mandatory EXT-15 jobs on that SHA. Local construction and full verification of
+the collision-free exact-checkout Go 1.26.5 RC.5 artifact-attestation workflow
+now pass. The next separate gate is independent controller review, workflow
+commit/publication, raw-Git attestation-ref publication, and collection of its
+exact remote run/job/artifact evidence. The RC.4 suite must never be retried.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 
@@ -92,8 +94,9 @@ artifact-attestation workflow. The RC.4 suite must never be retried.
   is unchanged at
   `56b3fd0c61c2dd7842597ceb0fa46e66216c61317b5477cd3e326fa671416ef3`.
 - Remote candidate ref: `refs/heads/level1-v0.1.0-rc.5`. Exact readback:
-  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`. The RC.5 attestation ref,
-  every `*rc.5*` tag, and the RC.5 attestation workflow remain absent.
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`. The RC.5 attestation ref and
+  every `*rc.5*` tag remain absent. The locally verified, uncommitted RC.5
+  attestation workflow is recorded below.
 - Push-triggered `ci.yml` run `29697069305`, run number `42`, attempt `1`, is
   `completed` / `success` at event `push`, branch
   `level1-v0.1.0-rc.5`, and head SHA
@@ -120,9 +123,11 @@ artifact-attestation workflow. The RC.4 suite must never be retried.
     `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542566`
   - `88219542586` — Build Windows diagnostic stub —
     `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542586`
-- Exact next task: in a fresh pass, construct and locally verify only
-  `.github/workflows/level1-rc5-candidate-attestation.yml`. Start its authority
-  check with:
+- Exact next task: independently review and commit only the locally verified
+  `.github/workflows/level1-rc5-candidate-attestation.yml` plus its durable
+  state, then publish collision-free raw-Git ref
+  `refs/heads/level1-v0.1.0-rc.5-attestation` at that exact workflow commit.
+  Start its authority check with:
 
   ```sh
   git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
@@ -132,14 +137,58 @@ artifact-attestation workflow. The RC.4 suite must never be retried.
     'refs/tags/*rc.5*'
   ```
 
-  Require the candidate readback above, an absent attestation ref/tag/workflow
-  namespace, exact checkout of immutable source
-  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, exact Go `1.26.5`, two clean
-  non-local release builds, byte-identical Linux/Darwin/FreeBSD artifacts, the
-  three sealed hashes, empty build IDs, and exact embedded source/version
-  identities. This next task grants no workflow commit/push, attestation-ref,
-  remote run/artifact, suite, model call, tag, release, external-use approval,
-  or `EXT-20` completion; those remain later reviewed gates.
+  Require the candidate readback above, an absent attestation ref/tag and
+  artifact namespace, exact workflow SHA-256
+  `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`,
+  and the local retained evidence below. After committing and pushing the
+  reviewed workflow, create only the absent attestation ref with an
+  empty-expected lease, preserve the candidate ref, require the dedicated
+  remote run/job and one named artifact to succeed, and retain their exact
+  identities. This grants no suite, model call, tag, release, external-use
+  approval, or `EXT-20` completion.
+
+## RC.5 Local Artifact Attestation Workflow
+
+- Workflow: `.github/workflows/level1-rc5-candidate-attestation.yml`.
+- Locally reviewed workflow SHA-256:
+  `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`.
+- Sole trigger: push to `level1-v0.1.0-rc.5-attestation`.
+- Collision-free raw-Git ref reserved for later controller publication:
+  `refs/heads/level1-v0.1.0-rc.5-attestation`.
+- Checkout authority is exact candidate source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` and tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`, not trigger HEAD.
+- Exact Go 1.26.5 uses action cache disabled. Two clean `--no-local` source
+  clones have separate build/module caches and build Linux, Darwin, and
+  FreeBSD amd64 with disabled CGO, module-readonly/local-toolchain mode,
+  trimpath, explicit clean VCS metadata, empty build ID, and
+  `main.version=0.1.0`.
+- Exact pair hashes are Linux
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  Darwin
+  `a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d`,
+  and FreeBSD
+  `f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6`.
+- Exact upload name: `level1-v0.1.0-rc.5-attestation`. It retains both binary
+  sets, hashes, build metadata, empty build IDs, exact per-binary version
+  authority, Linux version outputs, reproducibility evidence, and the complete
+  authority manifest.
+- Local YAML, constants, embedded-shell syntax, minimal RC.4 specialization,
+  complete detached-source execution, and independent retained-output checks
+  passed. Retained verification root:
+  `/tmp/revolvr-ext20-rc5-attestation.qYVLU1`; its 29-file relative
+  hash-stream SHA-256 is
+  `7323a9872b7a9fb8ac4a9b3cf8826bbc0455d929b05b27d7c22c4c568c3daf89`.
+- Both sealed RC.5 inventories passed before editing. The exact candidate ref,
+  successful run `29697069305` with ten jobs, absent attestation ref/tags,
+  absent artifact name, all historical sealed inventories/workflows/refs, and
+  terminal RC.4 evidence were reverified. Fresh historical content/layout
+  fingerprints remained
+  `e4a0fbfa7527e683d5bc3e81ee038bf9b50e0e175ef98d08f130554891c13c04`
+  and `8cde67fa6c5fdd1a575d8818eb7faa0cd62f805d5383e5e6f6db39e599057bce`.
+- No commit, push, attestation ref, remote run/artifact, suite, live/nested
+  model operation, tag, release, external-use approval, or `EXT-20`
+  completion occurred.
 
 ## Lifecycle-Authority Remediation Handoff
 
@@ -550,36 +599,42 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run exactly one fresh local attestation-workflow pass with
-   `agent-ext20-rc5-attestation.sh`. It must reverify the sealed RC.5 authority,
-   exact candidate ref, and remote-CI result before changing the worktree.
-2. Construct and fully verify only
-   `.github/workflows/level1-rc5-candidate-attestation.yml`, with exact source
-   checkout, Go 1.26.5, two independent clean builds, the three sealed hashes,
-   embedded identities, and collision-free workflow/ref/artifact authority.
-3. Stop before committing or publishing the workflow, creating the attestation
-   ref, starting a remote run, preparing a suite, calling a model, tagging,
-   releasing, approving external use, or checking `EXT-20`. RC.4 is terminal
-   and must never be rerun.
+1. Independently review the uncommitted RC.5 attestation workflow at exact
+   SHA-256 `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`
+   together with the retained local evidence and preservation checks.
+2. In a separately authorized controller pass, commit and publish the reviewed
+   workflow plus durable state to `main`, verify the published commit and
+   parent by raw-Git readback, then create only
+   `refs/heads/level1-v0.1.0-rc.5-attestation` at that exact workflow commit
+   with an empty-expected raw-Git lease. Preserve the exact candidate ref.
+3. Require one dedicated push-triggered attestation run and job plus one
+   artifact named `level1-v0.1.0-rc.5-attestation`. Record run/job/artifact
+   identifiers, URLs, states, conclusions, timestamps, size, expiry, digest,
+   and an archive-byte comparison or an explicit authentication limitation.
+4. Stop before suite preparation, any model call, tagging, release, external-
+   use approval, or checking `EXT-20`. RC.4 is terminal and must never be
+   rerun.
 
-The completed RC.5 remote-CI pass did not create an attestation workflow. Do
-not rerun `agent-ext20-rc5-remote.sh` because the RC.5 candidate ref is now
-intentionally nonempty. The controller prepared the separate local-only
-attestation launcher named above.
+The completed RC.5 remote-CI pass did not create an attestation workflow. The
+local workflow construction and verification task is now complete. Do not run
+`agent-ext20-rc5-attestation.sh`: it is a nested Codex launcher and is obsolete
+for this resume point. Do not rerun `agent-ext20-rc5-remote.sh` because the
+RC.5 candidate ref is intentionally nonempty.
 
 Earlier RC.4 controller readback reconfirmed its exact candidate, workflow, and
 attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
 Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
-Exact next command:
+Exact later raw-Git publication target after independent review:
 
-```bash
-./agent-ext20-rc5-attestation.sh
+```text
+refs/heads/level1-v0.1.0-rc.5-attestation
 ```
 
-This launcher authorizes local workflow construction and verification only. It
-has not yet been run.
+No commit, push, attestation-ref publication, or remote workflow execution was
+authorized in the local construction pass, so no controller publication
+command is recorded here.
 
 ## Session Rules
 
@@ -593,8 +648,8 @@ has not yet been run.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation completed, but RC.4 then failed terminally on its first
   operation and is retired. The lifecycle-authority remediation is published.
-  RC.5 local construction, candidate-ref publication, and remote CI are
-  complete. Attestation workflow publication/execution, suite work, live-model
-  work, tag, release, and external-use authority remain excluded until their
-  separate gates.
+  RC.5 local construction, candidate-ref publication, remote CI, and local
+  attestation-workflow construction and verification are complete. Attestation
+  workflow publication/execution, suite work, live-model work, tag, release,
+  and external-use authority remain excluded until their separate gates.
 - The repository is durable memory; this handoff is only the resume pointer.

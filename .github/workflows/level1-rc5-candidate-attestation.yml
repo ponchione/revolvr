@@ -1,0 +1,211 @@
+name: Level 1 RC.5 candidate attestation
+
+on:
+  push:
+    branches:
+      - level1-v0.1.0-rc.5-attestation
+
+permissions:
+  contents: read
+
+jobs:
+  attest:
+    name: Rebuild and attest Level 1 RC.5 candidate
+    runs-on: ubuntu-latest
+    env:
+      WORKFLOW_PATH: .github/workflows/level1-rc5-candidate-attestation.yml
+      ATTESTATION_REF: refs/heads/level1-v0.1.0-rc.5-attestation
+      ATTESTATION_NAMESPACE: level1-v0.1.0-rc.5-attestation
+      ARTIFACT_NAME: level1-v0.1.0-rc.5-attestation
+      CANDIDATE_REF: refs/heads/level1-v0.1.0-rc.5
+      CANDIDATE_ID: level1-v0.1.0-rc.5
+      CANDIDATE_COMMIT: 19c1ef4b6a610016487880aa8ad69ec0204bd4f7
+      CANDIDATE_TREE: 2fb39c93694e72d986e7a8a849a542fc1bf1728d
+      GO_VERSION: go1.26.5
+      RELEASE_VERSION: 0.1.0
+      GO_ARCH: amd64
+      LINUX_SHA256: 1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043
+      DARWIN_SHA256: a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d
+      FREEBSD_SHA256: f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 19c1ef4b6a610016487880aa8ad69ec0204bd4f7
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache: false
+      - name: Rebuild and attest RC.5 candidate artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          readonly attestation_dir="${RUNNER_TEMP}/${ARTIFACT_NAME}"
+          readonly work_dir="${RUNNER_TEMP}/${ATTESTATION_NAMESPACE}-work"
+          readonly targets=(linux darwin freebsd)
+
+          expected_hash() {
+            case "$1" in
+              linux) printf '%s\n' "${LINUX_SHA256}" ;;
+              darwin) printf '%s\n' "${DARWIN_SHA256}" ;;
+              freebsd) printf '%s\n' "${FREEBSD_SHA256}" ;;
+              *) return 1 ;;
+            esac
+          }
+
+          build_metadata_has() {
+            local metadata="$1"
+            local key="$2"
+            local value="$3"
+            awk -v key="${key}" -v value="${value}" '
+              $1 == "build" && $2 == key "=" value { found = 1 }
+              END { exit(found ? 0 : 1) }
+            ' "${metadata}"
+          }
+
+          verify_remote_authority() {
+            local namespace_refs
+            test "${GITHUB_REF}" = "${ATTESTATION_REF}"
+            test "${GITHUB_WORKFLOW_REF}" = "${GITHUB_REPOSITORY}/${WORKFLOW_PATH}@${ATTESTATION_REF}"
+            test "$(git ls-remote --refs origin "${CANDIDATE_REF}" | awk '{print $1}')" = "${CANDIDATE_COMMIT}"
+            test "$(git ls-remote --refs origin "${ATTESTATION_REF}" | awk '{print $1}')" = "${GITHUB_SHA}"
+            namespace_refs="$(git ls-remote --heads --tags origin 'refs/heads/*rc.5*' 'refs/tags/*rc.5*')"
+            test "$(printf '%s\n' "${namespace_refs}" | awk 'NF { count++ } END { print count + 0 }')" -eq 2
+            test "$(printf '%s\n' "${namespace_refs}" | awk -v ref="${CANDIDATE_REF}" '$2 == ref { print $1 }')" = "${CANDIDATE_COMMIT}"
+            test "$(printf '%s\n' "${namespace_refs}" | awk -v ref="${ATTESTATION_REF}" '$2 == ref { print $1 }')" = "${GITHUB_SHA}"
+          }
+
+          test "$(git rev-parse --verify HEAD)" = "${CANDIDATE_COMMIT}"
+          test "$(git rev-parse --verify HEAD^{tree})" = "${CANDIDATE_TREE}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(go env GOVERSION)" = "${GO_VERSION}"
+          verify_remote_authority
+          mkdir -p "${attestation_dir}" "${work_dir}"
+          umask 022
+
+          {
+            printf 'schema_version\trevolvr-level1-remote-artifact-attestation-v1\n'
+            printf 'workflow_path\t%s\n' "${WORKFLOW_PATH}"
+            printf 'attestation_ref\t%s\n' "${ATTESTATION_REF}"
+            printf 'attestation_namespace\t%s\n' "${ATTESTATION_NAMESPACE}"
+            printf 'artifact_name\t%s\n' "${ARTIFACT_NAME}"
+            printf 'candidate_ref\t%s\n' "${CANDIDATE_REF}"
+            printf 'candidate_id\t%s\n' "${CANDIDATE_ID}"
+            printf 'release_version\t%s\n' "${RELEASE_VERSION}"
+            printf 'source_commit\t%s\n' "${CANDIDATE_COMMIT}"
+            printf 'source_tree\t%s\n' "${CANDIDATE_TREE}"
+            printf 'go_version\t%s\n' "${GO_VERSION}"
+            printf 'build_tool\tgo build\n'
+            printf 'go_arch\t%s\n' "${GO_ARCH}"
+            printf 'cgo_enabled\t0\n'
+            printf 'goenv\toff\n'
+            printf 'gotoolchain\tlocal\n'
+            printf 'gowork\toff\n'
+            printf 'locale\tC\n'
+            printf 'timezone\tUTC\n'
+            printf 'build_flags\t-mod=readonly -trimpath -buildvcs=true\n'
+            printf 'ldflags\t-buildid= -X main.version=%s\n' "${RELEASE_VERSION}"
+            printf 'source_pass\t1\tindependent-clean-no-local-clone\n'
+            printf 'source_pass\t2\tindependent-clean-no-local-clone\n'
+            for target in "${targets[@]}"; do
+              printf 'artifact\t%s/%s\t%s\n' "${target}" "${GO_ARCH}" "$(expected_hash "${target}")"
+            done
+          } >"${attestation_dir}/authority.tsv"
+          : >"${attestation_dir}/SHA256SUMS"
+          printf 'target\tfirst_sha256\tsecond_sha256\tresult\n' >"${attestation_dir}/reproducibility.tsv"
+
+          for pass in 1 2; do
+            source_dir="${work_dir}/source-${pass}"
+            pass_dir="${attestation_dir}/pass-${pass}"
+            git -c protocol.file.allow=always clone --quiet --no-local --no-checkout \
+              "${GITHUB_WORKSPACE}" "${source_dir}"
+            git -C "${source_dir}" checkout --quiet --detach "${CANDIDATE_COMMIT}"
+            test "$(git -C "${source_dir}" rev-parse --verify HEAD)" = "${CANDIDATE_COMMIT}"
+            test "$(git -C "${source_dir}" rev-parse --verify HEAD^{tree})" = "${CANDIDATE_TREE}"
+            test -z "$(git -C "${source_dir}" status --porcelain=v1 --untracked-files=all)"
+            mkdir -p "${pass_dir}/artifacts" "${pass_dir}/metadata"
+
+            for target in "${targets[@]}"; do
+              artifact_name="revolvr-v${RELEASE_VERSION}-${target}-${GO_ARCH}"
+              artifact="${pass_dir}/artifacts/${artifact_name}"
+              metadata="${pass_dir}/metadata/${artifact_name}.buildinfo.txt"
+              (
+                cd "${source_dir}"
+                env \
+                  CGO_ENABLED=0 \
+                  GOARCH="${GO_ARCH}" \
+                  GOENV=off \
+                  GOOS="${target}" \
+                  GOTOOLCHAIN=local \
+                  GOWORK=off \
+                  GOCACHE="${work_dir}/go-cache-${pass}" \
+                  GOMODCACHE="${work_dir}/go-mod-cache-${pass}" \
+                  LC_ALL=C \
+                  TZ=UTC \
+                  go build -mod=readonly -trimpath -buildvcs=true \
+                    -ldflags="-buildid= -X main.version=${RELEASE_VERSION}" \
+                    -o "${artifact}" ./cmd/revolvr
+              )
+
+              go version -m "${artifact}" >"${metadata}"
+              awk -v want="${GO_VERSION}" 'NR == 1 { exit($NF == want ? 0 : 1) }' "${metadata}"
+              awk '$1 == "path" && $2 == "revolvr/cmd/revolvr" { found = 1 } END { exit(found ? 0 : 1) }' "${metadata}"
+              build_metadata_has "${metadata}" -compiler gc
+              build_metadata_has "${metadata}" -trimpath true
+              build_metadata_has "${metadata}" GOOS "${target}"
+              build_metadata_has "${metadata}" GOARCH "${GO_ARCH}"
+              build_metadata_has "${metadata}" CGO_ENABLED 0
+              build_metadata_has "${metadata}" vcs git
+              build_metadata_has "${metadata}" vcs.revision "${CANDIDATE_COMMIT}"
+              build_metadata_has "${metadata}" vcs.modified false
+
+              build_id="$(go tool buildid "${artifact}")"
+              test -z "${build_id}"
+              printf '%s' "${build_id}" >"${pass_dir}/metadata/${artifact_name}.build-id.txt"
+
+              version_symbol="$(go tool nm -size "${artifact}" | awk '$4 == "main.version" { print $2, $3, $4 }')"
+              test "${version_symbol}" = "16 D main.version"
+              version_string_count="$(strings -a "${artifact}" | awk -v want="${RELEASE_VERSION}" '$0 == want { count++ } END { print count + 0 }')"
+              test "${version_string_count}" -eq 1
+              {
+                printf 'release_version\t%s\n' "${RELEASE_VERSION}"
+                printf 'main_version_symbol\t%s\n' "${version_symbol}"
+                printf 'exact_release_string_count\t%s\n' "${version_string_count}"
+              } >"${pass_dir}/metadata/${artifact_name}.version-authority.tsv"
+
+              actual_hash="$(sha256sum "${artifact}" | awk '{print $1}')"
+              test "${actual_hash}" = "$(expected_hash "${target}")"
+              printf '%s  pass-%s/artifacts/%s\n' "${actual_hash}" "${pass}" "${artifact_name}" \
+                >>"${attestation_dir}/SHA256SUMS"
+            done
+
+            test -z "$(git -C "${source_dir}" status --porcelain=v1 --untracked-files=all)"
+            version_output="$("${pass_dir}/artifacts/revolvr-v${RELEASE_VERSION}-linux-${GO_ARCH}" --version)"
+            test "${version_output}" = "revolvr ${RELEASE_VERSION}"
+            printf '%s\n' "${version_output}" >"${pass_dir}/metadata/linux-version-output.txt"
+          done
+
+          for target in "${targets[@]}"; do
+            artifact_name="revolvr-v${RELEASE_VERSION}-${target}-${GO_ARCH}"
+            first="${attestation_dir}/pass-1/artifacts/${artifact_name}"
+            second="${attestation_dir}/pass-2/artifacts/${artifact_name}"
+            cmp -s "${first}" "${second}"
+            printf '%s/%s\t%s\t%s\tidentical\n' \
+              "${target}" "${GO_ARCH}" \
+              "$(sha256sum "${first}" | awk '{print $1}')" \
+              "$(sha256sum "${second}" | awk '{print $1}')" \
+              >>"${attestation_dir}/reproducibility.tsv"
+          done
+
+          (
+            cd "${attestation_dir}"
+            sha256sum --check SHA256SUMS
+          )
+          verify_remote_authority
+      - name: Retain RC.5 attestation authority
+        uses: actions/upload-artifact@v4
+        with:
+          name: level1-v0.1.0-rc.5-attestation
+          path: ${{ runner.temp }}/level1-v0.1.0-rc.5-attestation
+          if-no-files-found: error
