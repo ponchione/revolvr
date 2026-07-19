@@ -134,6 +134,14 @@ func TestNeedsInputDecisionRejectsMalformedCompositions(t *testing.T) {
 			d.NeedsInput.IndependentWork[0].IndependentOfOptionIDs = []string{"enable"}
 			rehashQuestion(t, d.NeedsInput)
 		}, "name every offered option"},
+		{"duplicate independent option identity", func(d *SupervisorDecision) {
+			d.NeedsInput.IndependentWork[0].IndependentOfOptionIDs = []string{"enable", "enable"}
+			rehashQuestion(t, d.NeedsInput)
+		}, "name every offered option"},
+		{"duplicate independent work identity", func(d *SupervisorDecision) {
+			d.NeedsInput.IndependentWork = append(d.NeedsInput.IndependentWork, d.NeedsInput.IndependentWork[0])
+			rehashQuestion(t, d.NeedsInput)
+		}, "duplicate id"},
 		{"source mutating independent work", func(d *SupervisorDecision) {
 			w := &d.NeedsInput.IndependentWork[0]
 			w.Action = ActionImplement

@@ -170,7 +170,7 @@ func buildWorkerPrompt(in workerPromptInput) ([]byte, error) {
 			RawOutputPath: filepath.ToSlash(in.OutputPath), SourceRevision: in.SourceRevision,
 			Verification: *in.Verification, LatestSourceMutation: autonomousaudit.SourceMutationFromPolicy(in.LatestMutation),
 		}
-		provenanceRaw, err := marshalPromptJSON(provenance)
+		provenanceRaw, err := marshalPromptJSON(autonomousaudit.ModelProvenanceProjection(provenance))
 		if err != nil {
 			return nil, err
 		}

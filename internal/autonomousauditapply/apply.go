@@ -108,6 +108,10 @@ func ApplyAuditResult(ctx context.Context, cfg ApplyConfig) (Result, error) {
 	if err := validateOutput(cfg, output); err != nil {
 		return reject(result, "auditor_output_identity", err)
 	}
+	output.Provenance.Verification = cfg.Verification
+	if err := output.Validate(); err != nil {
+		return reject(result, "auditor_output_identity", fmt.Errorf("reattach trusted verification provenance: %w", err))
+	}
 	canonical, err := autonomousaudit.MarshalAuditOutput(output)
 	if err != nil {
 		return reject(result, "auditor_output", err)
@@ -447,7 +451,7 @@ func validateOutput(cfg ApplyConfig, o autonomousaudit.AuditOutput) error {
 	if o.Provenance.SourceRevision != c.Source.AdmissionRevision {
 		return errors.New("source revision provenance mismatch")
 	}
-	if !sameJSONValue(o.Provenance.Verification, cfg.Verification) {
+	if !sameJSONValue(o.Provenance.Verification, autonomousaudit.ModelVerificationProjection(cfg.Verification)) {
 		return errors.New("verification provenance mismatch")
 	}
 	if !reflect.DeepEqual(o.Provenance.LatestSourceMutation, autonomousaudit.SourceMutationFromPolicy(cfg.LatestMutation)) {

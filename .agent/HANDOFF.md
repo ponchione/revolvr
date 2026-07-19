@@ -1,137 +1,193 @@
-# Active Work Handoff
+# Agent Handoff
 
 Updated: 2026-07-18
 
 ## Resume Point
 
-The first unchecked backlog task remains `EXT-20`, the quantitative Level-1
-real-Codex dogfood gate. Do not restart RC.1 or RC.2 work. RC.3 local
-reproducibility, exact-source remote CI, remote artifact attestation, the
-guarded suite update, and a fresh collision-free no-model preparation have
-passed. No live model operation has started.
+The first unchecked backlog task remains `EXT-20`. RC.3 is immutable rejected
+history, and its retained suite is permanently retired. The first local
+Structured Outputs repair passed tests but failed independent audit because
+not every object was strict-compatible and its regression guard was only a
+finite denylist.
 
-Prepared live authority is `/tmp/revolvr-ext20-rc3.Qghf19/suite`. The
-controller independently verified it and committed/pushed the tracked suite,
-state, and handoff changes with raw Git. A new explicit live confirmation is
-now required before the recorded command may run. Do not use the
-failed-inspection diagnostic root
-`/tmp/revolvr-ext20-rc3.5TQPha/suite`.
+The current uncommitted working tree, based on exact `main` commit
+`45e92302843ad1cafe7a4a6bc58a319d606fb497`, contains the follow-up repair for
+all four production model-facing schemas. The follow-up implementation and its
+complete dirty-tree scope have now received a separate read-only review. The
+four generated production schemas satisfy the documented structural rules
+that caused the live RC.3 rejection and the failed first-repair audit. Focused,
+race, production-happy-path, and full repository tests pass without a live
+model call.
 
-## Git And Release Authority
+Work is paused for the day. Do not start another speculative schema-repair
+loop. The next operator decision is whether to authorize committing and
+pushing this already-verified repair. No new release candidate exists. If a
+later pass creates one from the committed repair, `RC.4` is only its sequential
+candidate label; it is not a separate backlog task or completed artifact.
 
-- Reviewed workflow commit: `80441464d55af466bbea15f20448099e2a163684`
-  (`Add RC.3 artifact attestation workflow`). The remote-attestation evidence,
-  suite-preparation evidence, and current handoff are committed on top of it;
-  use `git rev-parse HEAD` for the exact resumed `main` tip.
-- RC.3 candidate source: `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`.
-- RC.3 source tree: `23c0d27fc62be5f41feb45192e74f1df8ecff3fa`.
-- Remote candidate ref: `refs/heads/level1-v0.1.0-rc.3` at the exact source
-  commit above.
-- Candidate CI: run `29642126354`, exact source SHA, conclusion `success`, all
-  ten mandatory jobs passed.
-- RC.3 attestation ref `refs/heads/level1-v0.1.0-rc.3-attestation` resolves to
-  exact reviewed workflow commit `80441464d55af466bbea15f20448099e2a163684`.
-- Dedicated attestation run `29651665454` and job `88098916882` completed
-  `success`; general CI run `29651665483` also completed `success` with all ten
-  required jobs passing.
-- Use raw `git` only. Never use `gh`. The standing operator direction is to
-  commit and push confirmed passing work with raw Git.
+## RC.3 Rejection And Preservation Authority
 
-## RC.3 Artifact Authority
+- Rejected candidate source:
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`.
+- Failed suite: `/tmp/revolvr-ext20-rc3.Qghf19/suite`.
+- Failed operation: `ext20-802d9db69596-01`.
+- Codex run: `019f761f-078d-7b81-932b-278339f2a000`.
+- Evidence bundle:
+  `/tmp/revolvr-ext20-rc3.Qghf19/suite/evidence/repo-a/01-successful-source-change-1`.
+- API result: HTTP 400 `invalid_json_schema` because
+  `properties.conflicts.uniqueItems` is not permitted.
+- Terminal result: `unsafe_or_ambiguous`, zero worker attempts, zero
+  verification, zero audits, zero commits, and unchanged source trees.
 
-- Candidate ID/version: `level1-v0.1.0-rc.3`, release `0.1.0`.
-- Toolchain: exact Go 1.26.5 for release builds; Go 1.22.12 source floor.
-- Linux amd64 SHA-256:
-  `9e9c13f43977edf49e7e6385c595aa20a01c16308ddfea1c30455ea88252ae9b`.
-- Darwin amd64 SHA-256:
-  `ee6db29cfcbcbd2e645184927fc5d7348ed924d6036a46d7b23eae55b5b43fd4`.
-- FreeBSD amd64 SHA-256:
-  `6a42dc423ab1975e8ea4296f56be6c9a3773d9ccfda1c57244a50261e64f368a`.
-- Candidate bundle:
-  `.revolvr/release-candidates/level1-v0.1.0-rc.3-a16ea1bdc1a4/`.
-- Candidate inventory SHA-256:
-  `766856c2783073c8ffa10cbce0e3c0a9f8ebee4db1785c309f6c5680f5e5ddae`.
-- Verification bundle:
-  `.revolvr/release-candidates/level1-v0.1.0-rc.3-a16ea1bdc1a4-verification/`.
-- Verification inventory SHA-256:
-  `006cb0b7f2215878e757ae8ee104bb1b88d5ae31b8661168bcf5c705d08353ff`.
-- Build-instruction SHA-256:
-  `2deaa06d380dfd7d86277e2090229ba1d212e1bad85c6b3db6a83a31036c1405`.
-- Remote attestation artifact: ID `8431664217`, name
-  `level1-v0.1.0-rc.3-attestation`, size 70,202,355 bytes, digest
-  `sha256:8ac9f82795233b4808fc8c2fc895a11d1fb622e30272f73f90b1f68218c99cd1`,
-  expiry `2026-10-16T16:17:29Z`. Its public archive endpoint returned HTTP 401,
-  so no authenticated-download claim is made.
+Both evidence checksum manifests passed before editing and after all code
+checks. Read-only content/layout fingerprints matched exactly:
 
-The controller independently reran both bundle verifiers, performed a third
-non-local clean-clone rebuild, reproduced all three binaries byte-for-byte,
-and ran an RC.3 no-model config/doctor smoke. The binary reported effective
-config schema v8, source-writer timeout `32m0s`, heartbeat `10m40s`, required
-window `32m0s`, and `Ready: true` without creating an operation.
+- evidence bundle:
+  `e47642eb4e8ade29ff213a3012891dc11a4bf800b654f80cb8c08a527564c689` /
+  `bded4ce56ff6b2d8407978a40a3945b06eb1c0e982ec942e3671b14258b1b335`
+- whole suite:
+  `e070947f3a6cc3d0f598a3a78948757d7c1c0837c8baad70028cffb54b5734be` /
+  `84e24f06525d81af2ff84061488d19170cc9791ca3139632892e3c5bf0431d58`
 
-## Prepared RC.3 No-Model Suite Authority
+Never retry, reconcile, relabel, reuse, or mutate the RC.3 suite or bundle.
+RC.1 and RC.2 remain immutable rejected history too.
 
-- Prepared root: `/tmp/revolvr-ext20-rc3.Qghf19/suite`.
-- Authority SHA-256:
-  `adc8095701e1fa6fdcd6180df93ea88ccac6f1d4d21cba1a751476a7a1ef3fb4`.
-- Operation-plan SHA-256:
-  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
-- Candidate output/hash/source and exact Codex package/output/hash agree with
-  the RC.3 authority above. Both repositories are clean on `main`; `repo-a`
-  HEAD is `07239693a95a1c73b61de77b74ade0a234e84075`, and `repo-b` HEAD is
-  `2de82370e6c8bd3775e25da783fc7d6dcf0e0b5c`.
-- The 11 plan rows name exactly ten unique tasks, and every task reports
-  `Ready: true` with source-writer lock `timeout=32m0s`, heartbeat `10m40s`,
-  and required window `32m0s`.
-- There are zero runtime operation manifests, zero collector manifests, and
-  zero aggregate entries. Whole-root content fingerprint
-  `90424fc5544fd3be146eef965a95b5300a910036e0a19703672fc95f1fb756ae`
-  and layout/metadata fingerprint
-  `8fdd4272d36eefe1f9c99c4793bc47d51db5751ed12450b986755a875ae467b7`
-  remained identical across independent inspection with
-  `GIT_OPTIONAL_LOCKS=0`.
-- The empty-confirmation guard refused in isolation before prepared-root or
-  collector access. No `--live` argument or confirmation value was passed to
-  the suite. The first root `/tmp/revolvr-ext20-rc3.5TQPha/suite` retained a
-  Git optional index-refresh diagnostic and is not live authority.
+## Failed First Repair Audit And Follow-up
 
-## Rejected History To Preserve
+The failed audit established these mandatory rules:
 
-- RC.1 source `ed65049fba6bf82852fd406ebc17afa90a953e3f` is rejected because
-  autonomous CLI invocation omitted the working directory.
-- RC.2 source `eeaaf50b52fd82038c6d58c7947d63ddf26eb0ec` is rejected because
-  admitted effective lock authority was shorter than the supervisor window.
-- RC.2 failed operation `ext20-3601e63c616b-01` historically retained a
-  terminal `unsafe_or_ambiguous` bundle with zero model attempts, zero
-  verification, and zero commits below `/tmp/revolvr-ext20-rc2.96ibla/suite`.
-  That temporary root was already absent during the RC.3 attestation pass; do
-  not reuse, recreate, or relabel it.
-- Preserve every RC.1/RC.2 candidate and attestation ref, workflow, bundle,
-  artifact, hash, retired root, and diagnostic. Do not relabel or reuse them.
+- every object has concrete `properties` and
+  `additionalProperties: false`;
+- every declared property appears exactly once in `required`;
+- semantic optionals use supported required-null or required-empty forms;
+- unconstrained objects are prohibited;
+- compatibility uses an explicit supported-subset allowlist, not a denylist.
 
-## Remaining Ordered Work
+The follow-up covers all ordinary production builders:
 
-1. Obtain a new explicit live confirmation for the exact command below.
-2. Only after that confirmation, run all 11 planned operations
-   and independently verify every EXT-17 manifest and EXT-20 aggregate.
-3. Keep `EXT-20` unchecked and external use unapproved until every threshold
-   passes. Tagging/release decision remains the later `EXT-21` task.
+- `supervisor.DecisionOutputSchema`
+- `autonomousplanning.PlanningOutputSchema`
+- `autonomousaudit.AuditOutputSchema`
+- `autonomous.CorrectionOutputSchema`
 
-Exact confirmation-gated command to run only after that separate approval:
+Every generated object and definition is closed, every property is required,
+every array has concrete `items`, and nullable values retain the existing Go
+zero/nil contract. Strict decoding and Go validators retain action/profile,
+needs-input, child-task, finding authority, correction partition, outcome,
+evidence, and duplicate-rejection authority.
+
+Audit provenance now exposes a closed model projection with
+`verification.summary.tiered` fixed to null. The apply boundary compares that
+projection and deterministically reattaches the exact trusted full tiered
+verification result before canonicalization and persistence. The smaller
+optional final-gate projection remains exact and closed.
+
+The untracked `internal/autonomouscycle/schema_compatibility_test.go` is the new
+stdlib-only recursive guard. It enumerates all four builders, uses an explicit
+keyword allowlist, distinguishes property/`$defs` names from keywords,
+validates nullable objects, arrays, local refs, and all definitions, and
+reports exact JSON paths. It has negative coverage for the malformed fixtures
+and unsupported keywords required by the failed audit.
+
+Independent review noted that this regression helper does not itself enforce
+the documented root-level `anyOf` prohibition or quantitative schema limits
+(property count, nesting depth, aggregate schema-string size, and enum size).
+The current four production schemas do not use a root `anyOf` and are plainly
+below those limits, so this is test-hardening scope rather than evidence that
+the current repair is API-incompatible. Do not turn this observation into
+another repair loop unless the operator explicitly chooses to expand the
+guard before the next candidate.
+
+## Dirty Tree Scope
+
+- `.agent/DECISIONS.md`
+- `.agent/HANDOFF.md`
+- `.agent/STATE.md`
+- `internal/autonomous/contracts_test.go`
+- `internal/autonomous/correction.go`
+- `internal/autonomous/correction_test.go`
+- `internal/autonomous/needs_input_test.go`
+- `internal/autonomousaudit/contracts.go`
+- `internal/autonomousaudit/contracts_test.go`
+- `internal/autonomousaudit/schema.go`
+- `internal/autonomousauditapply/apply.go`
+- `internal/autonomousauditapply/apply_test.go`
+- `internal/autonomouscycle/schema_compatibility_test.go` (untracked)
+- `internal/autonomouscycle/worker_prompt.go`
+- `internal/autonomousplanning/contracts_test.go`
+- `internal/autonomousplanning/schema.go`
+- `internal/supervisor/prompt_schema_test.go`
+- `internal/supervisor/schema.go`
+
+No dependency was added. No commit, push, tag, branch/ref publication, release,
+live/nested model call, or external-use approval occurred.
+
+## Local Verification
+
+Passed:
 
 ```bash
-scripts/dogfood-external-level1-suite.sh --live --run-root /tmp/revolvr-ext20-rc3.Qghf19/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+gofmt -w <every changed Go file>
+go test -count=1 ./internal/autonomous ./internal/supervisor ./internal/autonomousplanning ./internal/autonomousaudit ./internal/autonomouscycle ./internal/autonomousauditapply
+go test -race -count=1 ./internal/autonomous ./internal/supervisor ./internal/autonomousplanning ./internal/autonomousaudit ./internal/autonomouscycle ./internal/autonomousauditapply
+go test -count=1 ./internal/app -run '^TestProductionAutonomousHappyPath$'
+go test -count=1 ./...
+go test -count=1 ./internal/autonomouscycle -run '^TestProductionModelOutputSchemasUseSupportedStructuredOutputsSubset$'
+git diff --check
+```
+
+Direct inspection of generated schema bytes found zero structural violations
+and only allowlisted keywords. Generated SHA-256 values:
+
+- supervisor:
+  `5ef89243892e156bfdf098c132ea42ddc0a0ff74bd12af5276a493ac16be6c76`
+- planning:
+  `b4d088d7833a604ae4e91999dbc52a49b925d75ecfb3953dc56bdcceca2a1e09`
+- audit:
+  `899b551851549974b07c5352ba675e11f598763433c31c458a4c21e1e37e5eb3`
+- correction:
+  `0badb90760b7ca013c2cc7cb0ebf4c54f404a9d749dd9f5d29e4051e5812f022`
+
+The final independent read-only pass also reran formatting inspection, the
+focused race suite, the production autonomous happy path, the complete
+repository suite, `git diff --check`, and both retained RC.3 checksum
+manifests; all passed. The audit prompt/provenance projection and trusted
+tiered-verification reattachment path were reviewed without a blocking
+finding.
+
+These are local compatibility and regression results only. No live API call was
+made, so no API-acceptance claim is authorized.
+
+## Next Ordered Work
+
+1. Start a fresh session and read the durable state plus the complete dirty
+   tree. Confirm the base remains `45e92302843ad1cafe7a4a6bc58a319d606fb497`
+   and that no other terminal changed the candidate.
+2. Wait for explicit operator authority before committing or pushing the
+   verified repair. Do not require another audit merely because a new session
+   starts.
+3. Keep `EXT-20` unchecked and external use unapproved. Local tests do not
+   replace the required fresh live/API acceptance pass.
+4. Only after the repair is committed and pushed may a separately bounded pass
+   construct the next immutable candidate. That candidate would be labeled
+   RC.4. Never reuse RC.3's suite, evidence, operation, run, ref, workflow,
+   artifact, or diagnostic.
+
+Exact next read-only command:
+
+```bash
+GIT_OPTIONAL_LOCKS=0 git status --short && git diff --check
 ```
 
 ## Session Rules
 
-- Read `AGENTS.md`, this file, `.agent/TASKS.md`, `.agent/STATE.md`, and
-  `.agent/DECISIONS.md` before acting.
+- Read `AGENTS.md`, this file, `.agent/TASKS.md`, `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, and `.agent/LOOP_PROMPT.md` completely before acting.
 - Use one new `codex exec` invocation per bounded task; never resume an old
-  Codex session.
-- Do exactly one task per pass and preserve unrelated or historical evidence.
-- No live or nested model work unless the operator supplies the exact separate
-  confirmation for that live command.
-- The repository state is authoritative; this handoff is a concise resume
-  pointer and does not replace the detailed evidence in `STATE.md` or durable
-  decisions in `DECISIONS.md`.
+  session.
+- Do exactly one task per pass and preserve unrelated changes and immutable
+  evidence.
+- Never use `gh`.
+- Do not commit, push, tag, publish refs, release, construct RC.4, or run a
+  live/nested model without exact separate authority.
+- The repository is durable memory; this handoff is only the resume pointer.

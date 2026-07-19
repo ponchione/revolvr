@@ -18,6 +18,7 @@ import (
 	"revolvr/internal/autonomouscycle"
 	"revolvr/internal/autonomouspolicy"
 	"revolvr/internal/autonomousstate"
+	"revolvr/internal/autonomousverification"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/ledger"
@@ -96,6 +97,50 @@ func TestApplyAuditResultReopensForDossierAndPolicy(t *testing.T) {
 	replay, err := ApplyAuditResult(context.Background(), fixture.cfg)
 	if err != nil || replay.Disposition != DispositionReplayed || replay.History.SourcePath != result.History.SourcePath {
 		t.Fatalf("replay=%+v err=%v", replay, err)
+	}
+}
+
+func TestApplyAuditResultReattachesTrustedTieredVerification(t *testing.T) {
+	fixture := newAuditApplyFixture(t, autonomous.AuditDispositionClean)
+	plan := autonomousverification.PlanIdentity{SchemaVersion: autonomousverification.PlanSchemaVersion, SHA256: strings.Repeat("a", 64), ByteSize: 12}
+	gate := autonomousverification.GateEvidence{
+		SchemaVersion:  autonomousverification.GateSchemaVersion,
+		Plan:           plan,
+		Purpose:        autonomousverification.PurposeFinal,
+		OverallOutcome: autonomousverification.OutcomePassed,
+		FinalSatisfied: true,
+	}
+	tiered := autonomousverification.Result{
+		SchemaVersion:  autonomousverification.ResultSchemaVersion,
+		TaskID:         "task-1",
+		RunID:          fixture.verification.Summary.RunID,
+		OccurrenceID:   fixture.verification.Summary.OccurrenceID,
+		SourceRevision: fixture.revision,
+		Plan:           plan, Purpose: autonomousverification.PurposeFinal,
+		Outcome: autonomousverification.OutcomePassed, Gate: gate,
+	}
+	if err := tiered.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	fixture.verification.Summary.Tiered = &tiered
+	fixture.verification.Tiered = &gate
+	fixture.cfg.Verification = fixture.verification
+	fixture.rebuild(t)
+
+	modelRaw := fixture.cfg.Cycle.Worker.RawOutput
+	modelOutput, err := autonomousaudit.ParseAuditOutput(modelRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if modelOutput.Provenance.Verification.Summary.Tiered != nil {
+		t.Fatal("model-authored audit output retained trusted full tiered result")
+	}
+	result, err := ApplyAuditResult(context.Background(), fixture.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.History.Record.Verification.Summary.Tiered == nil || !reflect.DeepEqual(*result.History.Record.Verification.Summary.Tiered, tiered) {
+		t.Fatal("apply boundary did not reattach exact trusted tiered verification")
 	}
 }
 
@@ -272,7 +317,9 @@ func (f *auditApplyFixture) rebuild(t *testing.T) {
 	f.output.Provenance.Profile = autonomousaudit.ProfileIdentity{Name: autonomous.WorkerProfileAuditor, Path: ".agent/profiles/auditor.md", SHA256: hashBytes(profileRaw), ByteSize: len(profileRaw)}
 	f.output.Provenance.Verification = f.cfg.Verification
 	f.output.Provenance.LatestSourceMutation = autonomousaudit.SourceMutationFromPolicy(f.cfg.LatestMutation)
-	raw, _ := autonomousaudit.MarshalAuditOutput(f.output)
+	modelOutput := f.output
+	modelOutput.Provenance.Verification = autonomousaudit.ModelVerificationProjection(f.cfg.Verification)
+	raw, _ := autonomousaudit.MarshalAuditOutput(modelOutput)
 	rawPath := ".revolvr/runs/auditor-run/auditor-output.raw.json"
 	writeAuditApplyFile(t, filepath.Join(f.repo, filepath.FromSlash(rawPath)), raw)
 	snapshot := auditApplySnapshot()

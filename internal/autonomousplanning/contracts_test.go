@@ -42,6 +42,42 @@ func TestPlanningOutputParseMarshalAndSchemaAreStrictAndDeterministic(t *testing
 	}
 }
 
+func TestParsePlanningOutputRequiredNullAndEmptyOptionalsPreserveSemantics(t *testing.T) {
+	output, _, _, _ := validPlanningFixture(t)
+	wire := planningOutputWire(t, output)
+	plan := wire["plan"].(map[string]any)
+	plan["supersedes_plan_id"] = nil
+	steps := plan["steps"].([]any)
+	step := steps[0].(map[string]any)
+	step["evidence"] = []any{}
+	step["rationale"] = nil
+	criteria := wire["acceptance_criteria"].([]any)
+	criterion := criteria[0].(map[string]any)
+	criterion["evidence"] = []any{}
+	criterion["rationale"] = nil
+
+	raw, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParsePlanningOutput(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Plan.SupersedesPlanID != "" || len(parsed.Plan.Steps[0].Evidence) != 0 || parsed.Plan.Steps[0].Rationale != "" || len(parsed.AcceptanceCriteria[0].Evidence) != 0 || parsed.AcceptanceCriteria[0].Rationale != "" {
+		t.Fatalf("decoded planning optionals = %+v / %+v", parsed.Plan, parsed.AcceptanceCriteria[0])
+	}
+
+	step["rationale"] = "Fabricated rationale."
+	raw, err = json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParsePlanningOutput(raw); err == nil || !strings.Contains(err.Error(), "must not include skip rationale") {
+		t.Fatalf("ParsePlanningOutput() error = %v, want pending rationale rejection", err)
+	}
+}
+
 func TestParsePlanningOutputRejectsMalformedMissingMultipleAndUnknownFields(t *testing.T) {
 	output, _, _, _ := validPlanningFixture(t)
 	raw, err := MarshalPlanningOutput(output)
@@ -351,6 +387,19 @@ func mustPlanningJSON(t *testing.T, value any) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func planningOutputWire(t *testing.T, output PlanningOutput) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	return wire
 }
 
 func cloneStepsForTest(steps []autonomous.PlanStep) []autonomous.PlanStep {

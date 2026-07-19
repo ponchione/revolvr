@@ -105,6 +105,9 @@ func TestSupervisorDecisionChildProposalValidation(t *testing.T) {
 			d.ChildTasks.Children[1].Key = "other"
 		}, "equivalent scope"},
 		{"unaccepted evidence", func(d *SupervisorDecision) { d.ChildTasks.Children[0].Evidence[0].Reference = "invented" }, "outside"},
+		{"duplicate depends_on", func(d *SupervisorDecision) { d.ChildTasks.Children[0].DependsOn = []string{"upstream", "upstream"} }, `depends_on contains duplicate "upstream"`},
+		{"duplicate tags", func(d *SupervisorDecision) { d.ChildTasks.Children[0].Tags = []string{"focused", "focused"} }, `tags contains duplicate "focused"`},
+		{"duplicate conflicts", func(d *SupervisorDecision) { d.ChildTasks.Children[0].Conflicts = []string{"shared", "shared"} }, `conflicts contains duplicate "shared"`},
 		{"dependent without edge", func(d *SupervisorDecision) { d.ChildTasks.Children[0].ParentBehavior = ChildDependsOnParent }, "must depend"},
 		{"forbidden authority", func(d *SupervisorDecision) { d.ChildTasks.Children[0].Scope = "Request sandbox bypass for the worker." }, "forbidden"},
 	}

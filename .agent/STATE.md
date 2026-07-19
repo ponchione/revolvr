@@ -62,18 +62,141 @@ The next fresh task remains EXT-20. RC.1 and its remote evidence are immutable
 rejected history after the omitted-work-directory defect. RC.2 and its fresh
 exact-commit CI/artifact attestation are also immutable rejected history after
 its first live operation exposed inconsistent source-lock default authority.
-That configuration defect is repaired and verified at exact source commit
-`a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`; collision-free RC.3 is now
-locally reproduced and verified from that source, and its exact-source remote
-candidate CI and separate artifact attestation have passed. A fresh guarded
-RC.3 no-model suite is prepared and independently verified. The separately
-confirmed live dogfood pass remains required before any further model work.
+RC.3 source `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`, candidate evidence,
+remote CI, artifact attestation, failed suite, and retained live evidence are
+now immutable rejected history: operation `ext20-802d9db69596-01` failed
+before inference because the supervisor Structured Outputs schema emitted
+unsupported `uniqueItems`. The suite is permanently retired. The first local
+schema repair passed tests but failed independent audit because its objects
+were not all strict-compatible and its regression guard was only a denylist.
+The current uncommitted follow-up closes all four production schemas and adds a
+recursive supported-subset guard, but it still requires a new independent
+audit and a separate authorized commit before RC.4 construction. Local tests
+do not establish API acceptance, and no live model call is authorized. No RC.4
+exists in this pass.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.3 Rejection, Failed First Repair Audit, And Follow-up (2026-07-18)
+
+- Task selected: finish the Structured Outputs compatibility repair exposed by
+  the first RC.3 live operation and the failed independent audit of the first
+  repair. Work remains based on exact `main` commit
+  `45e92302843ad1cafe7a4a6bc58a319d606fb497`; rejected candidate source is
+  `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`.
+- Failure authority: suite `/tmp/revolvr-ext20-rc3.Qghf19/suite`, operation
+  `ext20-802d9db69596-01`, evidence bundle
+  `/tmp/revolvr-ext20-rc3.Qghf19/suite/evidence/repo-a/01-successful-source-change-1`,
+  and Codex run `019f761f-078d-7b81-932b-278339f2a000`. The API returned HTTP
+  400 `invalid_json_schema`: `In context=('properties', 'conflicts'),
+  'uniqueItems' is not permitted.` The terminal outcome is
+  `unsafe_or_ambiguous`; statistics and captured state show zero worker
+  attempts, zero verification runs, zero audits, zero commits, and no source
+  mutation.
+- The first repair removed emitted `uniqueItems`, `allOf`, `not`, and `oneOf`,
+  moved set uniqueness to semantic Go validation, and passed focused, race,
+  strict-fake production, and full-suite tests. Independent audit nevertheless
+  rejected it. Authoritative findings were: every object must have
+  `additionalProperties: false`; every property must appear exactly once in
+  `required`; semantic optionals must be required-nullable or required-empty;
+  unconstrained objects are prohibited; and the finite keyword denylist was
+  not a supported-subset compatibility guard.
+- The follow-up audits and repairs exactly the four ordinary production
+  builders: supervisor `DecisionOutputSchema`, planner `PlanningOutputSchema`,
+  auditor `AuditOutputSchema`, and corrector `CorrectionOutputSchema`. Every
+  object and definition is concrete and closed, every declared property is
+  required exactly once, every array has concrete `items`, and supported null
+  or empty-array wire values preserve existing Go zero/nil meaning.
+- Supervisor root optionals, `strategy`, `needs_input_question`, and
+  `child_task` optional collections now use required null/empty forms. A
+  nullable worker-profile enum includes JSON null. Required-null
+  `content_sha256` still decodes to the Go zero value and `ParseDecision`
+  computes and validates its deterministic content identity.
+- Planning `plan_step.evidence`, `plan_step.rationale`,
+  `task_plan.supersedes_plan_id`, `acceptance_criterion.evidence`, and
+  `acceptance_criterion.rationale` preserve absence as empty slices, empty Go
+  strings decoded from null, or the existing zero predecessor identity. Go
+  status/revision validation still rejects fabricated rationale or authority.
+- Audit `report.findings`, `verification_summary.command`, both tiered fields,
+  `mutation.decision_id`, and `provenance.latest_source_mutation` now have exact
+  required empty/nullable representations. The former unconstrained
+  `verification_summary.tiered` is a closed model projection fixed to null;
+  the host compares that projection and deterministically reattaches the exact
+  trusted full tiered result before canonicalization and persistence. The
+  optional final-gate projection has exact closed plan/tier definitions.
+- Correction now requires every root property, models
+  `VerificationFailureTarget` exactly, models every `EvidenceReference` item as
+  a concrete closed object, and uses null versus empty `finding_ids` for the
+  exclusive authority partition. Strict decoding and Go partition, outcome,
+  evidence, duplicate, and authority validation remain unchanged.
+- Semantic validation remains fail-closed without deduplication or reordering:
+  supervisor and correction finding IDs, resolved/remaining correction IDs,
+  child `depends_on`/`tags`/`conflicts`, needs-input option IDs and meanings,
+  independent-work IDs and exact option identities, audit finding IDs, and
+  audit verification-tier identity arrays all reject duplicates. Focused
+  decoded-response and validator tests prove null/empty decoding and continued
+  conditional validation.
+- The stdlib-only recursive regression validator enumerates all four
+  production builders and uses an explicit current-documentation allowlist. It
+  distinguishes schema keywords from property and `$defs` names, checks every
+  object including nullable variants, requires array `items`, resolves local
+  `$ref` targets, recursively validates `$defs` and `anyOf`, and reports exact
+  JSON paths. Negative fixtures cover `contains`, every named unsupported
+  composition/uniqueness keyword, missing/true `additionalProperties`, missing,
+  duplicate, and unknown `required` entries, unconstrained objects, missing
+  array `items`, nullable enums without null, bad definitions, and unresolved
+  refs.
+- Before editing, both RC.3 evidence manifests passed with `sha256sum -c
+  --strict`. Read-only regular-file content/layout fingerprints captured with
+  `GIT_OPTIONAL_LOCKS=0` were evidence bundle
+  `e47642eb4e8ade29ff213a3012891dc11a4bf800b654f80cb8c08a527564c689` /
+  `bded4ce56ff6b2d8407978a40a3945b06eb1c0e982ec942e3671b14258b1b335`
+  and whole suite
+  `e070947f3a6cc3d0f598a3a78948757d7c1c0837c8baad70028cffb54b5734be` /
+  `84e24f06525d81af2ff84061488d19170cc9791ca3139632892e3c5bf0431d58`.
+  After all code checks, both manifests passed again and all four fingerprints
+  matched these pre-edit values exactly.
+- Files changed: `internal/supervisor/schema.go`,
+  `internal/supervisor/prompt_schema_test.go`,
+  `internal/autonomousplanning/schema.go`,
+  `internal/autonomousplanning/contracts_test.go`,
+  `internal/autonomous/correction.go`,
+  `internal/autonomous/correction_test.go`,
+  `internal/autonomous/contracts_test.go`,
+  `internal/autonomous/needs_input_test.go`,
+  `internal/autonomousaudit/schema.go`,
+  `internal/autonomousaudit/contracts.go`,
+  `internal/autonomousaudit/contracts_test.go`,
+  `internal/autonomousauditapply/apply.go`,
+  `internal/autonomousauditapply/apply_test.go`,
+  `internal/autonomouscycle/worker_prompt.go`,
+  `internal/autonomouscycle/schema_compatibility_test.go`, this file,
+  `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`. No dependency was added.
+- Verification passed: `gofmt -w` on every changed Go file; focused ordinary
+  and `-race -count=1` tests for `internal/autonomous`, `internal/supervisor`,
+  `internal/autonomousplanning`, `internal/autonomousaudit`,
+  `internal/autonomouscycle`, and changed `internal/autonomousauditapply`;
+  `go test -count=1 ./internal/app -run
+  '^TestProductionAutonomousHappyPath$'`; final `go test -count=1 ./...`; final
+  recursive four-builder compatibility test; and `git diff --check`. Direct
+  generated-schema inspection found zero structural violations and only
+  allowlisted keywords; generated SHA-256 values were supervisor
+  `5ef89243892e156bfdf098c132ea42ddc0a0ff74bd12af5276a493ac16be6c76`,
+  planning `b4d088d7833a604ae4e91999dbc52a49b925d75ecfb3953dc56bdcceca2a1e09`,
+  audit `899b551851549974b07c5352ba675e11f598763433c31c458a4c21e1e37e5eb3`,
+  and correction
+  `0badb90760b7ca013c2cc7cb0ebf4c54f404a9d749dd9f5d29e4051e5812f022`.
+- RC.3 is permanently retired and must never be retried, reconciled,
+  relabeled, or reused. RC.1 and RC.2 remain equally immutable. No `gh`,
+  commit, push, tag, branch/ref publication, release, live/nested model
+  operation, or external-use approval occurred. No API-acceptance claim is
+  made. `EXT-20` remains unchecked. RC.4 remains blocked until this follow-up
+  passes a new independent audit and is separately committed with explicit
+  authority; this pass did not construct it.
 
 ## EXT-20 RC.3 Guarded No-Model Suite Preparation (2026-07-18)
 

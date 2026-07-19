@@ -12,6 +12,7 @@ import (
 
 	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomouspolicy"
+	"revolvr/internal/autonomousverification"
 )
 
 const AuditOutputSchemaVersion = "autonomous-audit-output-v1"
@@ -49,6 +50,102 @@ type SourceMutationIdentity struct {
 	DecisionID        string            `json:"decision_id,omitempty"`
 	Action            autonomous.Action `json:"action"`
 	ResultingRevision string            `json:"resulting_revision"`
+}
+
+// modelAuditProvenance is the exact closed provenance projection copied by the
+// model. The full tiered verification result is trusted host evidence, so the
+// model emits null for verification.summary.tiered and the apply boundary
+// reattaches the already-validated host value after comparing this projection.
+type modelAuditProvenance struct {
+	Action               autonomous.Action            `json:"action"`
+	WorkerProfile        autonomous.WorkerProfile     `json:"worker_profile"`
+	WorkerRunID          string                       `json:"worker_run_id"`
+	Decision             autonomous.DecisionReference `json:"decision_reference"`
+	Dossier              DossierIdentity              `json:"dossier"`
+	Profile              ProfileIdentity              `json:"profile"`
+	RawOutputPath        string                       `json:"raw_output_path"`
+	SourceRevision       string                       `json:"source_revision"`
+	Verification         modelVerificationEvidence    `json:"verification"`
+	LatestSourceMutation *modelSourceMutation         `json:"latest_source_mutation"`
+}
+
+type modelVerificationEvidence struct {
+	Summary        modelVerificationSummary             `json:"summary"`
+	SourceRevision string                               `json:"source_revision"`
+	Tiered         *autonomousverification.GateEvidence `json:"tiered"`
+}
+
+type modelVerificationSummary struct {
+	TaskID       string                         `json:"task_id"`
+	Status       autonomous.VerificationStatus  `json:"status"`
+	Command      *string                        `json:"command"`
+	Summary      string                         `json:"summary"`
+	RunID        string                         `json:"run_id"`
+	OccurrenceID string                         `json:"occurrence_id"`
+	Evidence     []autonomous.EvidenceReference `json:"evidence"`
+	Tiered       *struct{}                      `json:"tiered"`
+}
+
+type modelSourceMutation struct {
+	TaskID            string            `json:"task_id"`
+	RunID             string            `json:"run_id"`
+	DecisionID        *string           `json:"decision_id"`
+	Action            autonomous.Action `json:"action"`
+	ResultingRevision string            `json:"resulting_revision"`
+}
+
+// ModelVerificationProjection removes the trusted full tiered result from the
+// model-authored envelope while retaining the exact closed final-gate value.
+func ModelVerificationProjection(value autonomouspolicy.VerificationEvidence) autonomouspolicy.VerificationEvidence {
+	projected := value
+	projected.Summary.Tiered = nil
+	return projected
+}
+
+// ModelProvenanceProjection returns the schema-shaped provenance value included
+// in the auditor prompt, including explicit nulls for every semantic optional.
+func ModelProvenanceProjection(value AuditProvenance) modelAuditProvenance {
+	verification := ModelVerificationProjection(value.Verification)
+	projected := modelAuditProvenance{
+		Action:         value.Action,
+		WorkerProfile:  value.WorkerProfile,
+		WorkerRunID:    value.WorkerRunID,
+		Decision:       value.Decision,
+		Dossier:        value.Dossier,
+		Profile:        value.Profile,
+		RawOutputPath:  value.RawOutputPath,
+		SourceRevision: value.SourceRevision,
+		Verification: modelVerificationEvidence{
+			Summary: modelVerificationSummary{
+				TaskID:       verification.Summary.TaskID,
+				Status:       verification.Summary.Status,
+				Command:      optionalModelString(verification.Summary.Command),
+				Summary:      verification.Summary.Summary,
+				RunID:        verification.Summary.RunID,
+				OccurrenceID: verification.Summary.OccurrenceID,
+				Evidence:     verification.Summary.Evidence,
+			},
+			SourceRevision: verification.SourceRevision,
+			Tiered:         verification.Tiered,
+		},
+	}
+	if value.LatestSourceMutation != nil {
+		projected.LatestSourceMutation = &modelSourceMutation{
+			TaskID:            value.LatestSourceMutation.TaskID,
+			RunID:             value.LatestSourceMutation.RunID,
+			DecisionID:        optionalModelString(value.LatestSourceMutation.DecisionID),
+			Action:            value.LatestSourceMutation.Action,
+			ResultingRevision: value.LatestSourceMutation.ResultingRevision,
+		}
+	}
+	return projected
+}
+
+func optionalModelString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func SourceMutationFromPolicy(value *autonomouspolicy.SourceMutation) *SourceMutationIdentity {

@@ -7,8 +7,6 @@ import (
 	"revolvr/internal/autonomous"
 )
 
-const planningSchemaID = "https://revolvr.local/schemas/autonomous-planning-output-v1.json"
-
 // PlanningOutputSchema returns the deterministic planner-only JSON Schema.
 // ParsePlanningOutput and the Go validators remain authoritative after Codex.
 func PlanningOutputSchema() ([]byte, error) {
@@ -30,14 +28,11 @@ func PlanningOutputSchema() ([]byte, error) {
 	}
 
 	schema := map[string]any{
-		"$schema":              "https://json-schema.org/draft/2020-12/schema",
-		"$id":                  planningSchemaID,
-		"title":                "Revolvr PlanningOutput",
 		"type":                 "object",
 		"additionalProperties": false,
 		"required":             []string{"schema_version", "task_id", "plan", "acceptance_criteria", "inputs", "provenance"},
 		"properties": map[string]any{
-			"schema_version": map[string]any{"const": PlanningOutputSchemaVersion},
+			"schema_version": singletonString(PlanningOutputSchemaVersion),
 			"task_id":        nonblankString(nonblank),
 			"plan":           map[string]any{"$ref": "#/$defs/task_plan"},
 			"acceptance_criteria": map[string]any{
@@ -62,7 +57,7 @@ func PlanningOutputSchema() ([]byte, error) {
 			},
 			"plan_step": map[string]any{
 				"type": "object", "additionalProperties": false,
-				"required": []string{"id", "description", "status"},
+				"required": []string{"id", "description", "status", "evidence", "rationale"},
 				"properties": map[string]any{
 					"id":          stableIDSchema(),
 					"description": nonblankString(nonblank),
@@ -70,17 +65,17 @@ func PlanningOutputSchema() ([]byte, error) {
 					"evidence": map[string]any{
 						"type": "array", "items": map[string]any{"$ref": "#/$defs/evidence_reference"},
 					},
-					"rationale": nonblankString(nonblank),
+					"rationale": nullablePatternString(nonblank),
 				},
 			},
 			"task_plan": map[string]any{
 				"type": "object", "additionalProperties": false,
-				"required": []string{"task_id", "id", "revision", "provenance", "steps", "completed"},
+				"required": []string{"task_id", "id", "revision", "supersedes_plan_id", "provenance", "steps", "completed"},
 				"properties": map[string]any{
 					"task_id":            nonblankString(nonblank),
 					"id":                 stableIDSchema(),
 					"revision":           map[string]any{"type": "integer", "minimum": 1},
-					"supersedes_plan_id": stableIDSchema(),
+					"supersedes_plan_id": nullablePatternString(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`),
 					"provenance": map[string]any{
 						"type": "array", "minItems": 1, "items": map[string]any{"$ref": "#/$defs/evidence_reference"},
 					},
@@ -92,7 +87,7 @@ func PlanningOutputSchema() ([]byte, error) {
 			},
 			"acceptance_criterion": map[string]any{
 				"type": "object", "additionalProperties": false,
-				"required": []string{"id", "requirement", "status", "source"},
+				"required": []string{"id", "requirement", "status", "evidence", "rationale", "source"},
 				"properties": map[string]any{
 					"id":          stableIDSchema(),
 					"requirement": nonblankString(nonblank),
@@ -100,7 +95,7 @@ func PlanningOutputSchema() ([]byte, error) {
 					"evidence": map[string]any{
 						"type": "array", "items": map[string]any{"$ref": "#/$defs/evidence_reference"},
 					},
-					"rationale": nonblankString(nonblank),
+					"rationale": nullablePatternString(nonblank),
 					"source":    map[string]any{"$ref": "#/$defs/evidence_reference"},
 				},
 			},
@@ -117,7 +112,7 @@ func PlanningOutputSchema() ([]byte, error) {
 				"type": "object", "additionalProperties": false,
 				"required": []string{"name", "path", "sha256", "byte_size"},
 				"properties": map[string]any{
-					"name": map[string]any{"const": string(autonomous.WorkerProfilePlanner)},
+					"name": singletonString(string(autonomous.WorkerProfilePlanner)),
 					"path": nonblankString(nonblank), "sha256": hashSchema(),
 					"byte_size": map[string]any{"type": "integer", "minimum": 1},
 				},
@@ -126,8 +121,8 @@ func PlanningOutputSchema() ([]byte, error) {
 				"type": "object", "additionalProperties": false,
 				"required": []string{"action", "worker_profile", "worker_run_id", "decision_reference", "dossier", "profile", "raw_output_path", "source_revision"},
 				"properties": map[string]any{
-					"action":             map[string]any{"const": string(autonomous.ActionPlan)},
-					"worker_profile":     map[string]any{"const": string(autonomous.WorkerProfilePlanner)},
+					"action":             singletonString(string(autonomous.ActionPlan)),
+					"worker_profile":     singletonString(string(autonomous.WorkerProfilePlanner)),
 					"worker_run_id":      nonblankString(nonblank),
 					"decision_reference": map[string]any{"$ref": "#/$defs/decision_reference"},
 					"dossier":            map[string]any{"$ref": "#/$defs/dossier_identity"},
@@ -146,7 +141,11 @@ func PlanningOutputSchema() ([]byte, error) {
 }
 
 func nonblankString(pattern string) map[string]any {
-	return map[string]any{"type": "string", "minLength": 1, "pattern": pattern}
+	return map[string]any{"type": "string", "pattern": pattern}
+}
+
+func nullablePatternString(pattern string) map[string]any {
+	return map[string]any{"type": []string{"string", "null"}, "pattern": pattern}
 }
 
 func stableIDSchema() map[string]any {
@@ -163,10 +162,14 @@ func decisionReferenceSchema(nonblank string) map[string]any {
 		"required": []string{"decision_id", "run_id", "task_id", "action", "worker_profile", "artifact", "created_at"},
 		"properties": map[string]any{
 			"decision_id": stableIDSchema(), "run_id": nonblankString(nonblank), "task_id": nonblankString(nonblank),
-			"action":         map[string]any{"const": string(autonomous.ActionPlan)},
-			"worker_profile": map[string]any{"const": string(autonomous.WorkerProfilePlanner)},
+			"action":         singletonString(string(autonomous.ActionPlan)),
+			"worker_profile": singletonString(string(autonomous.WorkerProfilePlanner)),
 			"artifact":       map[string]any{"$ref": "#/$defs/evidence_reference"},
 			"created_at":     map[string]any{"type": "string", "format": "date-time"},
 		},
 	}
+}
+
+func singletonString(value string) map[string]any {
+	return map[string]any{"type": "string", "enum": []string{value}}
 }

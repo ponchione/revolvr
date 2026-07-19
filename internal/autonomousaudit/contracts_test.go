@@ -41,6 +41,54 @@ func TestAuditOutputStrictCanonicalAndSchema(t *testing.T) {
 	}
 }
 
+func TestParseAuditOutputRequiredNullAndEmptyOptionalsPreserveSemantics(t *testing.T) {
+	t.Run("absent findings command tiered and mutation", func(t *testing.T) {
+		output := auditOutput(autonomous.AuditDispositionClean)
+		output.Provenance.LatestSourceMutation = nil
+		parsed := parseAuditModelWire(t, output)
+		if len(parsed.Report.Findings) != 0 || parsed.Provenance.Verification.Summary.Command != "" || parsed.Provenance.Verification.Summary.Tiered != nil || parsed.Provenance.Verification.Tiered != nil || parsed.Provenance.LatestSourceMutation != nil {
+			t.Fatalf("decoded audit optionals = %+v", parsed)
+		}
+	})
+
+	t.Run("mutation decision id", func(t *testing.T) {
+		output := auditOutput(autonomous.AuditDispositionClean)
+		output.Provenance.LatestSourceMutation.DecisionID = ""
+		parsed := parseAuditModelWire(t, output)
+		if parsed.Provenance.LatestSourceMutation == nil || parsed.Provenance.LatestSourceMutation.DecisionID != "" {
+			t.Fatalf("decoded source mutation = %+v", parsed.Provenance.LatestSourceMutation)
+		}
+	})
+
+	t.Run("report conditional validation", func(t *testing.T) {
+		output := auditOutput(autonomous.AuditDispositionClean)
+		output.Report.Findings = []autonomous.AuditFinding{auditFinding("unexpected-finding")}
+		raw := auditModelWire(t, output)
+		if _, err := ParseAuditOutput(raw); err == nil || !strings.Contains(err.Error(), "clean disposition must not include findings") {
+			t.Fatalf("ParseAuditOutput() error = %v, want clean finding rejection", err)
+		}
+	})
+}
+
+func TestModelProvenanceProjectionEmitsClosedNullsAndOmitsTrustedTieredResult(t *testing.T) {
+	output := auditOutput(autonomous.AuditDispositionClean)
+	output.Provenance.LatestSourceMutation = nil
+	output.Provenance.Verification.Summary.Tiered = &autonomousverification.Result{}
+	projected := ModelVerificationProjection(output.Provenance.Verification)
+	if projected.Summary.Tiered != nil || output.Provenance.Verification.Summary.Tiered == nil {
+		t.Fatal("model verification projection did not isolate the trusted tiered result")
+	}
+	raw, err := json.Marshal(ModelProvenanceProjection(output.Provenance))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, requiredNull := range []string{`"command":null`, `"tiered":null`, `"latest_source_mutation":null`} {
+		if !bytes.Contains(raw, []byte(requiredNull)) {
+			t.Fatalf("model provenance %s does not contain %s", raw, requiredNull)
+		}
+	}
+}
+
 func TestParseAuditOutputRejectsMissingMalformedMultipleUnknownAndInvalid(t *testing.T) {
 	raw, _ := MarshalAuditOutput(auditOutput(autonomous.AuditDispositionClean))
 	unknown := bytes.Replace(raw, []byte(`"schema_version":`), []byte(`"unknown":true,"schema_version":`), 1)
@@ -168,10 +216,7 @@ func TestAuditOutputTieredFinalProvenance(t *testing.T) {
 	output := auditOutput(autonomous.AuditDispositionClean)
 	gate := autonomousverification.GateEvidence{SchemaVersion: autonomousverification.GateSchemaVersion, Plan: autonomousverification.PlanIdentity{SchemaVersion: autonomousverification.PlanSchemaVersion, SHA256: strings.Repeat("a", 64), ByteSize: 12}, Purpose: autonomousverification.PurposeFinal, RequiredFinalTiers: []string{"full-suite"}, SelectedTiers: []string{"full-suite"}, ExecutedTiers: []string{"full-suite"}, RequiredOutcomes: []autonomousverification.TierGate{{TierID: "full-suite", Outcome: autonomousverification.OutcomePassed}}, OverallOutcome: autonomousverification.OutcomePassed, FinalSatisfied: true}
 	output.Provenance.Verification.Tiered = &gate
-	raw, err := MarshalAuditOutput(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := auditModelWire(t, output)
 	parsed, err := ParseAuditOutput(raw)
 	if err != nil || parsed.Provenance.Verification.Tiered == nil || !parsed.Provenance.Verification.Tiered.FinalSatisfied {
 		t.Fatalf("parsed=%+v err=%v", parsed, err)
@@ -194,6 +239,49 @@ func TestAuditOutputTieredFinalProvenance(t *testing.T) {
 	output.Provenance.Verification.Tiered = &flaky
 	if err := output.Validate(); err == nil || (!strings.Contains(err.Error(), "final gate") && !strings.Contains(err.Error(), "cannot project as passed")) {
 		t.Fatalf("flaky validation=%v", err)
+	}
+}
+
+func TestParseAuditOutputRejectsDuplicateSchemaSemanticSets(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*AuditOutput)
+	}{
+		{name: "audit findings", mutate: func(output *AuditOutput) {
+			output.Report = autonomous.AuditReport{TaskID: "task-1", Disposition: autonomous.AuditDispositionChangesRequired, Rationale: "changes required", Inputs: append([]autonomous.EvidenceReference(nil), output.Provenance.Verification.Summary.Evidence...), Findings: []autonomous.AuditFinding{auditFinding("finding-one"), auditFinding("finding-one")}}
+		}},
+		{name: "required final tiers", mutate: func(output *AuditOutput) {
+			output.Provenance.Verification.Tiered.RequiredFinalTiers = []string{"full-suite", "full-suite"}
+		}},
+		{name: "selected tiers", mutate: func(output *AuditOutput) {
+			output.Provenance.Verification.Tiered.SelectedTiers = []string{"full-suite", "full-suite"}
+		}},
+		{name: "executed tiers", mutate: func(output *AuditOutput) {
+			output.Provenance.Verification.Tiered.ExecutedTiers = []string{"full-suite", "full-suite"}
+		}},
+		{name: "missing required tiers", mutate: func(output *AuditOutput) {
+			output.Provenance.Verification.Tiered.MissingRequired = []string{"full-suite", "full-suite"}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := auditOutput(autonomous.AuditDispositionClean)
+			gate := autonomousverification.GateEvidence{
+				SchemaVersion: autonomousverification.GateSchemaVersion,
+				Plan:          autonomousverification.PlanIdentity{SchemaVersion: autonomousverification.PlanSchemaVersion, SHA256: strings.Repeat("a", 64), ByteSize: 12},
+				Purpose:       autonomousverification.PurposeFinal, RequiredFinalTiers: []string{"full-suite"}, SelectedTiers: []string{"full-suite"}, ExecutedTiers: []string{"full-suite"},
+				RequiredOutcomes: []autonomousverification.TierGate{{TierID: "full-suite", Outcome: autonomousverification.OutcomePassed}}, OverallOutcome: autonomousverification.OutcomePassed, FinalSatisfied: true,
+			}
+			output.Provenance.Verification.Tiered = &gate
+			tt.mutate(&output)
+			raw, err := json.Marshal(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ParseAuditOutput(raw); err == nil || !strings.Contains(err.Error(), "duplicate") {
+				t.Fatalf("ParseAuditOutput() error = %v, want duplicate semantic identity rejection", err)
+			}
+		})
 	}
 }
 
@@ -224,6 +312,45 @@ func auditEvidence(kind autonomous.EvidenceKind, ref string) autonomous.Evidence
 func mustAuditJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	raw, err := jsonMarshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func parseAuditModelWire(t *testing.T, output AuditOutput) AuditOutput {
+	t.Helper()
+	parsed, err := ParseAuditOutput(auditModelWire(t, output))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed
+}
+
+func auditModelWire(t *testing.T, output AuditOutput) []byte {
+	t.Helper()
+	raw, err := json.Marshal(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	report := wire["report"].(map[string]any)
+	if _, ok := report["findings"]; !ok {
+		report["findings"] = []any{}
+	}
+	provenanceRaw, err := json.Marshal(ModelProvenanceProjection(output.Provenance))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var provenance map[string]any
+	if err := json.Unmarshal(provenanceRaw, &provenance); err != nil {
+		t.Fatal(err)
+	}
+	wire["provenance"] = provenance
+	raw, err = json.Marshal(wire)
 	if err != nil {
 		t.Fatal(err)
 	}

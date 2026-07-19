@@ -1,5 +1,61 @@
 # Agent Decisions
 
+## EXT-20 Structured Outputs First-Repair Audit Failure And Follow-up (2026-07-18)
+
+- RC.3 candidate source `a16ea1bdc1a4ceff9d6281c7ca5e6b5c0625205c`
+  is immutable rejected release history. Its first live operation
+  `ext20-802d9db69596-01` and Codex run
+  `019f761f-078d-7b81-932b-278339f2a000` reached no inference: the API
+  rejected the supervisor response schema with HTTP 400
+  `invalid_json_schema` because `properties.conflicts.uniqueItems` is not
+  permitted. The `unsafe_or_ambiguous` outcome, zero attempts, zero
+  verification, zero commits, and unchanged source/Git evidence are terminal
+  facts, not a recoverable or relabelable operation.
+- The retained suite `/tmp/revolvr-ext20-rc3.Qghf19/suite` and evidence bundle
+  below `evidence/repo-a/01-successful-source-change-1` are permanently
+  retired. They must remain byte-for-byte unchanged and must never be retried,
+  reconciled, relabeled, or used as RC.4 input. RC.1 and RC.2 retain the same
+  immutable-history authority.
+- The first local repair removed unsupported composition and uniqueness
+  keywords and passed focused, race, production strict-fake, and full tests,
+  but it failed independent audit. It did not make every object strict-mode
+  compatible: multiple objects omitted declared properties from `required`,
+  correction and audit retained bare/unconstrained objects, and the regression
+  guard was only a finite denylist. Test success from that first repair is not
+  schema-compatibility or API-acceptance evidence.
+- Current official OpenAI Structured Outputs and strict function-calling
+  documentation is the compatibility authority for all four ordinary
+  production builders: supervisor `DecisionOutputSchema`, planner
+  `PlanningOutputSchema`, auditor `AuditOutputSchema`, and corrector
+  `CorrectionOutputSchema`. Every model-facing object must declare concrete
+  `properties`, set `additionalProperties` to exactly false, and require every
+  declared property exactly once. Semantic optionals remain schema-required
+  and use supported null or exact empty-array representations.
+- The supported-subset regression guard is an explicit allowlist, not a
+  denylist. It distinguishes schema keywords from property and `$defs` names,
+  recursively checks every definition and branch, resolves local `$ref`
+  targets, requires array `items`, enforces the mandatory object shape, and
+  reports exact JSON paths. An unknown keyword fails closed.
+- Schema-level conditional composition is not decision authority. Strict JSON
+  decoding and Go validation retain action/profile pairing, conditional field
+  presence, exact correction-authority exclusivity, and all domain decisions.
+  Every semantic set formerly expressed with `uniqueItems` rejects duplicate
+  model output without deduplicating or reordering it: finding and correction
+  partition IDs, child dependency/tag/conflict IDs, needs-input option and
+  independent-work identities, exact independent option identities, audit
+  finding IDs, and verification-tier identities.
+- Full tiered verification results are trusted host evidence and are not
+  model-authored audit provenance. The audit prompt exposes a closed projection
+  with `verification.summary.tiered` fixed to null; the apply boundary compares
+  the projection and deterministically reattaches the exact trusted host result
+  before canonicalization and persistence. The smaller final-gate projection
+  remains closed, typed, validated, and compared.
+- The repair grants no external-use or release authority. `EXT-20` remains
+  open. RC.4 construction remains blocked until this follow-up dirty tree passes
+  a new independent audit and is separately committed with explicit authority.
+  No live-call/API-acceptance claim follows from local validation. RC.4
+  construction, publication, attestation, and live use are outside this pass.
+
 ## EXT-20 RC.3 Replacement Candidate Authority (2026-07-18)
 
 - RC.1 and RC.2 remain immutable rejected release history with all local and

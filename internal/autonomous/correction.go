@@ -163,17 +163,64 @@ func MarshalCorrectionOutput(output CorrectionOutput) ([]byte, error) {
 }
 
 func CorrectionOutputSchema() ([]byte, error) {
-	// The Go validator is authoritative; this schema keeps model output strict and map-free at the contract boundary.
-	schema := map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": false,
-		"required": []string{"schema_version", "task_id", "worker_run_id", "decision_id", "outcome", "verification_failure_addressed", "evidence"},
+	// The Go validator remains the conditional authority after this closed model-facing contract is decoded.
+	nonblank := map[string]any{"type": "string", "pattern": `.*\S.*`}
+	schema := map[string]any{"type": "object", "additionalProperties": false,
+		"required": []string{"schema_version", "task_id", "worker_run_id", "decision_id", "finding_ids", "verification_failure", "outcome", "resolved_finding_ids", "remaining_finding_ids", "verification_failure_addressed", "evidence"},
 		"properties": map[string]any{
-			"schema_version": map[string]any{"const": CorrectionOutputSchemaVersion}, "task_id": map[string]any{"type": "string", "minLength": 1}, "worker_run_id": map[string]any{"type": "string", "minLength": 1}, "decision_id": map[string]any{"type": "string", "minLength": 1},
-			"finding_ids": map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"type": "string"}}, "verification_failure": map[string]any{"type": "object"}, "outcome": map[string]any{"enum": []string{string(CorrectionOutcomeCorrected), string(CorrectionOutcomePartial), string(CorrectionOutcomeFailed)}},
-			"resolved_finding_ids": map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"type": "string"}}, "remaining_finding_ids": map[string]any{"type": "array", "uniqueItems": true, "items": map[string]any{"type": "string"}}, "verification_failure_addressed": map[string]any{"type": "boolean"}, "evidence": map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "object"}},
-		}, "oneOf": []any{map[string]any{"required": []string{"finding_ids"}, "not": map[string]any{"required": []string{"verification_failure"}}}, map[string]any{"required": []string{"verification_failure"}, "not": map[string]any{"required": []string{"finding_ids"}}}}}
+			"schema_version":                 correctionSingletonString(CorrectionOutputSchemaVersion),
+			"task_id":                        nonblank,
+			"worker_run_id":                  nonblank,
+			"decision_id":                    nonblank,
+			"finding_ids":                    correctionFindingIDsSchema(),
+			"verification_failure":           map[string]any{"anyOf": []any{map[string]any{"$ref": "#/$defs/verification_failure"}, map[string]any{"type": "null"}}},
+			"outcome":                        map[string]any{"type": "string", "enum": []string{string(CorrectionOutcomeCorrected), string(CorrectionOutcomePartial), string(CorrectionOutcomeFailed)}},
+			"resolved_finding_ids":           correctionFindingIDsSchema(),
+			"remaining_finding_ids":          correctionFindingIDsSchema(),
+			"verification_failure_addressed": map[string]any{"type": "boolean"},
+			"evidence":                       map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"$ref": "#/$defs/evidence_reference"}},
+		},
+		"$defs": map[string]any{
+			"evidence_reference": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"kind", "reference", "detail"},
+				"properties": map[string]any{
+					"kind": map[string]any{"type": "string", "enum": []string{
+						string(EvidenceKindTask), string(EvidenceKindPlan), string(EvidenceKindLedger),
+						string(EvidenceKindReceipt), string(EvidenceKindVerification), string(EvidenceKindGit),
+						string(EvidenceKindAudit), string(EvidenceKindRepository), string(EvidenceKindFile),
+					}},
+					"reference": nonblank,
+					"detail":    nonblank,
+				},
+			},
+			"verification_failure": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"task_id", "run_id", "occurrence_id", "source_revision", "status", "evidence"},
+				"properties": map[string]any{
+					"task_id":         nonblank,
+					"run_id":          nonblank,
+					"occurrence_id":   nonblank,
+					"source_revision": map[string]any{"type": "string", "pattern": `^[a-f0-9]{64}$`},
+					"status":          correctionSingletonString(string(VerificationStatusFailed)),
+					"evidence":        map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"$ref": "#/$defs/evidence_reference"}},
+				},
+			},
+		},
+	}
 	raw, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	return append(raw, '\n'), nil
+}
+
+func correctionFindingIDsSchema() map[string]any {
+	return map[string]any{"type": "array", "items": map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`}}
+}
+
+func correctionSingletonString(value string) map[string]any {
+	return map[string]any{"type": "string", "enum": []string{value}}
 }
