@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Exact-Candidate Remote CI Authority (2026-07-19)
+
+- Remote candidate authority is exact branch
+  `refs/heads/level1-v0.1.0-rc.5` at source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. The branch was created only
+  after a no-tags fetch, exact published-source ancestry proof, empty local and
+  remote candidate/attestation/tag namespaces, sealed-bundle verification,
+  and exact historical-ref preservation. Its exact remote SHA readback, not
+  the branch name alone, is authority.
+- Push-triggered `ci.yml` run `29697069305` is the EXT-15 source-CI authority
+  for RC.5. It binds event `push`, branch `level1-v0.1.0-rc.5`, exact source
+  SHA, and exactly ten mandatory unique jobs to `completed` / `success`.
+  Exact run and job IDs, URLs, head SHA, status, and conclusions are retained
+  in `.agent/STATE.md` and `.agent/HANDOFF.md`.
+- RC.1 through RC.4 remain immutable rejected history. Post-run verification
+  preserved every sealed historical inventory and workflow, all eight
+  historical remote refs, and the terminal RC.4 operation evidence; the
+  40-target content/metadata fingerprint was unchanged.
+- Source CI is not release-artifact attestation. The next separate gate may
+  only construct and locally verify a collision-free RC.5 workflow that checks
+  out the immutable candidate SHA, uses exact Go 1.26.5, reproduces two clean
+  Linux/Darwin/FreeBSD release build passes, and verifies the sealed hashes and
+  embedded identities. Candidate publication grants no attestation ref,
+  remote artifact, suite, live-model, tag, release, external-use approval, or
+  `EXT-20` completion authority.
+
 ## EXT-20 RC.5 Independent Local Review And Remote-CI Launcher (2026-07-19)
 
 - Independent controller review accepted the sealed RC.5 candidate and

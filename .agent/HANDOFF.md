@@ -43,10 +43,15 @@ was published as exact source commit
 construction and independent review now pass from that exact source. The
 local-candidate record is published at controller commit
 `13973d8952d5de3ad20c5e13a7e6a419c8d8b9e2`; it is not candidate source. The
-next gate is collision-free raw-Git candidate-ref publication and remote CI via
-`agent-ext20-rc5-remote.sh`. The RC.4 suite must never be retried.
+remote-gate launcher/controller commit is its direct child
+`4bcd73d5ae35517cd5fd09ed0a6dca8d1af43f2b`; it is also not candidate source.
+Raw Git has now published only `refs/heads/level1-v0.1.0-rc.5` at the exact
+candidate SHA, and push-triggered CI run `29697069305` passed exactly all ten
+mandatory EXT-15 jobs on that SHA. The next separate gate is local construction
+and full verification of a collision-free exact-checkout Go 1.26.5 RC.5
+artifact-attestation workflow. The RC.4 suite must never be retried.
 
-## RC.5 Local Candidate Handoff
+## RC.5 Candidate Ref And Remote CI Authority
 
 - Exact source commit/tree:
   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` /
@@ -83,21 +88,58 @@ next gate is collision-free raw-Git candidate-ref publication and remote CI via
   `ext20-2bd21aea4f72-01`, terminal evidence, refs, workflows, hashes, and
   sentinels were preserved. Historical baseline SHA-256 is
   `b0adbd4c9082ca10a9c344bc0f1cdc24458a23da77db274b98bd27e5af6c38b2`.
-- Exact next step: in a fresh independently authorized controller pass, first
-  reverify both sealed inventories and reconfirm that local/remote
-  `refs/heads/level1-v0.1.0-rc.5` is absent. Then publish only the exact source
-  commit with raw Git and an empty-ref lease:
+  The independent pre/post-publication 40-target content/metadata fingerprint
+  is unchanged at
+  `56b3fd0c61c2dd7842597ceb0fa46e66216c61317b5477cd3e326fa671416ef3`.
+- Remote candidate ref: `refs/heads/level1-v0.1.0-rc.5`. Exact readback:
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`. The RC.5 attestation ref,
+  every `*rc.5*` tag, and the RC.5 attestation workflow remain absent.
+- Push-triggered `ci.yml` run `29697069305`, run number `42`, attempt `1`, is
+  `completed` / `success` at event `push`, branch
+  `level1-v0.1.0-rc.5`, and head SHA
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`:
+  `https://github.com/ponchione/revolvr/actions/runs/29697069305`.
+- Exact jobs, each at that head SHA and `completed` / `success`:
+  - `88219542577` — Go 1.22 source floor and tests —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542577`
+  - `88219542546` — Production autonomous strict-fake suite —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542546`
+  - `88219542556` — Race tests —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542556`
+  - `88219542557` — Vet and module verification —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542557`
+  - `88219542574` — Fake-Codex success smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542574`
+  - `88219542580` — Fake-Codex verification-failure smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542580`
+  - `88219542581` — Build linux/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542581`
+  - `88219542568` — Build darwin/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542568`
+  - `88219542566` — Build freebsd/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542566`
+  - `88219542586` — Build Windows diagnostic stub —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542586`
+- Exact next task: in a fresh pass, construct and locally verify only
+  `.github/workflows/level1-rc5-candidate-attestation.yml`. Start its authority
+  check with:
 
   ```sh
   git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
-  git push --force-with-lease=refs/heads/level1-v0.1.0-rc.5: origin \
-    19c1ef4b6a610016487880aa8ad69ec0204bd4f7:refs/heads/level1-v0.1.0-rc.5
+  git ls-remote --refs origin \
+    refs/heads/level1-v0.1.0-rc.5 \
+    refs/heads/level1-v0.1.0-rc.5-attestation \
+    'refs/tags/*rc.5*'
   ```
 
-  Read back the remote ref and inspect the push-triggered remote CI for that
-  exact SHA. Do not add an attestation workflow or prepare a suite in the same
-  pass. No ref publication or remote CI request is authorized by this handoff
-  alone.
+  Require the candidate readback above, an absent attestation ref/tag/workflow
+  namespace, exact checkout of immutable source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, exact Go `1.26.5`, two clean
+  non-local release builds, byte-identical Linux/Darwin/FreeBSD artifacts, the
+  three sealed hashes, empty build IDs, and exact embedded source/version
+  identities. This next task grants no workflow commit/push, attestation-ref,
+  remote run/artifact, suite, model call, tag, release, external-use approval,
+  or `EXT-20` completion; those remain later reviewed gates.
 
 ## Lifecycle-Authority Remediation Handoff
 

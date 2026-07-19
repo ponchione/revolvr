@@ -93,6 +93,108 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Exact-Candidate Remote CI (2026-07-19)
+
+- Task selected: the bounded RC.5 candidate-ref and remote-CI subtask of
+  `EXT-20` only. `EXT-20` remains unchecked.
+- Before publication, the 15-file candidate and 44-file verification bundles
+  reverified against their complete sealed inventories. Candidate ID
+  `level1-v0.1.0-rc.5`, release `0.1.0`, source commit
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, source tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`, build-instructions SHA-256
+  `69e0e533258b88b810db465935e66c49fd4e294fb745fc13998115dc8951dcb8`,
+  and Linux/Darwin/FreeBSD SHA-256 values
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  `a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d`,
+  and `f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6`
+  matched exactly. Candidate inventory/seal remained
+  `ba718e4bef733a370cff72570b96e3c2f0db0af4b9ad8eedc77db2c965ca0b88` /
+  `8bf947efd3d7f6467d500f88278913c0bcf5dd922331e558d483176a777584ab`;
+  verification inventory/seal remained
+  `e57353d8b929758b44d234458dfb2c3b4bae0cf347eccc206ba9424312a0e366` /
+  `2cded484b787daa903ebf457f3f96bb9520af122bd48114300d78e543f39ccb8`.
+  The candidate self-verifier passed.
+- The immediate publication gate fetched `origin/main` without tags and
+  required exact launcher/controller HEAD and remote main
+  `4bcd73d5ae35517cd5fd09ed0a6dca8d1af43f2b`, whose exact parent is the
+  independently reviewed local-candidate record
+  `13973d8952d5de3ad20c5e13a7e6a419c8d8b9e2`. It proved the exact source
+  object/tree and ancestry from `origin/main`; local and remote candidate and
+  attestation refs absent; every local and remote `*rc.5*` tag absent; the RC.5
+  workflow absent locally and on `origin/main`; and all eight RC.1 through
+  RC.4 candidate/attestation refs at their sealed identities.
+- Two read-only fail-closed harness checks stopped before publication. The
+  first incorrectly treated the local-candidate record as current launcher
+  HEAD; inspection proved the expected directly-descendant launcher commit.
+  The second sorted remote-ref rows by SHA rather than the already documented
+  ref-name normalization; the diff showed the same eight identities. The
+  corrected checks were rerun from the beginning, and the candidate ref was
+  still absent before the sole push.
+- The only external mutation used raw Git with the required empty-expected
+  lease at `2026-07-19T17:33:42Z`:
+  `git push --force-with-lease=refs/heads/level1-v0.1.0-rc.5: origin
+  19c1ef4b6a610016487880aa8ad69ec0204bd4f7:refs/heads/level1-v0.1.0-rc.5`.
+  Exact remote readback is
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` at
+  `refs/heads/level1-v0.1.0-rc.5`. No existing ref was moved or deleted.
+- The public GitHub Actions REST API identified exactly one matching `ci.yml`
+  run: run `29697069305`, run number `42`, attempt `1`, event `push`, branch
+  `level1-v0.1.0-rc.5`, exact head SHA
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, status `completed`, conclusion
+  `success`, URL
+  `https://github.com/ponchione/revolvr/actions/runs/29697069305`. It was
+  created and started at `2026-07-19T17:33:44Z` and completed at
+  `2026-07-19T17:36:59Z` within the finite polling bound.
+- The jobs endpoint returned exactly the ten mandatory unique jobs. Each had
+  head SHA `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, status `completed`, and
+  conclusion `success`:
+  - `88219542577` — Go 1.22 source floor and tests —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542577`
+  - `88219542546` — Production autonomous strict-fake suite —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542546`
+  - `88219542556` — Race tests —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542556`
+  - `88219542557` — Vet and module verification —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542557`
+  - `88219542574` — Fake-Codex success smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542574`
+  - `88219542580` — Fake-Codex verification-failure smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542580`
+  - `88219542581` — Build linux/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542581`
+  - `88219542568` — Build darwin/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542568`
+  - `88219542566` — Build freebsd/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542566`
+  - `88219542586` — Build Windows diagnostic stub —
+    `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542586`
+- Post-CI preservation reverified both RC.5 seals, all ten available sealed
+  historical candidate/verification inventories, all four historical
+  attestation workflow hashes, all eight historical remote refs, and the
+  terminal RC.4 collector bundle for operation `ext20-2bd21aea4f72-01`.
+  The full 40-target historical content/metadata fingerprint was identical
+  before and after at
+  `56b3fd0c61c2dd7842597ceb0fa46e66216c61317b5477cd3e326fa671416ef3`.
+  The RC.5 attestation ref, tag namespace, and workflow remain absent.
+- Files changed: this file, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`
+  only. `.agent/TASKS.md` is unchanged. No source, dependency, workflow,
+  candidate bundle, verification bundle, historical evidence, or local tag
+  changed; no `main` commit or push occurred.
+- Verification commands run: complete sealed-inventory/file-set checks and
+  candidate self-verification; historical inventory, workflow, terminal-suite,
+  operation, and recursive preservation checks; raw-Git no-tags fetch,
+  ancestry/collision/ref-preservation checks, empty-expected publication and
+  exact readback; finite public-REST run polling; exact ten-job REST
+  comparison; and final diff/worktree checks. Result: passed with no blocker.
+  No `gh`, attestation workflow/ref, suite, live/nested model operation, tag,
+  release, external-use approval, or `EXT-20` completion occurred.
+- What remains: in a separate fresh bounded pass, construct and locally verify
+  a collision-free RC.5 attestation workflow that checks out exact candidate
+  source `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, uses exact Go `1.26.5`,
+  performs two clean release builds, checks the three sealed artifact hashes
+  and embedded identities, and retains one exact remote artifact only after a
+  later separately reviewed publication step.
+
 ## EXT-20 RC.5 Independent Local Review And Handoff (2026-07-19)
 
 - Independent controller review reverified the 15-file candidate and 44-file
