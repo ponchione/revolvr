@@ -78,17 +78,90 @@ ten-job CI run, artifact-attestation workflow/run/artifact, guarded suite, and
 terminal failure are now immutable rejected history. Its first supervisor
 selected `implement` from `pending` because the prompt omitted exact lifecycle
 routing authority; runtime enforcement correctly rejected it before any
-worker attempt. The bounded no-model source remediation is implemented and
-locally verified in the current uncommitted tree. It awaits independent
-review and separately authorized raw-Git publication before any collision-free
-RC.5 construction. Local tests do not establish live API acceptance, and no
-live model call is authorized.
+worker attempt. The bounded no-model source remediation passed independent
+review and was published as exact source
+`19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+`2fb39c93694e72d986e7a8a849a542fc1bf1728d`. Collision-free RC.5 is now
+constructed and locally verified from only that source. Its candidate and
+verification bundles remain local; no candidate ref, remote CI, workflow,
+suite, live model call, tag, release, external-use approval, or `EXT-20`
+completion has occurred. Local tests do not establish live API acceptance.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.5 Replacement Candidate — Local Verification (2026-07-19)
+
+- Task selected: construct and locally verify collision-free candidate
+  `level1-v0.1.0-rc.5` from exact published source commit
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. The source commit was clean,
+  published, and reachable from `origin/main`; controller-only helper
+  `agent-ext20-rc5.sh` was absent from the source and was not run or copied.
+- Files changed: added the ignored settled build helper
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.5.sh`, immutable candidate
+  bundle `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61`, and
+  separate immutable verification bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61-verification`;
+  updated this state file, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`.
+  `.agent/TASKS.md` is unchanged and `EXT-20` remains unchecked. No product
+  source, dependency, workflow, ref, tag, suite, or historical evidence changed.
+- Collision and source authority passed before construction: local and remote
+  RC.5 candidate/attestation refs, RC.5 tags, bundle paths, workflow, remote
+  artifact name, run root, and diagnostic were absent. Exact Go authority was
+  `/usr/local/go/bin/go` at `go1.26.5`; the source-floor toolchain resolved as
+  `go1.22.12`.
+- Verification passed from retained clean clone root
+  `/tmp/revolvr-ext20-rc5-build.6Ci9vy/source-authority`: focused lifecycle
+  routing, supervisor prompt/provenance, cycle fail-closed, Structured Outputs,
+  production happy-path, and strict-fake regressions in ordinary and race
+  modes; verbose focused proof; Go 1.22.12 and Go 1.26.5 full suites; `go vet
+  ./...`; `go mod verify`; and reachable/imported vulnerability scans. There
+  are zero reachable or imported-package vulnerabilities; the sole module-only
+  result remains Windows-only, uncalled `GO-2026-5024` in
+  `golang.org/x/sys@v0.30.0`, fixed in v0.44.0.
+- The settled EXT-18 build procedure produced Linux, Darwin, and FreeBSD amd64
+  binaries with Go 1.26.5, release version `0.1.0`, `CGO_ENABLED=0`, trimpath,
+  VCS metadata, and empty build IDs. Two independent `git clone --no-local`
+  builds were byte-identical. Independent inspection confirmed exact
+  `main.version` symbol size 16, exactly one `0.1.0` string, version output
+  `revolvr 0.1.0`, source revision, `vcs.modified=false`, tool, command path,
+  target, and CGO authority.
+- Artifact SHA-256 values are Linux
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  Darwin
+  `a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d`,
+  and FreeBSD
+  `f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6`.
+  Build-instructions SHA-256 is
+  `69e0e533258b88b810db465935e66c49fd4e294fb745fc13998115dc8951dcb8`.
+- The candidate has 15 files, 13 inventoried payload entries, inventory
+  SHA-256
+  `ba718e4bef733a370cff72570b96e3c2f0db0af4b9ad8eedc77db2c965ca0b88`,
+  and inventory-seal SHA-256
+  `8bf947efd3d7f6467d500f88278913c0bcf5dd922331e558d483176a777584ab`.
+  The verification bundle has 44 files, 42 inventoried evidence entries,
+  inventory SHA-256
+  `e57353d8b929758b44d234458dfb2c3b4bae0cf347eccc206ba9424312a0e366`,
+  and inventory-seal SHA-256
+  `2cded484b787daa903ebf457f3f96bb9520af122bd48114300d78e543f39ccb8`.
+- RC.1 through RC.4 candidate/evidence inventories reverified before and after
+  construction. RC.4 suite `/tmp/revolvr-ext20-rc4.DGg1pW/suite`, operation
+  `ext20-2bd21aea4f72-01`, both terminal collector bundles, all historical
+  remote refs, and all sentinels remained unchanged. The 40-target historical
+  content/layout baseline SHA-256 is
+  `b0adbd4c9082ca10a9c344bc0f1cdc24458a23da77db274b98bd27e5af6c38b2`;
+  post-construction content/ctime and sealed inventories passed. The one
+  evidence-harness stop was repaired by normalizing remote-ref order before
+  comparison; ref identities did not change and no candidate authority changed.
+- Result: local RC.5 candidate construction passed with no blockers. What
+  remains is an independent read-only review, then separately authorized raw-
+  Git publication of the still-absent `refs/heads/level1-v0.1.0-rc.5` at the
+  exact source commit and remote CI on that exact ref. No remote or live-model
+  acceptance is claimed.
 
 ## EXT-20 Lifecycle-Authority Controller Review And Publication (2026-07-19)
 

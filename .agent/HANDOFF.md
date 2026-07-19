@@ -39,8 +39,64 @@ ordinary/race, production happy-path/strict-fake, full-suite, diff, candidate,
 and immutable evidence-preservation checks, then passed independent review and
 was published as exact source commit
 `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
-`2fb39c93694e72d986e7a8a849a542fc1bf1728d`. The next gate is collision-free
-local RC.5 construction; the RC.4 suite must never be retried.
+`2fb39c93694e72d986e7a8a849a542fc1bf1728d`. Collision-free local RC.5
+construction and verification now pass from that exact source. The next gate
+is independent read-only bundle review, followed only with separate authority
+by collision-free raw-Git candidate-ref publication and remote CI. The RC.4
+suite must never be retried.
+
+## RC.5 Local Candidate Handoff
+
+- Exact source commit/tree:
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` /
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. It is published and reachable
+  from `origin/main`; later controller commits and `agent-ext20-rc5.sh` are not
+  source authority.
+- Candidate bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61` (15 files;
+  inventory
+  `ba718e4bef733a370cff72570b96e3c2f0db0af4b9ad8eedc77db2c965ca0b88`;
+  seal `8bf947efd3d7f6467d500f88278913c0bcf5dd922331e558d483176a777584ab`).
+- Verification bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61-verification`
+  (44 files; inventory
+  `e57353d8b929758b44d234458dfb2c3b4bae0cf347eccc206ba9424312a0e366`;
+  seal `2cded484b787daa903ebf457f3f96bb9520af122bd48114300d78e543f39ccb8`).
+- Artifact SHA-256 values: Linux
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  Darwin
+  `a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d`,
+  FreeBSD
+  `f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6`.
+  Build-instructions SHA-256 is
+  `69e0e533258b88b810db465935e66c49fd4e294fb745fc13998115dc8951dcb8`.
+- Retained clean construction root:
+  `/tmp/revolvr-ext20-rc5-build.6Ci9vy`; source clone is its
+  `source-authority` child. Focused lifecycle/prompt/provenance/fail-closed,
+  Structured Outputs, production happy-path, strict-fake, race, Go 1.22.12,
+  Go 1.26.5, vet, module, vulnerability, reproducibility, metadata, version,
+  collision, and preservation checks all pass. Local evidence claims no live
+  API acceptance.
+- RC.1 through RC.4 remain immutable. RC.4 suite
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite`, operation
+  `ext20-2bd21aea4f72-01`, terminal evidence, refs, workflows, hashes, and
+  sentinels were preserved. Historical baseline SHA-256 is
+  `b0adbd4c9082ca10a9c344bc0f1cdc24458a23da77db274b98bd27e5af6c38b2`.
+- Exact next step: in a fresh independently authorized controller pass, first
+  reverify both sealed inventories and reconfirm that local/remote
+  `refs/heads/level1-v0.1.0-rc.5` is absent. Then publish only the exact source
+  commit with raw Git and an empty-ref lease:
+
+  ```sh
+  git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+  git push --force-with-lease=refs/heads/level1-v0.1.0-rc.5: origin \
+    19c1ef4b6a610016487880aa8ad69ec0204bd4f7:refs/heads/level1-v0.1.0-rc.5
+  ```
+
+  Read back the remote ref and inspect the push-triggered remote CI for that
+  exact SHA. Do not add an attestation workflow or prepare a suite in the same
+  pass. No ref publication or remote CI request is authorized by this handoff
+  alone.
 
 ## Lifecycle-Authority Remediation Handoff
 
@@ -451,16 +507,17 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run exactly one fresh local-candidate pass with `agent-ext20-rc5.sh` using
-   published source commit `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` and tree
-   `2fb39c93694e72d986e7a8a849a542fc1bf1728d`.
-2. Construct and fully verify a collision-free immutable RC.5 candidate and
-   separate verification bundle without committing, pushing a candidate ref,
-   starting remote CI, preparing a suite, or calling a model.
-3. Retain exact hashes/inventories and hand off the later independent
-   candidate-review and raw-Git candidate-ref/remote-CI gate. RC.4 is terminal
-   and must never be rerun. Keep `EXT-20` unchecked; do not tag, release, or
-   approve external use.
+1. Independently inspect the sealed RC.5 candidate and verification bundles,
+   reverify both inventories, exact source/tree, artifact metadata/hashes,
+   preservation evidence, and the continued absence of the local and remote
+   RC.5 candidate ref.
+2. Only with separate publication authority, use raw Git with an empty-ref
+   lease to publish `refs/heads/level1-v0.1.0-rc.5` at exact source
+   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, read it back, and inspect the
+   push-triggered remote CI on that exact SHA.
+3. Stop after the candidate-ref/remote-CI gate. Do not add an attestation
+   workflow, prepare an RC.5 suite, call a model, tag, release, approve external
+   use, or check `EXT-20`. RC.4 is terminal and must never be rerun.
 
 The completed remote-CI pass did not create an attestation launcher. Do not
 rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
@@ -474,8 +531,13 @@ attestation, or suite-preparation launchers.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5.sh
+git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+git push --force-with-lease=refs/heads/level1-v0.1.0-rc.5: origin \
+  19c1ef4b6a610016487880aa8ad69ec0204bd4f7:refs/heads/level1-v0.1.0-rc.5
 ```
+
+This command requires the independent checks and separate publication
+authority above; it was not run during local candidate construction.
 
 ## Session Rules
 
@@ -489,7 +551,7 @@ Exact next command:
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation completed, but RC.4 then failed terminally on its first
   operation and is retired. The lifecycle-authority remediation is published.
-  The next launcher authorizes local RC.5 construction only; candidate-ref
-  publication, remote CI, live-model work, tag, release, and external-use
-  authority remain excluded.
+  RC.5 local construction is complete. Candidate-ref publication, remote CI,
+  live-model work, tag, release, and external-use authority remain excluded
+  until their separate gates.
 - The repository is durable memory; this handoff is only the resume pointer.

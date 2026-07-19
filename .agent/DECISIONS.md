@@ -1,5 +1,37 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Local Candidate Authority (2026-07-19)
+
+- The sole local RC.5 candidate authority is exact published source commit
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
+  `2fb39c93694e72d986e7a8a849a542fc1bf1728d`, release version `0.1.0`, and Go
+  `1.26.5`. Later controller state/helper commits are not candidate source, and
+  `agent-ext20-rc5.sh` must remain outside every candidate clone and artifact.
+- The immutable local candidate bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61`; its inventory
+  SHA-256 is
+  `ba718e4bef733a370cff72570b96e3c2f0db0af4b9ad8eedc77db2c965ca0b88`.
+  Its Linux, Darwin, and FreeBSD amd64 artifacts are respectively
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  `a0ba1e05f76d92c1d20577c897a37bc2b4a3252a4e0fb10ef9d736f25b07645d`,
+  and `f9b6da20be9497c5eb772f7b40945fceedc064ecb6e081809c9510d71462e2d6`.
+  Two independent non-local clean clones produced byte-identical artifacts.
+- The separate immutable verification bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61-verification`;
+  its inventory SHA-256 is
+  `e57353d8b929758b44d234458dfb2c3b4bae0cf347eccc206ba9424312a0e366`.
+  It retains exact source/tool/build instructions, focused lifecycle and
+  Structured Outputs guards, production happy-path and strict-fake proof,
+  full source-floor/release checks, vulnerability results, independent binary
+  metadata, collision checks, and historical preservation evidence.
+- This local construction grants no candidate-ref publication, remote CI,
+  attestation workflow, live suite/model operation, tag, release, external-use
+  approval, or `EXT-20` completion. RC.1 through RC.4 and RC.4 terminal suite
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite` with operation
+  `ext20-2bd21aea4f72-01` remain immutable rejected history. The next gate is a
+  separate independent read-only review followed by explicitly authorized raw-
+  Git publication of the collision-free RC.5 candidate ref and remote CI.
+
 ## EXT-20 Lifecycle-Authority Repair Publication (2026-07-19)
 
 - Independent review accepted and raw Git published the lifecycle-authority
