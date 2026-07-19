@@ -20,12 +20,44 @@ full repository tests passed again immediately before publication without a
 live model call.
 
 Collision-free RC.4 now exists as a locally verified immutable candidate from
-that exact source commit. The controller launcher `agent-ext20-rc4.sh` is not
-candidate source. RC.4 is only the sequential candidate label inside open
-backlog task `EXT-20`; it is not a separate backlog task or external-use
-approval. The next bounded pass is independent verification followed, only
-with explicit raw-Git publication authority, by the exact candidate-ref and
-remote-CI gate.
+that exact source commit. Raw Git published only
+`refs/heads/level1-v0.1.0-rc.4` at the candidate SHA, and push-triggered CI run
+`29688941202` passed exactly all ten mandatory EXT-15 jobs on that SHA. The
+controller launchers are not candidate source. RC.4 is only the sequential
+candidate label inside open backlog task `EXT-20`; it is not a separate
+backlog task or external-use approval. The next bounded pass is a separate
+RC.4 exact-checkout Go 1.26.5 release-artifact attestation workflow/ref.
+
+## RC.4 Candidate Ref And Remote CI Authority
+
+- Remote candidate ref: `refs/heads/level1-v0.1.0-rc.4`.
+- Exact remote readback:
+  `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Push-triggered Actions run: `29688941202` — `completed` / `success` —
+  `https://github.com/ponchione/revolvr/actions/runs/29688941202`.
+- Run identity: event `push`, branch `level1-v0.1.0-rc.4`, head SHA
+  `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Exact successful jobs, all `completed` / `success` at that head SHA:
+  - `88198118677` — Go 1.22 source floor and tests
+  - `88198118646` — Production autonomous strict-fake suite
+  - `88198118664` — Race tests
+  - `88198118665` — Vet and module verification
+  - `88198118653` — Fake-Codex success smoke
+  - `88198118661` — Fake-Codex verification-failure smoke
+  - `88198118641` — Build linux/amd64
+  - `88198118668` — Build darwin/amd64
+  - `88198118681` — Build freebsd/amd64
+  - `88198118662` — Build Windows diagnostic stub
+- Each job URL is
+  `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/<job-id>`;
+  `.agent/STATE.md` retains the expanded exact URLs.
+- Post-CI checks preserved both RC.4 inventories, all eight historical sealed
+  inventories, three historical workflows, six historical refs, and four
+  retired-suite absences. The RC.4 attestation ref and every `*rc.4*` tag
+  remain absent.
+- No `main` commit/push, workflow, attestation ref, suite, live/nested model
+  operation, tag, release, external-use approval, or `EXT-20` completion
+  occurred.
 
 ## RC.4 Local Candidate Authority
 
@@ -36,7 +68,7 @@ remote-CI gate.
 - Exact source tree:
   `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`.
 - Published authority: source is an ancestor of `origin/main` at
-  `45a7f2384aaf21e36174660618c5f00a91edb1ab`.
+  `af123c7ce38e41982a2302d76cb7e2fa6bdf5608`.
 - Candidate bundle:
   `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec/`.
 - Candidate inventory SHA-256:
@@ -77,8 +109,9 @@ remote-CI gate.
   and happy-path tests, and `go test -count=1 ./...`; all passed. The recorded
   local-candidate state was committed and pushed on `main` as
   `1917df5c374f8337a7bebb429478e7e16ea8420d`.
-- No candidate ref, remote CI, attestation workflow, suite, live/nested model,
-  tag, release, or external-use authority exists yet. `EXT-20` remains open.
+- The exact candidate ref and source-floor remote CI authority are recorded
+  above. No attestation workflow, suite, live/nested model, tag, release, or
+  external-use authority exists yet. `EXT-20` remains open.
 
 ## RC.3 Rejection And Preservation Authority
 
@@ -217,24 +250,24 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Start one fresh session with `agent-ext20-rc4-remote.sh`. Running that
-   launcher is explicit authority for only the collision-safe candidate-ref
-   creation described below.
-2. Raw Git must recheck that `refs/heads/level1-v0.1.0-rc.4` is absent
-   immediately before creating it at exact source
-   `2546913e38ec273f64417dece2f91df78fd42fc2`; it must not move any historical
-   ref or use a later controller/state commit as candidate source.
-3. Require the complete EXT-15 push-triggered CI matrix to pass on that exact
-   candidate SHA and record the remote ref readback plus every job conclusion.
-4. Stop after remote CI. The RC.4 exact-checkout Go 1.26.5 attestation workflow,
-   no-model suite preparation, and any separately confirmed live model work are
-   later bounded passes. Keep `EXT-20` unchecked and external use unapproved.
+1. Start one fresh, separately authorized session for only the RC.4
+   exact-checkout Go 1.26.5 release-artifact attestation workflow/ref.
+2. Preserve the candidate ref at its exact SHA. Fail closed unless the proposed
+   `refs/heads/level1-v0.1.0-rc.4-attestation`, RC.4 workflow path, artifact
+   name, and related namespace remain collision-free.
+3. The workflow must check out
+   `2546913e38ec273f64417dece2f91df78fd42fc2`, perform two clean release build
+   passes with exact Go 1.26.5, and require the recorded Linux/Darwin/FreeBSD
+   hashes and embedded version/source/tool/target/CGO/VCS identities.
+4. Record exact workflow commit/ref, run and job IDs/URLs/conclusions, and
+   retained artifact ID/name/size/digest/expiry, then stop. No-model suite
+   preparation and any separately confirmed live work remain later passes.
+   Keep `EXT-20` unchecked and external use unapproved.
 
-Exact next command:
-
-```bash
-./agent-ext20-rc4-remote.sh
-```
+No attestation launcher has been created yet. The next controller must create
+one with authority limited to the step above; do not rerun
+`agent-ext20-rc4-remote.sh` because the candidate ref is now intentionally
+nonempty.
 
 ## Session Rules
 
@@ -245,8 +278,7 @@ Exact next command:
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- The RC.4 remote launcher authorizes only collision-safe candidate-ref
-  creation and exact-source remote CI evidence. It must remain isolated from
-  later attestation, suite, live/nested model, tag, release, and external-use
-  work.
+- The completed RC.4 remote launcher authority is exhausted. Any attestation
+  mutation requires a new separately scoped launcher and must remain isolated
+  from suite, live/nested model, tag, release, and external-use work.
 - The repository is durable memory; this handoff is only the resume pointer.

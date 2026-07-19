@@ -76,14 +76,93 @@ as exact source `2546913e38ec273f64417dece2f91df78fd42fc2`, tree
 `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. Local tests do not establish API
 acceptance, and no live model call is authorized. Collision-free RC.4 now
 exists as a locally verified immutable candidate and separate verification
-bundle from that exact source; it has not been published or used for a live
-operation.
+bundle from that exact source. Its exact candidate ref is published, and its
+complete ten-job push-triggered EXT-15 CI matrix passed; no attestation,
+dogfood suite, or live operation exists yet.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.4 Exact-Candidate Remote CI (2026-07-19)
+
+- Task selected: the bounded RC.4 candidate-ref and remote-CI subtask of
+  `EXT-20` only. `EXT-20` remains unchecked.
+- Before publication, both sealed RC.4 inventories, the candidate
+  self-verifier, candidate ID `level1-v0.1.0-rc.4`, release `0.1.0`, source
+  commit `2546913e38ec273f64417dece2f91df78fd42fc2`, source tree
+  `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`, and all three artifact hashes
+  reverified exactly. Candidate inventory SHA-256 remained
+  `3535d7a2b46a0dbd3101428b4177e4c46baabc29190e5b1c580d90e6ff033f5d`;
+  verification inventory SHA-256 remained
+  `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`.
+- The immediate pre-publication raw-Git gate fetched `origin` without tags,
+  proved the exact source object/tree and ancestry from fetched
+  `origin/main` at `af123c7ce38e41982a2302d76cb7e2fa6bdf5608`, proved remote
+  candidate and attestation refs absent, proved every remote tag matching
+  `*rc.4*` absent, and reread all six historical RC.1/RC.2/RC.3 refs at their
+  sealed identities.
+- The sole external mutation used the required empty-expected lease:
+  `git push --force-with-lease=refs/heads/level1-v0.1.0-rc.4: origin
+  2546913e38ec273f64417dece2f91df78fd42fc2:refs/heads/level1-v0.1.0-rc.4`.
+  Remote readback returned exactly
+  `2546913e38ec273f64417dece2f91df78fd42fc2` at
+  `refs/heads/level1-v0.1.0-rc.4`. No existing ref was updated or deleted.
+- The public GitHub Actions REST API identified exactly one matching workflow
+  run: run `29688941202`, event `push`, branch
+  `level1-v0.1.0-rc.4`, head SHA
+  `2546913e38ec273f64417dece2f91df78fd42fc2`, status `completed`, conclusion
+  `success`, URL
+  `https://github.com/ponchione/revolvr/actions/runs/29688941202`. It started
+  at `2026-07-19T13:28:34Z` and completed at `2026-07-19T13:31:54Z`.
+- The jobs endpoint returned exactly the ten mandatory distinct jobs. Every
+  job reported the exact candidate head SHA and `completed` / `success`:
+  - `88198118677` — Go 1.22 source floor and tests —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118677`
+  - `88198118646` — Production autonomous strict-fake suite —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118646`
+  - `88198118664` — Race tests —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118664`
+  - `88198118665` — Vet and module verification —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118665`
+  - `88198118653` — Fake-Codex success smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118653`
+  - `88198118661` — Fake-Codex verification-failure smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118661`
+  - `88198118641` — Build linux/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118641`
+  - `88198118668` — Build darwin/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118668`
+  - `88198118681` — Build freebsd/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118681`
+  - `88198118662` — Build Windows diagnostic stub —
+    `https://github.com/ponchione/revolvr/actions/runs/29688941202/job/88198118662`
+- Post-CI preservation reverified both RC.4 inventories, all eight sealed
+  historical inventories, the exact contents of all three historical
+  attestation workflows, all six historical remote refs, exact RC.4 candidate
+  readback, RC.4 attestation-ref/tag absence, and all four recorded retired-
+  suite absences. RC.1, RC.2, and RC.3 evidence remained immutable.
+- Files changed: `.agent/STATE.md`, `.agent/DECISIONS.md`, and
+  `.agent/HANDOFF.md` only. No source, dependency, workflow, candidate bundle,
+  verification bundle, task entry, or historical evidence changed. No commit
+  or push of `main` occurred.
+- Verification commands run: candidate `build-instructions.sh --verify`;
+  strict SHA-256 checks for both RC.4 inventories and all eight historical
+  inventories; exact artifact/source/tree/manifest assertions; raw-Git fetch,
+  ancestry, collision, force-with-lease publication, ref readback, and
+  preservation checks; finite public REST run polling; exact ten-job REST
+  comparison; `git diff --check`; and final worktree inspection.
+- Verification result: passed. No `gh`, attestation workflow/ref, suite,
+  live/nested Codex or model operation, tag, release, external-use approval,
+  or `EXT-20` completion occurred. Blockers for this bounded task: none.
+- What remains: in a separate fresh, explicitly authorized pass, add and
+  publish a collision-free RC.4 attestation workflow/ref that checks out this
+  exact candidate SHA, uses exact Go 1.26.5, reproduces two clean build passes,
+  verifies the three sealed artifact hashes and embedded identities, and
+  retains the remote artifact/run evidence. No-model suite preparation and
+  live quantitative dogfood remain later gates.
 
 ## EXT-20 RC.4 Independent Verification And Remote Handoff (2026-07-19)
 

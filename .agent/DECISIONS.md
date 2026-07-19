@@ -1,5 +1,29 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Exact-Candidate Remote CI Authority (2026-07-19)
+
+- Remote candidate authority is exact branch
+  `refs/heads/level1-v0.1.0-rc.4` at source
+  `2546913e38ec273f64417dece2f91df78fd42fc2`; the branch name without that
+  readback SHA is not authority. It was created only after an immediate
+  fetch-without-tags, source publication/ancestry proof, empty candidate lease,
+  and RC.4 attestation-ref/tag collision checks.
+- Push-triggered CI run `29688941202` is the EXT-15 source-CI authority for
+  RC.4. It binds event `push`, branch `level1-v0.1.0-rc.4`, the exact source
+  SHA, and exactly ten mandatory jobs to `completed` / `success` conclusions.
+  The run URL is
+  `https://github.com/ponchione/revolvr/actions/runs/29688941202`; exact job IDs
+  and URLs are retained in `.agent/STATE.md` and `.agent/HANDOFF.md`.
+- Source-floor cross-build success is not release-artifact attestation. The
+  next separately bounded gate must publish a collision-free RC.4 workflow/ref
+  that checks out the immutable candidate SHA, uses exact Go 1.26.5, performs
+  two clean release build passes, verifies the sealed Linux, Darwin, and
+  FreeBSD hashes plus embedded identities, and retains exact run/job/artifact
+  authority.
+- Candidate publication and CI success grant no live API acceptance, suite or
+  real-model authority, tag, release, external-use approval, or completion of
+  `EXT-20`. RC.1, RC.2, and RC.3 remain immutable rejected history.
+
 ## EXT-20 RC.4 Candidate-Ref And Remote-CI Gate Authority (2026-07-19)
 
 - Independent controller verification satisfied the local-candidate review
