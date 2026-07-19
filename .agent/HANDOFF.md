@@ -47,11 +47,13 @@ remote-gate launcher/controller commit is its direct child
 `4bcd73d5ae35517cd5fd09ed0a6dca8d1af43f2b`; it is also not candidate source.
 Raw Git has now published only `refs/heads/level1-v0.1.0-rc.5` at the exact
 candidate SHA, and push-triggered CI run `29697069305` passed exactly all ten
-mandatory EXT-15 jobs on that SHA. Local construction and full verification of
-the collision-free exact-checkout Go 1.26.5 RC.5 artifact-attestation workflow
-now pass. The next separate gate is independent controller review, workflow
-commit/publication, raw-Git attestation-ref publication, and collection of its
-exact remote run/job/artifact evidence. The RC.4 suite must never be retried.
+mandatory EXT-15 jobs on that SHA. The collision-free exact-checkout Go 1.26.5
+RC.5 artifact-attestation workflow passed local review and remote execution.
+Workflow/main commit and attestation ref are exact at
+`109b38cdb309b50c38ab2ef0df33998e92dfd5e6`; dedicated run `29698647782`,
+job `88223716039`, artifact `8445792045`, and companion ten-job CI run
+`29698647807` succeeded. The next separate gate is fresh no-model RC.5 suite
+preparation. The RC.4 suite must never be retried.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 
@@ -123,11 +125,9 @@ exact remote run/job/artifact evidence. The RC.4 suite must never be retried.
     `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542566`
   - `88219542586` — Build Windows diagnostic stub —
     `https://github.com/ponchione/revolvr/actions/runs/29697069305/job/88219542586`
-- Exact next task: independently review and commit only the locally verified
-  `.github/workflows/level1-rc5-candidate-attestation.yml` plus its durable
-  state, then publish collision-free raw-Git ref
-  `refs/heads/level1-v0.1.0-rc.5-attestation` at that exact workflow commit.
-  Start its authority check with:
+- Attestation authority is complete and recorded below. The next task is
+  collision-free no-model RC.5 suite preparation. Start its remote-authority
+  check with:
 
   ```sh
   git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
@@ -137,15 +137,36 @@ exact remote run/job/artifact evidence. The RC.4 suite must never be retried.
     'refs/tags/*rc.5*'
   ```
 
-  Require the candidate readback above, an absent attestation ref/tag and
-  artifact namespace, exact workflow SHA-256
-  `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`,
-  and the local retained evidence below. After committing and pushing the
-  reviewed workflow, create only the absent attestation ref with an
-  empty-expected lease, preserve the candidate ref, require the dedicated
-  remote run/job and one named artifact to succeed, and retain their exact
-  identities. This grants no suite, model call, tag, release, external-use
-  approval, or `EXT-20` completion.
+  Require exact candidate and attestation-ref readbacks, the workflow hash and
+  successful remote run/job/artifact evidence below, and every historical
+  preservation guard before changing suite authority. Preparation must make no
+  model call and grants no live pass, tag, release, external-use approval, or
+  `EXT-20` completion.
+
+## RC.5 Remote Artifact Attestation Authority
+
+- Workflow/main commit and exact attestation-ref readback:
+  `109b38cdb309b50c38ab2ef0df33998e92dfd5e6`.
+- Candidate ref remains exact at source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`.
+- Dedicated run `29698647782`: `completed` / `success`:
+  `https://github.com/ponchione/revolvr/actions/runs/29698647782`.
+- Sole job `88223716039`, `Rebuild and attest Level 1 RC.5 candidate`:
+  `completed` / `success`:
+  `https://github.com/ponchione/revolvr/actions/runs/29698647782/job/88223716039`.
+- Sole retained artifact: ID `8445792045`, name
+  `level1-v0.1.0-rc.5-attestation`, 70,270,595 bytes, digest
+  `sha256:ab0febbc035f634d39babb897edd0c94bfaf1805ebc212e767a551fb1758b0e2`,
+  created `2026-07-19T18:26:30Z`, expires `2026-10-17T18:24:08Z`.
+- Controller archive download was unavailable because the public endpoint
+  returned HTTP 401 and no token was present. The successful job ran every
+  exact hash, metadata, version, reproducibility, checksum, and remote-authority
+  assertion before upload; no controller-side archive-byte comparison is
+  claimed.
+- Companion CI run `29698647807` completed successfully with exactly ten
+  successful jobs on the workflow commit.
+- No live/nested model operation, suite, tag, release, external-use approval,
+  or `EXT-20` completion occurred.
 
 ## RC.5 Local Artifact Attestation Workflow
 
@@ -599,42 +620,40 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Independently review the uncommitted RC.5 attestation workflow at exact
-   SHA-256 `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`
-   together with the retained local evidence and preservation checks.
-2. In a separately authorized controller pass, commit and publish the reviewed
-   workflow plus durable state to `main`, verify the published commit and
-   parent by raw-Git readback, then create only
-   `refs/heads/level1-v0.1.0-rc.5-attestation` at that exact workflow commit
-   with an empty-expected raw-Git lease. Preserve the exact candidate ref.
-3. Require one dedicated push-triggered attestation run and job plus one
-   artifact named `level1-v0.1.0-rc.5-attestation`. Record run/job/artifact
-   identifiers, URLs, states, conclusions, timestamps, size, expiry, digest,
-   and an archive-byte comparison or an explicit authentication limitation.
-4. Stop before suite preparation, any model call, tagging, release, external-
-   use approval, or checking `EXT-20`. RC.4 is terminal and must never be
-   rerun.
+1. Run exactly one fresh no-model suite-preparation pass with
+   `agent-ext20-rc5-suite.sh`. It must first reverify exact RC.5 candidate,
+   remote CI, workflow/ref, run/job/artifact, bundle, and preservation
+   authority.
+2. Update only the guarded external Level-1 suite's candidate authority from
+   terminal RC.4 to RC.5 source
+   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, Linux hash
+   `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+   and bundle `level1-v0.1.0-rc.5-19c1ef4b6a61`; preserve all scenarios,
+   thresholds, confirmation guards, and exact Codex authority.
+3. Verify shell/static/collector behavior and full Go tests, then prepare one
+   fresh collision-free RC.5 suite root without making a model call. Inspect
+   its exact candidate/Codex/source-lock/task authority and retain the later
+   confirmation-gated live command.
+4. Stop before the live pass, any model call, tagging, release, external-use
+   approval, or checking `EXT-20`. RC.4 is terminal and must never be rerun.
 
-The completed RC.5 remote-CI pass did not create an attestation workflow. The
-local workflow construction and verification task is now complete. Do not run
-`agent-ext20-rc5-attestation.sh`: it is a nested Codex launcher and is obsolete
-for this resume point. Do not rerun `agent-ext20-rc5-remote.sh` because the
-RC.5 candidate ref is intentionally nonempty.
+The RC.5 remote-CI and artifact-attestation gates are complete. Do not rerun
+`agent-ext20-rc5-remote.sh` or `agent-ext20-rc5-attestation.sh`; their refs and
+remote evidence are intentionally nonempty and immutable.
 
 Earlier RC.4 controller readback reconfirmed its exact candidate, workflow, and
 attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
 Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
-Exact later raw-Git publication target after independent review:
+Exact next command:
 
-```text
-refs/heads/level1-v0.1.0-rc.5-attestation
+```bash
+./agent-ext20-rc5-suite.sh
 ```
 
-No commit, push, attestation-ref publication, or remote workflow execution was
-authorized in the local construction pass, so no controller publication
-command is recorded here.
+This launcher authorizes no-model suite preparation only. It has not yet been
+run.
 
 ## Session Rules
 
@@ -648,8 +667,7 @@ command is recorded here.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation completed, but RC.4 then failed terminally on its first
   operation and is retired. The lifecycle-authority remediation is published.
-  RC.5 local construction, candidate-ref publication, remote CI, and local
-  attestation-workflow construction and verification are complete. Attestation
-  workflow publication/execution, suite work, live-model work, tag, release,
+  RC.5 local construction, candidate-ref publication, remote CI, and artifact
+  attestation are complete. Suite preparation, live-model work, tag, release,
   and external-use authority remain excluded until their separate gates.
 - The repository is durable memory; this handoff is only the resume pointer.

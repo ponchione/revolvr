@@ -93,6 +93,59 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Remote Artifact Attestation Result (2026-07-19)
+
+- Independent controller review passed workflow SHA-256
+  `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`,
+  exact RC.4-to-RC.5 minimal specialization, PyYAML structure and constants,
+  extracted embedded-shell `bash -n`, the retained 29-file output shape and
+  hash stream, all six `SHA256SUMS` rows, metadata/version authorities, empty
+  build IDs, Linux version outputs, and three byte-identical pairs. Candidate
+  ref readback remained exact and attestation ref/tag/artifact namespaces were
+  empty immediately before publication.
+- Raw Git committed the reviewed workflow and local state on `main` as
+  `109b38cdb309b50c38ab2ef0df33998e92dfd5e6` (`Add RC.5 artifact
+  attestation workflow`) with exact parent
+  `76cef08c9b3739f9745663e9c5ecf15a2d02131b`, then pushed it after a fresh
+  parent check. An empty-expected force-with-lease created only
+  `refs/heads/level1-v0.1.0-rc.5-attestation` at that workflow commit. Remote
+  `main` and attestation-ref readbacks matched the workflow commit while the
+  candidate ref remained exact source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`.
+- Dedicated run `29698647782`, run number `1`, attempt `1`, workflow `Level 1
+  RC.5 candidate attestation`, event `push`, branch
+  `level1-v0.1.0-rc.5-attestation`, and exact workflow head SHA completed with
+  `success`: `https://github.com/ponchione/revolvr/actions/runs/29698647782`.
+  It was created at `2026-07-19T18:24:07Z` and updated at
+  `2026-07-19T18:26:34Z`. Its sole job `88223716039`, `Rebuild and attest
+  Level 1 RC.5 candidate`, ran from `2026-07-19T18:24:10Z` through
+  `2026-07-19T18:26:33Z` and completed with `success`:
+  `https://github.com/ponchione/revolvr/actions/runs/29698647782/job/88223716039`.
+- The run retained exactly one unexpired artifact: ID `8445792045`, name
+  `level1-v0.1.0-rc.5-attestation`, size 70,270,595 bytes, digest
+  `sha256:ab0febbc035f634d39babb897edd0c94bfaf1805ebc212e767a551fb1758b0e2`,
+  created/updated `2026-07-19T18:26:30Z`, expiring
+  `2026-10-17T18:24:08Z`. Its archive endpoint is
+  `https://api.github.com/repos/ponchione/revolvr/actions/artifacts/8445792045/zip`.
+  No `GITHUB_TOKEN` or `GH_TOKEN` was available and unauthenticated download
+  returned HTTP 401, so controller-side archive comparison was not possible.
+  The successful remote job performed both clean rebuilds, sealed hash and
+  identity assertions, pair comparisons, checksum verification, and remote
+  authority readback before upload.
+- Companion CI run `29698647807`, run number `46`, attempt `1`, completed with
+  `success` at the exact workflow commit:
+  `https://github.com/ponchione/revolvr/actions/runs/29698647807`. Its exactly
+  ten successful job IDs are `88223716087`, `88223716115`, `88223716091`,
+  `88223716099`, `88223716095`, `88223716116`, `88223716106`, `88223716142`,
+  `88223716136`, and `88223716097`, corresponding to the mandatory EXT-15 job
+  names retained for the candidate CI gate.
+- No candidate source/ref, bundle, historical workflow/ref/evidence, tag,
+  release, retired suite, or external-use decision changed. No `gh` or
+  live/nested model operation ran. `EXT-20` remains unchecked. RC.5's
+  candidate-ref, remote-CI, and artifact-attestation prerequisites are now
+  complete; the next bounded pass is fresh collision-free no-model suite
+  preparation.
+
 ## EXT-20 RC.5 Local Artifact-Attestation Workflow (2026-07-19)
 
 - Task selected: the bounded local RC.5 release-artifact attestation-workflow

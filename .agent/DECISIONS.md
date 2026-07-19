@@ -1,5 +1,31 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Remote Artifact Attestation Authority (2026-07-19)
+
+- The reviewed RC.5 workflow and local attestation state are published on
+  `main` as exact commit `109b38cdb309b50c38ab2ef0df33998e92dfd5e6`.
+  Raw Git created only the previously absent
+  `refs/heads/level1-v0.1.0-rc.5-attestation` at that commit with an
+  empty-expected lease. Candidate authority remains
+  `refs/heads/level1-v0.1.0-rc.5` at exact source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`.
+- Push-triggered attestation run `29698647782` and sole job `88223716039`
+  completed successfully at the workflow commit. Its sole artifact is ID
+  `8445792045`, name `level1-v0.1.0-rc.5-attestation`, size 70,270,595 bytes,
+  and digest
+  `sha256:ab0febbc035f634d39babb897edd0c94bfaf1805ebc212e767a551fb1758b0e2`.
+  The same push's exact ten-job CI run `29698647807` also completed
+  successfully.
+- Public REST metadata and the successful workflow job establish remote
+  artifact retention and its in-workflow exact binary/hash/metadata checks.
+  The unauthenticated archive endpoint returned HTTP 401 and no GitHub token
+  was available, so no controller-side archive byte comparison is claimed.
+- RC.5 candidate source CI and remote artifact-attestation prerequisites are
+  complete. The next separately bounded gate is no-model preparation of a
+  fresh guarded Level-1 suite bound to exact RC.5 source, Linux artifact, and
+  bundle authority. This grants no live-model, tag, release, external-use, or
+  `EXT-20` completion authority.
+
 ## EXT-20 RC.5 Local Artifact-Attestation Workflow Authority (2026-07-19)
 
 - The only locally admitted RC.5 attestation implementation is the separate
