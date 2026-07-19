@@ -30,8 +30,44 @@ ref are exact at `52c2db07a86677e67921bcbfbcbdf26397b47615`; dedicated run
 same push's ten-job CI run `29690065840` also succeeded. The controller
 launchers and workflow commit are not candidate source. RC.4 is only the
 sequential candidate label inside open backlog task `EXT-20`; it is not a
-separate backlog task or external-use approval. The next bounded pass is fresh
-no-model suite preparation using immutable RC.4 authority.
+separate backlog task or external-use approval. Fresh no-model suite
+preparation using immutable RC.4 authority is now complete. The next gate is a
+separately confirmed live pass against the exact retained prepared root.
+
+## RC.4 Prepared Suite Authority
+
+- Guarded suite source:
+  `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Linux candidate SHA-256:
+  `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`.
+- Candidate bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec`.
+- Release output remains `revolvr 0.1.0`; Codex remains exact package/version
+  `0.144.4`, output `codex-cli 0.144.4`, and executable SHA-256
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+- Prepared suite: `/tmp/revolvr-ext20-rc4.DGg1pW/suite`.
+- Suite ID: `ext20-2bd21aea4f72`.
+- Authority SHA-256:
+  `4f9b653c9e62e5fc5932b219952bbe61fccd79d331ac2bd7fcf2c570035eacb7`.
+- Operation-plan SHA-256:
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+- Repository heads: repo-a
+  `a75d4f059721ec7c9320650bd49d6d4cef9526cf`; repo-b
+  `11eb46ae242cf2a3cb5ce32cf94e0df3aab2ab0b`. Both are clean on `main`, retain
+  the tracked disposable marker, and expose all ten exact tasks as ready.
+- Effective source-writer authority is
+  `timeout=32m0s heartbeat_interval=10m40s required=32m0s`. There are zero
+  runtime operation manifests, zero collector manifests, and zero aggregate
+  entries.
+- Read-only inspection preserved exact content fingerprint
+  `5e988363634a5aa4739c3b4bfccce865d2cf6e2c7ddb634aaa4eb25750641305`
+  and metadata/layout fingerprint
+  `5e52e1be955403644fd33ee2b95c832896994305f95806ebac533ec93525244f`.
+- Shell, full candidate bundle, suite static mode, two collector fixtures and
+  manifests, full Go tests, diff hygiene, all ten sealed inventories, all four
+  workflow hashes, and all eight remote candidate/attestation refs passed.
+- No live or nested Codex/model operation ran. `EXT-20` remains unchecked and
+  external use remains unapproved.
 
 ## RC.4 Remote Artifact Attestation Authority
 
@@ -321,21 +357,13 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Start exactly one fresh pass with `agent-ext20-rc4-suite.sh` for the RC.4
-   no-model suite-preparation gate.
-2. Bind the guarded suite only to exact candidate source
-   `2546913e38ec273f64417dece2f91df78fd42fc2`, Linux SHA-256
-   `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`,
-   and bundle
-   `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec`, while
-   preserving the settled release and exact Codex 0.144.4 authority.
-3. Verify the shell, complete bundle, static suite, collectors, full Go suite,
-   and diff; then prepare one new collision-free
-   `/tmp/revolvr-ext20-rc4.XXXXXX/suite` with `--install-codex` but no model
-   call. Inspect all prepared authority and the fail-closed confirmation gate.
-4. Retain the prepared root and report the exact separately confirmation-gated
-   live command without executing it. Keep `EXT-20` unchecked and external
-   use unapproved.
+1. Independently verify and commit/push the tracked RC.4 suite-authority and
+   durable-state changes; this pass intentionally did neither.
+2. Obtain separate explicit confirmation for the live real-Codex gate. Without
+   that confirmation, do not run or mutate the retained prepared suite.
+3. In one later fresh pass, reverify the exact prepared authority and run the
+   exact confirmation-gated command below, then independently verify every
+   retained manifest and the aggregate before considering `EXT-20` complete.
 
 The completed remote-CI pass did not create an attestation launcher. Do not
 rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
@@ -343,14 +371,14 @@ intentionally nonempty.
 
 Independent controller readback reconfirmed exact candidate, workflow, and
 attestation refs, the successful dedicated run/job/artifact, and the ten-job CI
-run through raw Git and public REST. Do not rerun the completed remote or
-attestation launchers. The next bounded launcher is
-`agent-ext20-rc4-suite.sh`.
+run through raw Git and public REST. Do not rerun the completed remote,
+attestation, or suite-preparation launchers.
 
-Exact next command:
+Exact separately confirmation-gated live command (do not execute without new
+explicit authority):
 
 ```bash
-./agent-ext20-rc4-suite.sh
+scripts/dogfood-external-level1-suite.sh --live --run-root /tmp/revolvr-ext20-rc4.DGg1pW/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
 ## Session Rules
@@ -362,7 +390,8 @@ Exact next command:
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- RC.4 candidate publication, remote CI, and artifact attestation are complete.
-  The next launcher authorizes no-model suite preparation only; live-model,
-  tag, release, and external-use authority remain excluded.
+- RC.4 candidate publication, remote CI, artifact attestation, and no-model
+  suite preparation are complete. Live-model work still requires separate
+  explicit confirmation; tag, release, and external-use authority remain
+  excluded.
 - The repository is durable memory; this handoff is only the resume pointer.

@@ -1,5 +1,34 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Prepared-Suite Authority (2026-07-19)
+
+- The guarded Level-1 suite now admits only RC.4 source
+  `2546913e38ec273f64417dece2f91df78fd42fc2`, Linux artifact SHA-256
+  `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`,
+  and bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec`. The settled
+  release output and exact Codex 0.144.4 path/version/hash authority, suite
+  plan, scenarios, thresholds, configuration, and confirmation gate remain
+  unchanged.
+- The only prepared RC.4 live-suite authority is
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite`, suite ID
+  `ext20-2bd21aea4f72`, with authority SHA-256
+  `4f9b653c9e62e5fc5932b219952bbe61fccd79d331ac2bd7fcf2c570035eacb7`
+  and operation-plan SHA-256
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+  It has two clean disposable repositories, ten ready tasks across the exact
+  11-row plan, effective 32-minute source-writer authority, zero operation or
+  collector manifests, and an empty aggregate.
+- Preparation and read-only inspection grant no live-model authority. A later
+  pass requires separate confirmation and must use the exact retained root and
+  exact confirmation-gated command recorded in `.agent/HANDOFF.md`; any root,
+  candidate, Codex, configuration, task, repository, or prepared-authority
+  drift fails closed and requires a new collision-free suite.
+- RC.1, RC.2, and RC.3 remain immutable rejected history. Their refs, bundles,
+  workflows, hashes, artifact records, diagnostics, and any available roots
+  cannot become RC.4 authority. `EXT-20` remains unchecked, and no tag,
+  release, or external-use approval exists.
+
 ## EXT-20 RC.4 Remote Artifact Attestation Authority (2026-07-19)
 
 - The reviewed workflow and local attestation state were committed on `main`
