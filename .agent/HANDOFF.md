@@ -19,11 +19,59 @@ that commit after the raw-Git push. Focused, race, production-happy-path, and
 full repository tests passed again immediately before publication without a
 live model call.
 
-No new release candidate exists yet. The next bounded pass may construct the
-collision-free local candidate labeled `RC.4` from that exact source commit.
-The controller launcher `agent-ext20-rc4.sh` is not candidate source. RC.4 is
-only the sequential candidate label inside open backlog task `EXT-20`; it is
-not a separate backlog task or completed artifact.
+Collision-free RC.4 now exists as a locally verified immutable candidate from
+that exact source commit. The controller launcher `agent-ext20-rc4.sh` is not
+candidate source. RC.4 is only the sequential candidate label inside open
+backlog task `EXT-20`; it is not a separate backlog task or external-use
+approval. The next bounded pass is independent verification followed, only
+with explicit raw-Git publication authority, by the exact candidate-ref and
+remote-CI gate.
+
+## RC.4 Local Candidate Authority
+
+- Candidate ID: `level1-v0.1.0-rc.4`.
+- Release version: `0.1.0`.
+- Exact source commit:
+  `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Exact source tree:
+  `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`.
+- Published authority: source is an ancestor of `origin/main` at
+  `45a7f2384aaf21e36174660618c5f00a91edb1ab`.
+- Candidate bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec/`.
+- Candidate inventory SHA-256:
+  `3535d7a2b46a0dbd3101428b4177e4c46baabc29190e5b1c580d90e6ff033f5d`.
+- Build-instruction SHA-256:
+  `5d87ff8eb5e89865729237dda500c8387ef5880b3c10ea0bd77f896938d606e9`.
+- Verification bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec-verification/`.
+- Verification inventory SHA-256:
+  `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`.
+- Artifact SHA-256 values:
+  - Linux amd64:
+    `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`
+  - Darwin amd64:
+    `042563f350b71ec8cd5be1b49fc9d948383caa28087c0a5689bd6eb12f3808ab`
+  - FreeBSD amd64:
+    `128b9f8ced3038a51534da63b9d9ffbaa5ea7341e0ab8dd17102fba86084a8e6`
+- Construction used Go 1.22.12 for the source-floor suite and exact Go 1.26.5
+  for release tests/builds. Two independent non-local clean clones produced
+  byte-identical artifacts. Full tests, vet, module verification, vulnerability
+  scans, metadata/version/build-ID checks, candidate/inventory self-checks,
+  the Structured Outputs guard, and the production happy path passed.
+- The Structured Outputs and happy-path results are local regression evidence
+  only. No live API acceptance is claimed.
+- Candidate-ref, workflow, artifact, bundle, run-root, and diagnostic collision
+  checks passed before construction. The retained construction root is
+  `/tmp/revolvr-ext20-rc4-build.okV2nU` and is not candidate authority.
+- Historical preservation passed: eight available RC.1/RC.2/RC.3 inventories,
+  20 content/layout targets, and six remote refs remained exact. The retired
+  RC.3 suite path was absent throughout and was not recreated or used.
+- The first independent metadata assertion contained a read-only `go tool nm`
+  field-index error. Its single repair reran the full check without changing
+  candidate bytes; the diagnostic is sealed in the verification bundle.
+- No candidate ref, remote CI, attestation workflow, suite, live/nested model,
+  tag, release, or external-use authority exists yet. `EXT-20` remains open.
 
 ## RC.3 Rejection And Preservation Authority
 
@@ -162,21 +210,28 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Start one fresh session with `agent-ext20-rc4.sh` and read the durable state.
-2. Verify exact candidate source commit
-   `2546913e38ec273f64417dece2f91df78fd42fc2`, tree
-   `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`, and published reachability from
-   `origin/main` before local construction.
-3. Construct and locally verify only the collision-free RC.4 candidate. Do not
-   publish a ref, add remote attestation, prepare a live suite, or start a model
-   operation in that pass.
-4. Keep `EXT-20` unchecked and external use unapproved. Never reuse RC.3's
-   suite, evidence, operation, run, ref, workflow, artifact, or diagnostic.
+1. In a new session, independently verify both sealed RC.4 inventories, source
+   publication/ancestry, all three artifact hashes and embedded identities,
+   the retained test/vulnerability evidence, and historical preservation.
+2. Obtain explicit operator authority for the candidate-ref publication. Raw
+   Git must recheck that `refs/heads/level1-v0.1.0-rc.4` is absent immediately
+   before a collision-safe create at exact source
+   `2546913e38ec273f64417dece2f91df78fd42fc2`; it must not move any historical
+   ref or use a later controller/state commit as candidate source.
+3. Require the complete EXT-15 push-triggered CI matrix to pass on that exact
+   candidate SHA and record the remote ref readback plus every job conclusion.
+4. Stop after remote CI. The RC.4 exact-checkout Go 1.26.5 attestation workflow,
+   no-model suite preparation, and any separately confirmed live model work are
+   later bounded passes. Keep `EXT-20` unchecked and external use unapproved.
 
-Exact next command:
+Exact raw-Git publication step after independent verification and explicit
+operator authorization (recorded here, not executed in the local-build pass):
 
 ```bash
-./agent-ext20-rc4.sh
+git fetch --no-tags origin main
+test -z "$(git ls-remote --heads origin refs/heads/level1-v0.1.0-rc.4)"
+git push --force-with-lease=refs/heads/level1-v0.1.0-rc.4: origin 2546913e38ec273f64417dece2f91df78fd42fc2:refs/heads/level1-v0.1.0-rc.4
+git ls-remote --heads origin refs/heads/level1-v0.1.0-rc.4
 ```
 
 ## Session Rules
@@ -188,7 +243,7 @@ Exact next command:
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- The RC.4 launcher authorizes only local candidate construction and
-  verification. Do not commit, push, tag, publish refs, release, prepare a live
-  suite, or run a live/nested model in that pass.
+- The completed RC.4 local-build pass grants no push. Candidate-ref publication
+  requires new explicit authority and must be isolated from later attestation,
+  suite, live/nested model, tag, release, and external-use work.
 - The repository is durable memory; this handoff is only the resume pointer.

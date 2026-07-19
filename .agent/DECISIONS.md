@@ -1,5 +1,49 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Local Candidate Authority (2026-07-19)
+
+- Replacement candidate `level1-v0.1.0-rc.4` binds release version `0.1.0`
+  only to published source commit
+  `2546913e38ec273f64417dece2f91df78fd42fc2` and tree
+  `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. Later state/controller commits
+  and `agent-ext20-rc4.sh` are not candidate source. Publication reachability
+  from `origin/main` and helper exclusion are required evidence.
+- RC.4 retains the settled EXT-18 construction authority: Go 1.22.12 is the
+  tested source floor; release artifacts use exact Go 1.26.5, local toolchain
+  selection, module-readonly mode, disabled CGO, amd64, trimpath, explicit
+  clean VCS metadata, an empty Go build ID, and exact `main.version=0.1.0`.
+  Linux, Darwin, and FreeBSD are the supported targets. Two independent
+  non-local clean clones must produce byte-identical artifacts.
+- The locally reproduced RC.4 SHA-256 values are Linux
+  `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`,
+  Darwin
+  `042563f350b71ec8cd5be1b49fc9d948383caa28087c0a5689bd6eb12f3808ab`,
+  and FreeBSD
+  `128b9f8ced3038a51534da63b9d9ffbaa5ea7341e0ab8dd17102fba86084a8e6`.
+  The pinned build-instruction SHA-256 is
+  `5d87ff8eb5e89865729237dda500c8387ef5880b3c10ea0bd77f896938d606e9`.
+- The ignored immutable candidate bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec/` has inventory
+  SHA-256
+  `3535d7a2b46a0dbd3101428b4177e4c46baabc29190e5b1c580d90e6ff033f5d`.
+  Its separate verification bundle at the sibling `-verification` path has
+  inventory SHA-256
+  `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`
+  and retains source publication, Structured Outputs guard, production happy
+  path, Go-floor/full-suite, vet, module, vulnerability, metadata/version,
+  build-ID, reproducibility, collision, raw-ref, and preservation proof.
+- The focused Structured Outputs guard and production happy path are local
+  regression evidence only and do not establish live API acceptance. RC.4
+  local construction grants no candidate-ref, remote-CI, attestation, suite,
+  live-model, tag, release, or external-use authority.
+- RC.1, RC.2, and RC.3 remain immutable rejected history. None of their suites,
+  evidence, operations, runs, refs, workflows, artifacts, hashes, bundles, or
+  diagnostics may be retried, reconciled, relabeled, mutated, or used as RC.4
+  candidate/live authority. RC.4's next gate is a separately authorized,
+  collision-safe raw-Git publication of
+  `refs/heads/level1-v0.1.0-rc.4` at the exact source SHA followed by the full
+  EXT-15 remote CI matrix on that SHA.
+
 ## EXT-20 Structured Outputs Repair Publication Authority (2026-07-19)
 
 - Explicit operator authority published the independently reviewed follow-up

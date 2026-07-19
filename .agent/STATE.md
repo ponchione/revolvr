@@ -74,14 +74,101 @@ supported-subset guard. Its complete dirty-tree scope passed a separate
 read-only review and was committed and pushed with explicit operator authority
 as exact source `2546913e38ec273f64417dece2f91df78fd42fc2`, tree
 `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. Local tests do not establish API
-acceptance, and no live model call is authorized. No RC.4 exists yet; the next
-bounded pass may construct and locally verify it from that exact source.
+acceptance, and no live model call is authorized. Collision-free RC.4 now
+exists as a locally verified immutable candidate and separate verification
+bundle from that exact source; it has not been published or used for a live
+operation.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.4 Replacement Candidate — Local Verification (2026-07-19)
+
+- Task selected: the bounded RC.4 local replacement-candidate subtask of
+  `EXT-20` only. Candidate `level1-v0.1.0-rc.4` binds release version `0.1.0`
+  to exact source commit `2546913e38ec273f64417dece2f91df78fd42fc2`
+  and tree `8b0dfb46a9bfd0d22f14a23af810d7a7cd034aa5`. A raw-Git fetch,
+  object/tree readback, remote-main readback, and ancestry check proved the
+  source is published and reachable from `origin/main` at
+  `45a7f2384aaf21e36174660618c5f00a91edb1ab`. The controller helper is absent
+  from the source commit and clean source clone.
+- Collision checks passed before construction. Local and remote candidate and
+  attestation refs, RC.4 tags, candidate/verification bundles, build script,
+  local and `origin/main` workflow, public Actions artifact name
+  `level1-v0.1.0-rc.4-attestation`, `/tmp` run root, and RC.4 diagnostic names
+  were all absent. The retained construction root is
+  `/tmp/revolvr-ext20-rc4-build.okV2nU`; it is diagnostic workspace, not
+  candidate authority.
+- The required first local regressions passed on the exact clean source:
+  `TestProductionModelOutputSchemasUseSupportedStructuredOutputsSubset` and
+  `TestProductionAutonomousHappyPath`. These results are retained in the
+  verification bundle and establish local compatibility/regression proof only;
+  they do not claim live API acceptance.
+- The immutable candidate bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec/`. Its pinned
+  build-instruction SHA-256 is
+  `5d87ff8eb5e89865729237dda500c8387ef5880b3c10ea0bd77f896938d606e9`,
+  and its 13-entry complete evidence inventory SHA-256 is
+  `3535d7a2b46a0dbd3101428b4177e4c46baabc29190e5b1c580d90e6ff033f5d`.
+  Two independent `--no-local` clean clones produced byte-identical artifacts:
+  Linux amd64
+  `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`,
+  Darwin amd64
+  `042563f350b71ec8cd5be1b49fc9d948383caa28087c0a5689bd6eb12f3808ab`,
+  and FreeBSD amd64
+  `128b9f8ced3038a51534da63b9d9ffbaa5ea7341e0ab8dd17102fba86084a8e6`.
+- Every artifact independently records Go 1.26.5, command path
+  `revolvr/cmd/revolvr`, compiler `gc`, trimpath, exact `GOOS/amd64`, disabled
+  CGO, Git source revision, and `vcs.modified=false`. Each has an empty Go
+  build ID, one exact 16-byte `main.version` symbol, and exactly one `0.1.0`
+  release string; the Linux binary prints exactly `revolvr 0.1.0`.
+- The separate immutable verification bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec-verification/`.
+  Its 31-entry complete evidence inventory SHA-256 is
+  `75a2bcaba12d28d42a5012ad70995f4eb10363e250ec8028350e0802b0b8429c`.
+  It retains exact source/tree/tool identities, commands and raw logs, the
+  Structured Outputs guard, production happy path, Go-floor/full tests, vet,
+  module and vulnerability results, candidate construction and self-check,
+  independent build metadata/version assertions, collision checks, artifact
+  authority, and before/after historical preservation evidence.
+- Required verification passed: Go 1.22.12 source-floor tests; Go 1.26.5 full
+  tests; `go vet ./...`; `go mod verify`; `govulncheck ./...` and verbose scan;
+  Linux/Darwin/FreeBSD amd64 release builds; two-pass byte comparison; embedded
+  metadata/version/build-ID assertions; candidate self-check; verification
+  inventory; exact clean-clone authority; and helper exclusion. Govulncheck
+  found zero reachable and zero imported-package vulnerabilities. The retained
+  module-only finding remains `GO-2026-5024` in the Windows-only
+  `golang.org/x/sys/windows` surface at `v0.30.0`, which Revolvr does not call;
+  the report names `v0.44.0` as fixed.
+- The first independent metadata command stopped on a read-only harness error:
+  it indexed `go tool nm -size` symbol type/name as fields 4/5 instead of 3/4.
+  The single repair corrected only that assertion and reran the complete check;
+  no candidate byte changed. The exact diagnostic is retained as
+  `metadata-check-repair.txt` in the verification bundle.
+- Preservation passed. Eight available RC.1/RC.2/RC.3 inventories reverified;
+  20 historical candidate, verification, failed-diagnostic, workflow, and
+  retired-suite targets retained identical content and layout fingerprints;
+  all six RC.1/RC.2/RC.3 remote refs retained exact identities. Retired RC.3
+  suite `/tmp/revolvr-ext20-rc3.Qghf19/suite` was absent before and after and
+  was not recreated or used. No historical suite, operation, run, ref,
+  workflow, artifact, hash, bundle, or diagnostic became RC.4 authority.
+- Files changed: this state file, `.agent/DECISIONS.md`, `.agent/HANDOFF.md`,
+  the new ignored RC.4 pinned build script, candidate bundle, and verification
+  bundle. `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked. No Go
+  source or dependency changed.
+- Verification result: local RC.4 construction passed after the one read-only
+  harness repair. No `gh`, commit, push, candidate ref, workflow, remote CI
+  request, attestation, suite, live/nested Codex or model operation, tag,
+  release, or external-use approval occurred.
+- What remains: after independent controller verification and explicit raw-Git
+  publication authority, create only collision-free ref
+  `refs/heads/level1-v0.1.0-rc.4` at the exact source commit and require every
+  EXT-15 CI job to pass on that SHA. Remote artifact attestation and any new
+  no-model/live suite remain later separate passes. Blockers for this bounded
+  local task: none.
 
 ## EXT-20 Structured Outputs Repair Publication And RC.4 Handoff (2026-07-19)
 
