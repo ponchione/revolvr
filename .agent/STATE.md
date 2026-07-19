@@ -82,16 +82,100 @@ worker attempt. The bounded no-model source remediation passed independent
 review and was published as exact source
 `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, tree
 `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. Collision-free RC.5 is now
-constructed and locally verified from only that source. Its candidate and
-verification bundles remain local; no candidate ref, remote CI, workflow,
-suite, live model call, tag, release, external-use approval, or `EXT-20`
-completion has occurred. Local tests do not establish live API acceptance.
+constructed and locally verified from only that source. Its exact candidate
+ref, ten-job source CI, artifact-attestation ref/run/job/artifact, and
+companion ten-job CI all pass. A fresh no-model guarded suite is prepared at
+`/tmp/revolvr-ext20-rc5.weLZtI/suite` for a later separately confirmed live
+pass. No RC.5 live model call, tag, release, external-use approval, or
+`EXT-20` completion has occurred. Local tests do not establish live API
+acceptance.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.5 Guarded No-Model Suite Preparation (2026-07-19)
+
+- Task selected: only the bounded RC.5 no-model suite-preparation sub-gate of
+  `EXT-20`. `EXT-20` remains unchecked.
+- Files changed: `scripts/dogfood-external-level1-suite.sh`, this state file,
+  `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`. The suite script changed
+  only its three candidate-authority constants: source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, Linux SHA-256
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  and bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61`.
+  Release output remains `revolvr 0.1.0`; exact Codex package/output/SHA-256
+  remains `0.144.4` / `codex-cli 0.144.4` /
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+  No plan, schema, scenario, threshold, configuration, confirmation,
+  collector, Go source, or dependency changed.
+- Pre-edit authority passed with raw Git and public REST only. Candidate and
+  attestation refs read back at exact SHAs
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` and
+  `109b38cdb309b50c38ab2ef0df33998e92dfd5e6`; the workflow remained exact at
+  SHA-256
+  `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`.
+  Candidate run `29697069305` had ten successful jobs; attestation run
+  `29698647782` and sole job `88223716039` succeeded; artifact `8445792045`
+  retained exact name `level1-v0.1.0-rc.5-attestation` and digest
+  `sha256:ab0febbc035f634d39babb897edd0c94bfaf1805ebc212e767a551fb1758b0e2`;
+  companion run `29698647807` had ten successful jobs. Both complete RC.5
+  bundles passed their 15-file/44-file inventories and inventory seals.
+- Verification commands passed: `bash -n` for the suite and collector;
+  `sha256sum -c files.sha256` and `sha256sum -c files.sha256.sha256` for both
+  complete RC.5 bundles; suite `--static`; two collector `--fixture-only`
+  runs; both `--verify-manifest` checks; canonical manifest comparison after
+  excluding only `collected_at_utc`; `go test -count=1 ./...`; and
+  `git diff --check`. Retained fixture root is
+  `/tmp/revolvr-ext20-rc5-collector.VVOYxA`; both raw manifest hashes are
+  `5169090fe855302da1fe70ca98535d7b66e4769c1af81ddec27affd9e9fc64e9`
+  and both canonical hashes are
+  `01a47fd5ab7f7eb8e7def144ce7cbef17d5b306366cb2967896fb7b874e8452c`.
+- One new parent was created with exact template
+  `/tmp/revolvr-ext20-rc5.XXXXXX`. The retained prepared suite is
+  `/tmp/revolvr-ext20-rc5.weLZtI/suite`; preparation used only
+  `--prepare --run-root /tmp/revolvr-ext20-rc5.weLZtI/suite
+  --install-codex` and started no model. Suite ID is
+  `ext20-f87a569b5efa`; `authority.tsv` SHA-256 is
+  `6577bd6c433db64178f5406b62c554370b64f030523c28c0486c6f35fc779b7e`;
+  unchanged `operation-plan.tsv` SHA-256 is
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+- Independent read-only inspection used `GIT_OPTIONAL_LOCKS=0` and verified
+  the prepared checksum, exact candidate path/hash/version/source/clean VCS
+  metadata, exact Codex package/path/hash/version, and effective source-writer
+  authority `timeout=32m0s heartbeat_interval=10m40s required=32m0s`. The
+  exact 11-row plan exposes ten unique ready tasks. Both disposable
+  repositories are clean on `main`: repo-a at
+  `7f1a2135c8dc403a612913195068d2ba1db21690` and repo-b at
+  `7d8510cd82281776bb6ebe2436db56da84e7802c`. There are zero runtime operation
+  manifests, zero collector manifests, and zero aggregate entries. Whole-root
+  content and metadata/layout fingerprints stayed unchanged at
+  `004104a72f5feb21392b71d48a69c6720a91df9899d0ba5c8b8ec69e6b144812`
+  and
+  `aa87d2e2acf07ed242ae63010ea6701fab3559bd0477bd52011404d1c49e6524`.
+  The empty-confirmation predicate was exercised in isolation and source
+  order proves refusal before a prepared-root read; neither `--live` nor the
+  confirmation value was passed to the suite.
+- Preservation passed for all ten RC.1-through-RC.4 sealed inventories, all
+  four historical workflow hashes, all eight historical candidate/attestation
+  refs, and terminal RC.4 suite
+  `/tmp/revolvr-ext20-rc4.DGg1pW/suite`. Its operation remains exactly
+  `ext20-2bd21aea4f72-01`; fresh whole-root content and metadata/layout
+  fingerprints remained
+  `46f0e63c7d4cf02a445ef1391870b65010547a8b8a0cbdce6cd21ca64fbae03a`
+  and
+  `78fc7d6ad2bdecf031253a5b997124fc1b09dadad4d09612a087ac11df1f5b68`.
+- Verification result: passed. Blockers for this bounded preparation task:
+  none. What remains is a separately authorized, confirmation-gated live
+  execution using exactly:
+  `scripts/dogfood-external-level1-suite.sh --live --run-root
+  /tmp/revolvr-ext20-rc5.weLZtI/suite --confirm-live-real-codex
+  EXT20_LIVE_REAL_CODEX_MODEL_CALLS`. This command was not executed. No `gh`,
+  commit, push, live/nested model operation, tag, release, external-use
+  approval, or `EXT-20` completion occurred.
 
 ## EXT-20 RC.5 Attestation Controller Review And Suite Handoff (2026-07-19)
 

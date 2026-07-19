@@ -54,9 +54,51 @@ Workflow/main commit and attestation ref are exact at
 job `88223716039`, artifact `8445792045`, and companion ten-job CI run
 `29698647807` succeeded. The remote result is published in controller state
 commit `6d32de0c9c932e202ea37ecb9d435fd70ad013ad`; it is not candidate or
-workflow authority. The next separate gate is fresh no-model RC.5 suite
-preparation via `agent-ext20-rc5-suite.sh`. The RC.4 suite must never be
-retried.
+workflow authority. Fresh no-model RC.5 suite preparation now passes at exact
+root `/tmp/revolvr-ext20-rc5.weLZtI/suite`. The next separate gate is an
+independently controlled confirmation-gated live pass against only that root.
+The RC.4 suite must never be retried.
+
+## RC.5 Prepared Suite Authority
+
+- Guarded suite source authority is exact candidate
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, Linux artifact SHA-256
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61`, release
+  output `revolvr 0.1.0`, and exact Codex package/output/SHA-256 `0.144.4` /
+  `codex-cli 0.144.4` /
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+- Exact prepared root: `/tmp/revolvr-ext20-rc5.weLZtI/suite`. Suite ID is
+  `ext20-f87a569b5efa`; authority SHA-256 is
+  `6577bd6c433db64178f5406b62c554370b64f030523c28c0486c6f35fc779b7e`;
+  operation-plan SHA-256 is
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+  Read-only content and metadata/layout fingerprints are
+  `004104a72f5feb21392b71d48a69c6720a91df9899d0ba5c8b8ec69e6b144812`
+  and
+  `aa87d2e2acf07ed242ae63010ea6701fab3559bd0477bd52011404d1c49e6524`.
+- Repo-a is clean on `main` at
+  `7f1a2135c8dc403a612913195068d2ba1db21690`; repo-b is clean on `main` at
+  `7d8510cd82281776bb6ebe2436db56da84e7802c`. All ten unique tasks are ready
+  across the exact 11-row plan. Effective source-lock authority is
+  `timeout=32m0s heartbeat_interval=10m40s required=32m0s`. Runtime state has
+  zero operation manifests, zero collector manifests, and an empty aggregate.
+- The preparation and isolated empty-confirmation guard check made no model
+  call. `EXT-20` remains unchecked. RC.1 through RC.4, including terminal
+  RC.4 root `/tmp/revolvr-ext20-rc4.DGg1pW/suite` and operation
+  `ext20-2bd21aea4f72-01`, remain immutable.
+- After independent controller verification of the tracked preparation
+  change, the remaining separately confirmed live command is exactly:
+
+  ```sh
+  scripts/dogfood-external-level1-suite.sh --live --run-root /tmp/revolvr-ext20-rc5.weLZtI/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+  ```
+
+  Do not run it without a new explicit live-model confirmation. A failed or
+  interrupted start becomes terminal retained evidence and must never be
+  retried. This handoff grants no tag, release, external-use approval, or
+  `EXT-20` completion.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 

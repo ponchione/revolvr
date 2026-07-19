@@ -1,5 +1,31 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Prepared-Suite Authority (2026-07-19)
+
+- The guarded external Level-1 suite now admits only RC.5 source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, Linux artifact SHA-256
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  and bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.5-19c1ef4b6a61`.
+  Release output remains `revolvr 0.1.0`; exact Codex 0.144.4 authority and
+  every plan, schema, scenario, threshold, configuration, and confirmation
+  rule remain unchanged.
+- The sole prepared RC.5 live-suite authority is
+  `/tmp/revolvr-ext20-rc5.weLZtI/suite`, suite ID
+  `ext20-f87a569b5efa`, authority SHA-256
+  `6577bd6c433db64178f5406b62c554370b64f030523c28c0486c6f35fc779b7e`,
+  and operation-plan SHA-256
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+  It has two clean disposable repositories, ten ready tasks across the exact
+  11-row plan, effective 32-minute source-writer authority, zero operation or
+  collector manifests, and an empty aggregate.
+- Preparation and read-only inspection grant no live-model authority. A later
+  pass requires separate confirmation and must use the exact retained root
+  and command recorded in `.agent/HANDOFF.md`; any authority drift fails
+  closed and requires a new collision-free suite. RC.1 through RC.4 remain
+  immutable rejected history, and `EXT-20` remains unchecked. No tag,
+  release, or external-use approval exists.
+
 ## EXT-20 RC.5 Attestation Review And Suite Launcher (2026-07-19)
 
 - Independent controller review accepted the exact workflow specialization,
