@@ -58,7 +58,9 @@ workflow authority. Fresh no-model RC.5 suite preparation now passes at exact
 root `/tmp/revolvr-ext20-rc5.weLZtI/suite` and its tracked result is published
 at controller commit `f5ba71d3be8c13b201c7609101a5269b6f463af5`. The next separate
 gate is an independently controlled confirmation-gated live pass through only
-`agent-ext20-rc5-live-direct.sh`. The RC.4 suite must never be retried.
+`agent-ext20-rc5-live-direct.sh`, published at exact launcher commit
+`d3872c00c30e15cc92dfbae8b890602c05b5fe8a`. Its no-model `--check` passed
+after publication. The RC.4 suite must never be retried.
 
 ## RC.5 Prepared Suite Authority
 
@@ -97,6 +99,9 @@ gate is an independently controlled confirmation-gated live pass through only
   ```sh
   ./agent-ext20-rc5-live-direct.sh --check
   ```
+
+  This preflight passed at day-end on the published launcher, but a fresh
+  session must rerun it to detect any intervening drift.
 
   Only after fresh explicit live confirmation, the one admitted live command
   is exactly:

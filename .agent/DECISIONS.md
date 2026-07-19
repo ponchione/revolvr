@@ -13,6 +13,9 @@
   calls. Actual live execution additionally requires the exact explicit token
   `EXT20_LIVE_REAL_CODEX_MODEL_CALLS`, uses only retained root
   `/tmp/revolvr-ext20-rc5.weLZtI/suite`, and executes the guarded suite once.
+  The launcher is published at exact commit
+  `d3872c00c30e15cc92dfbae8b890602c05b5fe8a`; its no-model `--check` passed
+  after raw-Git publication.
 - Any drift, failed start, or interruption fails closed and becomes terminal
   retained evidence; the suite or an operation must never be retried. The
   launcher grants no tag, release, or external-use approval. `EXT-20` can be

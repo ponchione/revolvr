@@ -118,6 +118,11 @@ document's remaining blockers stay open until their ordered tasks pass.
   this is a separate representation from the preparation pass's retained
   content fingerprint. `--check` performs preflight only. The exact live token
   is still required before the launcher can execute the guarded suite.
+- The direct launcher and initial day-end resume state were committed and
+  raw-Git pushed as `d3872c00c30e15cc92dfbae8b890602c05b5fe8a` (`Prepare RC.5 direct
+  live gate`). Its complete `--check` mode then passed against clean matching
+  local/remote `main`; no model call occurred. A fresh session must rerun that
+  safe preflight because retained-root drift remains fail-closed.
 - Day-end state: stop here. No live/nested model call, tag, release,
   external-use approval, or `EXT-20` completion occurred. The next session
   must first run the no-model `--check` preflight, then obtain fresh explicit
