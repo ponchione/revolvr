@@ -24,13 +24,39 @@ that exact source commit. Raw Git published only
 `refs/heads/level1-v0.1.0-rc.4` at the candidate SHA, and push-triggered CI run
 `29688941202` passed exactly all ten mandatory EXT-15 jobs on that SHA. A new
 separate RC.4 exact-checkout Go 1.26.5 artifact-attestation workflow has now
-passed complete local validation, including its unmodified embedded shell and
-both clean build passes. The controller launchers and workflow commit are not
-candidate source. RC.4 is only the sequential candidate label inside open
-backlog task `EXT-20`; it is not a separate backlog task or external-use
-approval. The next bounded pass is independent controller review, commit, and
-collision-safe publication of the attestation workflow/ref followed by exact
-remote run/job/artifact evidence.
+passed local validation and remote execution. Workflow commit and attestation
+ref are exact at `52c2db07a86677e67921bcbfbcbdf26397b47615`; dedicated run
+`29690065853`, job `88201098277`, and artifact `8443312175` succeeded, and the
+same push's ten-job CI run `29690065840` also succeeded. The controller
+launchers and workflow commit are not candidate source. RC.4 is only the
+sequential candidate label inside open backlog task `EXT-20`; it is not a
+separate backlog task or external-use approval. The next bounded pass is fresh
+no-model suite preparation using immutable RC.4 authority.
+
+## RC.4 Remote Artifact Attestation Authority
+
+- Workflow/main commit and exact attestation-ref readback:
+  `52c2db07a86677e67921bcbfbcbdf26397b47615`.
+- Candidate ref remains exact at source
+  `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Dedicated run `29690065853`: `completed` / `success`:
+  `https://github.com/ponchione/revolvr/actions/runs/29690065853`.
+- Sole job `88201098277`, `Rebuild and attest Level 1 RC.4 candidate`:
+  `completed` / `success`:
+  `https://github.com/ponchione/revolvr/actions/runs/29690065853/job/88201098277`.
+- Sole retained artifact: ID `8443312175`, name
+  `level1-v0.1.0-rc.4-attestation`, 70,214,949 bytes, digest
+  `sha256:0a3567ec0fbc31aff65424790402f81a20df3f22c49659854993dcbeb1eb8fbc`,
+  created `2026-07-19T14:05:56Z`, expires `2026-10-17T14:03:12Z`.
+- Controller archive download was unavailable because the public endpoint
+  returned HTTP 401 and no token was present. The successful job ran every
+  exact hash, metadata, version, reproducibility, checksum, and remote-authority
+  assertion before upload; no controller-side archive-byte comparison is
+  claimed.
+- Ordinary CI run `29690065840` also completed successfully with exactly ten
+  successful jobs on the workflow commit.
+- No live/nested model operation, suite, tag, release, external-use approval,
+  or `EXT-20` completion occurred.
 
 ## RC.4 Local Artifact Attestation Workflow
 
@@ -154,9 +180,9 @@ remote run/job/artifact evidence.
   local-candidate state was committed and pushed on `main` as
   `1917df5c374f8337a7bebb429478e7e16ea8420d`.
 - The exact candidate ref and source-floor remote CI authority are recorded
-  above. The attestation workflow has local verification authority only; no
-  remote attestation ref/run/artifact, suite, live/nested model, tag, release,
-  or external-use authority exists yet. `EXT-20` remains open.
+  above. Remote attestation authority is also recorded above and is complete;
+  no suite, live/nested model, tag, release, or external-use authority exists
+  yet. `EXT-20` remains open.
 
 ## RC.3 Rejection And Preservation Authority
 
@@ -295,42 +321,36 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Start one fresh controller pass to independently inspect the local workflow
-   and durable-state diff, rerun YAML/constants/shell/full-build verification,
-   and repeat every collision and preservation check.
-2. With controller commit/publication authority only, commit the reviewed
-   workflow and state, then immediately fetch/read back raw Git. Preserve
-   `refs/heads/level1-v0.1.0-rc.4` at exact source
-   `2546913e38ec273f64417dece2f91df78fd42fc2`; fail closed if any workflow,
-   ref, tag, artifact-name, or RC.4 namespace identity changed.
-3. Publish only previously absent
-   `refs/heads/level1-v0.1.0-rc.4-attestation` at the reviewed workflow commit
-   with an empty-expected force-with-lease. The required raw-Git publication
-   form is `git push
-   --force-with-lease=refs/heads/level1-v0.1.0-rc.4-attestation: origin
-   <reviewed-workflow-commit>:refs/heads/level1-v0.1.0-rc.4-attestation`.
-4. Require the exact push-triggered attestation job to succeed, download and
-   compare the retained authority when authorized, and record exact workflow
-   commit/ref, run/job IDs/URLs/status/conclusions plus artifact
-   ID/name/size/digest/creation/expiry and local comparison. Then stop.
-   No-model suite preparation and any separately confirmed live work remain
-   later passes. Keep `EXT-20` unchecked and external use unapproved.
+1. Start exactly one fresh pass with `agent-ext20-rc4-suite.sh` for the RC.4
+   no-model suite-preparation gate.
+2. Bind the guarded suite only to exact candidate source
+   `2546913e38ec273f64417dece2f91df78fd42fc2`, Linux SHA-256
+   `98ab93de990d00c9395d2fc7912658d2f36dcb9f9c3f358fa0422cfe2260e7fe`,
+   and bundle
+   `.revolvr/release-candidates/level1-v0.1.0-rc.4-2546913e38ec`, while
+   preserving the settled release and exact Codex 0.144.4 authority.
+3. Verify the shell, complete bundle, static suite, collectors, full Go suite,
+   and diff; then prepare one new collision-free
+   `/tmp/revolvr-ext20-rc4.XXXXXX/suite` with `--install-codex` but no model
+   call. Inspect all prepared authority and the fail-closed confirmation gate.
+4. Retain the prepared root and report the exact separately confirmation-gated
+   live command without executing it. Keep `EXT-20` unchecked and external
+   use unapproved.
 
 The completed remote-CI pass did not create an attestation launcher. Do not
 rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
 intentionally nonempty.
 
-Independent controller readback reconfirmed the exact candidate ref, successful
-run identity, and all ten successful jobs through raw Git and the public REST
-API. The remote-CI state was committed and pushed as
-`8c0379aa3fb6824fb56d4f3c1180f4cc411ada2a`. The bounded
-`agent-ext20-rc4-attestation.sh` launcher has now produced the locally verified
-workflow and must not be rerun.
+Independent controller readback reconfirmed exact candidate, workflow, and
+attestation refs, the successful dedicated run/job/artifact, and the ten-job CI
+run through raw Git and public REST. Do not rerun the completed remote or
+attestation launchers. The next bounded launcher is
+`agent-ext20-rc4-suite.sh`.
 
 Exact next command:
 
 ```bash
-git diff --check
+./agent-ext20-rc4-suite.sh
 ```
 
 ## Session Rules
@@ -342,8 +362,7 @@ git diff --check
 - Do exactly one task per pass and preserve unrelated changes and immutable
   evidence.
 - Never use `gh`.
-- The local workflow construction pass is complete. A later controller pass
-  owns any explicit commit, push, attestation-ref publication, and remote
-  evidence collection; suite/live-model/tag/release/external-use authority
-  remains excluded.
+- RC.4 candidate publication, remote CI, and artifact attestation are complete.
+  The next launcher authorizes no-model suite preparation only; live-model,
+  tag, release, and external-use authority remain excluded.
 - The repository is durable memory; this handoff is only the resume pointer.

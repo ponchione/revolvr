@@ -1,5 +1,30 @@
 # Agent Decisions
 
+## EXT-20 RC.4 Remote Artifact Attestation Authority (2026-07-19)
+
+- The reviewed workflow and local attestation state were committed on `main`
+  as `52c2db07a86677e67921bcbfbcbdf26397b47615`. Raw Git then created only the
+  previously absent `refs/heads/level1-v0.1.0-rc.4-attestation` at that exact
+  workflow commit using an empty-expected force-with-lease. Candidate source
+  authority remains `refs/heads/level1-v0.1.0-rc.4` at exact commit
+  `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Push-triggered attestation run `29690065853` and job `88201098277` completed
+  successfully at the exact workflow commit. Its sole artifact is ID
+  `8443312175`, name `level1-v0.1.0-rc.4-attestation`, size 70,214,949 bytes,
+  and digest
+  `sha256:0a3567ec0fbc31aff65424790402f81a20df3f22c49659854993dcbeb1eb8fbc`.
+  The same push's ten-job CI run `29690065840` also completed successfully.
+- Public REST metadata and the successful workflow job establish remote
+  artifact retention and its in-workflow exact binary/hash/metadata checks.
+  GitHub rejected unauthenticated archive download with HTTP 401, and no
+  controller token was available, so no controller-side archive byte
+  comparison is claimed.
+- RC.4 has now satisfied its candidate-ref, exact-source CI, and remote
+  artifact-attestation prerequisites. The next separately bounded gate is
+  no-model preparation of a fresh guarded Level-1 suite using exact RC.4
+  source, Linux artifact, and bundle authority. This grants no live-model,
+  tag, release, external-use, or `EXT-20` completion authority.
+
 ## EXT-20 RC.4 Local Artifact-Attestation Workflow Authority (2026-07-19)
 
 - The only locally admitted RC.4 attestation implementation is the separate

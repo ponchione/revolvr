@@ -78,15 +78,63 @@ acceptance, and no live model call is authorized. Collision-free RC.4 now
 exists as a locally verified immutable candidate and separate verification
 bundle from that exact source. Its exact candidate ref is published, and its
 complete ten-job push-triggered EXT-15 CI matrix passed. A separate RC.4
-exact-source artifact-attestation workflow now passes complete local
-verification; no remote attestation ref/run/artifact, dogfood suite, or live
-operation exists yet.
+exact-source artifact-attestation workflow now passes both complete local and
+remote verification, and its exact artifact is retained; no dogfood suite or
+live operation exists yet.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.4 Remote Artifact Attestation Result (2026-07-19)
+
+- Independent controller review passed the workflow's PyYAML structure and
+  exact trigger/job constants, extracted embedded-shell `bash -n`, workflow
+  SHA-256
+  `340b82093d469e86e2e27e4729a51caa1da88f814017d6f6ab1bcabd89a56101`,
+  retained 29-file output shape, and all six sealed `SHA256SUMS` rows. The
+  candidate ref remained exact and the attestation ref/tag namespace was
+  empty immediately before publication.
+- Raw Git committed the reviewed workflow and local state on `main` as
+  `52c2db07a86677e67921bcbfbcbdf26397b47615` (`Add RC.4 artifact attestation
+  workflow`) and pushed it after a fresh parent check. An empty-expected
+  force-with-lease then created only
+  `refs/heads/level1-v0.1.0-rc.4-attestation` at that workflow commit. Remote
+  readback matched `main` and the new attestation ref at the workflow commit,
+  while `refs/heads/level1-v0.1.0-rc.4` remained exact candidate source
+  `2546913e38ec273f64417dece2f91df78fd42fc2`.
+- Dedicated run `29690065853`, `Level 1 RC.4 candidate attestation`, event
+  `push`, branch `level1-v0.1.0-rc.4-attestation`, head SHA
+  `52c2db07a86677e67921bcbfbcbdf26397b47615`, completed with `success`:
+  `https://github.com/ponchione/revolvr/actions/runs/29690065853`. Its sole job
+  `88201098277`, `Rebuild and attest Level 1 RC.4 candidate`, completed with
+  `success`:
+  `https://github.com/ponchione/revolvr/actions/runs/29690065853/job/88201098277`.
+- The run retained exactly one unexpired artifact: ID `8443312175`, name
+  `level1-v0.1.0-rc.4-attestation`, size 70,214,949 bytes, digest
+  `sha256:0a3567ec0fbc31aff65424790402f81a20df3f22c49659854993dcbeb1eb8fbc`,
+  created/updated `2026-07-19T14:05:56Z`, expiring
+  `2026-10-17T14:03:12Z`. Its archive endpoint is
+  `https://api.github.com/repos/ponchione/revolvr/actions/artifacts/8443312175/zip`.
+  Public unauthenticated download returned HTTP 401 and neither `GH_TOKEN` nor
+  `GITHUB_TOKEN` was available, so controller-side archive comparison was not
+  possible. The successful remote job itself performed the two clean rebuilds,
+  exact sealed hash/identity assertions, pair comparisons, final checksum
+  check, and authority readback before upload.
+- The same push's ordinary CI run `29690065840` completed with `success` at the
+  exact workflow commit:
+  `https://github.com/ponchione/revolvr/actions/runs/29690065840`. Exactly ten
+  jobs were returned and every job completed successfully: IDs `88201098140`,
+  `88201098145`, `88201098159`, `88201098170`, `88201098176`, `88201098180`,
+  `88201098187`, `88201098200`, `88201098201`, and `88201098223`.
+- No candidate ref, source, bundle, historical workflow/ref/evidence, tag,
+  release, retired suite, or external-use decision changed. No `gh` or
+  live/nested model operation ran. `EXT-20` remains unchecked. RC.4's
+  candidate-ref, remote-CI, and artifact-attestation prerequisites are now
+  complete; the next bounded pass is fresh collision-free no-model suite
+  preparation through `agent-ext20-rc4-suite.sh`.
 
 ## EXT-20 RC.4 Remote Artifact Attestation Workflow (2026-07-19)
 
