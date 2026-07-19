@@ -550,32 +550,35 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run exactly one fresh candidate-ref/remote-CI pass with
-   `agent-ext20-rc5-remote.sh`. The launcher must reverify both sealed bundles
-   and all exact RC.5 authority before mutation.
-2. Publish only `refs/heads/level1-v0.1.0-rc.5` at exact source
-   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` with raw Git and an empty-ref
-   lease, read it back, and require its exact push-triggered ten-job CI run.
-3. Stop after the candidate-ref/remote-CI gate. Do not add an attestation
-   workflow, prepare an RC.5 suite, call a model, tag, release, approve external
-   use, or check `EXT-20`. RC.4 is terminal and must never be rerun.
+1. Run exactly one fresh local attestation-workflow pass with
+   `agent-ext20-rc5-attestation.sh`. It must reverify the sealed RC.5 authority,
+   exact candidate ref, and remote-CI result before changing the worktree.
+2. Construct and fully verify only
+   `.github/workflows/level1-rc5-candidate-attestation.yml`, with exact source
+   checkout, Go 1.26.5, two independent clean builds, the three sealed hashes,
+   embedded identities, and collision-free workflow/ref/artifact authority.
+3. Stop before committing or publishing the workflow, creating the attestation
+   ref, starting a remote run, preparing a suite, calling a model, tagging,
+   releasing, approving external use, or checking `EXT-20`. RC.4 is terminal
+   and must never be rerun.
 
-The completed remote-CI pass did not create an attestation launcher. Do not
-rerun `agent-ext20-rc4-remote.sh` because the candidate ref is now
-intentionally nonempty.
+The completed RC.5 remote-CI pass did not create an attestation workflow. Do
+not rerun `agent-ext20-rc5-remote.sh` because the RC.5 candidate ref is now
+intentionally nonempty. The controller prepared the separate local-only
+attestation launcher named above.
 
-Independent controller readback reconfirmed exact candidate, workflow, and
-attestation refs, the successful dedicated run/job/artifact, and the ten-job CI
-run through raw Git and public REST. Do not rerun the completed remote,
-attestation, or suite-preparation launchers.
+Earlier RC.4 controller readback reconfirmed its exact candidate, workflow, and
+attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
+Do not rerun any completed RC.4 remote, attestation, or suite-preparation
+launcher.
 
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-remote.sh
+./agent-ext20-rc5-attestation.sh
 ```
 
-Running this launcher is the separate candidate-ref publication authority. It
+This launcher authorizes local workflow construction and verification only. It
 has not yet been run.
 
 ## Session Rules
@@ -590,7 +593,8 @@ has not yet been run.
 - RC.4 candidate publication, remote CI, artifact attestation, and no-model
   suite preparation completed, but RC.4 then failed terminally on its first
   operation and is retired. The lifecycle-authority remediation is published.
-  RC.5 local construction is complete. Candidate-ref publication, remote CI,
-  live-model work, tag, release, and external-use authority remain excluded
-  until their separate gates.
+  RC.5 local construction, candidate-ref publication, and remote CI are
+  complete. Attestation workflow publication/execution, suite work, live-model
+  work, tag, release, and external-use authority remain excluded until their
+  separate gates.
 - The repository is durable memory; this handoff is only the resume pointer.

@@ -93,6 +93,25 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Remote-CI Controller Review And Handoff (2026-07-19)
+
+- Independent raw-Git readback reconfirmed
+  `refs/heads/level1-v0.1.0-rc.5` at exact source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`; the RC.5 attestation ref and
+  `*rc.5*` tag namespace remain absent. Both candidate and verification bundle
+  inventories and their seals passed again.
+- Independent public REST readback reconfirmed `ci.yml` run `29697069305` as
+  run number `42`, attempt `1`, `push`, branch `level1-v0.1.0-rc.5`, exact
+  candidate head SHA, and `completed` / `success`. It returned exactly the ten
+  job names and IDs recorded below; every job had the exact candidate SHA and
+  `completed` / `success`.
+- The durable result was committed and raw-Git pushed to `origin/main` as
+  `1cd46ad7d0c240da378522c9540b421f39376f58` (`Record RC.5 remote candidate
+  CI`). `agent-ext20-rc5-attestation.sh` is prepared for the next fresh pass:
+  construct and locally verify only the collision-free exact-checkout Go
+  1.26.5 RC.5 artifact-attestation workflow, then stop before commit,
+  publication, remote execution, suite preparation, or model work.
+
 ## EXT-20 RC.5 Exact-Candidate Remote CI (2026-07-19)
 
 - Task selected: the bounded RC.5 candidate-ref and remote-CI subtask of

@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Remote-CI Review And Attestation Launcher (2026-07-19)
+
+- Independent controller readback accepted exact RC.5 candidate ref
+  `refs/heads/level1-v0.1.0-rc.5` at
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`. Public REST independently
+  confirmed run `29697069305`, run number `42`, attempt `1`, event `push`,
+  exact branch/SHA, and the recorded ten unique jobs all at `completed` /
+  `success`. Both sealed RC.5 bundle inventories passed again.
+- The remote-CI result is raw-Git published on `main` at controller commit
+  `1cd46ad7d0c240da378522c9540b421f39376f58`; this is durable state only and
+  is not candidate source.
+- `agent-ext20-rc5-attestation.sh` is the sole next launcher. It authorizes
+  only local construction and verification of the collision-free RC.5
+  exact-candidate Go 1.26.5 artifact-attestation workflow. It grants no commit,
+  push, ref, remote run/artifact, suite, model call, tag, release,
+  external-use approval, or `EXT-20` completion.
+
 ## EXT-20 RC.5 Exact-Candidate Remote CI Authority (2026-07-19)
 
 - Remote candidate authority is exact branch
