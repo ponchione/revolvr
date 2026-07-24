@@ -1,5 +1,34 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Persistent Prepared-Suite Recovery (2026-07-24)
+
+- The published direct launcher failed closed before any model call because
+  external cleanup removed its `/tmp` prepared root. The older RC.1-through-
+  RC.4 `/tmp` roots were also absent. Historical Git, sealed bundles, remote
+  evidence, hashes, and durable summaries remain immutable, but the missing
+  volatile filesystem copies are no longer described as retained.
+- A single replacement RC.5 suite is prepared without model calls at exact
+  ignored runtime path
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
+  Keeping the replacement under repository runtime state avoids treating
+  volatile `/tmp` as release-gate evidence authority. Candidate, Codex, plan,
+  repositories, tasks, sentinels, and empty runtime evidence remain otherwise
+  unchanged in meaning.
+- `agent-ext20-rc5-live-direct.sh` is rebound locally to the replacement's
+  exact root, authority/content hashes, and repository heads. This recovery
+  grants no live-model, commit, push, tag, release, external-use, or `EXT-20`
+  completion authority. A separate clean controller review and explicit
+  commit/push authorization are required before its `--check` can pass and
+  before any live confirmation may be considered.
+- The fresh `agent-ext20-rc5-recovery-review.sh` pass left the reviewed tree
+  unchanged. Independent controller checks repeated exact scope, root,
+  authority, shell/static, remote-ref, and full Go verification successfully.
+- `agent-ext20-rc5-recovery-publish.sh` is the only admitted next launcher. Its
+  exact `EXT20_PUBLISH_RC5_RECOVERY` token grants only publication of the
+  reviewed six-file recovery and its controller record to raw-Git `main`, plus
+  the clean published no-model preflight. It grants no live operation, tag,
+  release, external-use approval, or `EXT-20` completion authority.
+
 ## EXT-20 RC.5 Prepared-Suite Review And Direct Live Gate (2026-07-19)
 
 - Independent controller review accepted the exact three-line RC.5 suite

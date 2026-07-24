@@ -1,6 +1,6 @@
 # Agent Handoff
 
-Updated: 2026-07-19
+Updated: 2026-07-24
 
 ## Resume Point
 
@@ -54,13 +54,32 @@ Workflow/main commit and attestation ref are exact at
 job `88223716039`, artifact `8445792045`, and companion ten-job CI run
 `29698647807` succeeded. The remote result is published in controller state
 commit `6d32de0c9c932e202ea37ecb9d435fd70ad013ad`; it is not candidate or
-workflow authority. Fresh no-model RC.5 suite preparation now passes at exact
-root `/tmp/revolvr-ext20-rc5.weLZtI/suite` and its tracked result is published
-at controller commit `f5ba71d3be8c13b201c7609101a5269b6f463af5`. The next separate
-gate is an independently controlled confirmation-gated live pass through only
-`agent-ext20-rc5-live-direct.sh`, published at exact launcher commit
-`d3872c00c30e15cc92dfbae8b890602c05b5fe8a`. Its no-model `--check` passed
-after publication. The RC.4 suite must never be retried.
+workflow authority. The originally prepared RC.5 root
+`/tmp/revolvr-ext20-rc5.weLZtI/suite` was published in controller state commit
+`f5ba71d3be8c13b201c7609101a5269b6f463af5`, and the direct launcher was
+published at `d3872c00c30e15cc92dfbae8b890602c05b5fe8a`. On 2026-07-24 its required
+fresh no-model `--check` failed closed before any model call because external
+`/tmp` cleanup had removed the prepared root. Inspection also found the older
+RC.1-through-RC.4 `/tmp` working roots absent; their Git, bundle, remote, and
+durable summary authority remains, but no claim is made that their volatile
+filesystem copies survived.
+
+A single collision-free replacement RC.5 suite is now prepared without model
+calls under ignored repository runtime state at
+`/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
+Candidate, attestation, remote CI, artifact, sealed-bundle, task, repository,
+sentinel, and empty-runtime checks pass. The direct launcher and durable state
+are updated locally but are not committed or published. The separate fresh
+controller review left the tree unchanged, and an independent controller
+readback repeated its exact scope, shell/static, root, remote-ref, and full Go
+checks successfully. Explicit confirmation-gated commit/push authority is the
+remaining boundary before the launcher's clean-`main` preflight can pass. The
+RC.4 suite must never be retried.
+
+The sole next launcher is `agent-ext20-rc5-recovery-publish.sh`. It requires
+the exact publication token, authorizes only the reviewed six-file recovery
+scope and its controller record on raw-Git `main`, runs the no-model direct
+preflight from clean published state, and must leave `EXT-20` unchecked.
 
 ## RC.5 Prepared Suite Authority
 
@@ -72,36 +91,36 @@ after publication. The RC.4 suite must never be retried.
   output `revolvr 0.1.0`, and exact Codex package/output/SHA-256 `0.144.4` /
   `codex-cli 0.144.4` /
   `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
-- Exact prepared root: `/tmp/revolvr-ext20-rc5.weLZtI/suite`. Suite ID is
-  `ext20-f87a569b5efa`; authority SHA-256 is
-  `6577bd6c433db64178f5406b62c554370b64f030523c28c0486c6f35fc779b7e`;
+- Exact prepared root:
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
+  Suite ID is `ext20-c871c96647e9`; authority SHA-256 is
+  `c4c6cd842aca0861db9c26bc269a6e5d38300d44f37cc44c78aea583564acc7f`;
   operation-plan SHA-256 is
   `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
-  Read-only content and metadata/layout fingerprints are
-  `004104a72f5feb21392b71d48a69c6720a91df9899d0ba5c8b8ec69e6b144812`
-  and
-  `aa87d2e2acf07ed242ae63010ea6701fab3559bd0477bd52011404d1c49e6524`.
+  The direct launcher's path-bearing, null-sorted content-stream SHA-256 is
+  `06724d26a212ef4743a1f68ccc31dc59d5f2561ff07f4dc5eff6dda4ba7ac783`.
 - Repo-a is clean on `main` at
-  `7f1a2135c8dc403a612913195068d2ba1db21690`; repo-b is clean on `main` at
-  `7d8510cd82281776bb6ebe2436db56da84e7802c`. All ten unique tasks are ready
+  `7ff28f8e19c4d3b57ea0e565b764db35a5207599`; repo-b is clean on `main` at
+  `697def8f11122af055c69726277e88dd86e63a6c`. All ten unique tasks are ready
   across the exact 11-row plan. Effective source-lock authority is
   `timeout=32m0s heartbeat_interval=10m40s required=32m0s`. Runtime state has
   zero operation manifests, zero collector manifests, and an empty aggregate.
-- The preparation and isolated empty-confirmation guard check made no model
-  call. `EXT-20` remains unchecked. RC.1 through RC.4, including terminal
-  RC.4 root `/tmp/revolvr-ext20-rc4.DGg1pW/suite` and operation
-  `ext20-2bd21aea4f72-01`, remain immutable.
-- Independent controller verification accepted and published the tracked
-  preparation change as
-  `f5ba71d3be8c13b201c7609101a5269b6f463af5`. First run the launcher's
+- Preparation and inspection made no model call. `EXT-20` remains unchecked.
+  RC.1 through RC.4 remain immutable rejected history and must never be
+  recreated or retried. Their former `/tmp` working roots are no longer
+  present and are not represented as retained filesystem evidence.
+- Independent review of the local tracked recovery passed without changing
+  it. Publication still requires the exact confirmation-gated publisher. Once
+  local and remote `main` match that reviewed recovery, run the launcher's
   no-model preflight:
 
   ```sh
   ./agent-ext20-rc5-live-direct.sh --check
   ```
 
-  This preflight passed at day-end on the published launcher, but a fresh
-  session must rerun it to detect any intervening drift.
+  The current dirty controller tree intentionally prevents this preflight from
+  passing before publication. It must be rerun after publication to detect
+  any intervening drift.
 
   Only after fresh explicit live confirmation, the one admitted live command
   is exactly:
@@ -680,10 +699,12 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. In a fresh session, read all durable state and run exactly
-   `./agent-ext20-rc5-live-direct.sh --check`. This performs the complete
-   fail-closed preflight without a model call.
-2. Only after new explicit live-model confirmation, execute exactly once:
+1. With explicit recovery-publication authority, run exactly
+   `./agent-ext20-rc5-recovery-publish.sh EXT20_PUBLISH_RC5_RECOVERY`.
+   It must publish only the reviewed recovery and its controller record,
+   require exact local/remote `main`, and pass
+   `./agent-ext20-rc5-live-direct.sh --check` without a model call.
+2. Only after a separate new explicit live-model confirmation, execute once:
    `./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS`.
    Never run an operation separately or prepare another suite first.
 3. Let the guarded suite finish normally. On any failure or interruption,
@@ -706,11 +727,13 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-live-direct.sh --check
+./agent-ext20-rc5-recovery-publish.sh EXT20_PUBLISH_RC5_RECOVERY
 ```
 
-This exact next command is a no-model preflight. The token-bearing live command
-above remains separately confirmation-gated and was not run today.
+Supplying this exact token authorizes only the bounded recovery commits and
+raw-Git `main` pushes encoded by the launcher. It authorizes no live suite,
+tag, release, or external-use approval. The live command remains a later
+separate confirmation gate.
 
 ## Session Rules
 

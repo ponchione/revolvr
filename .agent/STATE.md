@@ -84,17 +84,94 @@ review and was published as exact source
 `2fb39c93694e72d986e7a8a849a542fc1bf1728d`. Collision-free RC.5 is now
 constructed and locally verified from only that source. Its exact candidate
 ref, ten-job source CI, artifact-attestation ref/run/job/artifact, and
-companion ten-job CI all pass. A fresh no-model guarded suite is prepared at
-`/tmp/revolvr-ext20-rc5.weLZtI/suite` for a later separately confirmed live
-pass. No RC.5 live model call, tag, release, external-use approval, or
-`EXT-20` completion has occurred. Local tests do not establish live API
-acceptance.
+companion ten-job CI all pass. The original prepared RC.5 suite was lost to
+external `/tmp` cleanup before any model call. A collision-free replacement is
+now prepared without model calls under ignored repository runtime state at
+`/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
+Its launcher and durable authority updates remain local and unpublished. No
+RC.5 live model call, tag, release, external-use approval, or `EXT-20`
+completion has occurred. Local tests do not establish live API acceptance.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.5 Recovery Independent Review (2026-07-24)
+
+- The exact fresh review launcher completed and left the reviewed recovery
+  tree unchanged: four tracked recovery files remained modified, only the
+  review launcher remained untracked, the index stayed empty, and local and
+  remote `main` stayed at
+  `49dafe186f4c081c49483c46c6487914b1fd9c00`.
+- Independent controller verification after the review repeated the exact
+  diff scope, `git diff --check`, shell syntax, suite `--static`, prepared
+  checksum/authority/plan/content hashes, exact clean repository heads, empty
+  operation/collector/aggregate state, candidate and attestation raw-ref
+  readback, and `go test ./...`; all passed. No suite/model operation, commit,
+  push, tag, release, external-use approval, or `EXT-20` completion occurred.
+- The operator supplied exact `EXT20_PUBLISH_RC5_RECOVERY` authority to this
+  fresh pass. Publishing the reviewed recovery and running its no-model direct
+  preflight is the authorized bounded task; live-suite authority remains
+  excluded and `EXT-20` remains unchecked.
+
+## EXT-20 RC.5 Volatile-Root Recovery (2026-07-24)
+
+- Task selected: recover only the lost no-model RC.5 prepared-suite authority;
+  `EXT-20` remains unchecked. The recorded direct `--check` failed closed with
+  `prepared suite is unavailable` before any model call because
+  `/tmp/revolvr-ext20-rc5.weLZtI/suite` no longer existed. Read-only inspection
+  found the older RC.1-through-RC.4 `/tmp` roots absent as well. Their sealed
+  Git/bundle/remote authority and durable summaries remain, but their former
+  filesystem copies are not claimed as retained evidence.
+- Exact immutable authority was revalidated without `gh`: candidate and
+  attestation refs remain
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7` and
+  `109b38cdb309b50c38ab2ef0df33998e92dfd5e6`; workflow SHA-256 remains
+  `9c650a1fbbad1354cf7e991018bb505aba59698c8fec4bc828260c512b069852`.
+  Public REST readback reconfirmed successful ten-job candidate run
+  `29697069305`, successful attestation run/job `29698647782` / `88223716039`,
+  exact unexpired artifact `8445792045` with digest
+  `sha256:ab0febbc035f634d39babb897edd0c94bfaf1805ebc212e767a551fb1758b0e2`,
+  and successful companion run `29698647807`. Both complete RC.5 sealed bundle
+  manifests pass.
+- One collision-free parent was created under ignored runtime state rather
+  than volatile `/tmp`. Exact prepared root is
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`;
+  suite ID is `ext20-c871c96647e9`, authority SHA-256 is
+  `c4c6cd842aca0861db9c26bc269a6e5d38300d44f37cc44c78aea583564acc7f`,
+  operation-plan SHA-256 is
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
+  and the direct path-bearing content-stream SHA-256 is
+  `06724d26a212ef4743a1f68ccc31dc59d5f2561ff07f4dc5eff6dda4ba7ac783`.
+  Preparation installed exact Codex `0.144.4` but started no model.
+- Candidate and Codex hashes/version outputs are exact. Repo-a is clean on
+  `main` at `7ff28f8e19c4d3b57ea0e565b764db35a5207599`; repo-b is clean on
+  `main` at `697def8f11122af055c69726277e88dd86e63a6c`. All ten unique tasks are
+  pending and doctor-ready across the exact 11-row plan; sentinels and hard/
+  symbolic links are exact. Effective source-writer authority remains
+  `timeout=32m0s heartbeat_interval=10m40s required=32m0s`. There are zero
+  operation manifests, zero collector manifests, and zero aggregate entries.
+- Files changed: `agent-ext20-rc5-live-direct.sh`,
+  `agent-ext20-rc5-recovery-review.sh`,
+  `agent-ext20-rc5-recovery-publish.sh`, this file, `.agent/HANDOFF.md`, and
+  `.agent/DECISIONS.md`. The review passed; the publication launcher is the
+  exact next fresh pass and authorizes no live operation. No Go source,
+  dependency, candidate, workflow, suite plan/scenario/threshold, remote ref,
+  or runtime operation changed.
+- Verification result: the no-model preparation and independent inspection
+  pass. Commands included shell syntax, suite `--static`, raw remote-ref and
+  public REST readback, both sealed-bundle checksum manifests, exact
+  `--prepare --install-codex`, prepared checksum/hash/identity/layout checks,
+  ten focused doctor readiness checks, `go test ./...`, and
+  `git diff --check`. The rebound direct launcher's `--check` was also proved
+  to stop exactly at `controller repository is not clean`, as required before
+  publication. The tracked recovery remains uncommitted because no commit/push
+  authority was granted. A separate review and explicitly authorized
+  publication must make local and remote `main` exact before the complete
+  preflight can pass. No live/nested model call, commit, push, tag, release,
+  external-use approval, or `EXT-20` completion occurred.
 
 ## EXT-20 RC.5 Prepared-Suite Controller Review And Day-End Handoff (2026-07-19)
 
