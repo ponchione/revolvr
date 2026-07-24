@@ -110,6 +110,45 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Terminal Live Failure (2026-07-24)
+
+- The retained diagnostic record proves that the replacement suite did start
+  exactly once from clean published controller commit
+  `82a966adde168f7845c5cc22bfff19a0324b3d1f`. Launch record
+  `.revolvr/ext20-rc5-launch-records/ext20-9b7cc650ea0c-20260724T230449Z-468858`
+  binds the exact candidate, Codex, suite, plan, repository heads, and
+  pre-start content authority. Its status records launcher interruption 130;
+  descendant evidence subsequently reached a terminal product result, so the
+  launcher status is not used as the suite outcome.
+- Operation `ext20-9b7cc650ea0c-01` reached the planner for scenario
+  `successful-source-change-1`, consumed one supervisor and one worker attempt,
+  then terminated `unsafe_or_ambiguous` with run exit 1 before verification,
+  audit, correction, source mutation, or commit. The exact stop detail is
+  `cycle dossier identity is missing or malformed`. The operation's planning
+  output and provenance carry a valid planner role-projected dossier using
+  `autonomous-role-dossier-manifest-v1`; the planning application gate still
+  requires the legacy `autonomous-task-dossier-manifest-v1` schema.
+- The fallback receipt also exposed two independent consistency defects:
+  fallback normalization removed the canonical task body's final newline, and
+  its bullet-form no-verification placeholder parsed as a verification claim.
+  Receipt validation therefore failed exact task identity and verification
+  result agreement. The retained Level-1 manifest itself verifies, source and
+  containment authority stayed unchanged, and no commit was created.
+- The suite, evidence, and launch-record path-bearing content-stream SHA-256
+  values are respectively
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  They are immutable rejected evidence. The later `prepared file content
+  changed` preflight is the expected refusal to reuse this now-nonpristine
+  suite; it is not a no-start and must not be retried.
+- RC.5 is rejected and `EXT-20` remains unchecked. New launcher
+  `agent-ext20-rc5-live-failure-remediation.sh` is the sole next pass. It may
+  repair only these evidence-backed source/receipt defects, permanently
+  fail-close the retired live launcher, add regressions, and update durable
+  state. It grants no commit, push, live operation, candidate construction,
+  tag, release, external-use approval, or `EXT-20` completion authority.
+
 ## EXT-20 RC.5 Replacement Publication Controller Verification (2026-07-24)
 
 - Independent verification accepted replacement commit

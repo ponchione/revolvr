@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Terminal Live-Evidence Policy (2026-07-24)
+
+- A retained launch record plus a validated first-operation manifest proves
+  that replacement suite `ext20-9b7cc650ea0c` entered its live path once. The
+  launcher's retained interruption status 130 and the descendant operation's
+  later terminal `unsafe_or_ambiguous` result are distinct facts; neither may
+  overwrite or be inferred from the other.
+- Any live start makes a prepared suite single-use. Its later prepared-content
+  mismatch is therefore an expected reuse refusal, not missing evidence and
+  not authority to rebuild or retry in place. RC.5, its suite, operation,
+  launch record, and evidence are immutable rejected history.
+- The failure establishes three product regressions that must be repaired
+  before any later candidate: planning application must validate the exact
+  planner role-projected dossier authority; fallback receipts must preserve
+  exact nonblank task bytes; and a no-verification placeholder must not parse
+  as a verification claim. Fixes must be general, fail closed, and covered by
+  focused tests; no dogfood-specific bypass is permitted.
+- The RC.5 direct launcher must be permanently retired. A later candidate's
+  live boundary requires separate construction and review and must keep child
+  progress visible while retaining unambiguous signal and terminal status.
+  Source remediation grants no candidate, live, release, or external-use
+  authority.
+
 ## EXT-20 RC.5 Diagnostic-Retaining No-Start Replacement (2026-07-24)
 
 - The first persistent RC.5 suite at

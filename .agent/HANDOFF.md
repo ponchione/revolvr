@@ -4,6 +4,19 @@ Updated: 2026-07-24
 
 ## Resume Point
 
+Latest authority supersedes the former live-command handoff below. RC.5
+replacement suite `ext20-9b7cc650ea0c` started once and is now immutable
+rejected evidence. Its first operation
+`ext20-9b7cc650ea0c-01` terminated `unsafe_or_ambiguous` after a valid planner
+role-projected dossier reached a legacy-only planning-application schema gate.
+Fallback receipt validation also proved exact-task-newline and empty-
+verification-claim defects. The manifest verifies, containment and source
+authority stayed intact, and no source commit occurred. The launch record's
+status 130 records controller interruption; later retained operation evidence
+records the distinct terminal product failure. Never rerun the suite or the
+RC.5 direct launcher. The exact next fresh pass is the no-live, no-commit
+source remediation launcher recorded under `Next Ordered Work`.
+
 The first unchecked backlog task remains `EXT-20`. RC.3 is immutable rejected
 history, and its retained suite is permanently retired. The first local
 Structured Outputs repair passed tests but failed independent audit because
@@ -768,14 +781,16 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Obtain separate explicit live-model authority before running exactly
-   `./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS`.
-   The launcher must begin from clean exact local/remote `main`, reserve one
-   collision-free diagnostic record, and invoke the guarded suite only once.
-2. Treat any drift, refusal, interruption, or retained nonzero outcome as
-   terminal evidence; never retry this suite or operation.
-3. Do not tag, release, approve external use, or complete `EXT-20`. RC.1
-   through RC.4 and the unproven-no-start RC.5 suite remain retired.
+1. Run one fresh bounded remediation pass with
+   `./agent-ext20-rc5-live-failure-remediation.sh`. It must preserve all RC.5
+   runtime evidence, fix only the three evidence-backed product defects,
+   permanently fail-close the RC.5 live launcher, add focused regressions, and
+   stop without commit or push.
+2. Independently review and publish that source remediation before constructing
+   a collision-free later candidate. Do not name or prepare RC.6 in the
+   remediation pass.
+3. Do not retry RC.5, tag, release, approve external use, or complete
+   `EXT-20`. RC.1 through RC.5 are immutable rejected history.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -790,13 +805,13 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+./agent-ext20-rc5-live-failure-remediation.sh
 ```
 
-Do not run this command without a new exact live confirmation. The completed
-remediation/review/publication launchers and former retired-suite live command
-must not be rerun. This handoff grants no tag, release, or external-use
-approval.
+This command starts a fresh Codex remediation pass but no Revolvr live or
+nested model operation. The completed publication launchers and every retired
+suite live command must not be rerun. This handoff grants no candidate, tag,
+release, or external-use approval.
 
 ## Session Rules
 
