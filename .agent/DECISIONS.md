@@ -27,20 +27,20 @@
   an initial status. Normal exit, launcher failure, or trappable interruption
   replaces status with the retained terminal classification; a collision
   preserves the existing record and refuses execution.
-- This no-model preparation is uncommitted and must pass a fresh independent
-  review followed by separately authorized publication and a clean published
-  `--check`. It grants no live pass, commit, push, tag, release, external-use
-  approval, or `EXT-20` completion authority.
+- This no-model preparation required a fresh independent review followed by
+  separately authorized publication and a clean published `--check`. It grants
+  no tag, release, external-use approval, or `EXT-20` completion authority.
 - The fresh `agent-ext20-rc5-no-start-review.sh` pass left the accepted scope
   unchanged; independent controller scope/root/no-token/full-Go checks also
   passed.
-- `agent-ext20-rc5-no-start-publish.sh` is the sole next launcher. Exact token
-  `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT` grants only publication of the
-  reviewed seven-file scope and controller record to raw-Git `main`, plus the
-  no-model/no-launch-record clean preflight. It grants no live authority.
-- The operator supplied that exact publication confirmation. The current
-  bounded task may publish only that reviewed scope and controller record with
-  exact raw-Git leases, and may run only the clean check-only preflights.
+- Exact token `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT` published only the
+  reviewed seven-file scope to raw-Git `main` as commit
+  `d4e00d99252888528db29785eefedbf9f087859a`, an exact child of
+  `239008cfbe819e65c1b2f886a9ba81323e5643e9`. Exact local/remote readback and
+  the clean no-model/no-launch-record preflight passed.
+- The published `agent-ext20-rc5-live-direct.sh` is the sole next launcher and
+  still requires separate exact live-model confirmation. Publication grants no
+  live, tag, release, external-use, or `EXT-20` completion authority.
 
 ## EXT-20 RC.5 Unproven Live No-Start Policy (2026-07-24)
 

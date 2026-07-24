@@ -98,15 +98,47 @@ new no-model replacement is prepared at
 Its direct gate retains launch authority, output, and terminal or interruption
 status outside the suite before starting a guarded live path. Independent
 review passed, and exact confirmation `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT`
-now authorizes only the reviewed publication and clean no-model preflights. No
-tag, release, external-use approval, or `EXT-20` completion has occurred.
-Local tests do not establish live API acceptance.
+published the reviewed replacement as commit
+`d4e00d99252888528db29785eefedbf9f087859a`. Exact local/remote readback and its
+clean no-model/no-launch-record preflight pass. No tag, release, external-use
+approval, or `EXT-20` completion has occurred. Local tests do not establish
+live API acceptance.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.5 No-Start Replacement Publication (2026-07-24)
+
+- Task selected: reverify, publish, and record only the independently reviewed
+  diagnostic-retaining RC.5 no-start replacement, then run its check-only
+  preflights from clean published `main`. `EXT-20` remains unchecked.
+- Files changed: replacement commit
+  `d4e00d99252888528db29785eefedbf9f087859a` contains exactly
+  `.agent/DECISIONS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `agent-ext20-rc5-live-direct.sh`,
+  `agent-ext20-rc5-no-start-publish.sh`,
+  `agent-ext20-rc5-no-start-review.sh`, and
+  `scripts/check-ext20-rc5-live-direct.sh`; this controller record changes
+  only the first three files. No Go source, dependency, suite authority,
+  candidate/attestation ref, tag, release, or runtime operation changed.
+- Verification commands run: exact raw-Git local/remote refs and leases;
+  read-only public REST for runs `29697069305`, `29698647782`, and
+  `29698647807`, job `88223716039`, and artifact `8445792045`; exact workflow,
+  retired/replacement suite, candidate, Codex, repository, task, sentinel,
+  authority, empty-evidence, and sealed-bundle checks; shell syntax; suite
+  `--static`; `scripts/check-ext20-rc5-live-direct.sh`;
+  `go test -count=1 ./...`; and `git diff --check`.
+- Verification result: passed. The replacement commit is the exact child of
+  `239008cfbe819e65c1b2f886a9ba81323e5643e9`, raw-Git remote readback matched,
+  and clean published `./agent-ext20-rc5-live-direct.sh --check` reported
+  `RC.5 live gate: preflight passed; no model call or launch record occurred`.
+  Both suite hashes remained exact and no launch-record directory was created.
+- What remains: only a separately confirmation-gated live pass may proceed;
+  tagging, release, external-use approval, and `EXT-20` completion remain later
+  independent gates. Blockers for this bounded publication task: none.
 
 ## EXT-20 RC.5 No-Start Replacement Independent Review (2026-07-24)
 

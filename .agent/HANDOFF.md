@@ -96,11 +96,12 @@ ignored `.revolvr/ext20-rc5-launch-records` before invoking the guarded suite
 once. Focused no-token checks pass. The fresh independent no-model review left
 the accepted six-file scope unchanged, and controller revalidation repeated
 its exact scope, old/new root hashes, no-token checks, and full Go suite
-successfully. The operator has now supplied exact confirmation
-`EXT20_PUBLISH_RC5_NO_START_REPLACEMENT`. This fresh bounded pass may publish
-only the reviewed seven-file replacement scope and its controller record, then
-run the clean no-model preflights. It authorizes no live call, tag, release,
-external-use approval, or `EXT-20` completion.
+successfully. Exact confirmation `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT`
+published the reviewed replacement as commit
+`d4e00d99252888528db29785eefedbf9f087859a`, an exact child of
+`239008cfbe819e65c1b2f886a9ba81323e5643e9`. Local and remote readback matched,
+and the clean published `--check` passed with no model call or launch record.
+This grants no tag, release, external-use approval, or `EXT-20` completion.
 
 ## RC.5 Retired Prepared Suite Authority
 
@@ -189,11 +190,11 @@ external-use approval, or `EXT-20` completion.
   scripts/check-ext20-rc5-live-direct.sh
   ```
 
-- This prepared replacement and launcher are uncommitted. Independent review
-  passed without changing the accepted scope. Exact confirmation
-  `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT` now authorizes only publication and
-  clean published `--check` preflights; any live confirmation remains a later
-  gate. `EXT-20` stays unchecked.
+- This prepared replacement and launcher are published as exact commit
+  `d4e00d99252888528db29785eefedbf9f087859a`. Independent review passed without
+  changing the accepted scope; exact raw-Git remote readback and the clean
+  published `--check` passed without a model call or launch record. Any live
+  confirmation remains a separate gate. `EXT-20` stays unchecked.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 
@@ -760,13 +761,12 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. With explicit replacement-publication authority, run exactly
-   `./agent-ext20-rc5-no-start-publish.sh EXT20_PUBLISH_RC5_NO_START_REPLACEMENT`.
-   It must publish only the reviewed replacement and controller record, then
-   pass the check-only gate from clean exact local/remote `main` without a
-   model call or launch record.
-2. Only after publication and a separate live confirmation may the retained
-   diagnostic live boundary be considered.
+1. Obtain separate explicit live-model authority before running exactly
+   `./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS`.
+   The launcher must begin from clean exact local/remote `main`, reserve one
+   collision-free diagnostic record, and invoke the guarded suite only once.
+2. Treat any drift, refusal, interruption, or retained nonzero outcome as
+   terminal evidence; never retry this suite or operation.
 3. Do not tag, release, approve external use, or complete `EXT-20`. RC.1
    through RC.4 and the unproven-no-start RC.5 suite remain retired.
 
@@ -783,13 +783,13 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-no-start-publish.sh EXT20_PUBLISH_RC5_NO_START_REPLACEMENT
+./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
-This exact token authorizes only the bounded replacement/controller commits,
-raw-Git `main` pushes, and check-only preflight encoded by the launcher. It
-authorizes no live model call, tag, release, or external-use approval. The
-completed remediation/review launchers and former live command are retired.
+Do not run this command without a new exact live confirmation. The completed
+remediation/review/publication launchers and former retired-suite live command
+must not be rerun. This handoff grants no tag, release, or external-use
+approval.
 
 ## Session Rules
 
