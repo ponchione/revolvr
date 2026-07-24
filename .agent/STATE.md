@@ -88,15 +88,45 @@ companion ten-job CI all pass. The original prepared RC.5 suite was lost to
 external `/tmp` cleanup before any model call. A collision-free replacement is
 now prepared without model calls under ignored repository runtime state at
 `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
-Its launcher and durable authority updates remain local and unpublished. No
-RC.5 live model call, tag, release, external-use approval, or `EXT-20`
-completion has occurred. Local tests do not establish live API acceptance.
+Its reviewed launcher and durable authority updates are published as exact
+recovery commit `d0bde8dffd8e233c04e593519546b7634d836304`; exact remote
+readback and its clean no-model direct preflight pass. No RC.5 live model call,
+tag, release, external-use approval, or `EXT-20` completion has occurred.
+Local tests do not establish live API acceptance.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.5 Recovery Publication (2026-07-24)
+
+- Task selected: independently reverify, publish, and record only the reviewed
+  persistent RC.5 prepared-suite recovery under exact operator authority
+  `EXT20_PUBLISH_RC5_RECOVERY`, then run its no-model direct preflight.
+  `EXT-20` remains unchecked.
+- Files changed: recovery commit
+  `d0bde8dffd8e233c04e593519546b7634d836304` contains exactly
+  `.agent/DECISIONS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `agent-ext20-rc5-live-direct.sh`,
+  `agent-ext20-rc5-recovery-publish.sh`, and
+  `agent-ext20-rc5-recovery-review.sh`; this controller record changes only
+  the first three files. No candidate source, workflow, bundle, suite script,
+  collector, Go source, dependency, task status, tag, candidate/attestation
+  ref, or runtime operation changed.
+- Verification result: passed. Raw-ref and public REST evidence, both sealed
+  bundles, shell syntax/static mode, complete prepared-root identity and empty
+  evidence, all ten doctor-ready pending tasks, `go test -count=1 ./...`,
+  `git diff --check`, exact staged scope/diff, exact-leased raw-Git push, and
+  local/remote readback all passed. From clean published recovery commit
+  `d0bde8dffd8e233c04e593519546b7634d836304`,
+  `./agent-ext20-rc5-live-direct.sh --check` reported
+  `RC.5 live gate: preflight passed; no model call occurred`.
+- Blockers for this bounded publication task: none. What remains is the
+  separately confirmation-gated live command recorded in `.agent/HANDOFF.md`;
+  this pass grants no authority to execute it, tag, release, approve external
+  use, or complete `EXT-20`.
 
 ## EXT-20 RC.5 Recovery Independent Review (2026-07-24)
 
@@ -156,22 +186,20 @@ document's remaining blockers stay open until their ordered tasks pass.
 - Files changed: `agent-ext20-rc5-live-direct.sh`,
   `agent-ext20-rc5-recovery-review.sh`,
   `agent-ext20-rc5-recovery-publish.sh`, this file, `.agent/HANDOFF.md`, and
-  `.agent/DECISIONS.md`. The review passed; the publication launcher is the
-  exact next fresh pass and authorizes no live operation. No Go source,
-  dependency, candidate, workflow, suite plan/scenario/threshold, remote ref,
-  or runtime operation changed.
+  `.agent/DECISIONS.md`. At that recovery stage, the review and publication
+  were still separate gates; their completed result is recorded above. No Go
+  source, dependency, candidate, workflow, suite plan/scenario/threshold,
+  remote ref, or runtime operation changed.
 - Verification result: the no-model preparation and independent inspection
   pass. Commands included shell syntax, suite `--static`, raw remote-ref and
   public REST readback, both sealed-bundle checksum manifests, exact
   `--prepare --install-codex`, prepared checksum/hash/identity/layout checks,
   ten focused doctor readiness checks, `go test ./...`, and
-  `git diff --check`. The rebound direct launcher's `--check` was also proved
-  to stop exactly at `controller repository is not clean`, as required before
-  publication. The tracked recovery remains uncommitted because no commit/push
-  authority was granted. A separate review and explicitly authorized
-  publication must make local and remote `main` exact before the complete
-  preflight can pass. No live/nested model call, commit, push, tag, release,
-  external-use approval, or `EXT-20` completion occurred.
+  `git diff --check`. At that recovery stage, the rebound direct launcher's
+  `--check` was also proved to stop exactly at `controller repository is not
+  clean`, as required before publication. The separately authorized review,
+  publication, and complete preflight are recorded above. No live/nested model
+  call, tag, release, external-use approval, or `EXT-20` completion occurred.
 
 ## EXT-20 RC.5 Prepared-Suite Controller Review And Day-End Handoff (2026-07-19)
 

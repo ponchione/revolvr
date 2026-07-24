@@ -14,20 +14,21 @@
   volatile `/tmp` as release-gate evidence authority. Candidate, Codex, plan,
   repositories, tasks, sentinels, and empty runtime evidence remain otherwise
   unchanged in meaning.
-- `agent-ext20-rc5-live-direct.sh` is rebound locally to the replacement's
+- `agent-ext20-rc5-live-direct.sh` is rebound to the replacement's
   exact root, authority/content hashes, and repository heads. This recovery
-  grants no live-model, commit, push, tag, release, external-use, or `EXT-20`
-  completion authority. A separate clean controller review and explicit
-  commit/push authorization are required before its `--check` can pass and
-  before any live confirmation may be considered.
+  grants no live-model, tag, release, external-use, or `EXT-20` completion
+  authority.
 - The fresh `agent-ext20-rc5-recovery-review.sh` pass left the reviewed tree
   unchanged. Independent controller checks repeated exact scope, root,
   authority, shell/static, remote-ref, and full Go verification successfully.
-- `agent-ext20-rc5-recovery-publish.sh` is the only admitted next launcher. Its
-  exact `EXT20_PUBLISH_RC5_RECOVERY` token grants only publication of the
+- Exact `EXT20_PUBLISH_RC5_RECOVERY` authority admitted only publication of the
   reviewed six-file recovery and its controller record to raw-Git `main`, plus
-  the clean published no-model preflight. It grants no live operation, tag,
-  release, external-use approval, or `EXT-20` completion authority.
+  the clean published no-model preflight. The recovery is published as exact
+  commit `d0bde8dffd8e233c04e593519546b7634d836304`, with parent
+  `49dafe186f4c081c49483c46c6487914b1fd9c00`; remote readback matched and
+  `./agent-ext20-rc5-live-direct.sh --check` passed without a model call. This
+  grants no live operation, tag, release, external-use approval, or `EXT-20`
+  completion authority.
 
 ## EXT-20 RC.5 Prepared-Suite Review And Direct Live Gate (2026-07-19)
 

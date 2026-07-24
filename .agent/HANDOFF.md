@@ -69,17 +69,16 @@ calls under ignored repository runtime state at
 `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
 Candidate, attestation, remote CI, artifact, sealed-bundle, task, repository,
 sentinel, and empty-runtime checks pass. The direct launcher and durable state
-are updated locally but are not committed or published. The separate fresh
-controller review left the tree unchanged, and an independent controller
-readback repeated its exact scope, shell/static, root, remote-ref, and full Go
-checks successfully. Explicit confirmation-gated commit/push authority is the
-remaining boundary before the launcher's clean-`main` preflight can pass. The
+passed separate fresh review and were published with exact old-main lease as
+recovery commit `d0bde8dffd8e233c04e593519546b7634d836304`. Exact local and
+remote readback matched, and the clean published
+`./agent-ext20-rc5-live-direct.sh --check` passed without a model call. The
 RC.4 suite must never be retried.
 
-The sole next launcher is `agent-ext20-rc5-recovery-publish.sh`. It requires
-the exact publication token, authorizes only the reviewed six-file recovery
-scope and its controller record on raw-Git `main`, runs the no-model direct
-preflight from clean published state, and must leave `EXT-20` unchecked.
+The exact next launcher is `agent-ext20-rc5-live-direct.sh`, but its live path
+requires a separate fresh explicit live-model confirmation. This recovery
+publication grants no live, tag, release, external-use, or `EXT-20` completion
+authority.
 
 ## RC.5 Prepared Suite Authority
 
@@ -109,18 +108,17 @@ preflight from clean published state, and must leave `EXT-20` unchecked.
   RC.1 through RC.4 remain immutable rejected history and must never be
   recreated or retried. Their former `/tmp` working roots are no longer
   present and are not represented as retained filesystem evidence.
-- Independent review of the local tracked recovery passed without changing
-  it. Publication still requires the exact confirmation-gated publisher. Once
-  local and remote `main` match that reviewed recovery, run the launcher's
-  no-model preflight:
+- Independent review of the tracked recovery passed without changing it. The
+  recovery is published as exact commit
+  `d0bde8dffd8e233c04e593519546b7634d836304`, and exact local/remote readback
+  plus the launcher's no-model preflight passed:
 
   ```sh
   ./agent-ext20-rc5-live-direct.sh --check
   ```
 
-  The current dirty controller tree intentionally prevents this preflight from
-  passing before publication. It must be rerun after publication to detect
-  any intervening drift.
+  The controller record publication must rerun this preflight from the final
+  clean published tree to detect any intervening drift.
 
   Only after fresh explicit live confirmation, the one admitted live command
   is exactly:
@@ -699,19 +697,14 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. With explicit recovery-publication authority, run exactly
-   `./agent-ext20-rc5-recovery-publish.sh EXT20_PUBLISH_RC5_RECOVERY`.
-   It must publish only the reviewed recovery and its controller record,
-   require exact local/remote `main`, and pass
-   `./agent-ext20-rc5-live-direct.sh --check` without a model call.
-2. Only after a separate new explicit live-model confirmation, execute once:
+1. Only after a separate new explicit live-model confirmation, execute once:
    `./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS`.
    Never run an operation separately or prepare another suite first.
-3. Let the guarded suite finish normally. On any failure or interruption,
+2. Let the guarded suite finish normally. On any failure or interruption,
    preserve all terminal evidence, leave `EXT-20` unchecked, and never retry.
    On success, verify the complete retained suite and every acceptance gate
    before changing task status.
-4. Do not tag, release, or approve external use in the live-suite pass. RC.4
+3. Do not tag, release, or approve external use in the live-suite pass. RC.4
    remains terminal and must never be rerun.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
@@ -727,13 +720,12 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-recovery-publish.sh EXT20_PUBLISH_RC5_RECOVERY
+./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
-Supplying this exact token authorizes only the bounded recovery commits and
-raw-Git `main` pushes encoded by the launcher. It authorizes no live suite,
-tag, release, or external-use approval. The live command remains a later
-separate confirmation gate.
+Do not run this command without a new explicit live-model confirmation. The
+recovery-publication token supplied for the completed bounded pass did not
+authorize it, or any tag, release, or external-use approval.
 
 ## Session Rules
 
