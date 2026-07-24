@@ -92,14 +92,104 @@ Its reviewed launcher and durable authority updates are published as exact
 recovery commit `d0bde8dffd8e233c04e593519546b7634d836304`; exact remote
 readback and its clean no-model direct preflight pass. The later reported live
 command retained no evidence of a model call or API result and is classified
-as an unproven no-start. No tag, release, external-use approval, or `EXT-20`
-completion has occurred. Local tests do not establish live API acceptance.
+as an unproven no-start, and that suite is now immutable retired evidence. One
+new no-model replacement is prepared at
+`/home/gernsback/source/revolvr/.revolvr/ext20-rc5-no-start-replacement.PNKJ20/suite`.
+Its direct gate retains launch authority, output, and terminal or interruption
+status outside the suite before starting a guarded live path. Independent
+review passed, and exact confirmation `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT`
+now authorizes only the reviewed publication and clean no-model preflights. No
+tag, release, external-use approval, or `EXT-20` completion has occurred.
+Local tests do not establish live API acceptance.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.5 No-Start Replacement Independent Review (2026-07-24)
+
+- The fresh independent review completed and left the accepted six-file scope
+  unchanged with an empty index. Local and remote `main` remained exact at
+  `239008cfbe819e65c1b2f886a9ba81323e5643e9`.
+- Controller verification repeated exact diff scope, `git diff --check`, shell
+  syntax, focused missing/wrong/check/collision behavior, retired-root hash,
+  replacement prepared/hash/clean/empty authority, absence of launch records,
+  and `go test ./...`; all passed without a live path or model call.
+- `agent-ext20-rc5-no-start-publish.sh` is now the sole next launcher. Exact
+  token `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT` grants only the reviewed
+  replacement/controller commits, exact-leased raw-Git `main` pushes, and
+  check-only preflight. It grants no live, tag, release, external-use, or
+  `EXT-20` completion authority.
+- The operator supplied that exact publication confirmation for this fresh
+  bounded pass. The reviewed scope and all required pre-publication checks
+  passed again without a live path, model call, or launch record.
+
+## EXT-20 RC.5 No-Start Replacement Preparation (2026-07-24)
+
+- Task selected: preserve and retire the pristine RC.5 suite whose reported
+  invocation retained no outcome, prepare exactly one collision-free no-model
+  replacement, and make the future direct live boundary retain diagnostics.
+  This is one bounded subtask within still-unchecked `EXT-20`.
+- The reported old invocation remains classified only as an unproven no-start.
+  There is no retained exit status and no evidence of model/API acceptance or
+  rejection. Retired root
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`
+  remained byte-for-byte exact before and after this work: 268 files, suite ID
+  `ext20-c871c96647e9`, authority SHA-256
+  `c4c6cd842aca0861db9c26bc269a6e5d38300d44f37cc44c78aea583564acc7f`,
+  plan SHA-256
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
+  and content-stream SHA-256
+  `06724d26a212ef4743a1f68ccc31dc59d5f2561ff07f4dc5eff6dda4ba7ac783`.
+  It has no operation/collector manifest or aggregate entry and must never be
+  executed again.
+- Exactly one replacement-specific parent was created beneath ignored runtime
+  state:
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-no-start-replacement.PNKJ20`.
+  Only its `suite` child was prepared. The new suite ID is
+  `ext20-9b7cc650ea0c`; authority, plan, and path-bearing content-stream
+  SHA-256 values are respectively
+  `3af0ccb8a7dd7fa5c2205882ce63c03dcb59935cb297fd4804a6a544a4827289`,
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
+  and `44a0bacaf8c9ba0c52e3724553652dedda677a4118947e34b44fefa38671cee7`.
+  Preparation installed exact Codex `0.144.4` and made no model call.
+- Candidate output/hash/source and Codex output/hash are exact. Repo-a is clean
+  on `main` at `41b6aa970b209aaad4291d35b04554464c4ba93c`; repo-b is
+  clean on `main` at `6ae0cd3ff68995b93b9c22162ca395ed03fca157`.
+  The exact plan has 11 rows and ten unique pending doctor-ready tasks;
+  sentinels and links are exact; both repositories report source-writer
+  authority `timeout=32m0s heartbeat_interval=10m40s required=32m0s`; and the
+  replacement has zero operation manifests, zero collector manifests, and an
+  empty aggregate.
+- `agent-ext20-rc5-live-direct.sh` is rebound only to the replacement's exact
+  root, suite/hash, and repository authority. `--check` remains read-only and
+  creates no launch record. Only a later exact token-bearing path can reserve
+  one collision-free directory beneath ignored
+  `.revolvr/ext20-rc5-launch-records`, retain pre-start authority plus suite
+  stdout/stderr and durable status, and invoke the guarded suite once. Signal,
+  launcher, collision, and suite failures fail closed while preserving the
+  available record.
+- Files changed: `agent-ext20-rc5-live-direct.sh`, new
+  `scripts/check-ext20-rc5-live-direct.sh`, new
+  `agent-ext20-rc5-no-start-review.sh`, new
+  `agent-ext20-rc5-no-start-publish.sh`, `.agent/HANDOFF.md`, this file, and
+  `.agent/DECISIONS.md`. The review passed; the publication launcher is the
+  exact next fresh pass and grants no live authority. No Go source,
+  dependency, candidate, workflow, sealed bundle, suite/collector
+  implementation, remote ref, task status, tag, or release authority changed.
+- Verification result: passed. Commands covered raw-Git candidate/attestation
+  readback; read-only public REST for runs `29697069305`, `29698647782`, and
+  `29698647807`, job `88223716039`, and artifact `8445792045`; exact workflow
+  hash; both complete sealed bundles; shell syntax; suite `--static`; focused
+  direct-gate refusal/check/collision checks without the live token; exact old
+  and new suite inspection; `go test -count=1 ./...`; and
+  `git diff --check`.
+- What remains: separately authorized publication, clean published `--check`,
+  and only then a separately confirmed live pass. Tagging, release,
+  external-use approval, and `EXT-20` completion remain later independent
+  gates. Blockers for this bounded preparation task: none.
 
 ## EXT-20 RC.5 Unproven Live No-Start (2026-07-24)
 

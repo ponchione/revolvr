@@ -1,5 +1,47 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Diagnostic-Retaining No-Start Replacement (2026-07-24)
+
+- The first persistent RC.5 suite at
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`
+  is immutable retired authority after an unproven no-start. Its exact bytes,
+  hashes, clean repository heads, pending tasks, sentinels, and empty evidence
+  remain preservation evidence only; no command may execute its live path.
+- Exactly one replacement-specific parent was created at
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-no-start-replacement.PNKJ20`.
+  Its `suite` child is the sole newly prepared authority: suite ID
+  `ext20-9b7cc650ea0c`, authority SHA-256
+  `3af0ccb8a7dd7fa5c2205882ce63c03dcb59935cb297fd4804a6a544a4827289`,
+  operation-plan SHA-256
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
+  and path-bearing content-stream SHA-256
+  `44a0bacaf8c9ba0c52e3724553652dedda677a4118947e34b44fefa38671cee7`.
+  Preparation may retain exact Codex `0.144.4` package bytes but conveys no
+  model or live authority.
+- The direct live launcher binds only the new root, exact suite authority, and
+  clean repo heads. Its read-only `--check` path creates no diagnostic. After
+  every preflight passes, only the separately confirmed live path may reserve
+  one atomic collision-free record beneath ignored
+  `.revolvr/ext20-rc5-launch-records`. Before invoking the guarded suite once,
+  that record must contain exact pre-start authority, stdout/stderr files, and
+  an initial status. Normal exit, launcher failure, or trappable interruption
+  replaces status with the retained terminal classification; a collision
+  preserves the existing record and refuses execution.
+- This no-model preparation is uncommitted and must pass a fresh independent
+  review followed by separately authorized publication and a clean published
+  `--check`. It grants no live pass, commit, push, tag, release, external-use
+  approval, or `EXT-20` completion authority.
+- The fresh `agent-ext20-rc5-no-start-review.sh` pass left the accepted scope
+  unchanged; independent controller scope/root/no-token/full-Go checks also
+  passed.
+- `agent-ext20-rc5-no-start-publish.sh` is the sole next launcher. Exact token
+  `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT` grants only publication of the
+  reviewed seven-file scope and controller record to raw-Git `main`, plus the
+  no-model/no-launch-record clean preflight. It grants no live authority.
+- The operator supplied that exact publication confirmation. The current
+  bounded task may publish only that reviewed scope and controller record with
+  exact raw-Git leases, and may run only the clean check-only preflights.
+
 ## EXT-20 RC.5 Unproven Live No-Start Policy (2026-07-24)
 
 - After the operator reported completing the exact token-bearing command, the

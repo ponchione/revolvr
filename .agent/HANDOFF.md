@@ -64,7 +64,7 @@ RC.1-through-RC.4 `/tmp` working roots absent; their Git, bundle, remote, and
 durable summary authority remains, but no claim is made that their volatile
 filesystem copies survived.
 
-A single collision-free replacement RC.5 suite is now prepared without model
+A single collision-free persistent RC.5 suite was prepared without model
 calls under ignored repository runtime state at
 `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
 Candidate, attestation, remote CI, artifact, sealed-bundle, task, repository,
@@ -86,12 +86,23 @@ hash change. No exit status was retained. This is an unproven no-start, not a
 live/API result. The suite is retired and its direct launcher now fails closed;
 neither may be rerun.
 
-The exact next launcher is `agent-ext20-rc5-no-start-remediation.sh`. It
-authorizes only no-model preparation of one collision-free replacement suite
-and a diagnostic-retaining future live boundary. It authorizes no commit,
-push, live call, tag, release, external-use approval, or `EXT-20` completion.
+The no-start remediation pass is now complete without a model call. Exactly
+one replacement-specific parent was created at
+`/home/gernsback/source/revolvr/.revolvr/ext20-rc5-no-start-replacement.PNKJ20`;
+its `suite` child is prepared and the direct launcher is rebound to its exact
+authority. The launcher now retains pre-start authority, stdout/stderr, and
+exit or trappable-interruption status in one collision-free directory beneath
+ignored `.revolvr/ext20-rc5-launch-records` before invoking the guarded suite
+once. Focused no-token checks pass. The fresh independent no-model review left
+the accepted six-file scope unchanged, and controller revalidation repeated
+its exact scope, old/new root hashes, no-token checks, and full Go suite
+successfully. The operator has now supplied exact confirmation
+`EXT20_PUBLISH_RC5_NO_START_REPLACEMENT`. This fresh bounded pass may publish
+only the reviewed seven-file replacement scope and its controller record, then
+run the clean no-model preflights. It authorizes no live call, tag, release,
+external-use approval, or `EXT-20` completion.
 
-## RC.5 Prepared Suite Authority
+## RC.5 Retired Prepared Suite Authority
 
 - Guarded suite source authority is exact candidate
   `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, Linux artifact SHA-256
@@ -142,6 +153,47 @@ push, live call, tag, release, external-use approval, or `EXT-20` completion.
   remained pristine. This command and root are now historical retired
   authority and must not be run again. This handoff grants no tag, release,
   external-use approval, or `EXT-20` completion.
+
+## RC.5 No-Start Replacement Prepared Authority
+
+- Exact replacement root:
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-no-start-replacement.PNKJ20/suite`.
+  Suite ID is `ext20-9b7cc650ea0c`; authority SHA-256 is
+  `3af0ccb8a7dd7fa5c2205882ce63c03dcb59935cb297fd4804a6a544a4827289`;
+  operation-plan SHA-256 is
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`;
+  and the path-bearing content-stream SHA-256 is
+  `44a0bacaf8c9ba0c52e3724553652dedda677a4118947e34b44fefa38671cee7`.
+- Candidate authority remains exact source
+  `19c1ef4b6a610016487880aa8ad69ec0204bd4f7`, Linux artifact SHA-256
+  `1cad902dff8d31e36af0a3d2aa38e71280daf214af79d9b7c748516bb5e16043`,
+  and output `revolvr 0.1.0`. Codex authority remains exact package/output/hash
+  `0.144.4` / `codex-cli 0.144.4` /
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+- Repo-a is clean on `main` at
+  `41b6aa970b209aaad4291d35b04554464c4ba93c`; repo-b is clean on
+  `main` at `6ae0cd3ff68995b93b9c22162ca395ed03fca157`. The exact
+  11-row plan contains ten unique pending doctor-ready tasks. Sentinels and
+  links are exact, both repositories report the required 32-minute
+  source-writer authority, and there are zero operation/collector manifests
+  and no aggregate entries.
+- `agent-ext20-rc5-live-direct.sh --check` creates no launch record. The
+  token-bearing path is not authorized in the current dirty unpublished tree.
+  After every existing preflight passes in a later clean published tree, it
+  must create one collision-free record under
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-launch-records`, retain
+  `pre-start-authority.tsv`, `suite.stdout`, `suite.stderr`, and `status.tsv`,
+  and invoke the guarded suite only once. The focused check is:
+
+  ```sh
+  scripts/check-ext20-rc5-live-direct.sh
+  ```
+
+- This prepared replacement and launcher are uncommitted. Independent review
+  passed without changing the accepted scope. Exact confirmation
+  `EXT20_PUBLISH_RC5_NO_START_REPLACEMENT` now authorizes only publication and
+  clean published `--check` preflights; any live confirmation remains a later
+  gate. `EXT-20` stays unchecked.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 
@@ -708,13 +760,13 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run exactly one no-model replacement-preparation pass with
-   `./agent-ext20-rc5-no-start-remediation.sh`. It must preserve and never
-   reuse the retired suite, prepare one collision-free replacement, retain
-   diagnostics at the future live boundary, and stop before commit/push or any
-   model call.
-2. Independently review and publish that replacement in later separately
-   authorized passes before considering another live confirmation.
+1. With explicit replacement-publication authority, run exactly
+   `./agent-ext20-rc5-no-start-publish.sh EXT20_PUBLISH_RC5_NO_START_REPLACEMENT`.
+   It must publish only the reviewed replacement and controller record, then
+   pass the check-only gate from clean exact local/remote `main` without a
+   model call or launch record.
+2. Only after publication and a separate live confirmation may the retained
+   diagnostic live boundary be considered.
 3. Do not tag, release, approve external use, or complete `EXT-20`. RC.1
    through RC.4 and the unproven-no-start RC.5 suite remain retired.
 
@@ -731,11 +783,13 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-no-start-remediation.sh
+./agent-ext20-rc5-no-start-publish.sh EXT20_PUBLISH_RC5_NO_START_REPLACEMENT
 ```
 
-This exact next command authorizes no model call, commit, or push. The former
-token-bearing live command is retired and must not be rerun.
+This exact token authorizes only the bounded replacement/controller commits,
+raw-Git `main` pushes, and check-only preflight encoded by the launcher. It
+authorizes no live model call, tag, release, or external-use approval. The
+completed remediation/review launchers and former live command are retired.
 
 ## Session Rules
 
