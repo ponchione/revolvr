@@ -1,5 +1,20 @@
 # Agent Decisions
 
+## Attended Developer-Alpha Versus Release Qualification (2026-07-24)
+
+- Publishing the known RC.5 source fixes is sufficient to explore a bounded
+  attended developer-alpha path, but it is not evidence that EXT-20 or Level-1
+  external-project qualification passed. Developer use must remain attended,
+  finitely bounded, and limited to disposable or recoverable repositories with
+  generated commits reviewed before integration.
+- The next pass will simplify the existing build/init/check/run/status path and
+  verify it with strict fake Codex. It will not create RC.6 or change product
+  behavior. Full real-Codex qualification remains an optional later track that
+  requires explicit operator direction.
+- RC.1 through RC.5 and their evidence remain immutable rejected history. The
+  developer-alpha path cannot reuse their suites or live launchers and conveys
+  no tag, release, or external-use approval.
+
 ## EXT-20 RC.5 Terminal Source-Remediation Authority (2026-07-24)
 
 - Planning application accepts exactly two dossier forms: the legacy

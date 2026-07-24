@@ -4,17 +4,33 @@ Updated: 2026-07-24
 
 ## Resume Point
 
-Latest authority supersedes the former live-command handoff below. The bounded
-RC.5 terminal-failure source remediation is complete and has passed fresh
-independent review. Planning application now admits only exact
-legacy or planner-role dossier authority; fallback receipts preserve exact
-nonblank task bytes and produce zero claims for the human no-verification
-placeholder; and `agent-ext20-rc5-live-direct.sh` is permanently failed closed
-for every argument. Focused ordinary/race, production happy-path/strict-fake,
-full Go, shell, manifest, diff, and immutable-evidence checks pass. The first
-unchecked backlog task remains `EXT-20`; it is not complete. The exact next
-step is the operator-authorized raw-Git publication and exact controller
-record in this session; the final published resume command is recorded below.
+Latest authority supersedes the former review/publication handoff below. The
+bounded RC.5 terminal-failure source remediation passed fresh independent
+review and is published on raw-Git `main` as exact source commit
+`010a8939ef6ad889a34590d05ce0326b6df57571`. Planning application now admits
+only exact legacy or planner-role dossier authority; fallback receipts
+preserve exact nonblank task bytes and produce zero claims for the human no-
+verification placeholder; and `agent-ext20-rc5-live-direct.sh` is permanently
+failed closed for every argument. Exact local/remote readback and all focused
+ordinary/race, production happy-path/strict-fake, full Go, shell, manifest,
+diff, and immutable-evidence checks pass. The first unchecked backlog task
+remains `EXT-20`; it is not complete. Per the operator's usability discussion,
+the next prepared pass stops RC iteration and establishes an honest attended
+developer-alpha path from fixed `main`. It does not construct RC.6 or grant a
+release/external-use claim.
+
+## Exact Next-Session Resume
+
+From `/home/gernsback/source/revolvr`, first read this file and the other
+durable state files named in `AGENTS.md`, then run exactly:
+
+```bash
+./agent-attended-alpha-readiness.sh
+```
+
+That fresh pass may document and strict-fake verify the simplest attended
+developer-alpha use path. It must not make a real model call, commit, push,
+construct another candidate, or alter retained RC evidence.
 
 RC.3 is immutable rejected history, and its retained suite is permanently
 retired. The first local
@@ -825,16 +841,13 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. In one fresh no-live pass, independently review the exact uncommitted
-   terminal-failure remediation scope and repeat its focused, full, manifest,
-   and immutable-evidence checks. Do not change the accepted scope during a
-   read-only review.
-2. Only if that review accepts the scope may a separately authorized raw-Git
-   publication pass commit and push the remediation. Publication remains
-   separate from any later-candidate construction.
-3. Do not retry RC.5, create or name a later candidate, tag, release, approve
-   external use, or complete `EXT-20`. RC.1 through RC.5 are immutable
-   rejected history.
+1. Run `./agent-attended-alpha-readiness.sh` in one fresh pass to establish and
+   strict-fake verify a minimal attended developer-use path from exact fixed
+   source `010a8939ef6ad889a34590d05ce0326b6df57571`.
+2. Independently review any resulting documentation/helper before publication.
+   Keep this developer-alpha path distinct from Level-1 release qualification.
+3. Do not retry RC.5, construct RC.6, tag, release, approve external use, or
+   complete `EXT-20`. RC.1 through RC.5 remain immutable rejected history.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -849,13 +862,12 @@ launcher.
 Exact next command:
 
 ```bash
-git status --short
+./agent-attended-alpha-readiness.sh
 ```
 
-This is the first read-only scope check for the fresh independent review. The
-completed launchers and every retired suite live command must not be rerun.
-This handoff grants no commit, push, candidate, tag, release, external-use
-approval, or `EXT-20` completion authority.
+The completed launchers and every retired suite live command must not be
+rerun. This handoff grants no commit, push, candidate, tag, release, external-
+use approval, or `EXT-20` completion authority.
 
 ## Session Rules
 

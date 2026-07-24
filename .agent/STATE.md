@@ -110,6 +110,25 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## Published RC.5 Source Remediation And Developer-Alpha Handoff (2026-07-24)
+
+- Fresh independent review accepted the terminal-failure remediation after
+  moving the human no-verification placeholder out of list/claim syntax. The
+  complete focused, race, production, full-Go, shell, manifest, diff, and
+  immutable-evidence checks passed again.
+- Raw Git published the exact ten-file remediation as source commit
+  `010a8939ef6ad889a34590d05ce0326b6df57571`, a direct child of
+  `42fb9c42b67a14149779cacf800f5771a030a023`. No candidate ref, tag, release,
+  live operation, external-use approval, or `EXT-20` completion occurred.
+- The next prepared task intentionally does not construct RC.6. New launcher
+  `agent-attended-alpha-readiness.sh` may establish and strict-fake verify a
+  minimal attended developer-alpha path from fixed `main`, with explicit
+  disposable/recoverable-repository and incomplete-EXT-20 limitations. It may
+  not make a real model call, commit, push, or change product behavior.
+- `.agent/HANDOFF.md` is the exact next-session resume document. `EXT-20`
+  remains unchecked; full release qualification can be resumed later only by
+  an explicit operator decision.
+
 ## EXT-20 RC.5 Terminal Live-Failure Remediation (2026-07-24)
 
 - Task selected: the single bounded source remediation within still-unchecked
