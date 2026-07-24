@@ -90,15 +90,39 @@ now prepared without model calls under ignored repository runtime state at
 `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`.
 Its reviewed launcher and durable authority updates are published as exact
 recovery commit `d0bde8dffd8e233c04e593519546b7634d836304`; exact remote
-readback and its clean no-model direct preflight pass. No RC.5 live model call,
-tag, release, external-use approval, or `EXT-20` completion has occurred.
-Local tests do not establish live API acceptance.
+readback and its clean no-model direct preflight pass. The later reported live
+command retained no evidence of a model call or API result and is classified
+as an unproven no-start. No tag, release, external-use approval, or `EXT-20`
+completion has occurred. Local tests do not establish live API acceptance.
 Recovery inspection uses a distinct
 read-only workspace/Git inspection path that takes no mutation lease and
 publishes no retained ambiguity ref when live HEAD has drifted. EXT-14 now has
 independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
+
+## EXT-20 RC.5 Unproven Live No-Start (2026-07-24)
+
+- The operator reported completing the published token-bearing direct live
+  command. Independent post-command inspection found no matching running
+  process and no retained first-operation stdout/stderr, operation manifest,
+  collector manifest, aggregate, task transition, source repository change,
+  or controller change. No exit status was retained.
+- Prepared root
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc5-recovery.yOb0un/suite`
+  remains exact at content-stream SHA-256
+  `06724d26a212ef4743a1f68ccc31dc59d5f2561ff07f4dc5eff6dda4ba7ac783`;
+  repo-a and repo-b remain clean at their prepared heads, all 268 files remain,
+  and the safe `--check` still passes. This establishes a pristine no-start,
+  not a successful or failed model/API result.
+- The explicit live attempt makes the suite terminal for reuse under the
+  fail-closed gate. `agent-ext20-rc5-live-direct.sh` now refuses both paths
+  until a new collision-free suite is prepared. `EXT-20` remains unchecked;
+  no tag, release, or external-use approval exists.
+- Files changed in this controller pass: `agent-ext20-rc5-live-direct.sh`,
+  new `agent-ext20-rc5-no-start-remediation.sh`, this file,
+  `.agent/HANDOFF.md`, and `.agent/DECISIONS.md`. The new launcher is the exact
+  next fresh no-model task and grants no commit, push, or live authority.
 
 ## EXT-20 RC.5 Recovery Publication Controller Verification (2026-07-24)
 

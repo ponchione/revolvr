@@ -78,10 +78,18 @@ controller record was then published as exact commit
 three-file scope, clean tree, and final no-model preflight independently pass.
 The RC.4 suite must never be retried.
 
-The exact next launcher is `agent-ext20-rc5-live-direct.sh`, but its live path
-requires a separate fresh explicit live-model confirmation. This recovery
-publication grants no live, tag, release, external-use, or `EXT-20` completion
-authority.
+The operator reported completing the exact token-bearing live command, but
+independent post-command inspection found the prepared root byte-for-byte
+unchanged: there was no running process, first-operation log, operation or
+collector manifest, aggregate, task transition, repository change, or content
+hash change. No exit status was retained. This is an unproven no-start, not a
+live/API result. The suite is retired and its direct launcher now fails closed;
+neither may be rerun.
+
+The exact next launcher is `agent-ext20-rc5-no-start-remediation.sh`. It
+authorizes only no-model preparation of one collision-free replacement suite
+and a diagnostic-retaining future live boundary. It authorizes no commit,
+push, live call, tag, release, external-use approval, or `EXT-20` completion.
 
 ## RC.5 Prepared Suite Authority
 
@@ -124,17 +132,16 @@ authority.
   changed only the three durable state files. Exact remote readback and the
   preflight from that clean published tree passed without a model call.
 
-  Only after fresh explicit live confirmation, the one admitted live command
-  is exactly:
+  The operator later reported completing the formerly admitted live command:
 
   ```sh
   ./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
   ```
 
-  Do not run it without a new explicit live-model confirmation. A failed or
-  interrupted start becomes terminal retained evidence and must never be
-  retried. This handoff grants no tag, release, external-use approval, or
-  `EXT-20` completion.
+  No launch outcome or first-operation evidence was retained and the suite
+  remained pristine. This command and root are now historical retired
+  authority and must not be run again. This handoff grants no tag, release,
+  external-use approval, or `EXT-20` completion.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 
@@ -701,15 +708,15 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Only after a separate new explicit live-model confirmation, execute once:
-   `./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS`.
-   Never run an operation separately or prepare another suite first.
-2. Let the guarded suite finish normally. On any failure or interruption,
-   preserve all terminal evidence, leave `EXT-20` unchecked, and never retry.
-   On success, verify the complete retained suite and every acceptance gate
-   before changing task status.
-3. Do not tag, release, or approve external use in the live-suite pass. RC.4
-   remains terminal and must never be rerun.
+1. Run exactly one no-model replacement-preparation pass with
+   `./agent-ext20-rc5-no-start-remediation.sh`. It must preserve and never
+   reuse the retired suite, prepare one collision-free replacement, retain
+   diagnostics at the future live boundary, and stop before commit/push or any
+   model call.
+2. Independently review and publish that replacement in later separately
+   authorized passes before considering another live confirmation.
+3. Do not tag, release, approve external use, or complete `EXT-20`. RC.1
+   through RC.4 and the unproven-no-start RC.5 suite remain retired.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -724,12 +731,11 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+./agent-ext20-rc5-no-start-remediation.sh
 ```
 
-Do not run this command without a new explicit live-model confirmation. The
-recovery-publication token supplied for the completed bounded pass did not
-authorize it, or any tag, release, or external-use approval.
+This exact next command authorizes no model call, commit, or push. The former
+token-bearing live command is retired and must not be rerun.
 
 ## Session Rules
 

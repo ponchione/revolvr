@@ -30,6 +30,8 @@ readonly CHECK_ONLY
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
+fail "prepared suite is retired after an unproven live no-start; use agent-ext20-rc5-no-start-remediation.sh"
+
 [[ -x scripts/dogfood-external-level1-suite.sh ]] || fail "guarded suite is unavailable"
 [[ -x scripts/dogfood-external-level1.sh ]] || fail "collector is unavailable"
 [[ -d "$RUN_ROOT" ]] || fail "prepared suite is unavailable"

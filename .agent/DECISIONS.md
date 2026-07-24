@@ -1,5 +1,21 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Unproven Live No-Start Policy (2026-07-24)
+
+- After the operator reported completing the exact token-bearing command, the
+  prepared suite remained byte-for-byte pristine with no running process,
+  launch log, operation/collector manifest, aggregate, task transition,
+  repository mutation, or retained exit status. This is an unproven no-start;
+  it grants neither model/API acceptance nor evidence of a product rejection.
+- Because explicit live authority was exercised but no outcome was retained,
+  the exact suite is retired and must never be reused. The direct launcher is
+  failed closed immediately. Candidate/attestation authority remains unchanged
+  and may support only a new collision-free no-model prepared suite.
+- `agent-ext20-rc5-no-start-remediation.sh` is the sole next launcher. It may
+  prepare one persistent replacement suite and a diagnostic-retaining future
+  live boundary, but grants no commit, push, model call, tag, release,
+  external-use approval, or `EXT-20` completion authority.
+
 ## EXT-20 RC.5 Persistent Prepared-Suite Recovery (2026-07-24)
 
 - The published direct launcher failed closed before any model call because
