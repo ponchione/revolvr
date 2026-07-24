@@ -101,7 +101,11 @@ published the reviewed replacement as commit
 `d4e00d99252888528db29785eefedbf9f087859a`, an exact child of
 `239008cfbe819e65c1b2f886a9ba81323e5643e9`. Local and remote readback matched,
 and the clean published `--check` passed with no model call or launch record.
-This grants no tag, release, external-use approval, or `EXT-20` completion.
+Controller record commit `8b87d0b87ad4cdf031b1b128871ad9d76bd4364e`
+is its exact direct child and changes only the three durable state files.
+Independent exact local/remote readback, clean-tree verification, focused
+no-token checks, and final no-model/no-launch-record preflight pass. This
+grants no tag, release, external-use approval, or `EXT-20` completion.
 
 ## RC.5 Retired Prepared Suite Authority
 
@@ -194,7 +198,10 @@ This grants no tag, release, external-use approval, or `EXT-20` completion.
   `d4e00d99252888528db29785eefedbf9f087859a`. Independent review passed without
   changing the accepted scope; exact raw-Git remote readback and the clean
   published `--check` passed without a model call or launch record. Any live
-  confirmation remains a separate gate. `EXT-20` stays unchecked.
+  confirmation remains a separate gate. Controller record
+  `8b87d0b87ad4cdf031b1b128871ad9d76bd4364e` is its exact three-state-file
+  child; final readback and check-only verification pass. `EXT-20` stays
+  unchecked.
 
 ## RC.5 Candidate Ref And Remote CI Authority
 

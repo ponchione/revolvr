@@ -41,6 +41,11 @@
 - The published `agent-ext20-rc5-live-direct.sh` is the sole next launcher and
   still requires separate exact live-model confirmation. Publication grants no
   live, tag, release, external-use, or `EXT-20` completion authority.
+- Controller-record commit `8b87d0b87ad4cdf031b1b128871ad9d76bd4364e`
+  is the exact three-state-file direct child of the replacement commit.
+  Independent local/remote readback, clean-tree, focused no-token, exact-root,
+  and no-model/no-launch-record preflight checks pass from that published
+  state.
 
 ## EXT-20 RC.5 Unproven Live No-Start Policy (2026-07-24)
 

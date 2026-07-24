@@ -110,6 +110,25 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Replacement Publication Controller Verification (2026-07-24)
+
+- Independent verification accepted replacement commit
+  `d4e00d99252888528db29785eefedbf9f087859a` with exact parent
+  `239008cfbe819e65c1b2f886a9ba81323e5643e9` and only the reviewed seven-file
+  scope. Controller-record commit
+  `8b87d0b87ad4cdf031b1b128871ad9d76bd4364e` is its direct child and changes
+  only `.agent/DECISIONS.md`, `.agent/HANDOFF.md`, and `.agent/STATE.md`.
+- Local and remote `main` matched the controller record, the repository was
+  clean, candidate/attestation refs remained exact, both suite roots retained
+  their exact hashes, and no launch-record directory existed.
+  `./agent-ext20-rc5-live-direct.sh --check` and
+  `scripts/check-ext20-rc5-live-direct.sh` passed without a model call or
+  launch record.
+- The already published diagnostic-retaining direct launcher is the exact
+  next gate. Its token-bearing path remains separately live-confirmation
+  gated; this verification grants no live call, tag, release, external-use
+  approval, or `EXT-20` completion.
+
 ## EXT-20 RC.5 No-Start Replacement Publication (2026-07-24)
 
 - Task selected: reverify, publish, and record only the independently reviewed
