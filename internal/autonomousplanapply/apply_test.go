@@ -102,6 +102,42 @@ func TestApplyPlanningResultPersistsInitialPlanReopensAndAuthorizesImplement(t *
 	}
 }
 
+func TestApplyPlanningResultAcceptsLegacyAndPlannerRoleDossiers(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*applyFixture)
+	}{
+		{name: "legacy task dossier"},
+		{name: "planner role dossier", configure: func(f *applyFixture) {
+			f.cfg.Cycle.DossierManifest.SchemaVersion = autonomous.RoleDossierManifestSchemaVersion
+			f.cfg.Cycle.DossierManifest.DossierSHA256 = "51c79f1d2cbe5ba7fe18f77b4ea9154479eed3996fd163e52611bbd646a948e0"
+			f.cfg.Cycle.DossierManifest.DossierByteSize = 6225
+			f.cfg.Cycle.DossierManifest.Projection = &autonomous.DossierProjection{
+				SchemaVersion: autonomous.RoleDossierManifestSchemaVersion,
+				Role:          autonomous.DossierRolePlanner,
+				Policy:        "role-section-matrix-v1",
+			}
+			f.rewriteOutput(t)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixture := newApplyFixture(t, nil, "accepted")
+			if tt.configure != nil {
+				tt.configure(fixture)
+			}
+			result, err := ApplyPlanningResult(context.Background(), fixture.cfg)
+			if err != nil {
+				t.Fatalf("ApplyPlanningResult() error = %v; result=%+v", err, result)
+			}
+			if result.Disposition != DispositionCreated || result.State.Lifecycle != autonomous.LifecycleStateReady {
+				t.Fatalf("ApplyPlanningResult() = %+v", result)
+			}
+		})
+	}
+}
+
 func TestApplyPlanningResultIsIdempotentAndRecoversOrphanedHistory(t *testing.T) {
 	t.Run("committed replay", func(t *testing.T) {
 		fixture := newApplyFixture(t, nil, "one")
@@ -233,6 +269,16 @@ func TestApplyPlanningResultRejectsInvalidCycleOrOutputWithoutStateMutation(t *t
 			f.replaceRaw(t, raw)
 		}, want: "planner_output_identity"},
 		{name: "wrong raw artifact hash", mutate: func(f *applyFixture) { f.cfg.Cycle.Worker.Artifacts.Output.SHA256 = strings.Repeat("f", 64) }, want: "planner_raw_output"},
+		{name: "wrong dossier role", mutate: func(f *applyFixture) {
+			f.cfg.Cycle.DossierManifest.SchemaVersion = autonomous.RoleDossierManifestSchemaVersion
+			f.cfg.Cycle.DossierManifest.Projection = &autonomous.DossierProjection{SchemaVersion: autonomous.RoleDossierManifestSchemaVersion, Role: autonomous.DossierRoleAuditor, Policy: "role-section-matrix-v1"}
+			f.rewriteOutput(t)
+		}, want: "cycle_evidence"},
+		{name: "malformed role dossier", mutate: func(f *applyFixture) {
+			f.cfg.Cycle.DossierManifest.SchemaVersion = autonomous.RoleDossierManifestSchemaVersion
+			f.cfg.Cycle.DossierManifest.Projection = &autonomous.DossierProjection{SchemaVersion: "malformed", Role: autonomous.DossierRolePlanner, Policy: "role-section-matrix-v1"}
+			f.rewriteOutput(t)
+		}, want: "cycle_evidence"},
 		{name: "wrong dossier state", mutate: func(f *applyFixture) { f.cfg.Cycle.DossierManifest.Sources[1].SHA256 = strings.Repeat("f", 64) }, want: "dossier_identity"},
 	}
 	for _, tt := range tests {

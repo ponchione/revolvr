@@ -1,7 +1,10 @@
 package receipt
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -227,6 +230,91 @@ func TestFormatFallbackReceipt(t *testing.T) {
 	}
 	if got, want := ParseVerificationCommands(reparsed.RawBody), []string{"go test ./..."}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("fallback verification commands = %#v, want %#v", got, want)
+	}
+	if got, want := reparsed.Verification, ([]VerificationEntry{{Command: "go test ./...", ExitCode: 0, Status: "passed"}}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("fallback verification entries = %#v, want %#v", got, want)
+	}
+}
+
+func TestFallbackReceiptPreservesExactTaskAndZeroVerificationClaims(t *testing.T) {
+	root := t.TempDir()
+	completedAt := time.Date(2026, 7, 24, 23, 7, 20, 0, time.UTC)
+	task := "---\nid: task-1\nstatus: pending\nworkflow: autonomous-v1\n---\n# Task\n\nCreate an exact result.\n"
+	artifacts := ledger.RunArtifacts{
+		ContextPayloadPath:   ".revolvr/runs/run-1/context.md",
+		ContextManifestPath:  ".revolvr/runs/run-1/context.json",
+		CodexStdoutJSONLPath: ".revolvr/runs/run-1/codex.jsonl",
+		CodexStderrPath:      ".revolvr/runs/run-1/codex.stderr",
+		LastMessagePath:      ".revolvr/runs/run-1/last-message.txt",
+		ReceiptPath:          ".revolvr/receipts/run-1.md",
+	}
+	content, formatted := FormatFallbackReceipt(FallbackInput{
+		RunID:              "run-1",
+		PassID:             "run-1",
+		TaskID:             "task-1",
+		Task:               task,
+		Verdict:            VerdictCompleted,
+		Timestamp:          completedAt,
+		VerificationStatus: "not_run",
+		FinalText:          "Planning completed without verification.",
+	})
+	parsed, err := Parse([]byte(content))
+	if err != nil {
+		t.Fatalf("Parse() error = %v\n%s", err, content)
+	}
+	for name, got := range map[string]Receipt{"formatted": formatted, "parsed": parsed} {
+		if got.Task != task {
+			t.Fatalf("%s task bytes = %q, want %q", name, got.Task, task)
+		}
+		if len(got.Verification) != 0 || len(got.VerificationClaims) != 0 {
+			t.Fatalf("%s verification = %#v claims=%#v, want both empty", name, got.Verification, got.VerificationClaims)
+		}
+	}
+
+	write := func(path string, raw []byte) {
+		t.Helper()
+		abs := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(abs, raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(artifacts.ContextPayloadPath, []byte("context\n"))
+	write(artifacts.ContextManifestPath, []byte("{}\n"))
+	write(artifacts.CodexStdoutJSONLPath, []byte("{}\n"))
+	write(artifacts.CodexStderrPath, nil)
+	write(artifacts.LastMessagePath, []byte("done\n"))
+	write(artifacts.ReceiptPath, []byte(content))
+	artifactPayload, err := json.Marshal(artifacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedPayload, err := json.Marshal(map[string]any{"changed_files": []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{
+			ID:                 "run-1",
+			TaskID:             "task-1",
+			Task:               task,
+			Status:             ledger.StatusCompleted,
+			CompletedAt:        &completedAt,
+			VerificationStatus: "not_run",
+		},
+		Events: []ledger.Event{
+			{RunID: "run-1", Type: ledger.EventRunArtifacts, Payload: artifactPayload},
+			{RunID: "run-1", Type: ledger.EventChangedFilesCaptured, Payload: changedPayload},
+		},
+	}
+	validated, err := ValidateRunReceipt(ValidationInput{WorkDir: root, History: history})
+	if err != nil {
+		t.Fatalf("ValidateRunReceipt() error = %v", err)
+	}
+	if !validated.Passed() {
+		t.Fatalf("ValidateRunReceipt() failures = %+v", validated.Failures())
 	}
 }
 

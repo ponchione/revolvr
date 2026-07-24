@@ -110,6 +110,77 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Terminal Live-Failure Remediation (2026-07-24)
+
+- Task selected: the single bounded source remediation within still-unchecked
+  `EXT-20`. The pass fixed only the planning-dossier application defect and
+  two fallback-receipt consistency defects proven by the first RC.5 live
+  operation, permanently retired the RC.5 direct launcher, and added focused
+  regressions. It did not retry, resume, reconcile, relabel, or mutate RC.5;
+  start a live or nested model operation; prepare a later candidate; or commit,
+  push, tag, release, approve external use, or complete `EXT-20`.
+- Retained failure authority remains exact and immutable. Scenario
+  `successful-source-change-1` expected `completed`, observed
+  `unsafe_or_ambiguous`, exited 1, made one `plan` attempt, and recorded zero
+  source changes, verification runs, audits, corrections, commits, or
+  checkpoints. Its exact stop detail remains `cycle dossier identity is
+  missing or malformed`. Launch record status 130 is the distinct controller-
+  interruption fact; it is not the descendant operation's terminal product
+  outcome.
+- Planning application now admits either the exact legacy task-dossier
+  authority or an exact `autonomous-role-dossier-manifest-v1` projection for
+  the planner role. Task, hash, size, source, profile, decision, worker,
+  artifact, and planning-output provenance checks remain in force; missing,
+  malformed, wrong-role, wrong-schema, or mismatched authorities still fail
+  closed. The positive role regression uses retained evidence shape
+  `51c79f1d2cbe5ba7fe18f77b4ea9154479eed3996fd163e52611bbd646a948e0`
+  and 6225 bytes.
+- Fallback receipts now preserve every byte of a nonblank task body, including
+  its final newline, while blank fallback and identifier/status normalization
+  remain unchanged. The fixed human no-verification placeholder parses as no
+  claim, structured entries remain exact, and an ordinary full receipt
+  validation agrees with the ledger for a newline-terminated autonomous task
+  and zero verification claims.
+- `agent-ext20-rc5-live-direct.sh` is permanently failed closed with status 1
+  for all arguments and contains no retained suite path, confirmation token,
+  launch-record writer, child-process boundary, or live execution primitive.
+  Its focused shell check dynamically proves missing/check/arbitrary/multiple
+  argument refusal and exact retained suite/launch-record preservation without
+  passing the historical live token.
+- Files changed: `agent-ext20-rc5-live-direct.sh`,
+  `scripts/check-ext20-rc5-live-direct.sh`,
+  `internal/autonomousplanapply/apply.go`,
+  `internal/autonomousplanapply/apply_test.go`,
+  `internal/receipt/fallback.go`, `internal/receipt/parser.go`,
+  `internal/receipt/receipt_test.go`,
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`. No
+  dependency, candidate, workflow, suite, task, release, or configuration file
+  changed.
+- Verification commands run: `gofmt -w` on all five changed Go files; focused
+  ordinary and race tests in `./internal/autonomousplanapply` and
+  `./internal/receipt` for accepted legacy/planner dossiers, wrong-role and
+  malformed refusal, fallback exact task bytes, zero claims, and structured
+  entries; complete ordinary and race tests for both changed packages;
+  ordinary and race
+  `TestProductionAutonomousHappyPath|TestStrictFakeCodexContract` in
+  `./internal/app`; `scripts/check-ext20-rc5-live-direct.sh`;
+  `go test -count=1 ./...`; `git diff --check`; and pre/post
+  `scripts/dogfood-external-level1.sh --verify-manifest` plus exact retained
+  content-stream checks.
+- Verification result: passed. Before and after work, suite, evidence, and
+  launch-record path-bearing content-stream SHA-256 values remained exactly
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+- Fresh independent review passed after one scope-local correction: the fixed
+  human no-verification placeholder is plain section text rather than a list
+  item, so the generic verification parser needs no literal denylist. The
+  focused and complete verification matrix passed again. The operator
+  authorized raw-Git publication in this session. A future candidate and any
+  foreground/visible child-process live boundary require separate design and
+  independent review. Tag, release, external-use approval, later-candidate
+  construction, and `EXT-20` completion remain separate. Blockers: none.
+
 ## EXT-20 RC.5 Terminal Live Failure (2026-07-24)
 
 - The retained diagnostic record proves that the replacement suite did start

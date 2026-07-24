@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## EXT-20 RC.5 Terminal Source-Remediation Authority (2026-07-24)
+
+- Planning application accepts exactly two dossier forms: the legacy
+  `autonomous-task-dossier-manifest-v1` authority retained for compatibility,
+  or `autonomous-role-dossier-manifest-v1` with an exact planner projection.
+  Legacy supervisor identity remains an exact schema/hash/size comparison;
+  role-projected cycles retain nonblank supervisor authority and exact worker
+  dossier/task/hash/size/source/output provenance. Missing projections,
+  malformed projection schemas, wrong roles, unknown schemas, and any identity
+  mismatch fail closed. No dogfood-specific identity is trusted by product
+  code.
+- Receipt task text is an exact identity field, not a normalized identifier.
+  Fallback construction and ordinary parsing preserve every byte of a nonblank
+  task body, including its final newline; whitespace-only input still receives
+  the existing fallback, while run/pass/task identifiers, verdict, status, and
+  commit fields keep their intentional normalization. The harness's fixed
+  no-verification sentence is human text rather than a command claim, while
+  structured verification entries remain authoritative.
+- `agent-ext20-rc5-live-direct.sh` is permanently retired terminal authority.
+  Every invocation returns the same refusal before inspecting or mutating any
+  suite or launch record. The retained launch status 130 and later child
+  `unsafe_or_ambiguous` outcome remain distinct immutable evidence. Any future
+  live candidate must receive a separately designed and reviewed foreground/
+  visible child boundary; this remediation provides no live or candidate
+  authority.
+- Fresh independent review accepted the remediation after ensuring the fixed
+  no-verification sentence is plain human section text, not a parser claim or
+  literal parser exception. The operator authorized raw-Git publication in
+  this session. It grants no candidate construction, tag, release, external-
+  use approval, or `EXT-20` completion.
+
 ## EXT-20 RC.5 Terminal Live-Evidence Policy (2026-07-24)
 
 - A retained launch record plus a validated first-operation manifest proves

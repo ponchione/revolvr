@@ -4,21 +4,20 @@ Updated: 2026-07-24
 
 ## Resume Point
 
-Latest authority supersedes the former live-command handoff below. RC.5
-replacement suite `ext20-9b7cc650ea0c` started once and is now immutable
-rejected evidence. Its first operation
-`ext20-9b7cc650ea0c-01` terminated `unsafe_or_ambiguous` after a valid planner
-role-projected dossier reached a legacy-only planning-application schema gate.
-Fallback receipt validation also proved exact-task-newline and empty-
-verification-claim defects. The manifest verifies, containment and source
-authority stayed intact, and no source commit occurred. The launch record's
-status 130 records controller interruption; later retained operation evidence
-records the distinct terminal product failure. Never rerun the suite or the
-RC.5 direct launcher. The exact next fresh pass is the no-live, no-commit
-source remediation launcher recorded under `Next Ordered Work`.
+Latest authority supersedes the former live-command handoff below. The bounded
+RC.5 terminal-failure source remediation is complete and has passed fresh
+independent review. Planning application now admits only exact
+legacy or planner-role dossier authority; fallback receipts preserve exact
+nonblank task bytes and produce zero claims for the human no-verification
+placeholder; and `agent-ext20-rc5-live-direct.sh` is permanently failed closed
+for every argument. Focused ordinary/race, production happy-path/strict-fake,
+full Go, shell, manifest, diff, and immutable-evidence checks pass. The first
+unchecked backlog task remains `EXT-20`; it is not complete. The exact next
+step is the operator-authorized raw-Git publication and exact controller
+record in this session; the final published resume command is recorded below.
 
-The first unchecked backlog task remains `EXT-20`. RC.3 is immutable rejected
-history, and its retained suite is permanently retired. The first local
+RC.3 is immutable rejected history, and its retained suite is permanently
+retired. The first local
 Structured Outputs repair passed tests but failed independent audit because
 not every object was strict-compatible and its regression guard was only a
 finite denylist.
@@ -119,6 +118,51 @@ is its exact direct child and changes only the three durable state files.
 Independent exact local/remote readback, clean-tree verification, focused
 no-token checks, and final no-model/no-launch-record preflight pass. This
 grants no tag, release, external-use approval, or `EXT-20` completion.
+
+## RC.5 Terminal Failure Remediation — Independent Review Passed
+
+- Changed source/test scope is exactly
+  `agent-ext20-rc5-live-direct.sh`,
+  `scripts/check-ext20-rc5-live-direct.sh`,
+  `internal/autonomousplanapply/apply.go`,
+  `internal/autonomousplanapply/apply_test.go`,
+  `internal/receipt/fallback.go`, `internal/receipt/parser.go`,
+  and `internal/receipt/receipt_test.go`, plus
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md` for durable
+  records. `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked.
+- The evidence-shaped planner regression binds role schema
+  `autonomous-role-dossier-manifest-v1`, exact role `planner`, dossier SHA-256
+  `51c79f1d2cbe5ba7fe18f77b4ea9154479eed3996fd163e52611bbd646a948e0`,
+  and byte size 6225. Legacy authority remains accepted; wrong-role,
+  malformed-projection, source, task, size, hash, and provenance mismatches
+  remain refused.
+- Receipt regression proves formatter frontmatter/body parsing and ordinary
+  `ValidateRunReceipt` agree on an exact newline-terminated autonomous task and
+  zero verification claims. Existing structured verification entries remain
+  exact.
+- Focused ordinary/race tests pass for both changed Go packages. Ordinary/race
+  `TestProductionAutonomousHappyPath|TestStrictFakeCodexContract`,
+  `scripts/check-ext20-rc5-live-direct.sh`, `go test -count=1 ./...`, and
+  `git diff --check` pass. The evidence manifest verifies before and after.
+- Suite, evidence, and launch-record path-bearing content-stream SHA-256 values
+  remain respectively
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  The suite and operation must never be retried, resumed, reconciled,
+  relabeled, mutated, or reused.
+- Retained launcher status 130 records controller interruption. The child
+  operation's later expected `completed`, observed `unsafe_or_ambiguous`, exit
+  1, one-plan-attempt, zero-source/verification/audit/correction/commit result,
+  and exact `cycle dossier identity is missing or malformed` detail are the
+  separate terminal product authority.
+- Fresh independent review accepted this scope after moving the fixed human
+  no-verification placeholder out of verification-list syntax instead of
+  special-casing it in the generic claim parser. The operator authorized raw-
+  Git commit and push in this session. Any future candidate or foreground/
+  visible child-process boundary requires separate design and review. No tag,
+  release, external-use approval, later-candidate construction, or `EXT-20`
+  completion is authorized.
 
 ## RC.5 Retired Prepared Suite Authority
 
@@ -781,16 +825,16 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run one fresh bounded remediation pass with
-   `./agent-ext20-rc5-live-failure-remediation.sh`. It must preserve all RC.5
-   runtime evidence, fix only the three evidence-backed product defects,
-   permanently fail-close the RC.5 live launcher, add focused regressions, and
-   stop without commit or push.
-2. Independently review and publish that source remediation before constructing
-   a collision-free later candidate. Do not name or prepare RC.6 in the
-   remediation pass.
-3. Do not retry RC.5, tag, release, approve external use, or complete
-   `EXT-20`. RC.1 through RC.5 are immutable rejected history.
+1. In one fresh no-live pass, independently review the exact uncommitted
+   terminal-failure remediation scope and repeat its focused, full, manifest,
+   and immutable-evidence checks. Do not change the accepted scope during a
+   read-only review.
+2. Only if that review accepts the scope may a separately authorized raw-Git
+   publication pass commit and push the remediation. Publication remains
+   separate from any later-candidate construction.
+3. Do not retry RC.5, create or name a later candidate, tag, release, approve
+   external use, or complete `EXT-20`. RC.1 through RC.5 are immutable
+   rejected history.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -805,13 +849,13 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc5-live-failure-remediation.sh
+git status --short
 ```
 
-This command starts a fresh Codex remediation pass but no Revolvr live or
-nested model operation. The completed publication launchers and every retired
-suite live command must not be rerun. This handoff grants no candidate, tag,
-release, or external-use approval.
+This is the first read-only scope check for the fresh independent review. The
+completed launchers and every retired suite live command must not be rerun.
+This handoff grants no commit, push, candidate, tag, release, external-use
+approval, or `EXT-20` completion authority.
 
 ## Session Rules
 

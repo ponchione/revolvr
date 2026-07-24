@@ -327,10 +327,15 @@ func validateCycle(boundary runtimepath.Boundary, task taskfile.Task, result aut
 	if result.Worker.Commit.Status != commit.Status("") || result.Worker.Commit.CommitSHA != "" {
 		return errors.New("plan route synthesized commit evidence")
 	}
-	if result.DossierManifest.TaskID != task.ID || result.DossierManifest.SchemaVersion != autonomous.DossierManifestSchemaVersion || result.DossierManifest.DossierSHA256 == "" || result.DossierManifest.DossierByteSize <= 0 {
+	legacyDossier := result.DossierManifest.SchemaVersion == autonomous.DossierManifestSchemaVersion
+	plannerDossier := result.DossierManifest.SchemaVersion == autonomous.RoleDossierManifestSchemaVersion && result.DossierManifest.Projection != nil && result.DossierManifest.Projection.SchemaVersion == autonomous.RoleDossierManifestSchemaVersion && result.DossierManifest.Projection.Role == autonomous.DossierRolePlanner
+	if result.DossierManifest.TaskID != task.ID || !legacyDossier && !plannerDossier || result.DossierManifest.DossierSHA256 == "" || result.DossierManifest.DossierByteSize <= 0 {
 		return errors.New("cycle dossier identity is missing or malformed")
 	}
-	if result.Supervisor.Dossier.TaskID != task.ID || result.Supervisor.Dossier.SchemaVersion != result.DossierManifest.SchemaVersion || result.Supervisor.Dossier.SHA256 != result.DossierManifest.DossierSHA256 || result.Supervisor.Dossier.ByteSize != result.DossierManifest.DossierByteSize {
+	if result.Supervisor.Dossier.TaskID != task.ID || result.Supervisor.Dossier.SHA256 == "" || result.Supervisor.Dossier.ByteSize <= 0 {
+		return errors.New("supervisor did not consume the exact cycle dossier")
+	}
+	if legacyDossier && (result.Supervisor.Dossier.SchemaVersion != result.DossierManifest.SchemaVersion || result.Supervisor.Dossier.SHA256 != result.DossierManifest.DossierSHA256 || result.Supervisor.Dossier.ByteSize != result.DossierManifest.DossierByteSize) {
 		return errors.New("supervisor did not consume the exact cycle dossier")
 	}
 	if _, _, err := readSupervisorArtifact(boundary, result.Supervisor.Artifacts.Decision); err != nil {

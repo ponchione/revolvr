@@ -70,7 +70,7 @@ func fallbackReceipt(input FallbackInput) Receipt {
 		RunID:              fallbackString(input.RunID, "unknown-run"),
 		PassID:             fallbackString(input.PassID, "unknown-pass"),
 		TaskID:             fallbackString(input.TaskID, "unknown-task"),
-		Task:               fallbackString(input.Task, "Unknown task"),
+		Task:               fallbackTask(input.Task, "Unknown task"),
 		Verdict:            verdict,
 		Timestamp:          timestamp,
 		CodexExitCode:      input.CodexExitCode,
@@ -102,7 +102,7 @@ func fallbackBody(input FallbackInput, r Receipt) string {
 	}
 	out.WriteString("\n## Verification\n")
 	if len(r.Verification) == 0 {
-		out.WriteString("- The harness did not receive agent-authored verification claims.\n")
+		out.WriteString("The harness did not receive agent-authored verification claims.\n")
 	} else {
 		for _, entry := range r.Verification {
 			out.WriteString("- `")
@@ -126,6 +126,13 @@ func fallbackBody(input FallbackInput, r Receipt) string {
 func fallbackString(value string, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func fallbackTask(value string, fallback string) string {
+	if strings.TrimSpace(value) == "" {
 		return fallback
 	}
 	return value

@@ -89,7 +89,6 @@ func (r *Receipt) normalize() {
 	r.RunID = strings.TrimSpace(r.RunID)
 	r.PassID = strings.TrimSpace(r.PassID)
 	r.TaskID = strings.TrimSpace(r.TaskID)
-	r.Task = strings.TrimSpace(r.Task)
 	r.Verdict = Verdict(strings.TrimSpace(string(r.Verdict)))
 	r.VerificationStatus = strings.TrimSpace(r.VerificationStatus)
 	r.CommitSHA = strings.TrimSpace(r.CommitSHA)
@@ -116,7 +115,7 @@ func (r Receipt) validate() error {
 	if r.TaskID == "" {
 		return fmt.Errorf("%w: task_id", ErrMissingField)
 	}
-	if r.Task == "" {
+	if strings.TrimSpace(r.Task) == "" {
 		return fmt.Errorf("%w: task", ErrMissingField)
 	}
 	if r.Verdict == "" {
