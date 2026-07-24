@@ -29,6 +29,12 @@
   `./agent-ext20-rc5-live-direct.sh --check` passed without a model call. This
   grants no live operation, tag, release, external-use approval, or `EXT-20`
   completion authority.
+- Controller-record commit `c896ebb81cf6168c21358b03fa6731ba43029663` is the
+  exact direct child of the recovery commit and changes only the three durable
+  state files. Independent local/remote readback and the no-model direct
+  preflight pass from that clean published state. The already published direct
+  launcher is therefore the sole next gate and still requires its distinct
+  live confirmation token.
 
 ## EXT-20 RC.5 Prepared-Suite Review And Direct Live Gate (2026-07-19)
 

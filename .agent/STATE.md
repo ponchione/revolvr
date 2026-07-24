@@ -100,6 +100,25 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.5 Recovery Publication Controller Verification (2026-07-24)
+
+- Independent verification accepted recovery commit
+  `d0bde8dffd8e233c04e593519546b7634d836304` with exact parent
+  `49dafe186f4c081c49483c46c6487914b1fd9c00` and only the reviewed six-file
+  scope. It accepted controller-record commit
+  `c896ebb81cf6168c21358b03fa6731ba43029663` as its direct child with changes
+  limited to `.agent/DECISIONS.md`, `.agent/HANDOFF.md`, and
+  `.agent/STATE.md`.
+- Local and remote `main` matched the controller record, the repository was
+  clean, candidate and attestation refs remained exact, and
+  `./agent-ext20-rc5-live-direct.sh --check` passed from the final published
+  tree with `RC.5 live gate: preflight passed; no model call occurred`.
+- The exact next launcher is the already published
+  `agent-ext20-rc5-live-direct.sh`. Its token-bearing command remains a
+  separate explicit live-model gate; this verification made no suite/model
+  call and grants no tag, release, external-use, or `EXT-20` completion
+  authority.
+
 ## EXT-20 RC.5 Recovery Publication (2026-07-24)
 
 - Task selected: independently reverify, publish, and record only the reviewed

@@ -73,7 +73,10 @@ passed separate fresh review and were published with exact old-main lease as
 recovery commit `d0bde8dffd8e233c04e593519546b7634d836304`. Exact local and
 remote readback matched, and the clean published
 `./agent-ext20-rc5-live-direct.sh --check` passed without a model call. The
-RC.4 suite must never be retried.
+controller record was then published as exact commit
+`c896ebb81cf6168c21358b03fa6731ba43029663`; its exact local/remote readback,
+three-file scope, clean tree, and final no-model preflight independently pass.
+The RC.4 suite must never be retried.
 
 The exact next launcher is `agent-ext20-rc5-live-direct.sh`, but its live path
 requires a separate fresh explicit live-model confirmation. This recovery
@@ -117,8 +120,9 @@ authority.
   ./agent-ext20-rc5-live-direct.sh --check
   ```
 
-  The controller record publication must rerun this preflight from the final
-  clean published tree to detect any intervening drift.
+  Controller record commit `c896ebb81cf6168c21358b03fa6731ba43029663`
+  changed only the three durable state files. Exact remote readback and the
+  preflight from that clean published tree passed without a model call.
 
   Only after fresh explicit live confirmation, the one admitted live command
   is exactly:
