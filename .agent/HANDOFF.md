@@ -4,36 +4,76 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former developer-alpha review handoff below.
-Independent review accepted the exact six-file documentation/state scope and
-repeated the disposable external smoke, strict-fake production happy path,
-full Go suite, shell/diff checks, exact source scope, and immutable RC.5
-evidence checks. Raw Git published the reviewed path as exact commit
+Latest authority supersedes the former RC.6 construction handoff below. Fresh
+collision-free local candidate `level1-v0.1.0-rc.6` is now constructed and
+verified from exact published source commit
 `73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
-`7c9753461a08b25915f4f53533d91e57d40a20ca`; exact local and remote `main`
-readback agree. No real model/API call or external-use approval occurred, and
-`EXT-20` remains unchecked.
+`7c9753461a08b25915f4f53533d91e57d40a20ca`. Remediation commit
+`010a8939ef6ad889a34590d05ce0326b6df57571` is its ancestor and the protected
+product-source diff is empty. The later controller commit and launcher are not
+candidate source and are absent from candidate clones and artifacts.
 
-The operator explicitly directed work to continue after publication. The next
-prepared pass resumes ordered Level-1 qualification with one bounded local
-RC.6 construction from that exact published source. It does not make a live
-model call, publish a candidate ref, add an attestation workflow, tag, release,
-approve external use, or complete `EXT-20`. RC.1 through RC.5 and all retained
-runtime evidence remain immutable rejected history.
+The immutable candidate and verification bundles are respectively
+`.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51` and
+`.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification`.
+Their inventory SHA-256 values are
+`30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1`
+and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf`.
+Local construction grants no remote-CI, attestation, dogfood, live-model, tag,
+release, external-use, queue, or `EXT-20` completion authority. RC.1 through
+RC.5 and all retained runtime evidence remain immutable rejected history.
 
 ## Exact Next-Session Resume
 
 From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`, then run exactly:
+durable state files named in `AGENTS.md`. Do not rerun
+`agent-ext20-rc6.sh`; the now-populated collision namespaces intentionally make
+construction single-use. Begin the fresh independent read-only review with:
 
 ```bash
-./agent-ext20-rc6.sh
+GOTOOLCHAIN=local .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51/build-instructions.sh --verify .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51
+(cd .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification && sha256sum -c files.sha256.sha256 && sha256sum -c files.sha256)
 ```
 
-That fresh pass may construct and locally verify only the collision-free RC.6
-candidate. It must not make a real model call, commit, push, publish a ref,
-create an attestation workflow, tag, release, approve external use, or alter
-retained RC evidence.
+That fresh pass must review complete file sets, exact source/tool/artifact
+authority, commands and logs, vulnerability result, and historical preservation
+without changing the helper, either bundle, or retained evidence. It must stop
+before commit, push, candidate-ref publication, remote CI, attestation, suite,
+model call, tag, release, external-use approval, or `EXT-20` completion.
+
+## RC.6 Local Candidate Authority
+
+- Candidate bundle has 15 regular files, 13 inventoried payload files,
+  inventory SHA-256
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1`,
+  and inventory-seal SHA-256
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`.
+- Verification bundle has 50 regular files, 48 inventoried payload files,
+  inventory SHA-256
+  `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf`,
+  and inventory-seal SHA-256
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+- Build-instructions SHA-256 is
+  `94d291ec80db7427bddc1db57cac147c5d061ca3dbdbdd038259e1da3505a906`.
+  Artifact SHA-256 values are Linux
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  Darwin
+  `596a17a21b5509cfa868762e8675a66251136cf483cdbb40cc0fa51a28f284f7`,
+  and FreeBSD
+  `60c4052e2ff717b5f9d09db73d00073c4d182ed2b584328eaae4bd6d7f2b4344`.
+- Retained clean source/build root is
+  `/tmp/revolvr-ext20-rc6-build.RPbxfY`. It is evidence only and is not a live
+  suite or candidate publication authority.
+- Both Go 1.22.12 and Go 1.26.5 suites, focused ordinary/race regressions,
+  Structured Outputs, lifecycle routing, production happy path, strict fake,
+  vet, modules, and vulnerability checks pass. There are zero reachable and
+  imported-package vulnerabilities; the sole module-only result remains the
+  Windows-only, uncalled `GO-2026-5024`.
+- RC.5 suite/evidence/launch-record content-stream SHA-256 values remain
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  The RC.5 launcher remains permanently failed closed.
 
 ## Published Developer-Alpha Review Scope
 
@@ -865,12 +905,14 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run `./agent-ext20-rc6.sh` in one fresh pass to construct and locally verify
-   RC.6 from exact published source `73f1f81f1c51d927114f19818a18161d0fcb8541`.
-2. Independently review any resulting candidate bundles and durable-state
-   changes before separate candidate-ref publication authority.
+1. Independently review the RC.6 helper, both complete sealed bundles, exact
+   source/tool/artifact authority, retained verification logs, and preservation
+   evidence without mutation.
+2. Only after a successful review and separate explicit authorization may a
+   later pass publish the still-absent RC.6 candidate ref and obtain exact-ref
+   remote CI.
 3. Do not retry RC.1 through RC.5, make a live model call, tag, release,
-   approve external use, or complete `EXT-20` in either pass.
+   approve external use, or complete `EXT-20`. Do not rerun RC.6 construction.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -885,7 +927,8 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc6.sh
+GOTOOLCHAIN=local .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51/build-instructions.sh --verify .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51
+(cd .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification && sha256sum -c files.sha256.sha256 && sha256sum -c files.sha256)
 ```
 
 The completed launchers and every retired suite live command must not be

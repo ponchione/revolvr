@@ -1,5 +1,60 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Local Candidate Authority (2026-07-25)
+
+- The sole local RC.6 candidate authority is exact published source commit
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`, release version `0.1.0`,
+  source floor Go `1.22.12`, and release Go `1.26.5`. Remediation commit
+  `010a8939ef6ad889a34590d05ce0326b6df57571` is its ancestor, and no
+  `cmd`, `internal`, `go.mod`, or `go.sum` delta follows that remediation.
+  Later controller commit `7598be79d8cfcbaa7ead3e184c7cd1c71be29244` and
+  `agent-ext20-rc6.sh` are not candidate source and are absent from candidate
+  clones and artifacts.
+- The immutable candidate bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51`.
+  Linux, Darwin, and FreeBSD amd64 artifact SHA-256 values are respectively
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  `596a17a21b5509cfa868762e8675a66251136cf483cdbb40cc0fa51a28f284f7`,
+  and `60c4052e2ff717b5f9d09db73d00073c4d182ed2b584328eaae4bd6d7f2b4344`.
+  Build-instructions SHA-256 is
+  `94d291ec80db7427bddc1db57cac147c5d061ca3dbdbdd038259e1da3505a906`;
+  the 15-file candidate inventory/seal values are
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`.
+  Two independent fresh non-local clones produced byte-identical artifacts
+  with module-readonly mode, disabled CGO, amd64 targets, trimpath, explicit
+  clean VCS metadata, and empty Go build IDs.
+- The separate immutable verification bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification`.
+  Its 50-file inventory/seal values are
+  `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+  It retains exact source, tool, build, target, metadata, command, regression,
+  full-suite, module, vulnerability, collision, historical-inventory, remote-
+  ref, and RC.5 preservation evidence. Both bundles must be accepted only by
+  complete manifest and file-set verification.
+- Local verification found zero reachable and zero imported-package
+  vulnerabilities. The sole module-only finding remains Windows-only, uncalled
+  `GO-2026-5024` in `golang.org/x/sys@v0.30.0`, fixed in `v0.44.0`. Focused
+  planner-role dossier and fallback-receipt regressions, Structured Outputs,
+  lifecycle authority, production happy path, strict fake Codex, complete Go
+  suites, vet, and module verification all passed; this is local evidence only
+  and makes no real API-acceptance claim.
+- RC.1 through RC.5 remain immutable rejected history. The RC.5 suite,
+  evidence, and launch-record content-stream SHA-256 values remain
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`;
+  the RC.5 live launcher remains permanently failed closed. RC.6 construction
+  creates no authority to retry or reuse historical evidence.
+- The next gate is fresh independent read-only review of the retained RC.6
+  helper and both bundles. Candidate-ref publication and remote CI remain a
+  later separately authorized task. No attestation workflow, suite, live-model
+  operation, tag, release, external-use approval, queue authority, or
+  `EXT-20` completion is granted. The attended developer-alpha documentation
+  remains explicitly separate from release qualification.
+
 ## Developer-Alpha Publication And Level-1 Qualification Resumption (2026-07-25)
 
 - Independent review accepted the six-file attended developer-alpha scope

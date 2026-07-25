@@ -110,6 +110,87 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.6 Local Candidate Construction (2026-07-25)
+
+- Task selected: construct and locally verify only fresh collision-free Level-1
+  candidate `level1-v0.1.0-rc.6` from exact published source commit
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`. Published `origin/main` at
+  verification was `7598be79d8cfcbaa7ead3e184c7cd1c71be29244`; the source is
+  reachable from it, remediation commit
+  `010a8939ef6ad889a34590d05ce0326b6df57571` is an ancestor, and the
+  intervening diff for `cmd`, `internal`, `go.mod`, and `go.sum` is empty.
+  Controller launcher `agent-ext20-rc6.sh` is absent from the source commit and
+  every candidate clone and artifact.
+- Files changed: added ignored build helper
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.6.sh`, immutable
+  candidate bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51`, and separate
+  immutable verification bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification`;
+  updated this file, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md` only.
+  `.agent/TASKS.md` is unchanged with `EXT-20` unchecked. There is no product,
+  dependency, workflow, ref, tag, suite, operation, or historical-evidence
+  change. Retained clean source/build root is
+  `/tmp/revolvr-ext20-rc6-build.RPbxfY`.
+- Collision and authority verification passed before construction: local and
+  remote RC.6 candidate/attestation refs, local and remote `*rc.6*` tags,
+  workflow, public artifact name, helper, both bundle paths, build root, suite
+  root, and diagnostic namespace were absent. Exact release Go is
+  `/usr/local/go/bin/go`, SHA-256
+  `8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9`,
+  at `go1.26.5`; source-floor verification used `go1.22.12`.
+- Verification commands run: focused planner-role acceptance plus wrong-role/
+  malformed-projection refusal and fallback-receipt tests in ordinary/race
+  modes; Structured Outputs compatibility; lifecycle routing authority in
+  ordinary/race modes; production autonomous happy path and strict-fake Codex
+  contract in ordinary/race modes; complete Go 1.22.12 and Go 1.26.5 suites;
+  `go vet ./...`; `go mod verify`; `govulncheck ./...` and
+  `govulncheck -show verbose ./...`; the settled build helper and candidate
+  self-verifier; independent `go version -m`, build-ID, symbol-size, exact
+  version-string, and version-output checks; all ten RC.1-through-RC.5 sealed
+  bundle inventories before/after; the retained RC.5 dogfood manifest before/
+  after; the permanently retired launcher check; raw-Git ref/tag comparison;
+  and both RC.6 complete manifest/file-set verifiers.
+  Final durable-state checks also require `.agent/TASKS.md` to remain identical
+  to `HEAD`, `EXT-20` to remain unchecked, and `git diff --check` to pass.
+- Verification result: passed. Two independent fresh non-local clean clones
+  produced byte-identical Go 1.26.5, version `0.1.0`, module-readonly,
+  `CGO_ENABLED=0`, amd64, trimpath, explicit clean-VCS, empty-build-ID artifacts
+  for Linux, Darwin, and FreeBSD. SHA-256 values are Linux
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  Darwin
+  `596a17a21b5509cfa868762e8675a66251136cf483cdbb40cc0fa51a28f284f7`,
+  and FreeBSD
+  `60c4052e2ff717b5f9d09db73d00073c4d182ed2b584328eaae4bd6d7f2b4344`.
+  Build-instructions SHA-256 is
+  `94d291ec80db7427bddc1db57cac147c5d061ca3dbdbdd038259e1da3505a906`.
+  Govulncheck found zero reachable and zero imported-package vulnerabilities;
+  the retained module-only result is Windows-only, uncalled `GO-2026-5024` in
+  `golang.org/x/sys@v0.30.0`, fixed in `v0.44.0`.
+- The candidate inventory/seal SHA-256 values are
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  for 15 total/13 payload files. The verification inventory/seal values are
+  `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`
+  for 50 total/48 payload files. Both complete file sets verify from their
+  manifests.
+- Before and after construction, retained RC.5 suite, first-operation evidence,
+  and launch-record path-bearing content-stream SHA-256 values remained exactly
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  `agent-ext20-rc5-live-direct.sh` remains permanently failed closed. All ten
+  historical bundle seals and all existing remote candidate/attestation refs
+  and tags remained exact.
+- What remains: one fresh independent read-only review of the helper, both
+  sealed bundles, source/tool/artifact authority, tests, vulnerability result,
+  and preservation evidence. Candidate-ref publication and remote CI require a
+  later separately authorized gate. RC.6 local construction makes no real API,
+  remote-CI, attestation, dogfood, live-model, tag, release, external-use,
+  queue, or `EXT-20` completion claim. Blockers: none.
+
 ## Developer-Alpha Publication And RC.6 Handoff (2026-07-25)
 
 - Independent review accepted exactly `.agent/DECISIONS.md`,
