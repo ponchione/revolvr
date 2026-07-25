@@ -1,5 +1,32 @@
 # Agent State
 
+## EXT-20 RC.6 Failure Remediation (2026-07-25)
+
+- Read-only controller authority reverified clean local `main`, local
+  `origin/main`, and remote `main` at
+  `cf7be211cdda6d5d7441c58a2ccd758022d20809`. The retained RC.6 terminal
+  manifest verifies without mutation. Exactly operation
+  `ext20-7b4a5932090f-01` ran and stopped `unsafe_or_ambiguous` before
+  implementation, verification, or commits after both model calls completed.
+- RC.6 is a preserved failed attempt. Its suite
+  `.revolvr/ext20-rc6.LOLauh/suite`, launch record
+  `.revolvr/ext20-rc6-launch-records/ext20-7b4a5932090f-20260725T115426Z-657365`,
+  and terminal evidence are immutable and were not rerun, repaired, deleted,
+  or mutated. `EXT-20` remains unchecked.
+- Root cause: `prompt.LoadRunProfile` supplies normalized profile content, and
+  worker evidence correctly records that normalized identity, but planner
+  application formerly used its 1,458-byte size as the raw file read limit.
+  The normal 1,459-byte newline-terminated planner file therefore failed before
+  identity comparison. Planner application now follows auditor application's
+  1 MiB bounded exact-or-`TrimSpace` validation, preserving protected reads and
+  rejection of meaningful content changes.
+- Added focused regression coverage accepting the normal final newline under
+  its normalized identity and rejecting non-whitespace tampering. Focused
+  prompt/cycle/audit/planner tests, `go test ./...`, `git diff --check`,
+  `go run ./cmd/revolvr --help`, and `go run ./cmd/revolvr config check` pass.
+  No live suite, real product Codex call, tag, release, external-use approval,
+  queue authority, or EXT-20 completion occurred.
+
 ## EXT-20 RC.6 Prepared-Suite Controller Review And Live Gate (2026-07-25)
 
 - Independent controller review accepted exactly the four-file suite-

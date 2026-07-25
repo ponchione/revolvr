@@ -341,11 +341,18 @@ func validateCycle(boundary runtimepath.Boundary, task taskfile.Task, result aut
 	if _, _, err := readSupervisorArtifact(boundary, result.Supervisor.Artifacts.Decision); err != nil {
 		return fmt.Errorf("supervisor decision artifact: %w", err)
 	}
-	profileRaw, err := readProtectedPath(boundary, filepath.ToSlash(result.Worker.Profile.Path), int64(result.Worker.Profile.ByteSize))
+	profilePath, err := pathguard.Resolve(root, filepath.FromSlash(result.Worker.Profile.Path))
 	if err != nil {
 		return fmt.Errorf("planner profile artifact: %w", err)
 	}
-	if hashBytes(profileRaw) != result.Worker.Profile.SHA256 || len(profileRaw) != result.Worker.Profile.ByteSize {
+	profileRaw, found, err := boundary.ReadFileLimit(profilePath, false, 1<<20)
+	if err != nil {
+		return fmt.Errorf("planner profile artifact: %w", err)
+	}
+	profileContent := []byte(strings.TrimSpace(string(profileRaw)))
+	exactProfile := hashBytes(profileRaw) == result.Worker.Profile.SHA256 && len(profileRaw) == result.Worker.Profile.ByteSize
+	normalizedProfile := hashBytes(profileContent) == result.Worker.Profile.SHA256 && len(profileContent) == result.Worker.Profile.ByteSize
+	if !found || len(profileContent) == 0 || !exactProfile && !normalizedProfile {
 		return errors.New("planner profile artifact hash or size mismatch")
 	}
 	return nil

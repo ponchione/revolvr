@@ -4,39 +4,32 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former suite-review handoff below. Independent
-controller review accepted the exact four-file prepared-suite scope and
-persistent root. Raw Git published it as exact commit
-`87be94f8fc4f04cb25c40598cc1f44cfe3b57efe`, tree
-`0e9009b53749d9f43706f57617bea04f8f84128e`. Static, collector, full Go,
-bundle, raw-Git, public-REST, prepared-content, readiness, sentinel, and
-immutable-history checks all pass without changing the suite.
+Latest authority supersedes the former RC.6 suite-review handoff below. RC.6
+started exactly operation `ext20-7b4a5932090f-01`, expected `completed`, and
+stopped `unsafe_or_ambiguous` before implementation, verification, or commits.
+Both supervisor and planner model calls completed; the failure was product
+validation, not API availability. RC.6 and its suite, launch record, and
+terminal evidence are retired immutable failed-attempt evidence and must never
+be rerun, repaired, deleted, or mutated.
 
-`agent-ext20-rc6-live-direct.sh` is the only admitted RC.6 live entry point.
-Its check helper proves missing/wrong confirmations, dirty authority, and
-launch-record collisions fail without suite, evidence, aggregate, or launch-
-record mutation. Its full published `--check` preflight must pass before the
-command below is handed off. No model call, live operation, launch record,
-tag, release, external-use approval, queue authority, or `EXT-20` completion
-occurred while preparing this gate.
+The retained terminal manifest at
+`.revolvr/ext20-rc6.LOLauh/suite/evidence/repo-a/01-successful-source-change-1/manifest.tsv`
+verifies. The root cause was planner profile normalization: the repository file
+is 1,459 bytes with SHA-256
+`ce9692ca3dbf49fce2340ca6aa04f697d0a23fa49fd71196863750b1a03cfadf`,
+while the recorded `TrimSpace` representation is 1,458 bytes with SHA-256
+`ac6bbd2e5280e0c5ed77f17009e0777d795766c2ae2259207cbf7444c4b207cd`.
+Planner application now uses the auditor's bounded exact-or-normalized
+validation contract and retains tamper rejection. Focused provenance tests,
+`go test ./...`, `go run ./cmd/revolvr --help`, and
+`go run ./cmd/revolvr config check` pass.
 
 ## Exact Next-Session Resume
 
-The next command starts real Codex/model calls and therefore requires the exact
-explicit confirmation token. From `/home/gernsback/source/revolvr`, run only
-when intentionally authorizing the one guarded RC.6 suite:
-
-```bash
-./agent-ext20-rc6-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
-```
-
-The launcher must complete its exact clean-main/ref/artifact/bundle/script/
-prepared-root/Codex/repository/task/sentinel/zero-evidence preflight before it
-creates one collision-free external launch record and starts the suite once.
-Do not retry after any start, failure, or interruption. Preserve all evidence
-and return for independent result review. This confirmation grants no tag,
-release, external-use approval, queue authority, or `EXT-20` completion unless
-the retained suite later passes every quantitative and zero-tolerance check.
+No RC.6 command remains active. After this remediation is published, prepare a
+new attended-shell launcher for the next bounded no-model RC.7 local-candidate
+stage. RC.7 must use a newly constructed suite later and must not reuse any
+RC.6 runtime state or evidence. Do not start a live gate.
 
 ## RC.6 Prepared No-Model Suite Authority
 
@@ -1092,12 +1085,13 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run the exact confirmation-gated RC.6 direct launcher once only if real
-   model calls are intentionally authorized.
-2. Preserve its external launch record and every suite artifact on success,
-   failure, or interruption; never retry or edit runtime evidence.
-3. Return for independent retained-result review before any task completion,
-   tag, release, external-use approval, or queue authority.
+1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
+   launcher or suite command.
+2. Use only the newly prepared attended-shell continuation for a fresh RC.7
+   local-candidate stage; it must make no live Revolvr model call.
+3. Return for independent review before any RC.7 publication, suite
+   preparation, live gate, task completion, tag, release, external-use
+   approval, or queue authority.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1109,16 +1103,9 @@ attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
 Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
-Exact next command:
-
-```bash
-./agent-ext20-rc6-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
-```
-
-The completed launchers and every retired suite live command must not be
-rerun. Only the exact command above grants one RC.6 live suite start. It grants
-no commit, push, candidate/ref mutation, retry, tag, release, external-use
-approval, queue authority, or automatic `EXT-20` completion.
+There is no active live command. Every RC.6 launcher and suite command is
+retired and must not be rerun. The next published handoff will name one new
+RC.7 no-model continuation command.
 
 ## Session Rules
 

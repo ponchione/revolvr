@@ -138,6 +138,41 @@ func TestApplyPlanningResultAcceptsLegacyAndPlannerRoleDossiers(t *testing.T) {
 	}
 }
 
+func TestApplyPlanningResultValidatesNormalizedPlannerProfile(t *testing.T) {
+	tests := []struct {
+		name        string
+		profileRaw  []byte
+		wantFailure bool
+	}{
+		{name: "normal final newline", profileRaw: []byte("planner fixture\n")},
+		{name: "meaningful tampering", profileRaw: []byte("tampered planner fixture\n"), wantFailure: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixture := newApplyFixture(t, nil, "profile-"+strings.ReplaceAll(tt.name, " ", "-"))
+			profilePath := filepath.Join(fixture.repo, ".agent", "profiles", "planner.md")
+			if err := os.WriteFile(profilePath, tt.profileRaw, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			fixture.cfg.Cycle.Worker.Profile.SHA256 = hashBytes([]byte("planner fixture"))
+			fixture.cfg.Cycle.Worker.Profile.ByteSize = len("planner fixture")
+			fixture.rewriteOutput(t)
+
+			result, err := ApplyPlanningResult(context.Background(), fixture.cfg)
+			if tt.wantFailure {
+				if err == nil || result.Failure == nil || result.Failure.Stage != "cycle_evidence" || !strings.Contains(err.Error(), "planner profile artifact hash or size mismatch") {
+					t.Fatalf("ApplyPlanningResult() result=%+v error=%v, want profile tampering rejection", result, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ApplyPlanningResult() error = %v; result=%+v", err, result)
+			}
+		})
+	}
+}
+
 func TestApplyPlanningResultIsIdempotentAndRecoversOrphanedHistory(t *testing.T) {
 	t.Run("committed replay", func(t *testing.T) {
 		fixture := newApplyFixture(t, nil, "one")

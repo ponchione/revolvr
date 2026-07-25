@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## EXT-20 Planner Profile Identity And RC.6 Retirement (2026-07-25)
+
+- A repo-authored run profile may be represented by either its exact protected
+  file bytes or the exact surrounding-whitespace-normalized bytes returned by
+  `prompt.LoadRunProfile`. Planner application now matches auditor application:
+  read the protected file under a fixed 1 MiB bound, then require the recorded
+  SHA-256 and byte size to match exactly one of those two representations.
+  This admits ordinary final newlines without weakening non-whitespace tamper
+  detection or protected-file containment.
+- RC.6 is terminally retired after operation `ext20-7b4a5932090f-01` stopped
+  `unsafe_or_ambiguous` at planner application. Its retained suite, launch
+  record, and evidence are immutable failed-attempt evidence. No RC.6 launcher
+  or suite command is future authority, and RC.7 must be constructed from a
+  fresh candidate and later a fresh suite.
+- This repair does not complete `EXT-20`, authorize a live run, reuse evidence,
+  grant external use or queue authority, or create a tag or release.
+
 ## EXT-20 RC.6 Prepared-Suite Review And Direct Live Gate (2026-07-25)
 
 - Independent controller review accepted the suite script's exact three-
