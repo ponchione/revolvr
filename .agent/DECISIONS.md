@@ -1,5 +1,34 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Independent Pre-Live Review Boundary (2026-07-25)
+
+- Independent pre-live review accepted the complete published direct launcher
+  and focused checker at exact SHA-256
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`
+  and `c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+  Clean local, fetched, and public `main` agreed at
+  `460c2fa31155dca28a4f9ce861c03fbad8949acc`; published direct-launch commit
+  `d2e7d8ddda66db7685b021dcc33b94766ec00204`, tree
+  `701639e624fc86a0a18c77cf19dc064f8e7bd511`, parent
+  `6931b3ef790a6f0375944043596cb591cf589f2a`, remained exact in local and
+  fetched ancestry.
+- Syntax, independent missing/wrong/multiple argument refusals, the complete
+  published `--check` preflight, `go test -count=1 ./...`, and diff hygiene
+  passed. The prepared RC.7 suite remained exact with zero operation,
+  collector, model, receipt, aggregate, or launch-record evidence and ten
+  pending zero-attempt doctor-ready tasks. All three protected RC.6 streams
+  remained exact at their recorded hashes.
+- This result grants only authority for a separate controller to review and,
+  if accepted, publish the exact three durable-state files. It does not make a
+  live command active, authorize a live invocation or launch record, start a
+  Revolvr/Codex/model operation, complete `EXT-20`, or grant tag, release,
+  external-use, or queue authority. No executable continuation was created;
+  any later live decision must be a separate post-publication authority gate.
+- RC.1 through RC.6 and all historical refs, workflows, bundles, artifacts,
+  suites, operations, launch records, diagnostics, and evidence remain
+  immutable rejected or failed history. RC.6 cannot be executed, repaired,
+  deleted, derived from, or reused.
+
 ## EXT-20 RC.7 Published Direct Launcher Pre-Live Review Gate (2026-07-25)
 
 - Independent review accepted and raw Git published the exact RC.7 direct

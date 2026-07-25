@@ -4,39 +4,64 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Independent controller review accepted and raw Git published the exact RC.7
-direct-launch construction as commit
+The fresh independent RC.7 pre-live no-model review passed. Clean local,
+fetched, and public `main` agreed at
+`460c2fa31155dca28a4f9ce861c03fbad8949acc`; published direct-launch commit
 `d2e7d8ddda66db7685b021dcc33b94766ec00204`, tree
 `701639e624fc86a0a18c77cf19dc064f8e7bd511`, parent
-`6931b3ef790a6f0375944043596cb591cf589f2a`. Local, fetched, and public
-`main` readback matched. Syntax, focused refusal/collision checks, sourced
-downstream read-only preflight, full Go tests, diff hygiene, both sealed
-bundles, remote evidence, prepared-suite content, task/doctor/source-writer/
-sentinel authority, and RC.6 preservation passed. The clean published
-`./agent-ext20-rc7-live-direct.sh --check` path then completed its entire
-preflight without a model call, launch record, or runtime mutation.
+`6931b3ef790a6f0375944043596cb591cf589f2a`, remained exact in both required
+ancestries. Complete launcher/checker inspection, syntax, independent safe
+argument refusals, the complete published `--check` preflight, uncached full Go
+tests, diff hygiene, prepared-suite zero-activity authority, unchanged task
+backlog, and all protected RC.6 streams passed without runtime mutation or a
+model call.
 
 ## Exact Next-Session Resume
 
-The next gate is one fresh attended pre-live no-model review of the published
-direct launcher. Prepared continuation
-`agent-ext20-rc7-prelive-review.sh`, SHA-256
-`f013427c57678950a17fc71a71e23a89e44fac30668d12d47971d6475c551b12`,
-admits only that check-only task. Exact next command from
-`/home/gernsback/source/revolvr`:
+Return this exact three-file durable-state delta to the separate controller for
+review. No executable continuation or live command was created or activated in
+this pass. The controller's first read-only command from
+`/home/gernsback/source/revolvr` is:
 
 ```bash
-./agent-ext20-rc7-prelive-review.sh
+git diff -- .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
 ```
 
-The continuation requires clean exact local/fetched/public `main`, exact
-published launcher/checker identities, and an absent RC.7 launch-record root
-before starting a fresh session. That session may run only refusal, syntax,
-full published `--check`, complete Go, diff-hygiene, remote/bundle/suite, and
-protected-stream checks, then update the three durable-state files. It cannot
-invoke `--live`, supply or reproduce the live confirmation, create a launch
-record, start Revolvr or a nested model, mutate the launcher/checker, or make a
-live command active.
+If the controller independently accepts the review record, it may publish only
+these three files using raw Git. Publication still grants no live invocation,
+launch record, model operation, tag, release, external-use approval, queue
+authority, or `EXT-20` completion. Any live-authority decision must occur in a
+later, distinct post-publication gate. `EXT-20` remains unchecked and no live
+command is active.
+
+## RC.7 Independent Pre-Live Review Evidence
+
+- Direct launcher/checker SHA-256:
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45` /
+  `c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+- Missing, wrong, and multiple arguments each returned status `64`, emitted no
+  stdout, reported usage, and created no launch record. The focused checker was
+  inspected as construction-time coverage; its deliberate dirty-controller
+  assertion was not run wholesale against the clean published controller.
+- `./agent-ext20-rc7-live-direct.sh --check` returned status `0` after the full
+  clean-main, remote, bundle, suite, candidate/Codex, repository/task/doctor,
+  source-writer/sentinel, zero-evidence, absent-launch-record, backlog, and
+  RC.6 preservation preflight. It reported no model call or launch record.
+- Prepared suite ID and authority/plan/content SHA-256 remain
+  `ext20-14b2bf40212b` and
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e` /
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1` /
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  It retains zero operation/collector/model/receipt evidence, empty aggregate,
+  ten pending zero-attempt doctor-ready tasks, and no RC.7 launch-record root.
+- Protected RC.6 suite/launch-record/terminal-evidence streams remain
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- `bash -n`, `go test -count=1 ./...`, and `git diff --check` passed.
+  `.agent/TASKS.md` remains SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. Blockers: none.
 
 ## RC.7 Direct Launcher Construction
 
