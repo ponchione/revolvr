@@ -110,6 +110,50 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## Attended Developer-Alpha Path (2026-07-25)
+
+- Task selected: the operator-directed bounded developer-alpha subtask within
+  still-unchecked `EXT-20`. The pass documented the simplest attended path from
+  the fixed current `main`; it did not continue real-Codex qualification or
+  construct another candidate.
+- Files changed: `docs/attended-developer-alpha.md`, `README.md`,
+  `docs/external-project-runbook.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  and `.agent/DECISIONS.md`. No Go source, dependency, configuration, build
+  helper, release artifact, RC evidence, or retired launcher changed.
+- Exact developer-alpha build entry is
+  `go build -trimpath -o ./bin/revolvr ./cmd/revolvr`; the binary is
+  `<revolvr-source-root>/bin/revolvr`. The guide then covers `init`, attended
+  configuration and finite-bound inspection, general and exact-task doctor,
+  one foreground `run --until-terminal` operation capped at three cycles,
+  status/task/run/receipt evidence inspection, typed stops/recovery, and review
+  of the generated task-workspace commit before separate integration.
+- Verification commands run: `bash -n` for
+  `scripts/smoke-external-attended.sh`,
+  `scripts/check-ext20-rc5-live-direct.sh`,
+  `agent-ext20-rc5-live-direct.sh`, and
+  `agent-attended-alpha-readiness.sh`; `bash
+  scripts/smoke-external-attended.sh`; `go test -count=1 -v ./internal/app
+  -run '^TestProductionAutonomousHappyPath$'`; `go test -count=1 ./...`;
+  `scripts/check-ext20-rc5-live-direct.sh`; and `git diff --check`.
+  The external smoke exercised root/subcommand help, init, config check,
+  status, task/evidence surfaces, and expected attended doctor refusal for its
+  unlisted fake without executing Codex. The focused test completed the real
+  production composition with strict fake Codex in a separate collision-free
+  temporary Git repository. All passed.
+- Before and after work, suite, first-operation evidence, and launch-record
+  path-bearing content-stream SHA-256 values remained exactly
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  The permanent-retirement check also passed without changing the suite or
+  launch record.
+- Result: the documented local developer path is ready for independent review.
+  These checks prove only deterministic local fake behavior; no real model/API
+  call, commit, push, candidate, tag, release, or external-use approval
+  occurred. `EXT-20` remains incomplete and unchecked. The next gate is a
+  fresh read-only review of the exact documentation/state diff before any
+  separately authorized publication. Blockers: none.
+
 ## Published RC.5 Source Remediation And Developer-Alpha Handoff (2026-07-24)
 
 - Fresh independent review accepted the terminal-failure remediation after

@@ -42,6 +42,13 @@ local runtime state and is ignored by Git. When initialized from a Git worktree,
 
 - This README is the operator guide for setup, task workflows, runtime modes,
   safety, recovery, and maintenance commands.
+- [`docs/attended-developer-alpha.md`](docs/attended-developer-alpha.md) is the
+  bounded source-build path for attended evaluation in disposable or
+  recoverable repositories; it is explicitly not a release or external-use
+  approval.
+- [`docs/external-project-runbook.md`](docs/external-project-runbook.md) is the
+  release-gated attended operator procedure and must not be used as evidence
+  that the current developer build is approved.
 - [`AGENTS.md`](AGENTS.md) defines repository working and verification rules.
 - [`.agent/DECISIONS.md`](.agent/DECISIONS.md) records durable architecture
   decisions, while [`.agent/STATE.md`](.agent/STATE.md) summarizes the current

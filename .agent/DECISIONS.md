@@ -1,5 +1,31 @@
 # Agent Decisions
 
+## Attended Developer-Alpha Entry Path (2026-07-25)
+
+- The supported developer-alpha entry is the documentation-only path in
+  `docs/attended-developer-alpha.md`: from a clean current `main` with no
+  product-source delta after remediation commit
+  `010a8939ef6ad889a34590d05ce0326b6df57571`, build exactly
+  `go build -trimpath -o ./bin/revolvr ./cmd/revolvr` and use the resulting
+  `<source-root>/bin/revolvr` in one clean disposable or separately recoverable
+  repository.
+- Developer-alpha authority is limited to one foreground attended task with a
+  unique operation ID, explicit `--max-cycles 3`, passing general and exact-
+  task doctor checks, preserved evidence, and operator review of the generated
+  commit before any separate integration. Queue, daemon, concurrent repository
+  mutation, runtime-state edits, and automatic integration remain excluded.
+- No new helper or product behavior is needed. The existing external attended
+  shell smoke proves the CLI/init/config/status and fail-closed doctor surfaces
+  in a collision-free disposable Git repository without executing its fake;
+  `TestProductionAutonomousHappyPath` separately proves the complete ordinary
+  production task composition with the reusable strict fake Codex. This split
+  proof does not establish real API acceptance or Level-1 qualification.
+- The next gate is independent read-only review of the documentation and
+  durable records before any separately authorized publication. `EXT-20`
+  remains unchecked; RC.1 through RC.5 remain immutable rejected evidence, and
+  no RC.6, candidate, tag, release, live-model run, or external-use approval is
+  implied.
+
 ## Attended Developer-Alpha Versus Release Qualification (2026-07-24)
 
 - Publishing the known RC.5 source fixes is sufficient to explore a bounded

@@ -1,36 +1,65 @@
 # Agent Handoff
 
-Updated: 2026-07-24
+Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former review/publication handoff below. The
-bounded RC.5 terminal-failure source remediation passed fresh independent
-review and is published on raw-Git `main` as exact source commit
-`010a8939ef6ad889a34590d05ce0326b6df57571`. Planning application now admits
-only exact legacy or planner-role dossier authority; fallback receipts
-preserve exact nonblank task bytes and produce zero claims for the human no-
-verification placeholder; and `agent-ext20-rc5-live-direct.sh` is permanently
-failed closed for every argument. Exact local/remote readback and all focused
-ordinary/race, production happy-path/strict-fake, full Go, shell, manifest,
-diff, and immutable-evidence checks pass. The first unchecked backlog task
-remains `EXT-20`; it is not complete. Per the operator's usability discussion,
-the next prepared pass stops RC iteration and establishes an honest attended
-developer-alpha path from fixed `main`. It does not construct RC.6 or grant a
-release/external-use claim.
+Latest authority supersedes the former developer-alpha construction handoff
+below. `docs/attended-developer-alpha.md` now provides the bounded source-build,
+init/config/doctor, one-task run, evidence-review, stop, and recovery path from
+the fixed current `main`. The exact build entry is
+`go build -trimpath -o ./bin/revolvr ./cmd/revolvr`, producing
+`<revolvr-source-root>/bin/revolvr`. It requires a clean disposable or
+separately recoverable repository, finite attended bounds, one foreground
+operation, and generated-commit review before separate integration.
+
+The existing external attended smoke passed in a collision-free disposable Git
+repository without executing its deliberately unlisted fake Codex. The focused
+`TestProductionAutonomousHappyPath` separately passed through the ordinary
+production task runner with the reusable strict fake Codex, and
+`go test -count=1 ./...` passed. No real model/API call, commit, push,
+candidate, tag, release, external-use approval, or `EXT-20` completion
+occurred. The RC.5 direct launcher remains permanently retired, and all
+RC.1-through-RC.5 runtime evidence remains immutable.
 
 ## Exact Next-Session Resume
 
-From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`, then run exactly:
+From `/home/gernsback/source/revolvr`, the next fresh pass must first read this
+file and the other durable state files named in `AGENTS.md`, then perform the
+independent read-only review with exactly:
 
 ```bash
-./agent-attended-alpha-readiness.sh
+git status --short
+sed -n '1,240p' docs/attended-developer-alpha.md
+git diff --check
+git diff -- README.md docs/external-project-runbook.md .agent/DECISIONS.md .agent/HANDOFF.md .agent/STATE.md
 ```
 
-That fresh pass may document and strict-fake verify the simplest attended
-developer-alpha use path. It must not make a real model call, commit, push,
-construct another candidate, or alter retained RC evidence.
+The reviewer must also inspect the untracked developer-alpha guide named by
+`git status`, because ordinary `git diff` does not render an untracked file.
+Review grants no publication by itself. It must not make a real model call,
+commit, push, construct another candidate, or alter retained RC evidence.
+
+## Developer-Alpha Review Scope
+
+- Exact uncommitted files are `.agent/DECISIONS.md`, `.agent/HANDOFF.md`,
+  `.agent/STATE.md`, `README.md`, `docs/attended-developer-alpha.md`, and
+  `docs/external-project-runbook.md`. There is no Go, dependency, helper,
+  configuration, candidate, release, or RC-evidence change.
+- Passed verification is `bash -n` on the attended smoke, retired-launcher
+  check, retired launcher, and readiness launcher; `bash
+  scripts/smoke-external-attended.sh`; `go test -count=1 -v ./internal/app
+  -run '^TestProductionAutonomousHappyPath$'`; `go test -count=1 ./...`;
+  `scripts/check-ext20-rc5-live-direct.sh`; and `git diff --check`.
+- The suite, first-operation evidence, and launch-record path-bearing content-
+  stream hashes remain exactly
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+- Limitations are explicit: the strict fake proves deterministic local
+  production composition, not real API acceptance, quantitative dogfood,
+  Level-1 qualification, release authority, or external-use approval.
+  `EXT-20` remains unchecked.
 
 RC.3 is immutable rejected history, and its retained suite is permanently
 retired. The first local
@@ -841,11 +870,10 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run `./agent-attended-alpha-readiness.sh` in one fresh pass to establish and
-   strict-fake verify a minimal attended developer-use path from exact fixed
-   source `010a8939ef6ad889a34590d05ce0326b6df57571`.
-2. Independently review any resulting documentation/helper before publication.
-   Keep this developer-alpha path distinct from Level-1 release qualification.
+1. Independently review the exact developer-alpha documentation and durable
+   state diff without changing it or starting a model operation.
+2. Only an explicit later operator authorization may publish an accepted
+   documentation scope. Publication is not Level-1 qualification.
 3. Do not retry RC.5, construct RC.6, tag, release, approve external use, or
    complete `EXT-20`. RC.1 through RC.5 remain immutable rejected history.
 
@@ -862,7 +890,7 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-attended-alpha-readiness.sh
+git status --short
 ```
 
 The completed launchers and every retired suite live command must not be

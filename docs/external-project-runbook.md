@@ -6,6 +6,11 @@ approves **attended single-task external use**. The current source tree, a
 moving branch, a locally built `dev` binary, or a green local test is not
 release authority.
 
+For bounded evaluation of the current fixed source without making a Level-1
+claim, use the separate [attended developer-alpha path](attended-developer-alpha.md).
+Its disposable/recoverable-repository constraints and incomplete `EXT-20`
+limitation remain in force.
+
 This runbook covers one operator-attended `autonomous-v1` task at a time on
 Linux, macOS, or FreeBSD. `run --queue`, `run --daemon`, `doctor --for queue`,
 and `doctor --for daemon` are **unapproved**. Do not use them for external
