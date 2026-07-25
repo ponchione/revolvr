@@ -1,5 +1,23 @@
 # Agent Decisions
 
+## Developer-Alpha Publication And Level-1 Qualification Resumption (2026-07-25)
+
+- Independent review accepted the six-file attended developer-alpha scope
+  after repeating the disposable external smoke, focused production happy
+  path, full Go suite, shell/diff checks, exact source-scope comparison, and
+  immutable RC.5 evidence checks. Raw Git published it on `main` as exact
+  commit `73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`; local and remote readback agree.
+- The operator then explicitly directed continued progress. The next bounded
+  pass resumes ordered `EXT-20` qualification by constructing and locally
+  verifying fresh collision-free candidate `level1-v0.1.0-rc.6` from that
+  exact published source. It may not make a live model call, publish a ref,
+  add an attestation workflow, tag, release, approve external use, or complete
+  `EXT-20`.
+- Developer-alpha use remains a separate attended, disposable/recoverable
+  path. RC.1 through RC.5 remain immutable rejected history and cannot supply
+  RC.6 artifacts, runtime state, or evidence.
+
 ## Attended Developer-Alpha Entry Path (2026-07-25)
 
 - The supported developer-alpha entry is the documentation-only path in

@@ -4,45 +4,40 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former developer-alpha construction handoff
-below. `docs/attended-developer-alpha.md` now provides the bounded source-build,
-init/config/doctor, one-task run, evidence-review, stop, and recovery path from
-the fixed current `main`. The exact build entry is
-`go build -trimpath -o ./bin/revolvr ./cmd/revolvr`, producing
-`<revolvr-source-root>/bin/revolvr`. It requires a clean disposable or
-separately recoverable repository, finite attended bounds, one foreground
-operation, and generated-commit review before separate integration.
+Latest authority supersedes the former developer-alpha review handoff below.
+Independent review accepted the exact six-file documentation/state scope and
+repeated the disposable external smoke, strict-fake production happy path,
+full Go suite, shell/diff checks, exact source scope, and immutable RC.5
+evidence checks. Raw Git published the reviewed path as exact commit
+`73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+`7c9753461a08b25915f4f53533d91e57d40a20ca`; exact local and remote `main`
+readback agree. No real model/API call or external-use approval occurred, and
+`EXT-20` remains unchecked.
 
-The existing external attended smoke passed in a collision-free disposable Git
-repository without executing its deliberately unlisted fake Codex. The focused
-`TestProductionAutonomousHappyPath` separately passed through the ordinary
-production task runner with the reusable strict fake Codex, and
-`go test -count=1 ./...` passed. No real model/API call, commit, push,
-candidate, tag, release, external-use approval, or `EXT-20` completion
-occurred. The RC.5 direct launcher remains permanently retired, and all
-RC.1-through-RC.5 runtime evidence remains immutable.
+The operator explicitly directed work to continue after publication. The next
+prepared pass resumes ordered Level-1 qualification with one bounded local
+RC.6 construction from that exact published source. It does not make a live
+model call, publish a candidate ref, add an attestation workflow, tag, release,
+approve external use, or complete `EXT-20`. RC.1 through RC.5 and all retained
+runtime evidence remain immutable rejected history.
 
 ## Exact Next-Session Resume
 
-From `/home/gernsback/source/revolvr`, the next fresh pass must first read this
-file and the other durable state files named in `AGENTS.md`, then perform the
-independent read-only review with exactly:
+From `/home/gernsback/source/revolvr`, first read this file and the other
+durable state files named in `AGENTS.md`, then run exactly:
 
 ```bash
-git status --short
-sed -n '1,240p' docs/attended-developer-alpha.md
-git diff --check
-git diff -- README.md docs/external-project-runbook.md .agent/DECISIONS.md .agent/HANDOFF.md .agent/STATE.md
+./agent-ext20-rc6.sh
 ```
 
-The reviewer must also inspect the untracked developer-alpha guide named by
-`git status`, because ordinary `git diff` does not render an untracked file.
-Review grants no publication by itself. It must not make a real model call,
-commit, push, construct another candidate, or alter retained RC evidence.
+That fresh pass may construct and locally verify only the collision-free RC.6
+candidate. It must not make a real model call, commit, push, publish a ref,
+create an attestation workflow, tag, release, approve external use, or alter
+retained RC evidence.
 
-## Developer-Alpha Review Scope
+## Published Developer-Alpha Review Scope
 
-- Exact uncommitted files are `.agent/DECISIONS.md`, `.agent/HANDOFF.md`,
+- Exact reviewed and published files are `.agent/DECISIONS.md`, `.agent/HANDOFF.md`,
   `.agent/STATE.md`, `README.md`, `docs/attended-developer-alpha.md`, and
   `docs/external-project-runbook.md`. There is no Go, dependency, helper,
   configuration, candidate, release, or RC-evidence change.
@@ -870,12 +865,12 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Independently review the exact developer-alpha documentation and durable
-   state diff without changing it or starting a model operation.
-2. Only an explicit later operator authorization may publish an accepted
-   documentation scope. Publication is not Level-1 qualification.
-3. Do not retry RC.5, construct RC.6, tag, release, approve external use, or
-   complete `EXT-20`. RC.1 through RC.5 remain immutable rejected history.
+1. Run `./agent-ext20-rc6.sh` in one fresh pass to construct and locally verify
+   RC.6 from exact published source `73f1f81f1c51d927114f19818a18161d0fcb8541`.
+2. Independently review any resulting candidate bundles and durable-state
+   changes before separate candidate-ref publication authority.
+3. Do not retry RC.1 through RC.5, make a live model call, tag, release,
+   approve external use, or complete `EXT-20` in either pass.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -890,7 +885,7 @@ launcher.
 Exact next command:
 
 ```bash
-git status --short
+./agent-ext20-rc6.sh
 ```
 
 The completed launchers and every retired suite live command must not be

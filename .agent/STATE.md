@@ -110,6 +110,36 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## Developer-Alpha Publication And RC.6 Handoff (2026-07-25)
+
+- Independent review accepted exactly `.agent/DECISIONS.md`,
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, `README.md`,
+  `docs/attended-developer-alpha.md`, and
+  `docs/external-project-runbook.md`. It found no Go, dependency, helper,
+  configuration, release, or RC-evidence change and no unsupported approval
+  claim.
+- Review repeated `bash -n` for the attended smoke, retired RC.5 check and
+  launcher, and alpha-readiness launcher; `bash
+  scripts/smoke-external-attended.sh`; `go test -count=1 -v ./internal/app
+  -run '^TestProductionAutonomousHappyPath$'`; `go test -count=1 ./...`;
+  `scripts/check-ext20-rc5-live-direct.sh`; exact source-scope and local/remote
+  Git reads; and `git diff --check`. All passed without a real model call.
+- The retained RC.5 suite, first-operation evidence, and launch-record
+  content-stream SHA-256 values independently remained
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+- Explicit operator authority published the reviewed documentation/state
+  scope with raw Git as exact commit
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`. Exact local and remote `main`
+  readback matched after push.
+- The operator directed work to continue. New launcher `agent-ext20-rc6.sh`
+  prepares one fresh pass for collision-free local RC.6 construction from the
+  exact published commit above. That pass makes no live model call, commit,
+  push, ref, workflow, tag, release, external-use, or `EXT-20` completion
+  claim. RC.1 through RC.5 remain immutable rejected history. Blockers: none.
+
 ## Attended Developer-Alpha Path (2026-07-25)
 
 - Task selected: the operator-directed bounded developer-alpha subtask within
