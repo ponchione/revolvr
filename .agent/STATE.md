@@ -1,5 +1,76 @@
 # Agent State
 
+## EXT-20 RC.7 Final No-Model Live-Authority Admission Review (2026-07-25)
+
+- Task selected: exactly one final no-model admission review under still-
+  unchecked `EXT-20`. The prepared review wrapper was inspected but not
+  executed because its continuation starts a nested Codex session; this pass
+  performed the review directly under the supplied operator direction. No
+  live confirmation was supplied, reproduced, or embedded, and no live path,
+  launch record, Revolvr task operation, nested model, executable construction,
+  tag, release, external-use approval, queue authority, or `EXT-20` completion
+  was attempted.
+- A fresh no-tags raw-Git fetch left an empty index and worktree. Local `main`,
+  fetched `origin/main`, raw-Git public `main`, and public-REST `main` agreed at
+  `b6351d108fc971dcfff5367267fb7eb1a3b00273`. Published pre-live review commit
+  `f03258496621bbf8fd440a5c7293430a6ce44a22`, tree
+  `39ac014ebdcd56482b931fd79073429e51419df3`, parent
+  `460c2fa31155dca28a4f9ce861c03fbad8949acc` was exact and present in local
+  and fetched-main ancestry. Its independently inspected delta changed only
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`, with clean
+  diff hygiene and no admission discrepancy.
+- Complete line-by-line inspection accepted the exact direct launcher and
+  focused checker at SHA-256
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`
+  and `c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+  Check-only exits immediately after the complete preflight and before launch-
+  record reservation, pre-start/status writes, interruption traps, or the
+  one-shot suite process. The focused checker's construction-only dirty-
+  controller assertion was inspected rather than run against clean published
+  main.
+- `bash -n agent-ext20-rc7-live-direct.sh
+  scripts/check-ext20-rc7-live-direct.sh` passed. Independent missing, wrong,
+  and multiple-argument refusals from a temporary non-repository each returned
+  status `64`, emitted zero stdout bytes, reported usage, and left no launch
+  record. The only complete launcher path executed was
+  `./agent-ext20-rc7-live-direct.sh --check`; it returned status `0` after the
+  full published authority preflight and reported that no model call or launch
+  record occurred.
+- Before and after, raw Git retained the exact fourteen RC.1-through-RC.7 refs
+  and no RC tags. Public REST retained exact source CI `30160277511` with ten
+  successful jobs, attestation run/job `30163857880` / `89693466274`, sole
+  unexpired artifact `8621008768`, and companion CI `30163853353` with ten
+  successful jobs. Both sealed RC.7 candidate bundles, candidate source and
+  binary identity, isolated Codex identity, guarded suite/collector scripts,
+  repositories, configuration, doctor/source-writer results, and sentinels
+  passed their exact authority checks.
+- Prepared suite
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite` remained ID
+  `ext20-14b2bf40212b` at authority/plan/content-stream SHA-256
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e` /
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1` /
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  It retained all ten tasks pending and zero-attempt, zero operation,
+  collector, model-run, and receipt evidence, an empty aggregate, and no RC.7
+  launch-record root.
+- Read-only RC.6 suite, launch record, and terminal evidence remained exact
+  before and after at content-stream SHA-256
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+  No RC.1-through-RC.6 launcher or suite path was executed, repaired, deleted,
+  derived from, reused, or mutated.
+- Verification passed `go test -count=1 ./...` and `git diff --check`.
+  `.agent/TASKS.md` remains byte-exact at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. Files changed are `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, and `.agent/HANDOFF.md` only; blockers: none.
+- Result and recommendation: **PASS for this final no-model admission review**.
+  A later human/controller may separately decide whether to authorize a live
+  invocation only after independently reviewing and publishing this exact
+  three-file record. This review grants no live authority and leaves no live
+  command active.
+
 ## EXT-20 RC.7 Pre-Live Publication And Final No-Model Review Handoff (2026-07-25)
 
 - Independent controller replay accepted exactly the three durable-state files

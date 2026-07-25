@@ -4,35 +4,73 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Independent controller replay accepted the RC.7 pre-live no-model review and
-raw Git published its exact three-file durable-state record as commit
+The final RC.7 no-model admission review passed. Clean, freshly fetched local,
+fetched, raw-Git public, and public-REST `main` agreed at
+`b6351d108fc971dcfff5367267fb7eb1a3b00273`; published pre-live record
 `f03258496621bbf8fd440a5c7293430a6ce44a22`, tree
 `39ac014ebdcd56482b931fd79073429e51419df3`, parent
-`460c2fa31155dca28a4f9ce861c03fbad8949acc`. Local, fetched, and public
-`main` readback matched. Refusal-only coverage, sourced downstream authority,
-the uncached full Go suite, diff hygiene, and the clean published full
-`--check` path passed. RC.7 remains unstarted and byte-exact; every protected
-RC.6 stream remains unchanged.
+`460c2fa31155dca28a4f9ce861c03fbad8949acc` and its exact three-file delta
+passed independent inspection. Complete launcher/checker, refusal, public
+authority, sealed-bundle, prepared-suite, task/doctor/sentinel, preservation,
+uncached Go, and diff-hygiene checks passed. RC.7 remains unstarted and exact;
+every protected RC.6 stream remains unchanged.
 
 ## Exact Next-Session Resume
 
-The next gate is one final attended no-model live-authority review. Prepared
-continuation `agent-ext20-rc7-live-authority-review.sh`, SHA-256
-`79d8aea3ec9f46d4ccee8bdcdd33aec09502e4d0e7ed65acef2b54dbd93e563f`,
-may only produce a durable pass/fail recommendation for a later human/
-controller decision. Exact next command from
-`/home/gernsback/source/revolvr`:
+Return this exact three-file durable-state recommendation to a separate human/
+controller for independent review and publication. The first read-only command
+from `/home/gernsback/source/revolvr` is:
 
 ```bash
-./agent-ext20-rc7-live-authority-review.sh
+git diff -- .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
 ```
 
-The continuation requires clean exact local/fetched/public `main`, published
-pre-live record `f03258496621bbf8fd440a5c7293430a6ce44a22`, exact launcher,
-checker, backlog and runtime authorities, and no launch-record root. It cannot
-invoke `--live`, supply, reproduce, or embed the live confirmation, construct
-another executable, create a launch record, start Revolvr or a nested model,
-or activate a live command. `EXT-20` remains unchecked.
+If that controller accepts and publishes only these three files, a later and
+distinct human/controller gate may decide whether to grant one-time live
+authority. This review and its publication recommendation do not authorize or
+activate the live path, a launch record, a Revolvr/model operation, a tag,
+release, external use, queue use, or `EXT-20` completion. `EXT-20` remains
+unchecked and no live command is active.
+
+## RC.7 Final No-Model Admission Evidence
+
+- Local/fetched/raw-Git/public-REST `main`:
+  `b6351d108fc971dcfff5367267fb7eb1a3b00273` after a fresh no-tags fetch.
+- Published pre-live review record/tree/parent:
+  `f03258496621bbf8fd440a5c7293430a6ce44a22` /
+  `39ac014ebdcd56482b931fd79073429e51419df3` /
+  `460c2fa31155dca28a4f9ce861c03fbad8949acc`; exact three-file delta and both
+  required ancestries passed.
+- Direct launcher/checker SHA-256:
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45` /
+  `c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+  Line-by-line inspection confirmed check-only exits before launch reservation,
+  status/interruption handling, and the one-shot suite process.
+- Syntax and independent missing/wrong/multiple refusals passed; each refusal
+  returned `64`, emitted zero stdout, reported usage, and created no launch
+  record. The sole complete launcher execution was the published `--check`
+  path, which returned `0` before any launch record or model path.
+- Raw Git retained all fourteen exact RC refs and no RC tag. Public REST
+  retained source CI `30160277511`/ten jobs, attestation run/job
+  `30163857880`/`89693466274`, sole artifact `8621008768`, and companion CI
+  `30163853353`/ten jobs. Candidate/Codex/script identities and both sealed
+  bundles passed before and after.
+- Prepared suite ID and authority/plan/content SHA-256 remain
+  `ext20-14b2bf40212b` and
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e` /
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1` /
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  Ten tasks remain pending/zero-attempt, with zero operation, collector, model,
+  receipt, aggregate, or launch-record evidence.
+- Protected RC.6 suite/launch-record/terminal-evidence streams remain
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- `go test -count=1 ./...` and `git diff --check` passed. `.agent/TASKS.md`
+  remains SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. Recommendation: PASS for later decision only;
+  blockers: none; no live authority was granted and no live command is active.
 
 ## RC.7 Independent Pre-Live Review Evidence
 

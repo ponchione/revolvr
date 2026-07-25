@@ -1,5 +1,31 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Final No-Model Admission Recommendation (2026-07-25)
+
+- The final no-model admission review passed against clean, freshly fetched
+  local/fetched/raw-Git/public-REST `main` at
+  `b6351d108fc971dcfff5367267fb7eb1a3b00273`. Published pre-live record
+  `f03258496621bbf8fd440a5c7293430a6ce44a22`, tree
+  `39ac014ebdcd56482b931fd79073429e51419df3`, parent
+  `460c2fa31155dca28a4f9ce861c03fbad8949acc` and its three-file durable-state
+  delta are exact in both required ancestries.
+- Exact launcher/checker inspection, syntax, independent safe argument
+  refusals, complete published `--check`, raw-Git/public-REST authority, both
+  sealed candidate bundles, candidate/Codex/script identities, prepared suite,
+  plan, repository/task/doctor/source-writer/sentinel authority, full Go tests,
+  and diff hygiene passed. Before and after there was no operation, collector,
+  model, receipt, aggregate, or RC.7 launch-record evidence, and all ten tasks
+  remained pending and zero-attempt.
+- Recommendation is **PASS for a separate later human/controller live-
+  authorization decision**. This recommendation is not live authority: it
+  does not authorize an invocation, launch record, Revolvr/model operation,
+  tag, release, external use, queue use, or `EXT-20` completion. No live
+  command is active.
+- RC.1 through RC.6 and every historical authority/evidence root remain
+  immutable rejected or failed history. The protected RC.6 suite, launch
+  record, and terminal evidence remain exact and may not be executed,
+  repaired, deleted, derived from, or reused.
+
 ## EXT-20 RC.7 Final No-Model Live-Authority Review Gate (2026-07-25)
 
 - Independent controller replay accepted and raw Git published the exact
