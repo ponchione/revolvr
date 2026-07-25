@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Human-Authorization Checkpoint Boundary (2026-07-25)
+
+- Independent controller replay accepted and raw Git published the final
+  no-model admission recommendation as commit
+  `1a07077f24526b9202da55c2981911b7e0770a67`, tree
+  `1cb2ed843d1d5cf294487e8e404a030bb9f9838c`. Complete no-model replay and
+  clean published `--check` readback passed; this remains technical readiness
+  evidence, not human live authority.
+- The next bounded authority is executable
+  `agent-ext20-rc7-live-authorization-checkpoint.sh`, SHA-256
+  `ca537cd5ef45afb23c31636c794653425e324ccfff2550532fbb0b7b83faa410`.
+  It may only record the exact eleven-operation, ten-task, two-repository real-
+  model effects for which explicit human authorization is absent.
+- Running the checkpoint is not consent to a live launch. It cannot invoke
+  `--live`, supply or expose the confirmation, create or edit an executable,
+  create a launch record, start Revolvr or a nested model, complete `EXT-20`,
+  or grant tag, release, external-use, or queue authority. No live command is
+  active.
+- RC.1 through RC.6 remain immutable rejected or failed history. RC.6 may be
+  rehashed read-only but cannot be executed, repaired, deleted, derived from,
+  or reused.
+
 ## EXT-20 RC.7 Final No-Model Admission Recommendation (2026-07-25)
 
 - The final no-model admission review passed against clean, freshly fetched

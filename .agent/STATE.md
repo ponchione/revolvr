@@ -1,5 +1,40 @@
 # Agent State
 
+## EXT-20 RC.7 Admission Publication And Human-Authorization Handoff (2026-07-25)
+
+- Independent controller replay accepted exactly the final no-model admission
+  recommendation's three durable-state files. Raw Git published them as
+  commit `1a07077f24526b9202da55c2981911b7e0770a67`, tree
+  `1cb2ed843d1d5cf294487e8e404a030bb9f9838c`, parent
+  `b6351d108fc971dcfff5367267fb7eb1a3b00273`; local, fetched, and public
+  `main` readback matched.
+- Replay passed syntax, focused refusal/collision checks, complete sourced
+  remote/bundle/suite/repository/task authority, `go test -count=1 ./...`, and
+  diff hygiene. The clean published direct-launcher `--check` path also passed
+  without a model call, launch record, or runtime mutation.
+- RC.7 remains exact at content-stream SHA-256
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`
+  with ten pending zero-attempt tasks, zero operation/collector/model/receipt
+  evidence, empty aggregate, and no launch-record root. Protected RC.6 suite,
+  launch record, and terminal evidence remain exact at
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- Prepared executable continuation
+  `agent-ext20-rc7-live-authorization-checkpoint.sh`, SHA-256
+  `ca537cd5ef45afb23c31636c794653425e324ccfff2550532fbb0b7b83faa410`.
+  It performs one attended no-model consent-boundary pass, records the eleven-
+  operation/two-repository real-model scope requiring explicit human consent,
+  and may update only the three durable-state files. It cannot supply or expose
+  the live confirmation, invoke `--live`, create or edit executables, create a
+  launch record, start Revolvr or a nested model, or grant any live/release/
+  external-use/queue authority.
+- The current operator direction authorizes verification, publication, and
+  preparation of this safe continuation only; it does not authorize real model
+  calls. `.agent/TASKS.md` remains byte-exact at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. No live command is active.
+
 ## EXT-20 RC.7 Final No-Model Live-Authority Admission Review (2026-07-25)
 
 - Task selected: exactly one final no-model admission review under still-

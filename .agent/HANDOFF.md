@@ -4,33 +4,35 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-The final RC.7 no-model admission review passed. Clean, freshly fetched local,
-fetched, raw-Git public, and public-REST `main` agreed at
-`b6351d108fc971dcfff5367267fb7eb1a3b00273`; published pre-live record
-`f03258496621bbf8fd440a5c7293430a6ce44a22`, tree
-`39ac014ebdcd56482b931fd79073429e51419df3`, parent
-`460c2fa31155dca28a4f9ce861c03fbad8949acc` and its exact three-file delta
-passed independent inspection. Complete launcher/checker, refusal, public
-authority, sealed-bundle, prepared-suite, task/doctor/sentinel, preservation,
-uncached Go, and diff-hygiene checks passed. RC.7 remains unstarted and exact;
-every protected RC.6 stream remains unchanged.
+Independent controller replay accepted the final RC.7 no-model admission
+recommendation and raw Git published its exact three-file durable-state record
+as commit `1a07077f24526b9202da55c2981911b7e0770a67`, tree
+`1cb2ed843d1d5cf294487e8e404a030bb9f9838c`, parent
+`b6351d108fc971dcfff5367267fb7eb1a3b00273`. Local, fetched, and public
+`main` readback matched. Refusal-only coverage, sourced downstream authority,
+the uncached full Go suite, diff hygiene, and clean published full `--check`
+passed. RC.7 remains unstarted and exact; protected RC.6 remains unchanged.
 
 ## Exact Next-Session Resume
 
-Return this exact three-file durable-state recommendation to a separate human/
-controller for independent review and publication. The first read-only command
-from `/home/gernsback/source/revolvr` is:
+The next gate is an attended no-model human-authorization checkpoint. Prepared
+continuation `agent-ext20-rc7-live-authorization-checkpoint.sh`, SHA-256
+`ca537cd5ef45afb23c31636c794653425e324ccfff2550532fbb0b7b83faa410`,
+records the exact effects requiring explicit human consent but cannot grant or
+exercise that consent. Exact next command from
+`/home/gernsback/source/revolvr`:
 
 ```bash
-git diff -- .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
+./agent-ext20-rc7-live-authorization-checkpoint.sh
 ```
 
-If that controller accepts and publishes only these three files, a later and
-distinct human/controller gate may decide whether to grant one-time live
-authority. This review and its publication recommendation do not authorize or
-activate the live path, a launch record, a Revolvr/model operation, a tag,
-release, external use, queue use, or `EXT-20` completion. `EXT-20` remains
-unchecked and no live command is active.
+The checkpoint binds published recommendation
+`1a07077f24526b9202da55c2981911b7e0770a67`, exact launcher/backlog/runtime
+authority, and an absent launch-record root. It cannot invoke `--live`, expose
+or supply the confirmation, construct or edit an executable, create evidence,
+start Revolvr or a nested model, or activate a live command. The current
+operator direction does not authorize a real model launch; `EXT-20` remains
+unchecked.
 
 ## RC.7 Final No-Model Admission Evidence
 
@@ -1330,11 +1332,11 @@ made, so no API-acceptance claim is authorized.
 
 1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
    launcher or suite command.
-2. Run exactly one attended no-model live-authority review through
-   `agent-ext20-rc7-live-authority-review.sh`.
-3. Return its durable-state-only recommendation for independent controller and
-   human review. Do not run or activate a live command, create a launch record,
-   or complete `EXT-20` in that pass.
+2. Run exactly one attended no-model human-authorization checkpoint through
+   `agent-ext20-rc7-live-authorization-checkpoint.sh`.
+3. Return its durable-state-only consent boundary for independent controller
+   review. Do not grant or activate live authority, create a launch record, or
+   complete `EXT-20` in that pass.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1348,10 +1350,10 @@ launcher.
 
 There is no active live command. Every RC.6 launcher and suite command is
 retired and must not be rerun. The only active continuation command is the
-attended no-model live-authority review:
+attended no-model human-authorization checkpoint:
 
 ```bash
-./agent-ext20-rc7-live-authority-review.sh
+./agent-ext20-rc7-live-authorization-checkpoint.sh
 ```
 
 ## Session Rules
