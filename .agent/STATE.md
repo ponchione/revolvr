@@ -1,5 +1,34 @@
 # Agent State
 
+## EXT-20 RC.7 Authorized One-Shot Live Wrapper Construction (2026-07-25)
+
+- Raw Git published the human's exact one-time RC.7 live authorization as
+  commit `92d9c38ec9e4bbc01b0b5cf2c75ff3819f36658d`, tree
+  `24e43c5eaf002c272aa27bca578345415427bc7e`, parent
+  `6a786e3ce6fa436ff66aa75fd663e20fafd425a1`; local, fetched, and public
+  `main` readback matched before construction.
+- Added executable `agent-ext20-rc7-live-once.sh`, SHA-256
+  `240974ac774139e34a8f2f717d2c20e2eb01521d4d98c7bb25a43681d6888066`.
+  It accepts only exact operator flag
+  `--execute-authorized-rc7-live-suite-once`, refuses all other arguments
+  before authority lookup, requires clean exact local/fetched/public main,
+  verifies the published authorization commit, exact direct launcher and task
+  backlog, and an absent RC.7 launch-record root, then sources definitions and
+  `exec`s the direct launcher with its retained internal confirmation.
+- Construction verification exercises only syntax, missing/wrong/multiple
+  argument refusal, and the admitted flag's dirty-controller refusal. The live
+  branch, direct confirmation, launch-record reservation, suite process,
+  Revolvr, and model path were not executed during construction.
+- The exact operator command is
+  `./agent-ext20-rc7-live-once.sh
+  --execute-authorized-rc7-live-suite-once`. It is one-shot: any launch-record
+  root or operation evidence ends authority, including after terminal failure
+  or interruption. No retry or recovery is authorized.
+- RC.7 remains unstarted at content-stream SHA-256
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`
+  with ten pending zero-attempt tasks and no launch record. RC.6 remains exact
+  and immutable. `.agent/TASKS.md` remains exact with `EXT-20` unchecked.
+
 ## EXT-20 RC.7 Explicit One-Time Human Live Authorization (2026-07-25)
 
 - Immediately after the inert authorization-status script reported technical

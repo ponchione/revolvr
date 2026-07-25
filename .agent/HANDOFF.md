@@ -4,31 +4,29 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-The human operator explicitly responded `Authorized` immediately after the
-inert status script enumerated the exact RC.7 live scope and retained effects.
-This grants one-time authority for exactly one RC.7 suite launch: eleven real-
-Codex operations over ten tasks in two disposable repositories, including the
-recorded approval/sandbox bypass, host environment/network, cost/time,
-cancellation, commit, and immutable-evidence effects. It grants no retry,
-recovery, merge, push, tag, release, external-use, queue, or `EXT-20`
-completion authority. RC.7 remains unstarted and RC.6 remains exact.
+The human operator explicitly authorized exactly one RC.7 live suite launch,
+and raw Git published that authorization separately as commit
+`92d9c38ec9e4bbc01b0b5cf2c75ff3819f36658d`, tree
+`24e43c5eaf002c272aa27bca578345415427bc7e`, parent
+`6a786e3ce6fa436ff66aa75fd663e20fafd425a1`. Construction produced executable
+one-shot wrapper `agent-ext20-rc7-live-once.sh`, SHA-256
+`240974ac774139e34a8f2f717d2c20e2eb01521d4d98c7bb25a43681d6888066`.
+No admitted branch was executed; RC.7 remains unstarted and RC.6 remains exact.
 
 ## Exact Next-Session Resume
 
-The next bounded controller task is construction, no-model checking, and raw-
-Git publication of a confirmation-gated one-shot wrapper bound to this exact
-authorization and the published direct launcher. No live command is active
-until that wrapper is separately reviewed and published. First read-only
-command from `/home/gernsback/source/revolvr`:
+After independent controller publication and clean/public readback, the exact
+authorized one-time operator command from `/home/gernsback/source/revolvr` is:
 
 ```bash
-./agent-ext20-rc7-live-direct.sh --check
+./agent-ext20-rc7-live-once.sh --execute-authorized-rc7-live-suite-once
 ```
 
-This authorization permits construction and later operator execution of one
-wrapper only. The controller must not execute the live branch while building
-or publishing it, and the wrapper must retain argument refusal plus the direct
-launcher's complete preflight and one-shot collision behavior.
+This command performs wrapper clean/public/authorization checks, then delegates
+to the exact direct launcher and its complete fail-closed preflight. A newly
+created launch-record root exhausts authority even on failure or interruption;
+there is no retry or recovery authorization. The operator should remain
+attended for the complete run and retain all terminal output.
 
 ## RC.7 Human-Authorization Boundary
 
@@ -1378,11 +1376,10 @@ made, so no API-acceptance claim is authorized.
 
 1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
    launcher or suite command.
-2. Run only the inert authorization-status readback through
-   `agent-ext20-rc7-await-live-authorization.sh`.
-3. Stop at the reported consent boundary. Do not grant or activate live
-   authority, create a launch record, or complete `EXT-20` without a new
-   explicit human instruction.
+2. Execute the exact one-time attended RC.7 command in the active handoff.
+3. Stop after terminal return and preserve every launch/runtime/evidence byte.
+   Do not retry, recover, tag, release, grant external/queue authority, or
+   complete `EXT-20`.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1394,12 +1391,11 @@ attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
 Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
-There is no active live command. Every RC.6 launcher and suite command is
-retired and must not be rerun. The only active continuation command is the
-inert no-model authorization-status readback:
+Every RC.6 launcher and suite command is retired and must not be rerun. The
+only active live command is the explicitly authorized one-time RC.7 wrapper:
 
 ```bash
-./agent-ext20-rc7-await-live-authorization.sh
+./agent-ext20-rc7-live-once.sh --execute-authorized-rc7-live-suite-once
 ```
 
 ## Session Rules

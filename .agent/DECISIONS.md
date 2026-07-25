@@ -1,5 +1,21 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Authorized One-Shot Wrapper (2026-07-25)
+
+- Human one-time live authority is durably separated at published commit
+  `92d9c38ec9e4bbc01b0b5cf2c75ff3819f36658d`, tree
+  `24e43c5eaf002c272aa27bca578345415427bc7e`. Executable wrapper
+  `agent-ext20-rc7-live-once.sh`, SHA-256
+  `240974ac774139e34a8f2f717d2c20e2eb01521d4d98c7bb25a43681d6888066`,
+  is the sole admitted operator entry point.
+- The wrapper requires one exact non-secret execution flag, clean published
+  main, exact authorization/direct-launcher/backlog identities, and an absent
+  launch-record root before delegating to the direct launcher's complete
+  preflight and retained internal confirmation.
+- A created launch-record root exhausts authority regardless of terminal
+  result. No retry, recovery, merge, push, tag, release, external-use, queue,
+  or `EXT-20` completion authority is implied. RC.6 remains immutable.
+
 ## EXT-20 RC.7 One-Time Human Live Authorization (2026-07-25)
 
 - The operator explicitly responded `Authorized` to the immediately preceding
