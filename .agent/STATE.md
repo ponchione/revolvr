@@ -110,6 +110,91 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.6 Local Artifact-Attestation Workflow (2026-07-25)
+
+- Task selected: the bounded local RC.6 release-artifact attestation-workflow
+  prerequisite of still-unchecked `EXT-20` only. Added separate workflow
+  `.github/workflows/level1-rc6-candidate-attestation.yml`, triggered only by
+  a push to `level1-v0.1.0-rc.6-attestation`. Its SHA-256 is
+  `708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`.
+  Trigger HEAD is workflow authority only: checkout remains exact candidate
+  source `73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`.
+- The workflow installs exact Go 1.26.5 with action caching disabled. Two
+  independent clean `--no-local` clones use separate `GOCACHE` and
+  `GOMODCACHE` paths and build Linux, Darwin, and FreeBSD amd64 with
+  module-readonly/local-toolchain mode, `CGO_ENABLED=0`, trimpath, explicit
+  clean VCS metadata, an empty build ID, and exact `main.version=0.1.0`.
+  Corresponding pairs must be byte-identical and match exact SHA-256 values
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  `596a17a21b5509cfa868762e8675a66251136cf483cdbb40cc0fa51a28f284f7`,
+  and `60c4052e2ff717b5f9d09db73d00073c4d182ed2b584328eaae4bd6d7f2b4344`.
+- Every retained binary is checked for exact Go/tool/path/compiler/trimpath/
+  target/CGO/source/`vcs.modified=false` metadata, empty build ID, one exact
+  16-byte `main.version` symbol, and exactly one release-version string. Both
+  Linux builds must print exactly `revolvr 0.1.0`. One future upload named
+  `level1-v0.1.0-rc.6-attestation` retains both binary sets, hashes, build
+  metadata, build-ID and version assertions, Linux version output,
+  reproducibility evidence, and an exact manifest binding candidate CI run
+  `30153462797` plus every workflow, ref, source, tool, target, flag, and hash
+  authority.
+- The embedded shell fails closed unless the candidate ref remains exact and
+  the RC.6 tag, attestation-ref, attestation-namespace, and artifact-name
+  authorities have no foreign collision. Its explicit local-validation mode
+  admits exactly the sole existing candidate ref before publication; ordinary
+  workflow execution instead requires exactly the candidate ref and its own
+  exact trigger ref before artifact upload.
+- Pre-edit checks passed with local and remote `main` exact at
+  `f282f263d817ff4ab32e04fe86e3c42612d18ca9`, published remote-CI record
+  `716c9a2293555f9abee80d384a673be426fe2ce0` in ancestry, candidate ref exact,
+  RC.6 attestation ref/tags/workflow/artifact name absent, and CI run
+  `30153462797` plus all ten recorded jobs exact and successful. The complete
+  candidate and verification bundles reverified at inventory/seal values
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+  Build-instructions and all three candidate artifact hashes also matched.
+- Local verification passed: PyYAML structure and exact-action assertions;
+  exact constant and historical-leak scans; extracted embedded-shell `bash
+  -n`; `git diff --check`; and complete execution of the unmodified embedded
+  shell from a fresh detached exact-source clone against the still-absent
+  remote attestation namespace. The retained root is
+  `/tmp/revolvr-ext20-rc6-attestation.9dtfzU`; its attestation output contains
+  exactly 29 regular single-link files and has path-bearing content-stream
+  SHA-256
+  `fde643d9b1a262c087a661b1ef617d143414ce149e44a967221af7e21d93d7c1`.
+  It contains six exact hash rows, three identical build pairs, six exact
+  metadata/version authorities, six empty build-ID records, two exact Linux
+  version outputs, distinct per-pass build/module caches, and exact authority
+  and reproducibility manifests.
+- Post-execution preservation passed. Both RC.6 complete sealed bundles, the
+  exact candidate ref/tree and ten-job CI run, all ten RC.1-through-RC.5
+  remote refs, all historical RC tag absences, and the five earlier workflow
+  hashes reverified. The RC.5 evidence manifest passed independently; suite,
+  evidence, and launch-record content-stream hashes remain exactly
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  `agent-ext20-rc5-live-direct.sh` remains permanently failed closed. Final
+  remote readback still finds only the exact RC.6 candidate ref, no RC.6 tag
+  or attestation ref, and no artifact-name collision.
+- Files changed: the new RC.6 workflow, this file, `.agent/HANDOFF.md`, and
+  `.agent/DECISIONS.md`. `.agent/TASKS.md` remains byte-for-byte unchanged at
+  SHA-256 `77c8b220a8ed49cdd5c937f295a9add45c9b1d20fc977182298ec9cbd5073917`
+  with `EXT-20` unchecked. No Go source or dependency changed, so no Go test
+  was required. No `gh`, commit, push, attestation ref, remote workflow run or
+  artifact, suite, live/nested Codex or model operation, tag, release,
+  external-use approval, queue authority, or `EXT-20` completion occurred.
+  Verification result: passed. Blockers: none.
+- What remains: a fresh independent review must repeat the exact workflow,
+  sealed-bundle, local-output, collision, remote-CI, historical, and retained-
+  evidence checks. Only after acceptance and separate publication authority
+  may the controller commit the reviewed four-file scope, publish the still-
+  absent attestation ref with an empty-expected raw-Git lease, and collect the
+  dedicated run/job/artifact readback. Suite preparation and quantitative
+  dogfood remain later separate gates.
+
 ## EXT-20 RC.6 Remote-CI Review And Attestation Handoff (2026-07-25)
 
 - Independent review used raw Git and the public GitHub REST API to confirm

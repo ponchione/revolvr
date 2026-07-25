@@ -5,35 +5,83 @@ Updated: 2026-07-25
 ## Resume Point
 
 Latest authority supersedes the former RC.6 remote-CI review handoff below.
-Independent raw-Git and public-REST readback accepted exact candidate ref
-`refs/heads/level1-v0.1.0-rc.6` at source
-`73f1f81f1c51d927114f19818a18161d0fcb8541` and push-triggered CI run
-`30153462797` with exactly all ten mandatory successful jobs. Both RC.6 sealed
-bundles and all retained historical authority remained unchanged. Raw Git
-published the three-file remote-CI record on `main` as exact commit
-`716c9a2293555f9abee80d384a673be426fe2ce0`, tree
-`26c3039581cf12278ae5d58b58c0bd72fcd3e592`; local and remote readback agree.
+Separate local workflow
+`.github/workflows/level1-rc6-candidate-attestation.yml`, SHA-256
+`708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`,
+now passes structure, exact-constant, shell-syntax, complete detached-source
+execution, and retained-output checks. It checks out exact candidate source
+`73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+`7c9753461a08b25915f4f53533d91e57d40a20ca`, rather than trigger HEAD and
+reproduces both exact Go 1.26.5 artifact sets. The retained local 29-file
+output at `/tmp/revolvr-ext20-rc6-attestation.9dtfzU` has path-bearing
+content-stream SHA-256
+`fde643d9b1a262c087a661b1ef617d143414ce149e44a967221af7e21d93d7c1`.
 
-The next prepared pass may add and locally exercise only the collision-free
-exact-checkout Go 1.26.5 RC.6 artifact-attestation workflow. It must stop
-before commit, push, attestation ref, remote run or artifact, suite preparation,
-model work, tag, release, external-use approval, queue authority, or `EXT-20`
-completion. RC.1 through RC.5 and all retained runtime evidence remain
-immutable rejected history.
+Both RC.6 sealed bundles, exact candidate ref and ten-job CI run, historical
+refs/workflows, and retained RC.5 evidence remained unchanged before and after
+work. The attestation ref/tag/artifact namespaces remain absent. No commit,
+push, remote workflow run or artifact, suite, model work, tag, release,
+external-use approval, queue authority, or `EXT-20` completion occurred.
+RC.1 through RC.5 remain immutable rejected history.
 
 ## Exact Next-Session Resume
 
-From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`, then run exactly:
+No publication launcher is prepared or authorized. From
+`/home/gernsback/source/revolvr`, first read this file and the other durable
+state files named in `AGENTS.md`, then begin a fresh independent review with:
 
 ```bash
-./agent-ext20-rc6-attestation.sh
+git status --short
+sha256sum .github/workflows/level1-rc6-candidate-attestation.yml
 ```
 
-That pass constructs and locally verifies only the RC.6 attestation workflow.
-It must not commit, push, publish an attestation ref, request a remote run or
-artifact, prepare a suite, start model work, tag, release, approve external
-use, grant queue authority, or complete `EXT-20`.
+Require exactly the new workflow plus `.agent/HANDOFF.md`, `.agent/STATE.md`,
+and `.agent/DECISIONS.md`; repeat YAML/constants/complete embedded-shell,
+sealed-bundle, local-output, raw-Git namespace, exact candidate/ten-job CI,
+historical-ref/workflow, RC.5 retained-evidence, task-hash, and diff checks.
+Only after acceptance and separate controller publication authority may a
+later gate commit this reviewed scope and publish the still-absent exact
+attestation ref with an empty-expected raw-Git lease. Independent review alone
+must not commit, push, publish a ref, request a remote run/artifact, prepare a
+suite, start model work, tag, release, approve external use, grant queue
+authority, or complete `EXT-20`.
+
+## RC.6 Local Artifact-Attestation Workflow Authority
+
+- Workflow path and SHA-256:
+  `.github/workflows/level1-rc6-candidate-attestation.yml` /
+  `708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`.
+- Sole trigger: push to `level1-v0.1.0-rc.6-attestation`; reserved still-absent
+  raw-Git ref is `refs/heads/level1-v0.1.0-rc.6-attestation`.
+- Checkout is exact source `73f1f81f1c51d927114f19818a18161d0fcb8541`,
+  tree `7c9753461a08b25915f4f53533d91e57d40a20ca`, not trigger HEAD.
+- Exact Go 1.26.5 uses action cache disabled. Two clean `--no-local` clones
+  have distinct build/module caches and build Linux, Darwin, and FreeBSD amd64
+  with module-readonly/local-toolchain mode, disabled CGO, trimpath, explicit
+  clean VCS metadata, empty build ID, and exact `main.version=0.1.0`.
+- Exact pair hashes are Linux
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  Darwin
+  `596a17a21b5509cfa868762e8675a66251136cf483cdbb40cc0fa51a28f284f7`,
+  and FreeBSD
+  `60c4052e2ff717b5f9d09db73d00073c4d182ed2b584328eaae4bd6d7f2b4344`.
+- Exact future upload name is `level1-v0.1.0-rc.6-attestation`. It retains both
+  binary sets, hashes, build metadata, empty build IDs, exact per-binary
+  version authority, Linux version outputs, reproducibility evidence, and an
+  authority manifest binding candidate CI run `30153462797` and every exact
+  workflow/source/build authority.
+- Local verification root is
+  `/tmp/revolvr-ext20-rc6-attestation.9dtfzU`. Its 29-file attestation output
+  content-stream SHA-256 is
+  `fde643d9b1a262c087a661b1ef617d143414ce149e44a967221af7e21d93d7c1`.
+- Candidate and verification inventory/seals remain
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+- `.agent/TASKS.md` remains unchanged at SHA-256
+  `77c8b220a8ed49cdd5c937f295a9add45c9b1d20fc977182298ec9cbd5073917`
+  with `EXT-20` unchecked.
 
 ## RC.6 Remote Candidate And CI Authority
 
