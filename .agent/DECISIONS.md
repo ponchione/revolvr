@@ -1,5 +1,20 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Remote-CI Review And Attestation Gate (2026-07-25)
+
+- Independent raw-Git/public-REST review accepted exact candidate ref
+  `f63cbe3989cb281652cf4eec3f92614fec98294d` and successful ten-job CI run
+  `30160277511`. Both sealed RC.7 bundles and RC.6 preservation remained exact.
+  The accepted record is published as controller commit
+  `a0f5b069ea5189b11f1d4de71c93e825814adee5`.
+- The next bounded authority is local-only creation and full exercise of
+  `.github/workflows/level1-rc7-candidate-attestation.yml`. The workflow must
+  check out the exact candidate source and reproduce the sealed artifacts;
+  trigger HEAD is workflow authority only.
+- This grants no workflow commit/push, attestation ref, remote run/artifact,
+  suite, live model, tag, release, external-use, queue, or EXT-20 completion
+  authority. RC.6 remains immutable failed-attempt evidence.
+
 ## EXT-20 RC.7 Exact-Candidate Remote CI Authority (2026-07-25)
 
 - The RC.7 remote candidate authority is exact branch

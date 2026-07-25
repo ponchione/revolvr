@@ -1,5 +1,31 @@
 # Agent State
 
+## EXT-20 RC.7 Remote-CI Review And Attestation Handoff (2026-07-25)
+
+- Independent raw-Git readback accepted only exact candidate ref
+  `refs/heads/level1-v0.1.0-rc.7` at
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`; no local candidate branch,
+  attestation ref, or RC.7 tag exists.
+- Public GitHub REST independently verified run `30160277511` as run number
+  `80`, attempt `1`, push-triggered from the exact RC.7 branch/head, completed
+  successfully. Its jobs endpoint returned exactly the ten required unique
+  jobs; every job has the exact head and completed successfully. Exact
+  candidate and attestation artifact-name queries both returned zero.
+- Both complete sealed RC.7 bundles and candidate self-verification passed.
+  Historical refs remain exact, RC tags and an RC.7 workflow remain absent,
+  and `.agent/TASKS.md` remains unchanged with EXT-20 unchecked. The RC.6
+  terminal manifest and protected suite/launch-record/terminal-evidence hashes
+  reverified exactly.
+- Raw Git published only the accepted three durable-state files as commit
+  `a0f5b069ea5189b11f1d4de71c93e825814adee5`, tree
+  `46bbdfa195d6f2f45dbb0955328bca7d89c0baf0`. No attestation workflow/ref,
+  remote artifact, suite, live Revolvr operation, tag, release, external-use
+  approval, queue authority, or EXT-20 completion occurred during review.
+- New launcher `agent-ext20-rc7-attestation.sh` is the next local-only gate. It
+  may add and fully exercise only the collision-free exact-source Go 1.26.5
+  attestation workflow. It grants no commit, push, remote run/artifact, suite,
+  live-model, tag, release, external-use, queue, or completion authority.
+
 ## EXT-20 RC.7 Exact-Candidate Remote CI (2026-07-25)
 
 - Task selected: the single bounded candidate-ref and remote-CI sub-gate of

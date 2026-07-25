@@ -16,21 +16,23 @@ created.
 
 ## Exact Next-Session Resume
 
+Independent raw-Git and public-REST review accepted exact RC.7 candidate ref
+and CI run `30160277511` with all ten mandatory successful jobs. Both sealed
+bundles and RC.6 preservation reverified. Raw Git published the accepted
+remote-CI record as commit `a0f5b069ea5189b11f1d4de71c93e825814adee5`,
+tree `46bbdfa195d6f2f45dbb0955328bca7d89c0baf0`.
+
 The next gate is a separately bounded, no-model, local-only RC.7 artifact-
-attestation workflow construction and verification pass. Its first exact
-readback command from `/home/gernsback/source/revolvr` is:
+attestation workflow construction and verification pass. Exact next command
+from `/home/gernsback/source/revolvr`:
 
 ```bash
-git ls-remote --heads origin refs/heads/level1-v0.1.0-rc.7
+./agent-ext20-rc7-attestation.sh
 ```
 
-Require exact readback `f63cbe3989cb281652cf4eec3f92614fec98294d`, then independently
-reverify CI run `30160277511`, both sealed bundles, and collision absence. The
-new workflow must be collision-free, check out the exact candidate commit in a
-detached checkout rather than building trigger HEAD, use exact Go 1.26.5, and
-reproduce the sealed Linux/Darwin/FreeBSD hashes from two independent clean
-non-local builds. It may be added and fully exercised locally only. Trigger
-HEAD is workflow authority, not release source.
+The pass may add and fully exercise the collision-free workflow locally only.
+It must check out exact candidate source rather than trigger HEAD and reproduce
+the sealed Linux/Darwin/FreeBSD hashes from two clean non-local builds.
 
 This next gate grants no workflow commit/push, attestation-ref creation,
 remote run or artifact, suite preparation, live/model operation, confirmation
@@ -1153,11 +1155,11 @@ made, so no API-acceptance claim is authorized.
 
 1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
    launcher or suite command.
-2. Use only the newly prepared attended-shell continuation for the exact RC.7
-   candidate-ref and remote-CI gate; it must make no live Revolvr model call.
-3. Return for independent review before attestation, suite preparation, a live
-   gate, task completion, tag, release, external-use approval, or queue
-   authority.
+2. Use only the newly prepared attended-shell continuation for the local-only
+   RC.7 attestation-workflow gate; it must make no live Revolvr model call.
+3. Return for independent review before workflow/ref publication, suite
+   preparation, a live gate, task completion, tag, release, external-use
+   approval, or queue authority.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1173,7 +1175,7 @@ There is no active live command. Every RC.6 launcher and suite command is
 retired and must not be rerun. The only active continuation command is:
 
 ```bash
-./agent-ext20-rc7-remote.sh
+./agent-ext20-rc7-attestation.sh
 ```
 
 ## Session Rules
