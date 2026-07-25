@@ -110,6 +110,36 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.6 Independent Local Review And Publication (2026-07-25)
+
+- Independent review accepted the exact three-file durable-state diff and both
+  ignored immutable RC.6 bundles. Candidate and verification inventory/seal
+  SHA-256 values independently matched
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+  Both directories contain only complete listed regular single-link files.
+- Review repeated the candidate self-verifier; verification-bundle hashes;
+  helper/candidate byte equality and shell syntax; artifact hashes, embedded
+  metadata, version output, and empty build IDs; exact source commit/tree,
+  remediation ancestry, protected product-source diff, origin reachability,
+  absent RC.6 refs/tags, and retained clean source authority; vulnerability
+  result inspection; a fresh `GOTOOLCHAIN=local /usr/local/go/bin/go test
+  -count=1 ./...` on exact candidate source; the permanent RC.5 retirement
+  check; all three retained RC.5 content-stream hashes; and `git diff --check`.
+  All passed without a real model call or retained-evidence change.
+- Raw Git published the reviewed three-file construction record as exact
+  commit `60a19d4e38ddd5ea76490221973601e0efce2625`, tree
+  `d4d8bedccb5309f108f8d10a18c42c8fa9a750e6`; exact local and remote `main`
+  readback matched after push.
+- New launcher `agent-ext20-rc6-remote.sh` prepares the next fresh pass. Its
+  execution authorizes only absent RC.6 candidate-ref creation at exact source
+  `73f1f81f1c51d927114f19818a18161d0fcb8541` and collection of the exact
+  push-triggered ten-job CI result. It makes no attestation, suite, model-call,
+  tag, release, external-use, queue, or `EXT-20` completion claim. Blockers:
+  none.
+
 ## EXT-20 RC.6 Local Candidate Construction (2026-07-25)
 
 - Task selected: construct and locally verify only fresh collision-free Level-1

@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Independent Local Review And Remote-CI Handoff (2026-07-25)
+
+- Fresh independent review accepted the complete RC.6 candidate and
+  verification bundles after exact seal/file-set verification, artifact hash,
+  metadata, version, and empty-build-ID checks, source/tree/ancestry and
+  remote-collision checks, vulnerability-evidence inspection, a fresh full Go
+  suite on the retained exact candidate source, and historical preservation
+  checks. The review changed neither bundle nor retained evidence.
+- Raw Git published the three-file local-candidate record on `main` as exact
+  commit `60a19d4e38ddd5ea76490221973601e0efce2625`, tree
+  `d4d8bedccb5309f108f8d10a18c42c8fa9a750e6`; exact local and remote readback
+  agree. This commit is not candidate source.
+- `agent-ext20-rc6-remote.sh` is the next bounded gate. Running it authorizes
+  only collision-safe creation of absent candidate ref
+  `refs/heads/level1-v0.1.0-rc.6` at exact source
+  `73f1f81f1c51d927114f19818a18161d0fcb8541` and read-only collection of its
+  exact ten-job push-triggered CI result. It grants no attestation workflow,
+  suite, model call, tag, release, external-use, queue, or `EXT-20` completion
+  authority.
+
 ## EXT-20 RC.6 Local Candidate Authority (2026-07-25)
 
 - The sole local RC.6 candidate authority is exact published source commit

@@ -4,42 +4,36 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former RC.6 construction handoff below. Fresh
-collision-free local candidate `level1-v0.1.0-rc.6` is now constructed and
-verified from exact published source commit
-`73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
-`7c9753461a08b25915f4f53533d91e57d40a20ca`. Remediation commit
-`010a8939ef6ad889a34590d05ce0326b6df57571` is its ancestor and the protected
-product-source diff is empty. The later controller commit and launcher are not
-candidate source and are absent from candidate clones and artifacts.
+Latest authority supersedes the former RC.6 independent-review handoff below.
+Fresh review accepted the complete sealed RC.6 candidate and verification
+bundles, exact artifact/source/tool authority, vulnerability evidence, full Go
+suite on the retained candidate source, and historical preservation without
+changing them. Raw Git published the three-file local-candidate record on
+`main` as exact commit `60a19d4e38ddd5ea76490221973601e0efce2625`, tree
+`d4d8bedccb5309f108f8d10a18c42c8fa9a750e6`; exact local and remote readback
+agree.
 
-The immutable candidate and verification bundles are respectively
-`.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51` and
-`.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification`.
-Their inventory SHA-256 values are
-`30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1`
-and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf`.
-Local construction grants no remote-CI, attestation, dogfood, live-model, tag,
-release, external-use, queue, or `EXT-20` completion authority. RC.1 through
-RC.5 and all retained runtime evidence remain immutable rejected history.
+The next prepared pass may create only absent candidate ref
+`refs/heads/level1-v0.1.0-rc.6` at exact source
+`73f1f81f1c51d927114f19818a18161d0fcb8541` and require its push-triggered ten-
+job CI matrix to succeed. It grants no attestation workflow, suite, model call,
+tag, release, external-use, queue, or `EXT-20` completion authority. RC.1
+through RC.5 and all retained runtime evidence remain immutable rejected
+history.
 
 ## Exact Next-Session Resume
 
 From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`. Do not rerun
-`agent-ext20-rc6.sh`; the now-populated collision namespaces intentionally make
-construction single-use. Begin the fresh independent read-only review with:
+durable state files named in `AGENTS.md`, then run exactly:
 
 ```bash
-GOTOOLCHAIN=local .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51/build-instructions.sh --verify .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51
-(cd .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification && sha256sum -c files.sha256.sha256 && sha256sum -c files.sha256)
+./agent-ext20-rc6-remote.sh
 ```
 
-That fresh pass must review complete file sets, exact source/tool/artifact
-authority, commands and logs, vulnerability result, and historical preservation
-without changing the helper, either bundle, or retained evidence. It must stop
-before commit, push, candidate-ref publication, remote CI, attestation, suite,
-model call, tag, release, external-use approval, or `EXT-20` completion.
+Execution authorizes only collision-safe publication of the exact absent RC.6
+candidate ref and read-only collection of its exact remote CI evidence. It must
+stop before main publication, attestation, suite preparation, model work, tag,
+release, external-use approval, or `EXT-20` completion.
 
 ## RC.6 Local Candidate Authority
 
@@ -905,12 +899,10 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Independently review the RC.6 helper, both complete sealed bundles, exact
-   source/tool/artifact authority, retained verification logs, and preservation
-   evidence without mutation.
-2. Only after a successful review and separate explicit authorization may a
-   later pass publish the still-absent RC.6 candidate ref and obtain exact-ref
-   remote CI.
+1. Run `./agent-ext20-rc6-remote.sh` once to publish only the collision-free
+   RC.6 candidate ref and require exact-source remote CI success.
+2. Independently verify any resulting remote evidence and durable-state diff
+   before separately publishing it and preparing artifact attestation.
 3. Do not retry RC.1 through RC.5, make a live model call, tag, release,
    approve external use, or complete `EXT-20`. Do not rerun RC.6 construction.
 
@@ -927,8 +919,7 @@ launcher.
 Exact next command:
 
 ```bash
-GOTOOLCHAIN=local .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51/build-instructions.sh --verify .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51
-(cd .revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51-verification && sha256sum -c files.sha256.sha256 && sha256sum -c files.sha256)
+./agent-ext20-rc6-remote.sh
 ```
 
 The completed launchers and every retired suite live command must not be
