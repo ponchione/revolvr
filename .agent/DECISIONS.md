@@ -1,5 +1,29 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Attestation Workflow Review And Remote Gate (2026-07-25)
+
+- Independent controller review accepted the four-file RC.6 attestation scope.
+  It repeated workflow structure, exact constants, action pins, shell syntax,
+  candidate/ref/artifact collision checks, complete sealed-bundle verification,
+  exact candidate-CI and task-ledger readback, and the full unmodified workflow
+  shell from a fresh detached remote clone. The independent replay root
+  `/tmp/revolvr-ext20-rc6-attestation-review.OkDN5p` has exactly 29 output
+  files, path-bearing content-stream SHA-256
+  `6d6ae497c29da7a9722ccefa643f4240e7be7c8b6c9bcd6f8270da35c9e6f050`,
+  six exact artifact hashes, and three byte-identical build pairs.
+- Raw Git published only the reviewed scope on `main` as exact commit
+  `226276f151ae389d06c0118a931596712fbc7cc1`, tree
+  `eac5c8d4696cec6f5383d9fd19f3d482045028c8`, parent
+  `f282f263d817ff4ab32e04fe86e3c42612d18ca9`. This commit is workflow
+  authority; release source remains candidate
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`.
+- `agent-ext20-rc6-attestation-remote.sh` is the sole next publication gate.
+  Running it authorizes only empty-expected creation of
+  `refs/heads/level1-v0.1.0-rc.6-attestation` at the exact workflow commit and
+  collection of its dedicated run/job/artifact plus companion-CI evidence. It
+  grants no `main` commit/push, suite, model, tag, release, external-use,
+  queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.6 Local Artifact-Attestation Workflow Authority (2026-07-25)
 
 - The only locally admitted RC.6 attestation implementation is separate

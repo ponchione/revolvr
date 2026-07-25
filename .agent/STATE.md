@@ -110,6 +110,46 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.6 Attestation Workflow Controller Review (2026-07-25)
+
+- Independent controller review accepted exactly the new RC.6 attestation
+  workflow and the three associated durable-state files. Workflow SHA-256 is
+  unchanged at
+  `708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`;
+  PyYAML structure, sole trigger/job, read-only permissions, exact action pins,
+  constants, extracted-shell syntax, and `git diff --check` all passed.
+- The full unmodified embedded shell passed again from a fresh detached clone
+  of exact candidate source `73f1f81f1c51d927114f19818a18161d0fcb8541`
+  with remote `origin`, isolated runner root, two clean non-local source clones,
+  and separate per-pass build/module caches. Independent root
+  `/tmp/revolvr-ext20-rc6-attestation-review.OkDN5p` retained exactly 29
+  regular single-link output files with path-bearing content-stream SHA-256
+  `6d6ae497c29da7a9722ccefa643f4240e7be7c8b6c9bcd6f8270da35c9e6f050`.
+  All six `SHA256SUMS` rows, three reproducibility rows, exact manifests,
+  metadata/version authority, empty build IDs, and clean source clones passed.
+- Both complete ignored RC.6 bundles reverified from their manifests. Exact
+  inventory/seal values remain
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+  Raw-Git candidate readback remained exact, candidate CI run `30153462797`
+  remained completed/success at the exact source, the artifact query returned
+  zero, and attestation ref/tag authorities remained absent.
+- Raw Git committed the accepted four-file scope as
+  `226276f151ae389d06c0118a931596712fbc7cc1` (`Add RC.6 artifact attestation
+  workflow`), tree `eac5c8d4696cec6f5383d9fd19f3d482045028c8`, exact parent
+  `f282f263d817ff4ab32e04fe86e3c42612d18ca9`, and pushed it to
+  `origin/main`. No Go source or dependency changed, so no Go test was needed.
+- Added `agent-ext20-rc6-attestation-remote.sh` for the next fresh bounded
+  pass. Its execution authorizes only empty-expected raw-Git publication of
+  the still-absent attestation ref at exact workflow commit
+  `226276f151ae389d06c0118a931596712fbc7cc1` and
+  collection of dedicated run/job/artifact and companion ten-job CI evidence.
+  It forbids committing/pushing `main`, suite preparation, model work, tag,
+  release, external-use approval, queue authority, and `EXT-20` completion.
+  `.agent/TASKS.md` remains unchanged and `EXT-20` remains unchecked.
+
 ## EXT-20 RC.6 Local Artifact-Attestation Workflow (2026-07-25)
 
 - Task selected: the bounded local RC.6 release-artifact attestation-workflow

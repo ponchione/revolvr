@@ -4,47 +4,43 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former RC.6 remote-CI review handoff below.
-Separate local workflow
-`.github/workflows/level1-rc6-candidate-attestation.yml`, SHA-256
-`708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`,
-now passes structure, exact-constant, shell-syntax, complete detached-source
-execution, and retained-output checks. It checks out exact candidate source
-`73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
-`7c9753461a08b25915f4f53533d91e57d40a20ca`, rather than trigger HEAD and
-reproduces both exact Go 1.26.5 artifact sets. The retained local 29-file
-output at `/tmp/revolvr-ext20-rc6-attestation.9dtfzU` has path-bearing
-content-stream SHA-256
-`fde643d9b1a262c087a661b1ef617d143414ce149e44a967221af7e21d93d7c1`.
+Latest authority supersedes the former local-workflow handoff below. Independent
+controller review accepted the exact four-file RC.6 artifact-attestation scope.
+The complete embedded shell replayed unchanged from a fresh detached remote
+clone with two isolated source/build passes at
+`/tmp/revolvr-ext20-rc6-attestation-review.OkDN5p`; all six artifact hashes and
+all three byte-equality checks passed, its output has exactly 29 regular
+single-link files, and its path-bearing content-stream SHA-256 is
+`6d6ae497c29da7a9722ccefa643f4240e7be7c8b6c9bcd6f8270da35c9e6f050`.
 
-Both RC.6 sealed bundles, exact candidate ref and ten-job CI run, historical
-refs/workflows, and retained RC.5 evidence remained unchanged before and after
-work. The attestation ref/tag/artifact namespaces remain absent. No commit,
-push, remote workflow run or artifact, suite, model work, tag, release,
-external-use approval, queue authority, or `EXT-20` completion occurred.
-RC.1 through RC.5 remain immutable rejected history.
+Raw Git committed and published the accepted workflow scope on `main` as
+`226276f151ae389d06c0118a931596712fbc7cc1`, tree
+`eac5c8d4696cec6f5383d9fd19f3d482045028c8`, exact parent
+`f282f263d817ff4ab32e04fe86e3c42612d18ca9`. Workflow SHA-256 remains
+`708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`.
+Candidate ref, CI run `30153462797`, both sealed RC.6 bundles, task ledger,
+and historical evidence remain exact. The RC.6 attestation ref, tags, and
+artifact name remain absent; no remote attestation run, suite, model work,
+tag, release, external-use approval, queue authority, or `EXT-20` completion
+has occurred. RC.1 through RC.5 remain immutable rejected history.
 
 ## Exact Next-Session Resume
 
-No publication launcher is prepared or authorized. From
-`/home/gernsback/source/revolvr`, first read this file and the other durable
-state files named in `AGENTS.md`, then begin a fresh independent review with:
+From `/home/gernsback/source/revolvr`, first read this file and the other
+durable state files named in `AGENTS.md`, then run exactly:
 
 ```bash
-git status --short
-sha256sum .github/workflows/level1-rc6-candidate-attestation.yml
+./agent-ext20-rc6-attestation-remote.sh
 ```
 
-Require exactly the new workflow plus `.agent/HANDOFF.md`, `.agent/STATE.md`,
-and `.agent/DECISIONS.md`; repeat YAML/constants/complete embedded-shell,
-sealed-bundle, local-output, raw-Git namespace, exact candidate/ten-job CI,
-historical-ref/workflow, RC.5 retained-evidence, task-hash, and diff checks.
-Only after acceptance and separate controller publication authority may a
-later gate commit this reviewed scope and publish the still-absent exact
-attestation ref with an empty-expected raw-Git lease. Independent review alone
-must not commit, push, publish a ref, request a remote run/artifact, prepare a
-suite, start model work, tag, release, approve external use, grant queue
-authority, or complete `EXT-20`.
+That fresh pass is explicit authority for exactly one external mutation:
+empty-expected raw-Git creation of still-absent
+`refs/heads/level1-v0.1.0-rc.6-attestation` at exact workflow commit
+`226276f151ae389d06c0118a931596712fbc7cc1`. It must collect the dedicated
+run/job/artifact and companion ten-job CI evidence, update only the three
+durable state files, and stop. It must not commit or push `main`, change the
+candidate, prepare a suite, start model work, tag, release, approve external
+use, grant queue authority, or complete `EXT-20`.
 
 ## RC.6 Local Artifact-Attestation Workflow Authority
 
