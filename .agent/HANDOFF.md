@@ -4,35 +4,80 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Independent controller replay accepted the final RC.7 no-model admission
-recommendation and raw Git published its exact three-file durable-state record
-as commit `1a07077f24526b9202da55c2981911b7e0770a67`, tree
-`1cb2ed843d1d5cf294487e8e404a030bb9f9838c`, parent
-`b6351d108fc971dcfff5367267fb7eb1a3b00273`. Local, fetched, and public
-`main` readback matched. Refusal-only coverage, sourced downstream authority,
-the uncached full Go suite, diff hygiene, and clean published full `--check`
-passed. RC.7 remains unstarted and exact; protected RC.6 remains unchanged.
+The attended RC.7 human-authorization checkpoint passed every no-model
+technical admission check and stopped because explicit human consent for a
+real-model launch is absent. Fresh local, fetched, raw-Git public, and public-
+REST `main` agreed at `133fb6ddb2f94873d572dd72b9c91ef337cb87b3`.
+Published recommendation `1a07077f24526b9202da55c2981911b7e0770a67`,
+tree `1cb2ed843d1d5cf294487e8e404a030bb9f9838c`, parent
+`b6351d108fc971dcfff5367267fb7eb1a3b00273`, its exact three-file delta,
+both required ancestries, safe refusals, and the complete published `--check`
+all passed. RC.7 remains unstarted; protected RC.6 remains exact.
 
 ## Exact Next-Session Resume
 
-The next gate is an attended no-model human-authorization checkpoint. Prepared
-continuation `agent-ext20-rc7-live-authorization-checkpoint.sh`, SHA-256
-`ca537cd5ef45afb23c31636c794653425e324ccfff2550532fbb0b7b83faa410`,
-records the exact effects requiring explicit human consent but cannot grant or
-exercise that consent. Exact next command from
-`/home/gernsback/source/revolvr`:
+Return this exact three-file checkpoint record to a separate controller for
+independent review and publication. The first read-only command from
+`/home/gernsback/source/revolvr` is:
 
 ```bash
-./agent-ext20-rc7-live-authorization-checkpoint.sh
+git diff -- .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
 ```
 
-The checkpoint binds published recommendation
-`1a07077f24526b9202da55c2981911b7e0770a67`, exact launcher/backlog/runtime
-authority, and an absent launch-record root. It cannot invoke `--live`, expose
-or supply the confirmation, construct or edit an executable, create evidence,
-start Revolvr or a nested model, or activate a live command. The current
-operator direction does not authorize a real model launch; `EXT-20` remains
-unchecked.
+No executable live command is authorized or retained. After independent
+publication, a human may make a distinct explicit decision about the bounded
+effects below. Absent that decision, no further action is authorized and
+`EXT-20` remains unchecked.
+
+## RC.7 Human-Authorization Boundary
+
+- Proposed scope: exactly eleven real-Codex operations, ten unique tasks, and
+  two disposable repositories. Scenarios are five ordinary successful source
+  changes, correction/final-verification/re-audit, needs input, intentional
+  verification failure, cancellation followed by a new-operation restart,
+  and supervisor safety refusal.
+- Execution authority: ephemeral `gpt-5.6-sol` at `xhigh`, up to 30 minutes per
+  Codex invocation and 50 cycles per operation, with 32-minute source-writer
+  authority. Approvals and sandbox are bypassed; the host environment is
+  inherited; external isolation and network access are not enforced.
+- Material writes and retention: one launch record; workspace/source and
+  disposable control-metadata commits; runtime task, operation, ledger,
+  receipt, and history state; per-operation snapshots, model logs, manifests,
+  validated ledger exports, receipts, captured evidence; and aggregate
+  reports/hashes. Cancellation deliberately interrupts an admitted process.
+  Terminal failure or interruption retains partial diagnostics, and existing
+  launch or operation evidence prevents an automatic retry.
+- The technical recommendation is PASS, but none of those effects has human
+  authorization. This record grants no model, recovery, merge, push, tag,
+  release, external-use, queue, or `EXT-20` completion authority.
+
+## RC.7 Authorization-Checkpoint Evidence
+
+- Direct launcher SHA-256 remains
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`.
+  Check-only exits after complete preflight and before launch reservation,
+  pre-start/status writes, interruption traps, suite execution, or model
+  activity.
+- Syntax passed for the checkpoint wrapper, direct launcher, and focused
+  checker. Missing, wrong, and multiple arguments each refused with status
+  `64`, zero stdout bytes, nonempty usage stderr, and no launch record. The
+  sole complete launcher path executed was `--check`; it returned `0` and
+  reported no model call or launch record.
+- Prepared suite ID and authority/plan/content-stream SHA-256 remain
+  `ext20-14b2bf40212b` and
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e` /
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1` /
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  Ten tasks remain pending and zero-attempt, with zero operation, collector,
+  model, receipt, or aggregate evidence and no launch-record root.
+- Protected RC.6 suite/launch-record/terminal-evidence streams remain
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- Full Go tests were not rerun because no source or test delta was found; their
+  exact published pass remains admission evidence. `.agent/TASKS.md` remains
+  SHA-256 `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. No live command is active.
 
 ## RC.7 Final No-Model Admission Evidence
 

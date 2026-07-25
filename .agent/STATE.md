@@ -1,5 +1,86 @@
 # Agent State
 
+## EXT-20 RC.7 Human-Authorization Checkpoint (2026-07-25)
+
+- Task selected: exactly one no-model human-authorization checkpoint under
+  still-unchecked `EXT-20`. The prepared checkpoint wrapper was inspected but
+  not executed because it starts a nested Codex session; this already-active
+  fresh pass performed its bounded checks directly. No live authorization
+  value was supplied, reproduced, derived, or embedded. No live path, launch
+  record, Revolvr task operation, model call, executable change, tag, release,
+  external-use approval, queue authority, or `EXT-20` completion was attempted.
+- A fresh no-tags raw-Git fetch left the controller clean. Local `main`, fetched
+  `origin/main`, raw-Git public `main`, and public-REST `main` agreed at
+  `133fb6ddb2f94873d572dd72b9c91ef337cb87b3`. Published admission-
+  recommendation commit `1a07077f24526b9202da55c2981911b7e0770a67`,
+  tree `1cb2ed843d1d5cf294487e8e404a030bb9f9838c`, parent
+  `b6351d108fc971dcfff5367267fb7eb1a3b00273` was exact and present in both
+  local and fetched-main ancestry. Its exact inspected delta changed only
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`.
+- The proposed one-shot live scope is exactly eleven planned operations over
+  ten unique tasks in two disposable repositories. It includes five ordinary
+  successful source changes, a correction/final-verification/re-audit path, a
+  typed needs-input stop, an intentional verification-failure stop, an
+  attended cancellation followed by a new-operation restart of the same task,
+  and a supervisor safety refusal. Each operation may make real ephemeral
+  `gpt-5.6-sol` calls at `xhigh`, with a 30-minute timeout per Codex invocation
+  and at most 50 operation cycles; source-writer authority requires 32 minutes.
+- Material authority requiring knowing human consent includes
+  `dangerously_bypass_approvals_and_sandbox: true`, inherited host environment,
+  no external-isolation enforcement, and unknown network access with no
+  network enforcement. The run may create task workspaces and source commits,
+  advance disposable control-repository task-metadata commits, write runtime
+  task/operation/ledger/receipt/history state, and retain model output. The
+  cancellation case deliberately sends an interrupt after durable admission.
+- Retained evidence includes a unique launch record with pre-start authority,
+  status, stdout, and stderr; per-operation before/after snapshots, logs,
+  manifests, task-operation history, receipts, validated ledger exports, and
+  captured runtime evidence; and deterministic aggregate operation/report
+  hashes. A terminal failure or interruption deliberately leaves partial
+  diagnostics and prior completed bundles in place. The direct gate refuses a
+  pre-existing launch-record root or operation evidence, so this is one-shot
+  authority without an automatic retry or recovery path. It does not merge or
+  push task work or authorize use of retained RC.6 evidence.
+- Direct launcher SHA-256 remained
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`.
+  Inspection confirmed check-only exits after the complete preflight and
+  before launch-record reservation, pre-start/status writes, interruption
+  traps, suite execution, or model activity. `bash -n` passed for the
+  checkpoint wrapper, direct launcher, and focused checker. Independent
+  missing, wrong, and multiple-argument refusals each returned `64`, emitted
+  zero stdout bytes, retained usage on stderr, and created no launch record.
+  The only complete launcher path executed was its `--check` path; it returned
+  `0` after the full published preflight and reported no model call or launch
+  record.
+- Prepared suite
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite` remained ID
+  `ext20-14b2bf40212b` at authority/plan/content-stream SHA-256
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e` /
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1` /
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  All ten tasks remain pending and zero-attempt, with zero operation,
+  collector, model-run, receipt, or aggregate evidence and no RC.7 launch-
+  record root.
+- Read-only RC.6 suite, launch record, and terminal evidence remained exact
+  before and after at content-stream SHA-256
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+  RC.6 was not executed, repaired, deleted, derived from, reused, or mutated.
+- Verification commands run: fresh raw-Git/public-REST authority readback,
+  exact publication/delta/ancestry inspection, syntax checks, three safe
+  argument refusals, the complete published direct-launcher `--check`, before/
+  after suite and preservation hashes/counts, and `git diff --check`. Full Go
+  tests were not rerun because inspection found no source or test delta and
+  their exact published result is already admission evidence. Files changed:
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md` only.
+- Result: **technical admission PASS; live authorization ABSENT**. The blocker
+  is explicit human consent to the bounded effects above. What remains is
+  independent controller review/publication of this exact three-file record
+  and then a distinct human decision. `.agent/TASKS.md` remains exact at
+  SHA-256 `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. No live command is active.
+
 ## EXT-20 RC.7 Admission Publication And Human-Authorization Handoff (2026-07-25)
 
 - Independent controller replay accepted exactly the final no-model admission

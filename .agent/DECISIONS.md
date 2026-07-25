@@ -1,5 +1,29 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Explicit Human Consent Requirement (2026-07-25)
+
+- The exact published admission recommendation and a fresh complete
+  direct-launcher `--check` establish technical readiness only. They do not
+  authorize the one-shot live suite, and running this no-model checkpoint does
+  not imply consent. The current operator direction contains no explicit live
+  authorization, so the gate stops here with `EXT-20` unchecked.
+- Knowing consent must cover exactly eleven real-Codex operations over ten
+  tasks in two disposable repositories: five ordinary successful changes,
+  correction/final-verification/re-audit, needs input, intentional
+  verification failure, cancellation/new-operation restart, and safety
+  refusal. It must also cover sandbox/approval bypass, inherited host
+  environment, unenforced isolation and network policy, real model cost and
+  elapsed time, workspace/source/control-metadata commits, deliberate process
+  interruption, and retained model/runtime/ledger/receipt/evidence output.
+- A future decision, if any, is one-shot: launch/pre-start/status records and
+  per-operation evidence are retained through terminal failure or
+  interruption, while a pre-existing launch record or operation evidence
+  prevents automatic retry. This checkpoint grants no recovery, merge, push,
+  tag, release, external-use, or queue authority and leaves no live command
+  active.
+- RC.6 remains immutable failed history. It may be rehashed read-only but may
+  not be executed, repaired, deleted, derived from, or reused.
+
 ## EXT-20 RC.7 Human-Authorization Checkpoint Boundary (2026-07-25)
 
 - Independent controller replay accepted and raw Git published the final
