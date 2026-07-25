@@ -4,27 +4,31 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-The bounded RC.7 remote artifact-attestation gate passed. Empty-expected raw
-Git created only `refs/heads/level1-v0.1.0-rc.7-attestation` at reviewed
-workflow commit `3cc6d527f889c7b933828fbd832d07b5291aee79`; exact remote readback
-agrees. Dedicated run/job `30163857880` / `89693466274`, artifact
-`8621008768`, and companion ten-job CI run `30163853353` all completed
-successfully at the exact workflow head. Both RC.7 bundles, the retained local
-29-file result, every historical ref/tag authority, unchanged `.agent/TASKS.md`,
-and all protected RC.6 hashes reverified before and after. No suite, Revolvr
-or nested model operation, tag, release, external-use approval, queue
-authority, or `EXT-20` completion occurred.
+Independent controller review accepted the exact three-file RC.7 remote-
+attestation record. Raw Git published it as commit
+`c17a8f08efe1fedb1edcdc5f98b6d03ebc0e5a3c`, tree
+`5d8580dc2b7a847c8d4ec83791781d3568b23296`. Exact attestation ref, dedicated
+run/job/artifact, companion ten-job CI, both RC.7 bundles, retained local
+replay, historical refs/tags, unchanged `.agent/TASKS.md`, and all protected
+RC.6 hashes independently reverified. No suite, Revolvr or nested model
+operation, tag, release, external-use approval, queue authority, or `EXT-20`
+completion occurred.
 
 ## Exact Next-Session Resume
 
-There is no authorized suite command yet. The next pass is a fresh independent
-no-model controller review of the exact three-file durable-state delta and the
-remote RC.7 ref/run/job/artifact plus companion-CI evidence below. The
-controller may publish only the accepted durable-state record. Only afterward
-may a separately bounded, collision-free RC.7 suite-preparation launcher be
-authored and independently reviewed. RC.6 and all older history remain
-immutable and grant no authority; no suite or model operation is permitted by
-this handoff.
+The next gate is one fresh, no-model RC.7 suite-preparation pass. Exact next
+command from `/home/gernsback/source/revolvr`:
+
+```bash
+./agent-ext20-rc7-suite.sh
+```
+
+The launcher may update only the three guarded candidate constants in
+`scripts/dogfood-external-level1-suite.sh` and prepare exactly one new
+persistent `.revolvr/ext20-rc7.XXXXXX/suite` root. It must not reuse or mutate
+RC.6, pass `--live`, create a launch record or live launcher, start a Revolvr
+or nested model operation, tag, release, approve external use, grant queue
+authority, or complete `EXT-20`.
 
 ## RC.7 Remote Artifact-Attestation Authority
 

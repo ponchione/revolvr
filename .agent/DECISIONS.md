@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Fresh Suite-Preparation Gate Authority (2026-07-25)
+
+- Independent controller review accepted and raw Git published the exact RC.7
+  remote-attestation record as commit
+  `c17a8f08efe1fedb1edcdc5f98b6d03ebc0e5a3c`, tree
+  `5d8580dc2b7a847c8d4ec83791781d3568b23296`. Candidate/attestation refs,
+  dedicated run/job/artifact, companion CI, sealed bundles, retained local
+  replay, and historical preservation are exact.
+- The next admitted bounded action is launcher `agent-ext20-rc7-suite.sh`.
+  It may update only the guarded suite candidate source, Linux hash, and bundle
+  path from RC.6 to exact RC.7 authority and prepare exactly one new persistent
+  collision-free `.revolvr/ext20-rc7.XXXXXX/suite` root.
+- The prepared RC.7 suite must be newly created and independently verified; it
+  cannot reuse, derive from, inspect with current mutable suite tooling, or
+  mutate the retired RC.6 suite, launch record, or terminal evidence. RC.6
+  remains immutable failed history.
+- Suite preparation grants no `--live` invocation, model operation, launch
+  record, live launcher, tag, release, external-use approval, queue authority,
+  or `EXT-20` completion. Its tracked delta and ignored prepared root require a
+  fresh controller review before any later live-gate decision.
+
 ## EXT-20 RC.7 Remote Artifact-Attestation Authority (2026-07-25)
 
 - Empty-expected raw Git created only

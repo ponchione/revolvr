@@ -1,5 +1,51 @@
 # Agent State
 
+## EXT-20 RC.7 Remote-Attestation Review And Suite Handoff (2026-07-25)
+
+- Independent raw-Git readback accepted exact candidate ref
+  `f63cbe3989cb281652cf4eec3f92614fec98294d` and exact attestation ref
+  `3cc6d527f889c7b933828fbd832d07b5291aee79`. They remain the only two RC.7
+  refs; all RC.7 tags remain absent. Reviewed workflow commit/tree/parent and
+  workflow SHA-256 remain exact and published ancestors of `main`.
+- Public REST independently verified dedicated attestation run
+  `30163857880`, sole job `89693466274`, and sole unexpired artifact
+  `8621008768` as exact completed/successful authority at the attestation head.
+  The artifact remains `70275600` bytes with digest
+  `sha256:ae87472ef86b5d25cca5df333f057f10d77cf74cd7f332f30d6770745bbf6356`.
+  Exactly one matching dedicated workflow run exists. Unauthenticated archive
+  access still returns HTTP 401, so no remote archive-byte claim is added.
+- Public REST independently verified companion CI run `30163853353` as exact
+  completed/successful push authority at the attestation head, with exactly
+  the ten required unique successful jobs and IDs already retained below.
+  The attestation branch has exactly these dedicated and companion push runs
+  at its exact head.
+- Both complete RC.7 sealed bundles and candidate self-verification passed.
+  The workflow structure, exact retained embedded shell, retained 29-file
+  checksum set, three byte-identical target pairs, six empty build IDs, and
+  path-bearing stream SHA-256
+  `5c56018487239868a8a5af83b14b37179b81e307d09956650085042be8ad31e0`
+  reverified. All twelve historical RC refs remained exact and RC tags absent.
+- The RC.6 terminal manifest passed read-only verification. Protected suite,
+  launch-record, and terminal-evidence content-stream SHA-256 values remained
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+  RC.6 was not executed, repaired, deleted, or mutated.
+- Raw Git published only the accepted three-file remote-attestation record as
+  commit `c17a8f08efe1fedb1edcdc5f98b6d03ebc0e5a3c`, tree
+  `5d8580dc2b7a847c8d4ec83791781d3568b23296`, parent
+  `c412c4fca47b655fc0e3aa48bafafdaa8c464d20`; exact remote `main` readback
+  passed. `.agent/TASKS.md` remains unchanged at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked.
+- New attended launcher `agent-ext20-rc7-suite.sh`, SHA-256
+  `2ca635a3015f2bd99f7c36bb2ac336e58b3ef5872d3b29525229ea58e625bcf2`,
+  is the next bounded no-model gate. It may change only the guarded suite's
+  exact candidate source/hash/bundle constants and create exactly one fresh
+  persistent RC.7 suite root. It forbids `--live`, every model operation,
+  launch-record/live-launcher creation, RC.6 reuse or mutation, tag, release,
+  external-use approval, queue authority, and `EXT-20` completion.
+
 ## EXT-20 RC.7 Remote Artifact Attestation (2026-07-25)
 
 - Task selected: the single bounded RC.7 remote artifact-attestation sub-gate
