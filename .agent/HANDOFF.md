@@ -4,51 +4,109 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former local-workflow handoff below. Independent
-controller review accepted the exact four-file RC.6 artifact-attestation scope.
-The complete embedded shell replayed unchanged from a fresh detached remote
-clone with two isolated source/build passes at
-`/tmp/revolvr-ext20-rc6-attestation-review.OkDN5p`; all six artifact hashes and
-all three byte-equality checks passed, its output has exactly 29 regular
-single-link files, and its path-bearing content-stream SHA-256 is
-`6d6ae497c29da7a9722ccefa643f4240e7be7c8b6c9bcd6f8270da35c9e6f050`.
+Latest authority supersedes the former local-workflow handoff below. Raw Git
+created only `refs/heads/level1-v0.1.0-rc.6-attestation` at exact reviewed
+workflow commit `226276f151ae389d06c0118a931596712fbc7cc1`; exact remote
+readback agrees. Dedicated attestation run `30155142491`, its sole job
+`89671812731`, artifact `8618790256`, and companion ten-job CI run
+`30155142490` all completed successfully at that exact head. Candidate source
+and ref remain exact at `73f1f81f1c51d927114f19818a18161d0fcb8541`.
 
-Raw Git committed and published the accepted workflow scope on `main` as
-`226276f151ae389d06c0118a931596712fbc7cc1`, tree
-`eac5c8d4696cec6f5383d9fd19f3d482045028c8`, exact parent
-`f282f263d817ff4ab32e04fe86e3c42612d18ca9`. Workflow SHA-256 remains
-`708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`.
-Candidate ref, CI run `30153462797`, both sealed RC.6 bundles, task ledger,
-and historical evidence remain exact. The RC.6 attestation ref, tags, and
-artifact name remain absent; no remote attestation run, suite, model work,
-tag, release, external-use approval, queue authority, or `EXT-20` completion
-has occurred. RC.1 through RC.5 remain immutable rejected history.
+Both RC.6 sealed bundles, both retained 29-file local attestations, all
+historical bundles/refs/tags, and the three immutable RC.5 evidence hashes
+reverified. `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked. No
+suite was prepared, no model call or live operation started, and no tag,
+release, external-use approval, queue authority, or `EXT-20` completion
+occurred. RC.1 through RC.5 remain immutable rejected history.
 
 ## Exact Next-Session Resume
 
 From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`, then run exactly:
+durable state files named in `AGENTS.md`. The next pass requires separate
+operator authority; there is intentionally no existing suite-preparation
+launcher to execute. That pass may only construct and locally verify one new,
+collision-free, no-model RC.6 Level-1 dogfood suite using the exact attested
+Linux artifact and immutable remote authority below. It must stop before any
+model call or live launch and must not retry RC.1 through RC.5, mutate the
+candidate or attestation refs, tag, release, approve external use, grant queue
+authority, or complete `EXT-20`.
 
-```bash
-./agent-ext20-rc6-attestation-remote.sh
-```
+## RC.6 Remote Artifact-Attestation Authority
 
-That fresh pass is explicit authority for exactly one external mutation:
-empty-expected raw-Git creation of still-absent
-`refs/heads/level1-v0.1.0-rc.6-attestation` at exact workflow commit
-`226276f151ae389d06c0118a931596712fbc7cc1`. It must collect the dedicated
-run/job/artifact and companion ten-job CI evidence, update only the three
-durable state files, and stop. It must not commit or push `main`, change the
-candidate, prepare a suite, start model work, tag, release, approve external
-use, grant queue authority, or complete `EXT-20`.
+- Attestation ref readback:
+  `226276f151ae389d06c0118a931596712fbc7cc1` at
+  `refs/heads/level1-v0.1.0-rc.6-attestation`. No local branch was created.
+- Dedicated run `30155142491`, run number/attempt `1`/`1`, workflow
+  `.github/workflows/level1-rc6-candidate-attestation.yml`, event `push`, exact
+  branch/head, completed/success; created/started
+  `2026-07-25T10:49:09Z`, updated `2026-07-25T10:51:53Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30155142491`.
+- Sole job `89671812731`, `Rebuild and attest Level 1 RC.6 candidate`, exact
+  head, completed/success, `2026-07-25T10:49:11Z` through
+  `2026-07-25T10:51:52Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30155142491/job/89671812731`.
+- Sole unexpired artifact `8618790256`,
+  `level1-v0.1.0-rc.6-attestation`, size `70273424`, digest
+  `sha256:1e8d9b6161efb8ff04000eaba24e202eeddff625e443fc15728cf98cbaba95fa`,
+  created/updated `2026-07-25T10:51:50Z`, expires
+  `2026-10-23T10:49:09Z`; archive endpoint
+  `https://api.github.com/repos/ponchione/revolvr/actions/artifacts/8618790256/zip`.
+  No read-only token was configured and unauthenticated download returned HTTP
+  401, so there is no controller-side archive-byte claim.
+- Companion CI run `30155142490`, run number/attempt `71`/`1`, exact
+  `.github/workflows/ci.yml` push branch/head, completed/success;
+  created/started `2026-07-25T10:49:09Z`, updated
+  `2026-07-25T10:52:23Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30155142490`.
+- Exact successful companion jobs, all at the workflow head:
+  - `89671812720` — Go 1.22 source floor and tests —
+    `10:49:11Z` to `10:50:58Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812720`
+  - `89671812726` — Production autonomous strict-fake suite —
+    `10:49:11Z` to `10:50:05Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812726`
+  - `89671812717` — Race tests — `10:49:11Z` to `10:52:22Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812717`
+  - `89671812747` — Vet and module verification —
+    `10:49:11Z` to `10:49:56Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812747`
+  - `89671812733` — Fake-Codex success smoke —
+    `10:49:11Z` to `10:49:47Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812733`
+  - `89671812719` — Fake-Codex verification-failure smoke —
+    `10:49:11Z` to `10:49:48Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812719`
+  - `89671812737` — Build linux/amd64 — `10:49:11Z` to `10:49:49Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812737`
+  - `89671812730` — Build darwin/amd64 — `10:49:11Z` to `10:49:50Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812730`
+  - `89671812748` — Build freebsd/amd64 — `10:49:11Z` to `10:49:47Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812748`
+  - `89671812744` — Build Windows diagnostic stub —
+    `10:49:11Z` to `10:49:26Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30155142490/job/89671812744`
+- Post-run preservation reverified both complete RC.6 sealed bundles, exact
+  candidate and attestation refs, all ten RC.1-through-RC.5 sealed bundles and
+  remote refs, and absence of every historical and RC.6 tag. Retained local
+  attestation streams remain
+  `fde643d9b1a262c087a661b1ef617d143414ce149e44a967221af7e21d93d7c1` and
+  `6d6ae497c29da7a9722ccefa643f4240e7be7c8b6c9bcd6f8270da35c9e6f050`.
+  RC.5 suite/evidence/launch-record streams remain
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`;
+  the retired launcher checker passed without mutation. `.agent/TASKS.md`
+  remains SHA-256
+  `77c8b220a8ed49cdd5c937f295a9add45c9b1d20fc977182298ec9cbd5073917`
+  with `EXT-20` unchecked.
 
 ## RC.6 Local Artifact-Attestation Workflow Authority
 
 - Workflow path and SHA-256:
   `.github/workflows/level1-rc6-candidate-attestation.yml` /
   `708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`.
-- Sole trigger: push to `level1-v0.1.0-rc.6-attestation`; reserved still-absent
-  raw-Git ref is `refs/heads/level1-v0.1.0-rc.6-attestation`.
+- Sole trigger: push to `level1-v0.1.0-rc.6-attestation`; its immutable raw-Git
+  ref is exact at `226276f151ae389d06c0118a931596712fbc7cc1`.
 - Checkout is exact source `73f1f81f1c51d927114f19818a18161d0fcb8541`,
   tree `7c9753461a08b25915f4f53533d91e57d40a20ca`, not trigger HEAD.
 - Exact Go 1.26.5 uses action cache disabled. Two clean `--no-local` clones
@@ -61,7 +119,8 @@ use, grant queue authority, or complete `EXT-20`.
   `596a17a21b5509cfa868762e8675a66251136cf483cdbb40cc0fa51a28f284f7`,
   and FreeBSD
   `60c4052e2ff717b5f9d09db73d00073c4d182ed2b584328eaae4bd6d7f2b4344`.
-- Exact future upload name is `level1-v0.1.0-rc.6-attestation`. It retains both
+- Exact uploaded artifact name is `level1-v0.1.0-rc.6-attestation`. The
+  successful workflow retains both
   binary sets, hashes, build metadata, empty build IDs, exact per-binary
   version authority, Linux version outputs, reproducibility evidence, and an
   authority manifest binding candidate CI run `30153462797` and every exact
@@ -987,12 +1046,14 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run `./agent-ext20-rc6-attestation.sh` once to construct and locally verify
-   the exact-candidate artifact-attestation workflow.
-2. Independently review the workflow, local execution, and durable-state diff
-   before separately authorized publication and remote execution.
-3. Do not retry RC.1 through RC.5, make a live model call, tag, release,
-   approve external use, or complete `EXT-20`. Do not rerun RC.6 construction.
+1. Independently review and publish only the three durable-state files changed
+   by the completed RC.6 remote attestation pass.
+2. In a later separately authorized fresh no-model pass, construct and locally
+   verify one new collision-free RC.6 Level-1 dogfood suite from the exact
+   attested Linux artifact and immutable authority recorded above.
+3. Stop before any model call or live launch. Do not retry RC.1 through RC.5,
+   mutate the RC.6 candidate/attestation refs, tag, release, approve external
+   use, grant queue authority, or complete `EXT-20`.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1004,15 +1065,12 @@ attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
 Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
-Exact next command:
-
-```bash
-./agent-ext20-rc6-attestation.sh
-```
+There is intentionally no existing next launcher. Suite preparation requires
+new, explicit operator authority after controller publication of this record.
 
 The completed launchers and every retired suite live command must not be
-rerun. This handoff grants no commit, push, candidate, tag, release, external-
-use approval, or `EXT-20` completion authority.
+rerun. This handoff grants no commit, push, candidate/ref mutation, model call,
+tag, release, external-use approval, or `EXT-20` completion authority.
 
 ## Session Rules
 
