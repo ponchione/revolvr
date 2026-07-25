@@ -20,25 +20,23 @@ record, or live/model operation was created. `EXT-20` remains unchecked.
 
 ## Exact Next-Session Resume
 
-The next gate is a fresh independent read-only review of the exact RC.7 bundles,
-their source/build/test/vulnerability evidence, the three-file tracked state
-scope, and RC.6 preservation. The first exact review command from
-`/home/gernsback/source/revolvr` is:
+Fresh independent review accepted the exact RC.7 bundles, their source/build/
+test/vulnerability evidence, the three-file tracked state scope, and RC.6
+preservation. Raw Git published the accepted record as commit
+`1055d7fc8ccdb844b5fe1405674133a244a1be64`, tree
+`96c7d1df60409cc7e6b9be24f03f4c17c83ecbe7`.
+
+The next gate is the separately bounded RC.7 candidate-ref and remote-CI pass.
+Exact next command from `/home/gernsback/source/revolvr`:
 
 ```bash
-GOTOOLCHAIN=local .revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb/build-instructions.sh --verify .revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb
+./agent-ext20-rc7-remote.sh
 ```
 
-Then verify the separate evidence bundle with:
-
-```bash
-(cd .revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb-verification && sha256sum -c files.sha256.sha256 && sha256sum -c files.sha256)
-```
-
-Independent review may accept the local-candidate record for later controller
-publication. It grants no remote candidate ref, remote CI, attestation,
-dogfood, live-model, suite-preparation, tag, release, external-use, queue, or
-`EXT-20` completion authority.
+Running it authorizes only empty-expected creation of the exact RC.7 candidate
+ref and collection of its mandatory push-triggered CI evidence. It grants no
+attestation workflow/ref, dogfood, live-model operation, suite preparation,
+tag, release, external-use, queue, or `EXT-20` completion authority.
 
 ## RC.7 Local Candidate Authority
 
@@ -1114,11 +1112,11 @@ made, so no API-acceptance claim is authorized.
 
 1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
    launcher or suite command.
-2. Use only the newly prepared attended-shell continuation for a fresh RC.7
-   local-candidate stage; it must make no live Revolvr model call.
-3. Return for independent review before any RC.7 publication, suite
-   preparation, live gate, task completion, tag, release, external-use
-   approval, or queue authority.
+2. Use only the newly prepared attended-shell continuation for the exact RC.7
+   candidate-ref and remote-CI gate; it must make no live Revolvr model call.
+3. Return for independent review before attestation, suite preparation, a live
+   gate, task completion, tag, release, external-use approval, or queue
+   authority.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1134,7 +1132,7 @@ There is no active live command. Every RC.6 launcher and suite command is
 retired and must not be rerun. The only active continuation command is:
 
 ```bash
-./agent-ext20-rc7.sh
+./agent-ext20-rc7-remote.sh
 ```
 
 ## Session Rules

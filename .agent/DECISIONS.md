@@ -1,5 +1,19 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Local Review And Remote-CI Handoff (2026-07-25)
+
+- Independent controller review accepted the complete sealed RC.7 candidate
+  and verification evidence from exact remediation source
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`. Raw Git published the reviewed
+  three-file record as commit `1055d7fc8ccdb844b5fe1405674133a244a1be64`.
+- The next bounded authority is empty-expected creation of only
+  `refs/heads/level1-v0.1.0-rc.7` at that exact source followed by required
+  push-triggered CI readback. This grants no attestation, suite, live model,
+  tag, release, external-use, queue, or EXT-20 completion authority.
+- RC.6 remains immutable failed-attempt evidence. Its suite, launch record,
+  terminal evidence, and all historical candidate material must remain
+  unchanged before and after the RC.7 remote gate.
+
 ## EXT-20 RC.7 Local Candidate Authority (2026-07-25)
 
 - The sole local RC.7 candidate authority is exact published remediation

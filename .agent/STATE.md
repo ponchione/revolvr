@@ -1,5 +1,34 @@
 # Agent State
 
+## EXT-20 RC.7 Independent Local Review And Publication (2026-07-25)
+
+- Independent review accepted exact source
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+  `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`, and the complete sealed RC.7
+  candidate and verification bundles. Both inventories, complete file sets,
+  build metadata, artifact hashes, reproducibility rows, empty build IDs,
+  embedded version, and clean detached source authority passed.
+- The reviewer reran the adjacent planner-provenance packages and both full Go
+  suites independently with Go 1.26.5 and the Go 1.22.12 source floor. Vet and
+  module verification passed. The sealed vulnerability evidence reports zero
+  reachable/imported-package vulnerabilities and retains only documented
+  Windows-only module finding `GO-2026-5024` as not called.
+- The RC.6 terminal manifest reverified and its suite, launch record, and
+  terminal evidence remained exact at content-stream SHA-256 values
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- Raw Git published only the accepted three durable-state files as commit
+  `1055d7fc8ccdb844b5fe1405674133a244a1be64`, tree
+  `96c7d1df60409cc7e6b9be24f03f4c17c83ecbe7`. Ignored candidate evidence
+  remains local. No candidate ref, remote CI, attestation, suite, live Revolvr
+  operation, tag, release, external-use approval, queue authority, or EXT-20
+  completion occurred during review.
+- New launcher `agent-ext20-rc7-remote.sh` is the next bounded gate. It may
+  create only absent `refs/heads/level1-v0.1.0-rc.7` at the exact candidate
+  source with an empty-expected raw-Git lease, then require the exact
+  push-triggered ten-job CI matrix. Blockers: none.
+
 ## EXT-20 RC.7 Local Candidate Construction (2026-07-25)
 
 - Task selected: the single bounded local-candidate sub-gate of still-unchecked
