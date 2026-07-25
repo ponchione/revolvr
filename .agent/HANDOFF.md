@@ -4,34 +4,31 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Independent controller replay accepted the RC.7 human-authorization checkpoint
-and raw Git published its exact three-file durable-state record as commit
-`3c621ddfb8d11905150498c9cd3cc173323ac816`, tree
-`d5a313ed6a86d73bedb9ad6b1997f2e8e32e5b2e`, parent
-`133fb6ddb2f94873d572dd72b9c91ef337cb87b3`. Local, fetched, and public
-`main` readback matched. Safe refusal, complete sourced authority, diff
-hygiene, and clean published `--check` paths passed. Technical admission is
-ready, but explicit human authorization remains absent; RC.7 is unstarted and
-RC.6 remains exact.
+The human operator explicitly responded `Authorized` immediately after the
+inert status script enumerated the exact RC.7 live scope and retained effects.
+This grants one-time authority for exactly one RC.7 suite launch: eleven real-
+Codex operations over ten tasks in two disposable repositories, including the
+recorded approval/sandbox bypass, host environment/network, cost/time,
+cancellation, commit, and immutable-evidence effects. It grants no retry,
+recovery, merge, push, tag, release, external-use, queue, or `EXT-20`
+completion authority. RC.7 remains unstarted and RC.6 remains exact.
 
 ## Exact Next-Session Resume
 
-The only safe continuation is an inert authorization-status readback.
-Executable `agent-ext20-rc7-await-live-authorization.sh`, SHA-256
-`4a90526c5e5fc26c57470ac6cae197976aca449d7394899c4ca37b9efc23b332`,
-performs clean/public authority checks plus the launcher's `--check` path and
-then reports the consent requirement. Exact next command from
-`/home/gernsback/source/revolvr`:
+The next bounded controller task is construction, no-model checking, and raw-
+Git publication of a confirmation-gated one-shot wrapper bound to this exact
+authorization and the published direct launcher. No live command is active
+until that wrapper is separately reviewed and published. First read-only
+command from `/home/gernsback/source/revolvr`:
 
 ```bash
-./agent-ext20-rc7-await-live-authorization.sh
+./agent-ext20-rc7-live-direct.sh --check
 ```
 
-This status script contains no live confirmation, `--live` invocation, Codex
-session, or mutation path. It cannot start the suite or change durable state.
-After it reports, no further live preparation is authorized unless a human
-issues a new explicit instruction consenting to the bounded effects below.
-`EXT-20` remains unchecked and no live command is active.
+This authorization permits construction and later operator execution of one
+wrapper only. The controller must not execute the live branch while building
+or publishing it, and the wrapper must retain argument refusal plus the direct
+launcher's complete preflight and one-shot collision behavior.
 
 ## RC.7 Human-Authorization Boundary
 

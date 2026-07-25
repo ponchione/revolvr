@@ -1,5 +1,35 @@
 # Agent State
 
+## EXT-20 RC.7 Explicit One-Time Human Live Authorization (2026-07-25)
+
+- Immediately after the inert authorization-status script reported technical
+  readiness, absent consent, and the exact material effects, the human
+  operator responded `Authorized`. In that direct context, this is explicit
+  consent for exactly one RC.7 live suite launch.
+- The authorized scope is eleven real-Codex operations over ten tasks in two
+  disposable repositories: five ordinary successful changes, correction/
+  final-verification/re-audit, needs input, intentional verification failure,
+  cancellation/new-operation restart, and safety refusal. Consent includes
+  approval/sandbox bypass, inherited host environment and network access,
+  real model cost/time, deliberate cancellation, workspace/source/control-
+  metadata commits, and immutable launch/runtime/model/ledger/receipt/partial-
+  failure evidence retention.
+- Authority is one-shot and fail-closed. A launch record or operation evidence
+  prevents automatic retry. The authorization grants no recovery, merge,
+  push, tag, release, external-use, queue, or `EXT-20` completion authority.
+  It does not authorize RC.6 execution or mutation.
+- Before recording consent, clean local, fetched, and public `main` agreed at
+  `6a786e3ce6fa436ff66aa75fd663e20fafd425a1`; the direct launcher remained
+  SHA-256
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`,
+  and its complete `--check` preflight passed without a model call or launch
+  record. RC.7 remains unstarted and `.agent/TASKS.md` remains exact with
+  `EXT-20` unchecked.
+- The next controller task may construct, check without entering its admitted
+  branch, and publish one confirmation-gated wrapper. The controller may not
+  execute it. Operator execution must remain a separate exact command after
+  clean/public readback.
+
 ## EXT-20 RC.7 Authorization Boundary Publication And Status Handoff (2026-07-25)
 
 - Independent controller replay accepted the human-authorization checkpoint's

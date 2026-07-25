@@ -1,5 +1,22 @@
 # Agent Decisions
 
+## EXT-20 RC.7 One-Time Human Live Authorization (2026-07-25)
+
+- The operator explicitly responded `Authorized` to the immediately preceding
+  consent request that enumerated exactly eleven RC.7 real-Codex operations,
+  ten tasks, two disposable repositories, approval/sandbox bypass, inherited
+  host environment/network, model cost/time, cancellation, commits, and
+  immutable retained evidence. This grants one-time authority for that exact
+  live suite scope.
+- Authorization is fail-closed and non-retryable: existing launch or operation
+  evidence ends the authority. It grants no recovery, merge, push, tag,
+  release, external-use, queue, or `EXT-20` completion authority and no
+  authority over RC.6.
+- A controller may construct and publish one confirmation-gated wrapper after
+  no-model verification, but may not execute it. The operator's later exact
+  wrapper invocation is the separate execution action. Until publication and
+  readback pass, no live command is active.
+
 ## EXT-20 RC.7 Await Explicit Human Live Authorization (2026-07-25)
 
 - Independent controller replay accepted and raw Git published the exact human-
