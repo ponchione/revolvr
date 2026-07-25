@@ -1,5 +1,48 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Exact-Candidate Remote CI Authority (2026-07-25)
+
+- The RC.7 remote candidate authority is exact branch
+  `refs/heads/level1-v0.1.0-rc.7` at source
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+  `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. Raw Git created it only after
+  a no-tags fetch, exact local/remote-main agreement at
+  `4bd712502a0a5fd27b80587b1ae38c916d92d390`, ancestry of published review
+  record `1055d7fc8ccdb844b5fe1405674133a244a1be64`, complete RC.7 sealed-bundle
+  verification, exact source reachability, and absence of all candidate,
+  attestation, tag, workflow, and artifact-name collisions. The required
+  empty-expected lease succeeded and exact remote readback agrees; no existing
+  ref was moved or deleted and no local branch was created.
+- Push-triggered CI run `30160277511`, run number `80`, attempt `1`, event
+  `push`, branch `level1-v0.1.0-rc.7`, and exact head SHA
+  `f63cbe3989cb281652cf4eec3f92614fec98294d` completed with conclusion
+  `success`. Its URL is
+  `https://github.com/ponchione/revolvr/actions/runs/30160277511`.
+  Public REST returned exactly the ten required unique successful jobs:
+  `89684369461` Go 1.22 source floor and tests, `89684369485` Production
+  autonomous strict-fake suite, `89684369426` Race tests, `89684369423` Vet
+  and module verification, `89684369490` Fake-Codex success smoke,
+  `89684369458` Fake-Codex verification-failure smoke, `89684369418` Build
+  linux/amd64, `89684369432` Build darwin/amd64, `89684369443` Build
+  freebsd/amd64, and `89684369447` Build Windows diagnostic stub. Exact job
+  URLs, times, head SHA, status, and conclusions are retained in
+  `.agent/STATE.md` and `.agent/HANDOFF.md`.
+- Post-CI preservation keeps both RC.7 inventory/seal pairs exact, every
+  RC.1-through-RC.6 remote ref unchanged, and all historical and RC.7 tags
+  absent. The RC.6 terminal manifest verifies and its suite, launch-record,
+  and terminal-evidence content-stream SHA-256 values remain
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- The next separately bounded gate is local-only construction and full
+  exercise of a collision-free RC.7 artifact-attestation workflow. It must use
+  an exact detached checkout of candidate source
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`, exact Go 1.26.5, and reproduce
+  the three sealed artifact hashes; trigger HEAD is workflow authority only.
+  This decision grants no workflow commit/push, attestation ref, remote run or
+  artifact, suite, live/model operation, tag, release, external-use, queue, or
+  `EXT-20` completion authority.
+
 ## EXT-20 RC.7 Local Review And Remote-CI Handoff (2026-07-25)
 
 - Independent controller review accepted the complete sealed RC.7 candidate

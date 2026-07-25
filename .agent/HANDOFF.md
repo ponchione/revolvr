@@ -4,39 +4,80 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Fresh collision-free RC.7 local candidate construction is complete from exact
-published remediation source `f63cbe3989cb281652cf4eec3f92614fec98294d`,
-tree `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. The later controller
-launcher commit `6c932653f9ea79892569c71aa4e05e69947eaaa5` is absent from
-candidate source and artifacts, and the product-source diff through that
-controller head is empty.
-
-The new candidate and verification bundles are locally sealed and verified.
-RC.1 through RC.6 remain immutable rejected or failed history. In particular,
-the RC.6 terminal manifest verified before and after construction, and the
-RC.6 suite, launch record, and terminal evidence retained identical pre/post
-content-stream hashes. No RC.7 ref, workflow, remote artifact, suite, launch
-record, or live/model operation was created. `EXT-20` remains unchecked.
+Exact RC.7 candidate ref `refs/heads/level1-v0.1.0-rc.7` now reads back at
+`f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+`43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. Push-triggered CI run
+`30160277511` completed successfully with exactly the ten mandatory unique
+jobs at that exact head SHA. Both sealed RC.7 bundles, all historical remote
+refs, and the three protected RC.6 evidence streams remained exact. No RC.7
+attestation ref, workflow, remote artifact, suite, live/model operation, tag,
+release, external-use approval, queue authority, or `EXT-20` completion was
+created.
 
 ## Exact Next-Session Resume
 
-Fresh independent review accepted the exact RC.7 bundles, their source/build/
-test/vulnerability evidence, the three-file tracked state scope, and RC.6
-preservation. Raw Git published the accepted record as commit
-`1055d7fc8ccdb844b5fe1405674133a244a1be64`, tree
-`96c7d1df60409cc7e6b9be24f03f4c17c83ecbe7`.
-
-The next gate is the separately bounded RC.7 candidate-ref and remote-CI pass.
-Exact next command from `/home/gernsback/source/revolvr`:
+The next gate is a separately bounded, no-model, local-only RC.7 artifact-
+attestation workflow construction and verification pass. Its first exact
+readback command from `/home/gernsback/source/revolvr` is:
 
 ```bash
-./agent-ext20-rc7-remote.sh
+git ls-remote --heads origin refs/heads/level1-v0.1.0-rc.7
 ```
 
-Running it authorizes only empty-expected creation of the exact RC.7 candidate
-ref and collection of its mandatory push-triggered CI evidence. It grants no
-attestation workflow/ref, dogfood, live-model operation, suite preparation,
-tag, release, external-use, queue, or `EXT-20` completion authority.
+Require exact readback `f63cbe3989cb281652cf4eec3f92614fec98294d`, then independently
+reverify CI run `30160277511`, both sealed bundles, and collision absence. The
+new workflow must be collision-free, check out the exact candidate commit in a
+detached checkout rather than building trigger HEAD, use exact Go 1.26.5, and
+reproduce the sealed Linux/Darwin/FreeBSD hashes from two independent clean
+non-local builds. It may be added and fully exercised locally only. Trigger
+HEAD is workflow authority, not release source.
+
+This next gate grants no workflow commit/push, attestation-ref creation,
+remote run or artifact, suite preparation, live/model operation, confirmation
+token, tag, release, external-use approval, queue authority, or `EXT-20`
+completion.
+
+## RC.7 Remote Candidate And CI Authority
+
+- Candidate ref readback:
+  `f63cbe3989cb281652cf4eec3f92614fec98294d` at
+  `refs/heads/level1-v0.1.0-rc.7`. No local branch was created.
+- CI run `30160277511`, run number `80`, attempt `1`, workflow
+  `.github/workflows/ci.yml`, event `push`, exact branch/head, status
+  `completed`, conclusion `success`, created `2026-07-25T13:43:27Z`, updated
+  `2026-07-25T13:46:44Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30160277511`.
+- Exact successful jobs, all at head
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`:
+  - `89684369461` — Go 1.22 source floor and tests —
+    `13:43:29Z` to `13:45:07Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369461`
+  - `89684369485` — Production autonomous strict-fake suite —
+    `13:43:29Z` to `13:44:23Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369485`
+  - `89684369426` — Race tests — `13:43:30Z` to `13:46:43Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369426`
+  - `89684369423` — Vet and module verification —
+    `13:43:30Z` to `13:44:07Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369423`
+  - `89684369490` — Fake-Codex success smoke —
+    `13:43:29Z` to `13:44:10Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369490`
+  - `89684369458` — Fake-Codex verification-failure smoke —
+    `13:43:29Z` to `13:44:10Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369458`
+  - `89684369418` — Build linux/amd64 — `13:43:29Z` to `13:44:04Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369418`
+  - `89684369432` — Build darwin/amd64 — `13:43:30Z` to `13:44:08Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369432`
+  - `89684369443` — Build freebsd/amd64 — `13:43:30Z` to `13:44:10Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369443`
+  - `89684369447` — Build Windows diagnostic stub —
+    `13:43:29Z` to `13:43:44Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369447`
+- RC.7 attestation ref, tag, workflow, and exact candidate/attestation
+  artifact names remain absent. All RC.1-through-RC.6 remote refs remain at
+  their recorded immutable SHAs.
 
 ## RC.7 Local Candidate Authority
 
