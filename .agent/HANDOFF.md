@@ -22,14 +22,18 @@ occurred. RC.1 through RC.5 remain immutable rejected history.
 ## Exact Next-Session Resume
 
 From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`. The next pass requires separate
-operator authority; there is intentionally no existing suite-preparation
-launcher to execute. That pass may only construct and locally verify one new,
-collision-free, no-model RC.6 Level-1 dogfood suite using the exact attested
-Linux artifact and immutable remote authority below. It must stop before any
-model call or live launch and must not retry RC.1 through RC.5, mutate the
-candidate or attestation refs, tag, release, approve external use, grant queue
-authority, or complete `EXT-20`.
+durable state files named in `AGENTS.md`, then run exactly:
+
+```bash
+./agent-ext20-rc6-suite.sh
+```
+
+That pass may only bind the guarded Level-1 suite to exact RC.6 candidate
+authority, verify it without model calls, and prepare one persistent,
+collision-free suite beneath ignored `.revolvr/` runtime state. It must stop
+before any model call or live launch and must not retry RC.1 through RC.5,
+mutate the candidate or attestation refs, tag, release, approve external use,
+grant queue authority, or complete `EXT-20`.
 
 ## RC.6 Remote Artifact-Attestation Authority
 
@@ -1046,11 +1050,11 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Independently review and publish only the three durable-state files changed
-   by the completed RC.6 remote attestation pass.
-2. In a later separately authorized fresh no-model pass, construct and locally
-   verify one new collision-free RC.6 Level-1 dogfood suite from the exact
-   attested Linux artifact and immutable authority recorded above.
+1. Run `./agent-ext20-rc6-suite.sh` once to bind the guarded suite to exact
+   RC.6 authority, verify it without model calls, and prepare one persistent
+   collision-free suite beneath ignored repository runtime state.
+2. Independently review the tracked change and prepared suite before any
+   controller publication or separately confirmed live operation.
 3. Stop before any model call or live launch. Do not retry RC.1 through RC.5,
    mutate the RC.6 candidate/attestation refs, tag, release, approve external
    use, grant queue authority, or complete `EXT-20`.
@@ -1065,8 +1069,11 @@ attestation refs, successful dedicated run/job/artifact, and ten-job CI run.
 Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
-There is intentionally no existing next launcher. Suite preparation requires
-new, explicit operator authority after controller publication of this record.
+Exact next command:
+
+```bash
+./agent-ext20-rc6-suite.sh
+```
 
 The completed launchers and every retired suite live command must not be
 rerun. This handoff grants no commit, push, candidate/ref mutation, model call,

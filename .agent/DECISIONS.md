@@ -1,5 +1,29 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Attestation Review And Suite-Preparation Gate (2026-07-25)
+
+- Independent controller readback accepted exact attestation ref
+  `226276f151ae389d06c0118a931596712fbc7cc1`, dedicated run/job
+  `30155142491` / `89671812731`, artifact `8618790256` with digest
+  `sha256:1e8d9b6161efb8ff04000eaba24e202eeddff625e443fc15728cf98cbaba95fa`,
+  and companion ten-job CI run `30155142490`. The run, job, artifact, workflow,
+  branch, head, timestamps, names, size, expiration, and conclusions agree
+  with the durable record.
+- Both RC.6 sealed bundles, both retained local attestation outputs, exact
+  candidate authority, unchanged task ledger, and all three RC.5 immutable
+  evidence streams reverified. The archive endpoint remains unauthenticated
+  HTTP 401 with no configured read-only token, so no controller-side archive
+  byte claim is added.
+- Raw Git published the accepted three-file remote-attestation record on
+  `main` as exact commit `c2c8c41e51bb4ebb6c65c93778b88ebad4a4eaa7`, tree
+  `c81f4496984b02cec6fc41f7bea58c51f1b947f5`. This commit changes no release
+  source, candidate/attestation ref, artifact, suite, or task authority.
+- `agent-ext20-rc6-suite.sh` is the sole next no-model gate. It may change only
+  the guarded suite's three RC candidate constants, perform the full static and
+  Go verification, and prepare one collision-free persistent suite beneath
+  ignored `.revolvr/` state. It grants no live/model call, live launcher, tag,
+  release, external-use approval, queue authority, or `EXT-20` completion.
+
 ## EXT-20 RC.6 Remote Artifact-Attestation Authority (2026-07-25)
 
 - Empty-expected raw Git created only

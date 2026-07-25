@@ -110,6 +110,47 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.6 Remote-Attestation Controller Review (2026-07-25)
+
+- Independent controller verification accepted exactly the three durable-state
+  files from the remote attestation pass. Raw Git readback confirmed candidate
+  ref `73f1f81f1c51d927114f19818a18161d0fcb8541` and attestation ref
+  `226276f151ae389d06c0118a931596712fbc7cc1`; all RC.6 tags remain absent.
+- Public REST independently confirmed dedicated run `30155142491` and sole job
+  `89671812731` as exact-workflow-head completed/success. Its sole unexpired
+  artifact is exact ID `8618790256`, name
+  `level1-v0.1.0-rc.6-attestation`, size `70273424`, and digest
+  `sha256:1e8d9b6161efb8ff04000eaba24e202eeddff625e443fc15728cf98cbaba95fa`.
+  Companion CI run `30155142490` is exact-head completed/success with exactly
+  the ten mandatory uniquely named successful jobs and recorded IDs. Candidate
+  CI run `30153462797` remains exact-source completed/success.
+- No `GITHUB_TOKEN` or `GH_TOKEN` was configured. Independent archive-endpoint
+  inspection returned HTTP 401, agreeing with the pass and adding no archive-
+  byte claim. Both complete RC.6 candidate/verification bundles passed their
+  manifests and exact inventory/seal hashes. The original 29-file attestation
+  output matched its documented relative-path hash stream, and the independent
+  29-file replay matched its documented absolute-path hash stream; every
+  `SHA256SUMS` row passed.
+- RC.5 suite, first-operation evidence, and launch record independently remain
+  byte-exact at content-stream SHA-256 values
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  The permanent-retirement checker passed. `.agent/TASKS.md` remains exact at
+  SHA-256 `77c8b220a8ed49cdd5c937f295a9add45c9b1d20fc977182298ec9cbd5073917`
+  with `EXT-20` unchecked.
+- Raw Git committed and pushed the accepted record as
+  `c2c8c41e51bb4ebb6c65c93778b88ebad4a4eaa7` (`Record RC.6 remote artifact
+  attestation`), tree `c81f4496984b02cec6fc41f7bea58c51f1b947f5`.
+  No Go source or dependency changed, so no Go test was required.
+- Added `agent-ext20-rc6-suite.sh` for the next fresh bounded pass. It may
+  update only the guarded suite's exact candidate source/hash/bundle constants,
+  run all no-model static and Go checks, and prepare exactly one persistent
+  collision-free suite below ignored `.revolvr/` runtime state. It must retain
+  and report authority without starting a model or adding a live launcher.
+  It grants no tag, release, external-use approval, queue authority, or
+  `EXT-20` completion. Blockers: none.
+
 ## EXT-20 RC.6 Remote Artifact Attestation (2026-07-25)
 
 - Task selected: the bounded RC.6 remote artifact-attestation prerequisite of
