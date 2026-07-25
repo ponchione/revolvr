@@ -1,5 +1,57 @@
 # Agent State
 
+## EXT-20 RC.7 Attestation-Workflow Review And Publication (2026-07-25)
+
+- Independent review accepted exactly the new RC.7 attestation workflow and
+  its three durable-state records. PyYAML structure and exact trigger/action/
+  checkout/upload constants passed; the parsed embedded shell was byte-exact
+  with retained `embedded-shell.sh`, passed `bash -n`, and remained SHA-256
+  `3882c50d361ff95f0b49bc85c5ce44aceafd4ca5d632390dd4adfd686abaf646`.
+  The complete workflow remains SHA-256
+  `f3e06992e72029d80162c9b5901c398dbfb3c79cfeae43c0e72ddd28cff4ee13`.
+- Retained output
+  `/tmp/revolvr-ext20-rc7-attestation.Uq3syS/runner-temp/level1-v0.1.0-rc.7-attestation`
+  independently reverified as exactly 29 regular files with path-bearing
+  content-stream SHA-256
+  `5c56018487239868a8a5af83b14b37179b81e307d09956650085042be8ad31e0`.
+  All six artifact checksum rows passed, all three target pairs remained byte-
+  identical, and all six build-ID files remained empty.
+- Both complete RC.7 bundle inventories and seals passed, as did candidate
+  self-verification. Candidate/verification inventory/seal hashes remained
+  `7eb048cafce9ddbf0cb7e2be659fa9016a2d7a24a0454875f418e1571ac934ba` /
+  `2e2c05e29a265f5878f703c19db2d5adf0484c06fccfacbc13eed54612f67ed0`
+  and
+  `ca981a3659c36a5c5802995b84fd168f85edb7b999829b54963d974ca4665733` /
+  `6f5d8de817d7c1a286a1372ec841eb7a16682773b4ecb4fea9687590e33b8e8b`.
+  Exact Linux/Darwin/FreeBSD hashes and build-instructions authority remained
+  unchanged.
+- Raw Git reverified exact candidate ref
+  `f63cbe3989cb281652cf4eec3f92614fec98294d` and all historical RC refs.
+  Public REST reverified candidate CI run `30160277511` as exact completed/
+  successful push run with its ten exact unique completed/successful jobs.
+  RC.7 attestation ref/tags/workflow-on-remote/artifact-name collisions were
+  absent before publication. `.agent/TASKS.md` remained unchanged at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked.
+- The retained RC.6 terminal manifest passed read-only verification. Protected
+  suite, launch-record, and terminal-evidence content-stream hashes remained
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+  Only operation `ext20-7b4a5932090f-01` remains retained; RC.6 was not
+  executed or mutated.
+- Raw Git published only the accepted four-file workflow record as commit
+  `3cc6d527f889c7b933828fbd832d07b5291aee79`, tree
+  `1a35d15e75ce372d02f9499bd9634ca0f808f68d`, parent
+  `b4c63dde894fec5805cd200164761c8f6e05b449`. Exact remote `main` readback
+  passed. No attestation ref/run/artifact, suite, model operation, tag,
+  release, external-use approval, queue authority, or completion occurred.
+- New attended launcher `agent-ext20-rc7-attestation-remote.sh` is the next
+  bounded gate. It may create only the collision-free attestation ref at exact
+  workflow commit `3cc6d527f889c7b933828fbd832d07b5291aee79`, then collect its dedicated
+  run/artifact and companion-CI evidence. It cannot prepare a suite or start a
+  live or nested model operation.
+
 ## EXT-20 RC.7 Local Artifact-Attestation Workflow (2026-07-25)
 
 - Task selected: the bounded local RC.7 artifact-attestation workflow sub-gate

@@ -4,38 +4,33 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Local-only RC.7 workflow `.github/workflows/level1-rc7-candidate-attestation.yml`
-is complete at SHA-256
+Independent review accepted the exact four-file RC.7 local attestation-
+workflow result and retained 29-file replay. Raw Git published it as commit
+`3cc6d527f889c7b933828fbd832d07b5291aee79`, tree
+`1a35d15e75ce372d02f9499bd9634ca0f808f68d`, with workflow SHA-256
 `f3e06992e72029d80162c9b5901c398dbfb3c79cfeae43c0e72ddd28cff4ee13`.
-Its exact embedded shell passed syntax validation and full execution from a
-fresh detached clone of candidate source
-`f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
-`43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. The retained 29-file result is
-under `/tmp/revolvr-ext20-rc7-attestation.Uq3syS` with path-bearing content-
-stream SHA-256
-`5c56018487239868a8a5af83b14b37179b81e307d09956650085042be8ad31e0`.
-No commit, push, attestation ref, remote run/artifact, suite, model operation,
-tag, release, external-use approval, queue authority, or `EXT-20` completion
-occurred.
+Local and remote `main` are exact. The RC.7 candidate ref and successful CI
+run remain exact; the attestation ref, run, and artifact remain absent. Both
+RC.7 bundles and all protected RC.6 hashes reverified. No suite, model
+operation, tag, release, external-use approval, queue authority, or `EXT-20`
+completion occurred.
 
 ## Exact Next-Session Resume
 
-The next gate is a fresh independent, no-model review of exactly these four
-worktree files:
+The next gate is the bounded remote RC.7 artifact-attestation pass. Exact next
+command from `/home/gernsback/source/revolvr`:
 
-- `.github/workflows/level1-rc7-candidate-attestation.yml`
-- `.agent/HANDOFF.md`
-- `.agent/STATE.md`
-- `.agent/DECISIONS.md`
+```bash
+./agent-ext20-rc7-attestation-remote.sh
+```
 
-The reviewer must repeat workflow/YAML/embedded-shell checks, inspect retained
-root `/tmp/revolvr-ext20-rc7-attestation.Uq3syS`, and reverify both RC.7 sealed
-bundles, exact candidate/CI authority and collisions, all historical refs/
-workflows/bundles, and RC.6 terminal preservation. Only after acceptance may
-a separately authorized controller publish the reviewed four-file scope.
-There is no authority yet to create the attestation ref, request or collect a
-remote workflow run/artifact, prepare a suite, start a model operation, tag,
-release, approve external use, grant queue authority, or complete `EXT-20`.
+That launcher authorizes only collision-safe creation of
+`refs/heads/level1-v0.1.0-rc.7-attestation` at exact reviewed workflow commit
+`3cc6d527f889c7b933828fbd832d07b5291aee79`, followed by finite read-only
+collection of its dedicated attestation run/artifact and companion CI run.
+It grants no authority to change the candidate, prepare or reuse a suite,
+start a Revolvr or nested model operation, tag, release, approve external use,
+grant queue authority, or complete `EXT-20`.
 
 ## RC.7 Remote Candidate And CI Authority
 

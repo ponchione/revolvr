@@ -1,5 +1,24 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Remote Attestation Gate Authority (2026-07-25)
+
+- Independent review accepted and raw Git published the exact RC.7 local
+  attestation workflow/state scope as commit
+  `3cc6d527f889c7b933828fbd832d07b5291aee79`, tree
+  `1a35d15e75ce372d02f9499bd9634ca0f808f68d`. The admitted workflow remains
+  `.github/workflows/level1-rc7-candidate-attestation.yml` at SHA-256
+  `f3e06992e72029d80162c9b5901c398dbfb3c79cfeae43c0e72ddd28cff4ee13`.
+- The next external-mutation authority is deliberately singular: launcher
+  `agent-ext20-rc7-attestation-remote.sh` may create only absent ref
+  `refs/heads/level1-v0.1.0-rc.7-attestation` at the exact reviewed workflow
+  commit using an empty-expected lease. Any ref, tag, workflow, artifact, main,
+  candidate, bundle, task, or protected-evidence drift fails the gate closed.
+- After exact ref readback, the gate may only wait finitely for and record the
+  dedicated RC.7 attestation run/job/artifact and companion CI run/jobs. It
+  grants no suite preparation or reuse, Revolvr or nested model operation,
+  tag, release, external-use approval, queue authority, or `EXT-20` completion.
+  RC.6 remains terminally retired and immutable.
+
 ## EXT-20 RC.7 Local Artifact-Attestation Workflow Authority (2026-07-25)
 
 - The sole locally admitted RC.7 attestation implementation is separate
