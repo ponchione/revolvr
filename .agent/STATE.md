@@ -1,5 +1,44 @@
 # Agent State
 
+## EXT-20 RC.7 Direct-Launcher Publication And Check-Only Readback (2026-07-25)
+
+- Independent controller review accepted exactly the constructed launcher,
+  focused checker, and three durable-state files. Raw Git published them as
+  commit `d2e7d8ddda66db7685b021dcc33b94766ec00204`, tree
+  `701639e624fc86a0a18c77cf19dc064f8e7bd511`, parent
+  `6931b3ef790a6f0375944043596cb591cf589f2a`; local, fetched, and public
+  `main` readback matched.
+- Independent checks passed launcher/checker syntax, all focused refusal and
+  isolated-collision coverage, direct sourced downstream authority checks,
+  `go test -count=1 ./...`, and diff hygiene. Remote RC refs and absent RC
+  tags, exact CI/attestation jobs and artifact, both sealed bundles, prepared
+  suite/repository/task/doctor/source-writer/sentinel authority, and the
+  unchanged task backlog all passed.
+- On clean published `main`, `./agent-ext20-rc7-live-direct.sh --check`
+  completed the entire fail-closed preflight and reported that no model call or
+  launch record occurred. The RC.7 suite remains exact at content-stream
+  SHA-256
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`
+  with zero operation/collector/model evidence, empty aggregate, ten pending
+  zero-attempt tasks, and no launch-record root.
+- Protected RC.6 suite, launch record, and terminal evidence remained exact at
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+  RC.6 was not executed, repaired, deleted, derived from, or mutated.
+- Prepared executable continuation `agent-ext20-rc7-prelive-review.sh`,
+  SHA-256
+  `f013427c57678950a17fc71a71e23a89e44fac30668d12d47971d6475c551b12`.
+  It performs one fresh attended no-model pre-live review, requires exact
+  clean published authority before starting, and forbids the live token,
+  `--live`, launch-record creation, Revolvr/nested model calls, launcher or
+  checker edits, tag/release/external-use/queue authority, and `EXT-20`
+  completion. Its only admitted output is a durable-state-only review record
+  for a later controller decision.
+- `.agent/TASKS.md` remains byte-exact at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. No live command is active.
+
 ## EXT-20 RC.7 Direct-Live-Gate Construction (2026-07-25)
 
 - Task selected: only the bounded construction and no-model checking sub-gate

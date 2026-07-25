@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Published Direct Launcher Pre-Live Review Gate (2026-07-25)
+
+- Independent review accepted and raw Git published the exact RC.7 direct
+  launcher/checker construction as commit
+  `d2e7d8ddda66db7685b021dcc33b94766ec00204`, tree
+  `701639e624fc86a0a18c77cf19dc064f8e7bd511`. Clean local, fetched, and
+  public `main` readback and the complete published `--check` preflight passed
+  without a model call, launch record, or runtime mutation.
+- Publication does not authorize the live path. The next bounded authority is
+  executable `agent-ext20-rc7-prelive-review.sh`, SHA-256
+  `f013427c57678950a17fc71a71e23a89e44fac30668d12d47971d6475c551b12`.
+  It may perform only a fresh no-model review of the exact published launcher,
+  all remote/bundle/suite/task and preservation authority, and the check-only
+  path; it may update only the three durable-state files.
+- The pre-live review may not supply or reproduce the live confirmation,
+  invoke `--live`, create a launch record, start Revolvr or a nested model,
+  alter the launcher/checker, complete `EXT-20`, or grant tag, release,
+  external-use, or queue authority. Its result must return for separate
+  controller review, and no live command is active.
+- RC.6 remains terminally retired and immutable at its recorded protected
+  hashes. The pre-live review may verify those streams only through read-only
+  hashing; no RC.6 launcher or suite path may be executed or reused.
+
 ## EXT-20 RC.7 Direct Launcher Review Authority (2026-07-25)
 
 - The only newly constructed RC.7 direct-gate implementation is executable
