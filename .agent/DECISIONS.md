@@ -1,5 +1,50 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Local Candidate Authority (2026-07-25)
+
+- The sole local RC.7 candidate authority is exact published remediation
+  source `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+  `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`, release version `0.1.0`,
+  source floor Go `1.22.12`, and release Go `1.26.5`. Later controller commit
+  `6c932653f9ea79892569c71aa4e05e69947eaaa5` and
+  `agent-ext20-rc7.sh` are not candidate source and are absent from candidate
+  clones and artifacts. No product-source delta follows the remediation.
+- The immutable candidate bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb`; its
+  inventory/seal values are
+  `7eb048cafce9ddbf0cb7e2be659fa9016a2d7a24a0454875f418e1571ac934ba` /
+  `2e2c05e29a265f5878f703c19db2d5adf0484c06fccfacbc13eed54612f67ed0`.
+  Linux, Darwin, and FreeBSD amd64 artifact SHA-256 values are
+  `1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a`,
+  `fb3ecdc5a6c9199b4c4f28e9b5d3babeaa54d645551b88e09b7dcf1969b6a086`,
+  and `13859c85ebf7d08aca5139625298bf90e2b4a4770976edaa710864cc077729fe`.
+  Two independent fresh non-local clean clones produced byte-identical pairs
+  with module-readonly/local-toolchain mode, disabled CGO, amd64, trimpath,
+  explicit clean VCS metadata, empty build IDs, and exact embedded version.
+- The separate immutable verification bundle is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb-verification`;
+  its inventory/seal values are
+  `ca981a3659c36a5c5802995b84fd168f85edb7b999829b54963d974ca4665733` /
+  `6f5d8de817d7c1a286a1372ec841eb7a16682773b4ecb4fea9687590e33b8e8b`.
+  It retains exact source/tool/build/version/target identities, commands,
+  focused ordinary/race regressions, Structured Outputs and lifecycle guards,
+  production happy-path and strict-fake proofs, both full Go suites, vet,
+  module verification, vulnerability output, artifact metadata, complete file
+  inventories, collision evidence, and historical preservation.
+- RC.1 through RC.6 remain immutable rejected or failed history. The RC.6
+  terminal manifest and all sealed historical bundles reverified; the RC.6
+  protected suite, launch record, and terminal evidence retained exact pre/post
+  content-stream hashes
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- Local construction grants no candidate-ref publication, remote CI,
+  attestation, dogfood, live/model operation, suite preparation, tag, release,
+  external-use, queue, or `EXT-20` completion authority. The next bounded gate
+  is fresh independent read-only review of the exact two bundles, the
+  three-file tracked state scope, and preservation evidence before any later
+  controller publication.
+
 ## EXT-20 RC.7 Next No-Model Gate (2026-07-25)
 
 - After publication of the planner-profile remediation, the next bounded gate

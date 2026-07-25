@@ -1,5 +1,84 @@
 # Agent State
 
+## EXT-20 RC.7 Local Candidate Construction (2026-07-25)
+
+- Task selected: the single bounded local-candidate sub-gate of still-unchecked
+  `EXT-20`. Fresh collision-free candidate `level1-v0.1.0-rc.7` was built only
+  from exact published remediation source
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+  `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. Raw Git readback placed
+  source and controller HEAD `6c932653f9ea79892569c71aa4e05e69947eaaa5`
+  on `origin/main`; the source is reachable, and the `cmd`, `internal`,
+  `go.mod`, and `go.sum` diff from source through controller HEAD is empty.
+  The controller launcher is absent from the detached candidate source.
+- Pre-construction checks found no local or remote RC.7 candidate/attestation
+  ref, tag, workflow, artifact, candidate bundle, verification bundle, build
+  root, suite root, launch record, or diagnostic. The public artifact queries
+  returned zero exact-name collisions. No existing output was overwritten or
+  reused.
+- Candidate bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb`. Its 15
+  regular files include 13 inventoried payload files. Inventory/seal SHA-256
+  values are
+  `7eb048cafce9ddbf0cb7e2be659fa9016a2d7a24a0454875f418e1571ac934ba` /
+  `2e2c05e29a265f5878f703c19db2d5adf0484c06fccfacbc13eed54612f67ed0`.
+  Build-instructions SHA-256 is
+  `ccf6cba57b00b3bdf1d50b074e4bbe9f13e3579493c22e87682f9d5952048ecd`.
+- Linux, Darwin, and FreeBSD amd64 artifact SHA-256 values are respectively
+  `1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a`,
+  `fb3ecdc5a6c9199b4c4f28e9b5d3babeaa54d645551b88e09b7dcf1969b6a086`,
+  and `13859c85ebf7d08aca5139625298bf90e2b4a4770976edaa710864cc077729fe`.
+  Exact Go 1.26.5 built every target twice from independent fresh non-local
+  clean clones with version `0.1.0`, module-readonly/local-toolchain mode,
+  disabled CGO, amd64, trimpath, explicit clean VCS metadata, and empty Go
+  build IDs. Every pair is byte-identical; embedded metadata and output
+  `revolvr 0.1.0` pass.
+- Separate verification bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb-verification`.
+  Its 54 regular files include 52 inventoried payload files. Inventory/seal
+  SHA-256 values are
+  `ca981a3659c36a5c5802995b84fd168f85edb7b999829b54963d974ca4665733` /
+  `6f5d8de817d7c1a286a1372ec841eb7a16682773b4ecb4fea9687590e33b8e8b`.
+  Both bundles passed their complete sorted regular-file manifests after final
+  placement; neither contains a symlink or multiply linked regular file.
+- Verification passed on the detached exact source: full adjacent
+  `internal/prompt`, `internal/autonomouscycle`,
+  `internal/autonomousauditapply`, and `internal/autonomousplanapply` tests in
+  ordinary and race modes, including the normalized planner-profile final-
+  newline acceptance and meaningful-tamper rejection; the recursive Structured
+  Outputs compatibility guard; focused lifecycle-routing authority tests in
+  ordinary and race modes; production autonomous happy path and strict-fake
+  Codex contract in ordinary and race modes; Go 1.22.12 source-floor full
+  suite; Go 1.26.5 full suite; `go vet ./...`; and `go mod verify`.
+- `govulncheck@v1.1.4` against the 2026-07-24 database reports zero reachable
+  and zero imported-package vulnerabilities. The sole module-only finding is
+  unchanged `GO-2026-5024` in `golang.org/x/sys@v0.30.0`, Windows-only and not
+  called, fixed in v0.44.0. No dependency was changed.
+- The RC.6 terminal manifest verified before and after work. Pre/post
+  relative-path-bearing regular-file content-stream SHA-256 values match for
+  the protected suite
+  (`d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`),
+  launch record
+  (`2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`),
+  and terminal evidence
+  (`e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`).
+  All sealed RC.1-through-RC.6 bundles reverified, historical remote refs
+  remained exact, and historical tags remained absent.
+- Files changed: ignored builder
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.7.sh`, the two ignored
+  immutable RC.7 bundle trees above, `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`. Retained build root is
+  `/tmp/revolvr-ext20-rc7-build.N1aDxk`. `.agent/TASKS.md` is unchanged at
+  SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`,
+  with `EXT-20` unchecked.
+- Result: pass, local-candidate-only. No ref, remote CI, attestation workflow,
+  suite, live/model operation, confirmation token, tag, release, external-use
+  approval, queue authority, commit, push, or `EXT-20` completion occurred.
+  Blockers: none. What remains is a fresh independent read-only review of the
+  exact bundles, tracked three-file state scope, source authority, verification
+  evidence, and RC.6 preservation before any later controller publication.
+
 ## EXT-20 RC.7 Local-Candidate Continuation Prepared (2026-07-25)
 
 - Planner-profile remediation commit

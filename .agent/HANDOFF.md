@@ -4,41 +4,62 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former RC.6 suite-review handoff below. RC.6
-started exactly operation `ext20-7b4a5932090f-01`, expected `completed`, and
-stopped `unsafe_or_ambiguous` before implementation, verification, or commits.
-Both supervisor and planner model calls completed; the failure was product
-validation, not API availability. RC.6 and its suite, launch record, and
-terminal evidence are retired immutable failed-attempt evidence and must never
-be rerun, repaired, deleted, or mutated.
+Fresh collision-free RC.7 local candidate construction is complete from exact
+published remediation source `f63cbe3989cb281652cf4eec3f92614fec98294d`,
+tree `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. The later controller
+launcher commit `6c932653f9ea79892569c71aa4e05e69947eaaa5` is absent from
+candidate source and artifacts, and the product-source diff through that
+controller head is empty.
 
-The remediation is published on `main` as exact commit
-`f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
-`43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. The retained terminal manifest at
-`.revolvr/ext20-rc6.LOLauh/suite/evidence/repo-a/01-successful-source-change-1/manifest.tsv`
-verifies. The root cause was planner profile normalization: the repository file
-is 1,459 bytes with SHA-256
-`ce9692ca3dbf49fce2340ca6aa04f697d0a23fa49fd71196863750b1a03cfadf`,
-while the recorded `TrimSpace` representation is 1,458 bytes with SHA-256
-`ac6bbd2e5280e0c5ed77f17009e0777d795766c2ae2259207cbf7444c4b207cd`.
-Planner application now uses the auditor's bounded exact-or-normalized
-validation contract and retains tamper rejection. Focused provenance tests,
-`go test ./...`, `go run ./cmd/revolvr --help`, and
-`go run ./cmd/revolvr config check` pass.
+The new candidate and verification bundles are locally sealed and verified.
+RC.1 through RC.6 remain immutable rejected or failed history. In particular,
+the RC.6 terminal manifest verified before and after construction, and the
+RC.6 suite, launch record, and terminal evidence retained identical pre/post
+content-stream hashes. No RC.7 ref, workflow, remote artifact, suite, launch
+record, or live/model operation was created. `EXT-20` remains unchecked.
 
 ## Exact Next-Session Resume
 
-No RC.6 command remains active. The sole next continuation is the newly
-prepared attended-shell launcher for the bounded no-model RC.7 local-candidate
-stage. It constructs local candidate bundles only; it must not prepare or start
-a suite, make a Revolvr product-model call, or reuse any RC.6 runtime state or
-evidence.
-
-Exact next command from `/home/gernsback/source/revolvr`:
+The next gate is a fresh independent read-only review of the exact RC.7 bundles,
+their source/build/test/vulnerability evidence, the three-file tracked state
+scope, and RC.6 preservation. The first exact review command from
+`/home/gernsback/source/revolvr` is:
 
 ```bash
-./agent-ext20-rc7.sh
+GOTOOLCHAIN=local .revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb/build-instructions.sh --verify .revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb
 ```
+
+Then verify the separate evidence bundle with:
+
+```bash
+(cd .revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb-verification && sha256sum -c files.sha256.sha256 && sha256sum -c files.sha256)
+```
+
+Independent review may accept the local-candidate record for later controller
+publication. It grants no remote candidate ref, remote CI, attestation,
+dogfood, live-model, suite-preparation, tag, release, external-use, queue, or
+`EXT-20` completion authority.
+
+## RC.7 Local Candidate Authority
+
+- Candidate bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb`.
+- Candidate inventory/seal SHA-256:
+  `7eb048cafce9ddbf0cb7e2be659fa9016a2d7a24a0454875f418e1571ac934ba` /
+  `2e2c05e29a265f5878f703c19db2d5adf0484c06fccfacbc13eed54612f67ed0`.
+- Verification bundle:
+  `.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb-verification`.
+- Verification inventory/seal SHA-256:
+  `ca981a3659c36a5c5802995b84fd168f85edb7b999829b54963d974ca4665733` /
+  `6f5d8de817d7c1a286a1372ec841eb7a16682773b4ecb4fea9687590e33b8e8b`.
+- Linux/Darwin/FreeBSD amd64 artifact SHA-256:
+  `1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a` /
+  `fb3ecdc5a6c9199b4c4f28e9b5d3babeaa54d645551b88e09b7dcf1969b6a086` /
+  `13859c85ebf7d08aca5139625298bf90e2b4a4770976edaa710864cc077729fe`.
+- Build-instructions SHA-256:
+  `ccf6cba57b00b3bdf1d50b074e4bbe9f13e3579493c22e87682f9d5952048ecd`.
+- Retained clean build root:
+  `/tmp/revolvr-ext20-rc7-build.N1aDxk`.
 
 ## RC.6 Prepared No-Model Suite Authority
 
@@ -66,18 +87,15 @@ Exact next command from `/home/gernsback/source/revolvr`:
   are zero operation manifests, zero collector manifests, an empty aggregate,
   and no RC.6 launch record.
 
-After independent review and controller publication, a separate explicit
-confirmation would authorize exactly this command from
-`/home/gernsback/source/revolvr`; it is retained here but must not be executed
-by the review/publication pass:
+The following RC.6 command is rejected historical text only and must never be
+executed, retried, resumed, repaired, or treated as future authority:
 
 ```bash
 scripts/dogfood-external-level1-suite.sh --live --run-root /home/gernsback/source/revolvr/.revolvr/ext20-rc6.LOLauh/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
-That future confirmation would authorize only the guarded Level-1 live suite.
-It would not authorize a tag, release, external-use approval, queue authority,
-or `EXT-20` completion without separately reviewed retained evidence.
+RC.6 is terminally retired. No confirmation token can restore authority to
+that command, suite, operation, launch record, or evidence.
 
 ## RC.6 Remote Artifact-Attestation Authority
 
