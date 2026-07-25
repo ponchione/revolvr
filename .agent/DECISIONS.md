@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Prepared-Suite Review And Direct Live Gate (2026-07-25)
+
+- Independent controller review accepted the suite script's exact three-
+  constant RC.6 specialization and retained persistent suite
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc6.LOLauh/suite`. Static and
+  collector verification, `go test -count=1 ./...`, both sealed RC.6 bundles,
+  all remote authority, exact prepared content, ten doctor-ready tasks, clean
+  repositories, sentinels, zero evidence/aggregate, and all immutable RC.5
+  streams passed without a model call or retained mutation.
+- Raw Git published the exact reviewed four-file scope as commit
+  `87be94f8fc4f04cb25c40598cc1f44cfe3b57efe`, tree
+  `0e9009b53749d9f43706f57617bea04f8f84128e`. Suite script SHA-256 is
+  `d16caafba9fb5fb8db83188d87006e57c8b77d88159d28502bb736e93672a3d7`;
+  collector SHA-256 remains
+  `2aa507930a12f4040fc8e1e359968b67d2be9cfa6e92aa65d9c8ce0577959cdd`.
+- The only admitted live path is new direct foreground launcher
+  `agent-ext20-rc6-live-direct.sh` with exact confirmation
+  `EXT20_LIVE_REAL_CODEX_MODEL_CALLS`. It fails closed on any authority drift,
+  requires the still-unstarted suite, and writes pre-start authority, stdout,
+  stderr, and durable exit/interruption status outside the suite beneath
+  ignored `.revolvr/ext20-rc6-launch-records` before one guarded start.
+- New `scripts/check-ext20-rc6-live-direct.sh` exercises only no-token refusal,
+  unpublished-tree/check behavior, and isolated launch-record collision. It
+  must preserve the suite and leave no RC.6 launch record. Preparing and
+  checking the gate grants no model call, retry, tag, release, external-use,
+  queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.6 Prepared-Suite Authority And Review Gate (2026-07-25)
 
 - The guarded external Level-1 suite now derives authority only from immutable

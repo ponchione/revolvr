@@ -1,5 +1,42 @@
 # Agent State
 
+## EXT-20 RC.6 Prepared-Suite Controller Review And Live Gate (2026-07-25)
+
+- Independent controller review accepted exactly the four-file suite-
+  preparation scope. The only implementation change is the three candidate
+  constants in `scripts/dogfood-external-level1-suite.sh`; its SHA-256 is
+  `d16caafba9fb5fb8db83188d87006e57c8b77d88159d28502bb736e93672a3d7`.
+  `bash -n`, suite `--static`, both retained collector manifests, candidate and
+  Codex identity, both complete RC.6 sealed bundles, raw-Git refs, dedicated
+  run/job/artifact, companion ten-job CI, and unchanged task ledger passed.
+- Persistent suite `/home/gernsback/source/revolvr/.revolvr/ext20-rc6.LOLauh/suite`
+  remained exact at content-stream SHA-256
+  `cb75bb94dca396d14d856e001fa1ed3a7d8d6ac46cf8c5d60eed2ca902f033c0`
+  before and after review. Authority, plan, repository heads, exact candidate/
+  Codex identities, ten pending doctor-ready tasks, 32-minute source-writer
+  authority, sentinels, zero operation/collector manifests, empty aggregate,
+  and absent RC.6 launch-record root all passed. `go test -count=1 ./...`
+  passed. The three immutable RC.5 content streams and retirement checker also
+  passed without mutation.
+- Raw Git committed and pushed the accepted scope as
+  `87be94f8fc4f04cb25c40598cc1f44cfe3b57efe` (`Prepare persistent RC.6
+  dogfood suite`), tree `0e9009b53749d9f43706f57617bea04f8f84128e`.
+- Added confirmation-gated direct foreground launcher
+  `agent-ext20-rc6-live-direct.sh` and no-model helper
+  `scripts/check-ext20-rc6-live-direct.sh`. The launcher binds the exact
+  published suite, candidate/attestation/artifact, bundle, script, Codex,
+  repository, task, source-lock, sentinel, and zero-evidence authorities. It
+  creates one collision-free ignored external launch record containing exact
+  pre-start authority, suite stdout/stderr, and durable exit or interruption
+  status before starting the guarded suite once.
+- The helper passed shell syntax, missing/wrong-token refusal, expected dirty-
+  tree check-only refusal, isolated collision refusal, and suite/diagnostic
+  preservation. No token-bearing path ran; no model call, live operation,
+  launch record, aggregate, tag, release, external-use approval, queue
+  authority, or `EXT-20` completion occurred. After controller publication,
+  one final clean published `--check` must pass before handing off the exact
+  live command. Blockers: none.
+
 ## EXT-20 RC.6 Guarded No-Model Suite Preparation (2026-07-25)
 
 - Task selected: only the bounded RC.6 no-model suite-preparation sub-gate of

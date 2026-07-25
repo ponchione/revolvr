@@ -4,24 +4,39 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former remote-attestation handoff below. The
-guarded suite's only implementation delta is its three RC.6 candidate
-constants. Static, collector, full Go, bundle, raw-Git, public-REST, and
-immutable-history verification passed, and exactly one persistent no-model
-suite is prepared beneath ignored repository runtime state. No live launcher,
-model call, live operation, launch record, tag, release, external-use
-approval, queue authority, or `EXT-20` completion occurred.
+Latest authority supersedes the former suite-review handoff below. Independent
+controller review accepted the exact four-file prepared-suite scope and
+persistent root. Raw Git published it as exact commit
+`87be94f8fc4f04cb25c40598cc1f44cfe3b57efe`, tree
+`0e9009b53749d9f43706f57617bea04f8f84128e`. Static, collector, full Go,
+bundle, raw-Git, public-REST, prepared-content, readiness, sentinel, and
+immutable-history checks all pass without changing the suite.
+
+`agent-ext20-rc6-live-direct.sh` is the only admitted RC.6 live entry point.
+Its check helper proves missing/wrong confirmations, dirty authority, and
+launch-record collisions fail without suite, evidence, aggregate, or launch-
+record mutation. Its full published `--check` preflight must pass before the
+command below is handed off. No model call, live operation, launch record,
+tag, release, external-use approval, queue authority, or `EXT-20` completion
+occurred while preparing this gate.
 
 ## Exact Next-Session Resume
 
-The next fresh bounded pass is independent no-model review of the exact
-four-file tracked scope (`scripts/dogfood-external-level1-suite.sh` plus this
-file, `.agent/STATE.md`, and `.agent/DECISIONS.md`) and the retained prepared
-suite below. It must reverify clean controller ancestry, both sealed bundles,
-all RC.6 remote authority, the prepared content and readiness invariants, and
-all three RC.5 immutable streams. If accepted, the controller may separately
-commit and push only that reviewed scope. It must not prepare another suite,
-start a model, add a live launcher, or execute the live command.
+The next command starts real Codex/model calls and therefore requires the exact
+explicit confirmation token. From `/home/gernsback/source/revolvr`, run only
+when intentionally authorizing the one guarded RC.6 suite:
+
+```bash
+./agent-ext20-rc6-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
+```
+
+The launcher must complete its exact clean-main/ref/artifact/bundle/script/
+prepared-root/Codex/repository/task/sentinel/zero-evidence preflight before it
+creates one collision-free external launch record and starts the suite once.
+Do not retry after any start, failure, or interruption. Preserve all evidence
+and return for independent result review. This confirmation grants no tag,
+release, external-use approval, queue authority, or `EXT-20` completion unless
+the retained suite later passes every quantitative and zero-tolerance check.
 
 ## RC.6 Prepared No-Model Suite Authority
 
@@ -1077,14 +1092,12 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run `./agent-ext20-rc6-suite.sh` once to bind the guarded suite to exact
-   RC.6 authority, verify it without model calls, and prepare one persistent
-   collision-free suite beneath ignored repository runtime state.
-2. Independently review the tracked change and prepared suite before any
-   controller publication or separately confirmed live operation.
-3. Stop before any model call or live launch. Do not retry RC.1 through RC.5,
-   mutate the RC.6 candidate/attestation refs, tag, release, approve external
-   use, grant queue authority, or complete `EXT-20`.
+1. Run the exact confirmation-gated RC.6 direct launcher once only if real
+   model calls are intentionally authorized.
+2. Preserve its external launch record and every suite artifact on success,
+   failure, or interruption; never retry or edit runtime evidence.
+3. Return for independent retained-result review before any task completion,
+   tag, release, external-use approval, or queue authority.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1099,12 +1112,13 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc6-suite.sh
+./agent-ext20-rc6-live-direct.sh EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
 The completed launchers and every retired suite live command must not be
-rerun. This handoff grants no commit, push, candidate/ref mutation, model call,
-tag, release, external-use approval, or `EXT-20` completion authority.
+rerun. Only the exact command above grants one RC.6 live suite start. It grants
+no commit, push, candidate/ref mutation, retry, tag, release, external-use
+approval, queue authority, or automatic `EXT-20` completion.
 
 ## Session Rules
 
