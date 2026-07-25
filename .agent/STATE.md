@@ -1,5 +1,94 @@
 # Agent State
 
+## EXT-20 RC.6 Guarded No-Model Suite Preparation (2026-07-25)
+
+- Task selected: only the bounded RC.6 no-model suite-preparation sub-gate of
+  still-unchecked `EXT-20`. The guarded Level-1 suite now binds exact candidate
+  source `73f1f81f1c51d927114f19818a18161d0fcb8541`, Linux artifact SHA-256
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  and immutable bundle
+  `.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51`.
+  Those are the only three suite constants changed. Release output remains
+  `revolvr 0.1.0`; exact Codex package/output/SHA-256 remains `0.144.4` /
+  `codex-cli 0.144.4` /
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+  Model `gpt-5.6-sol`, reasoning effort `xhigh`, plan, schemas, scenarios,
+  thresholds, configuration, live confirmation, and collector behavior are
+  unchanged.
+- Files changed: `scripts/dogfood-external-level1-suite.sh`, this state file,
+  `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`. No Go source, dependency,
+  workflow, candidate, bundle, ref, historical evidence, or live launcher
+  changed. `.agent/TASKS.md` remains byte-exact at SHA-256
+  `77c8b220a8ed49cdd5c937f295a9add45c9b1d20fc977182298ec9cbd5073917`
+  with `EXT-20` unchecked.
+- Before editing, clean local and remote `main` agreed at
+  `d4c570296c9dfd100cb10ef25b89c87ce492f396`, with published controller record
+  `c2c8c41e51bb4ebb6c65c93778b88ebad4a4eaa7` an ancestor of both. Raw Git
+  readback and public REST reconfirmed candidate ref/source
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, attestation ref/workflow commit
+  `226276f151ae389d06c0118a931596712fbc7cc1`, workflow SHA-256
+  `708f2f35d2c9a71f803fc136f33a5bd4bbd65624de50af84caa98cd3a3395fdf`,
+  successful candidate CI run `30153462797`, successful attestation run/job
+  `30155142491` / `89671812731`, exact unexpired artifact `8618790256` named
+  `level1-v0.1.0-rc.6-attestation` with digest
+  `sha256:1e8d9b6161efb8ff04000eaba24e202eeddff625e443fc15728cf98cbaba95fa`,
+  and successful companion ten-job CI run `30155142490`.
+- Complete candidate and verification bundles passed exact file-set,
+  single-link regular-file, manifest, seal, and candidate self-verification
+  checks before editing and passed their sealed manifests again after
+  preparation. Their inventory/seal values remain
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+- Verification passed: `bash -n` for the suite and collector; suite
+  `--static`; two collector `--fixture-only` runs; both `--verify-manifest`
+  checks; canonical manifest comparison after excluding only
+  `collected_at_utc`; `go test -count=1 ./...`; and `git diff --check`.
+  Retained fixture root is `/tmp/revolvr-ext20-rc6-collector.kkvqrq`; both raw
+  manifests have SHA-256
+  `5169090fe855302da1fe70ca98535d7b66e4769c1af81ddec27affd9e9fc64e9`,
+  and both timestamp-excluded canonical manifests have SHA-256
+  `01a47fd5ab7f7eb8e7def144ce7cbef17d5b306366cb2967896fb7b874e8452c`.
+- Exactly one persistent parent was created beneath ignored repository runtime
+  state with the required template. The prepared no-model suite is
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc6.LOLauh/suite`; preparation
+  used only `--prepare --run-root <that-path> --install-codex`. Suite ID is
+  `ext20-7b4a5932090f`; `authority.tsv` SHA-256 is
+  `5d90db1fca978451f0fa9b0950bc71dd9b334a00e0647d7e16158698a2358e40`;
+  unchanged `operation-plan.tsv` SHA-256 is
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`;
+  and its relative-path-bearing, null-sorted regular-file content-stream
+  SHA-256 is
+  `cb75bb94dca396d14d856e001fa1ed3a7d8d6ac46cf8c5d60eed2ca902f033c0`.
+- Independent read-only inspection verified the prepared checksum; exact
+  candidate path/hash/version/source/clean-VCS identity; exact Codex package,
+  path/hash/version; unchanged model and reasoning effort; and effective
+  source-writer authority
+  `timeout=32m0s heartbeat_interval=10m40s required=32m0s`. The exact 11-row
+  plan has ten unique pending doctor-ready tasks. Repo-a is clean on `main` at
+  `fa611a1e2c72f5469095c3460dc3268cd21765c8`; repo-b is clean on `main` at
+  `a73c742f2a0e5934d6da12069599dfde2a17b00d`. Both disposable markers and all
+  sentinel bytes, modes, hard links, and symlinks are intact. There are zero
+  operation manifests, zero collector manifests, an empty aggregate, and no
+  RC.6 launch-record directory. An isolated empty-confirmation evaluation of
+  the suite's exact first live guard refused before any prepared-root read or
+  collector call; the complete suite content/layout fingerprint remained
+  unchanged.
+- Post-preparation raw-Git/public-REST readback reconfirmed every RC.6 remote
+  authority above. RC.5 suite, first-operation evidence, and launch-record
+  streams remain byte-exact at
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`;
+  the retired launcher checker passed before and after without mutation.
+- Result: no model call, live operation, launch record, tag, release,
+  external-use approval, queue authority, or `EXT-20` completion occurred.
+  Blockers: none. What remains is fresh independent review of the exact
+  four-file tracked scope and prepared authority, controller publication, and
+  only then a separately confirmed live pass using the exact command retained
+  in `.agent/HANDOFF.md`.
+
 ## Current Focus
 
 The audit backlog remains closed. A new working release gate now lives at

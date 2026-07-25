@@ -4,36 +4,63 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former local-workflow handoff below. Raw Git
-created only `refs/heads/level1-v0.1.0-rc.6-attestation` at exact reviewed
-workflow commit `226276f151ae389d06c0118a931596712fbc7cc1`; exact remote
-readback agrees. Dedicated attestation run `30155142491`, its sole job
-`89671812731`, artifact `8618790256`, and companion ten-job CI run
-`30155142490` all completed successfully at that exact head. Candidate source
-and ref remain exact at `73f1f81f1c51d927114f19818a18161d0fcb8541`.
-
-Both RC.6 sealed bundles, both retained 29-file local attestations, all
-historical bundles/refs/tags, and the three immutable RC.5 evidence hashes
-reverified. `.agent/TASKS.md` remains unchanged with `EXT-20` unchecked. No
-suite was prepared, no model call or live operation started, and no tag,
-release, external-use approval, queue authority, or `EXT-20` completion
-occurred. RC.1 through RC.5 remain immutable rejected history.
+Latest authority supersedes the former remote-attestation handoff below. The
+guarded suite's only implementation delta is its three RC.6 candidate
+constants. Static, collector, full Go, bundle, raw-Git, public-REST, and
+immutable-history verification passed, and exactly one persistent no-model
+suite is prepared beneath ignored repository runtime state. No live launcher,
+model call, live operation, launch record, tag, release, external-use
+approval, queue authority, or `EXT-20` completion occurred.
 
 ## Exact Next-Session Resume
 
-From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`, then run exactly:
+The next fresh bounded pass is independent no-model review of the exact
+four-file tracked scope (`scripts/dogfood-external-level1-suite.sh` plus this
+file, `.agent/STATE.md`, and `.agent/DECISIONS.md`) and the retained prepared
+suite below. It must reverify clean controller ancestry, both sealed bundles,
+all RC.6 remote authority, the prepared content and readiness invariants, and
+all three RC.5 immutable streams. If accepted, the controller may separately
+commit and push only that reviewed scope. It must not prepare another suite,
+start a model, add a live launcher, or execute the live command.
+
+## RC.6 Prepared No-Model Suite Authority
+
+- Exact suite path:
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc6.LOLauh/suite`.
+- Suite ID: `ext20-7b4a5932090f`.
+- Authority SHA-256:
+  `5d90db1fca978451f0fa9b0950bc71dd9b334a00e0647d7e16158698a2358e40`.
+- Operation-plan SHA-256:
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`.
+- Relative-path-bearing, null-sorted regular-file content-stream SHA-256:
+  `cb75bb94dca396d14d856e001fa1ed3a7d8d6ac46cf8c5d60eed2ca902f033c0`.
+- Repo-a is clean on `main` at
+  `fa611a1e2c72f5469095c3460dc3268cd21765c8`; repo-b is clean on `main` at
+  `a73c742f2a0e5934d6da12069599dfde2a17b00d`.
+- Candidate authority is source
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, Linux SHA-256
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  and output `revolvr 0.1.0`. Codex authority is exact package/output/hash
+  `0.144.4` / `codex-cli 0.144.4` /
+  `134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477`.
+- Effective source-writer authority is
+  `timeout=32m0s heartbeat_interval=10m40s required=32m0s`. The exact 11-row
+  plan has ten unique pending doctor-ready tasks; sentinels are intact; there
+  are zero operation manifests, zero collector manifests, an empty aggregate,
+  and no RC.6 launch record.
+
+After independent review and controller publication, a separate explicit
+confirmation would authorize exactly this command from
+`/home/gernsback/source/revolvr`; it is retained here but must not be executed
+by the review/publication pass:
 
 ```bash
-./agent-ext20-rc6-suite.sh
+scripts/dogfood-external-level1-suite.sh --live --run-root /home/gernsback/source/revolvr/.revolvr/ext20-rc6.LOLauh/suite --confirm-live-real-codex EXT20_LIVE_REAL_CODEX_MODEL_CALLS
 ```
 
-That pass may only bind the guarded Level-1 suite to exact RC.6 candidate
-authority, verify it without model calls, and prepare one persistent,
-collision-free suite beneath ignored `.revolvr/` runtime state. It must stop
-before any model call or live launch and must not retry RC.1 through RC.5,
-mutate the candidate or attestation refs, tag, release, approve external use,
-grant queue authority, or complete `EXT-20`.
+That future confirmation would authorize only the guarded Level-1 live suite.
+It would not authorize a tag, release, external-use approval, queue authority,
+or `EXT-20` completion without separately reviewed retained evidence.
 
 ## RC.6 Remote Artifact-Attestation Authority
 

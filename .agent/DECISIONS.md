@@ -1,5 +1,37 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Prepared-Suite Authority And Review Gate (2026-07-25)
+
+- The guarded external Level-1 suite now derives authority only from immutable
+  RC.6 source `73f1f81f1c51d927114f19818a18161d0fcb8541`, Linux artifact SHA-256
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  and bundle `.revolvr/release-candidates/level1-v0.1.0-rc.6-73f1f81f1c51`.
+  Every non-candidate suite authority remains unchanged, including exact Codex
+  `0.144.4`, model, reasoning effort, plan, schemas, scenarios, thresholds,
+  configuration, live confirmation, and collector behavior.
+- The sole prepared RC.6 authority is persistent suite
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc6.LOLauh/suite`, suite ID
+  `ext20-7b4a5932090f`, authority SHA-256
+  `5d90db1fca978451f0fa9b0950bc71dd9b334a00e0647d7e16158698a2358e40`,
+  plan SHA-256
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
+  and relative-path-bearing content-stream SHA-256
+  `cb75bb94dca396d14d856e001fa1ed3a7d8d6ac46cf8c5d60eed2ca902f033c0`.
+  Its repositories are clean on `main` at
+  `fa611a1e2c72f5469095c3460dc3268cd21765c8` and
+  `a73c742f2a0e5934d6da12069599dfde2a17b00d`.
+- Preparation and inspection started no model. Exact candidate/Codex
+  identities, the required 32-minute source-writer authority, ten pending
+  doctor-ready tasks, intact sentinels, zero operation/collector manifests,
+  empty aggregate, and absence of an RC.6 launch record all pass without
+  changing the suite. RC.1 through RC.5 remain immutable rejected history.
+- This prepared root is not yet live authority. A fresh independent pass must
+  review the exact four-file tracked scope and the retained prepared suite
+  before controller commit/push. Only after that publication may a distinct
+  explicit confirmation authorize the retained command in `.agent/HANDOFF.md`.
+  No live launcher is added, and no tag, release, external-use approval, queue
+  authority, or `EXT-20` completion follows from preparation.
+
 ## EXT-20 RC.6 Attestation Review And Suite-Preparation Gate (2026-07-25)
 
 - Independent controller readback accepted exact attestation ref
