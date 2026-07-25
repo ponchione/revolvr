@@ -4,37 +4,36 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former RC.6 independent-review and remote-CI
-handoffs below. Raw Git created only
-`refs/heads/level1-v0.1.0-rc.6` at exact source
-`73f1f81f1c51d927114f19818a18161d0fcb8541`; exact remote readback matches and
-no local branch was created. Push-triggered CI run `30153462797`, run number
-`66`, attempt `1`, event `push`, branch `level1-v0.1.0-rc.6`, and that exact
-head SHA completed with conclusion `success` after exactly all ten mandatory
-jobs succeeded.
+Latest authority supersedes the former RC.6 remote-CI review handoff below.
+Independent raw-Git and public-REST readback accepted exact candidate ref
+`refs/heads/level1-v0.1.0-rc.6` at source
+`73f1f81f1c51d927114f19818a18161d0fcb8541` and push-triggered CI run
+`30153462797` with exactly all ten mandatory successful jobs. Both RC.6 sealed
+bundles and all retained historical authority remained unchanged. Raw Git
+published the three-file remote-CI record on `main` as exact commit
+`716c9a2293555f9abee80d384a673be426fe2ce0`, tree
+`26c3039581cf12278ae5d58b58c0bd72fcd3e592`; local and remote readback agree.
 
-The next fresh pass may only construct and locally verify a collision-free
-exact-checkout Go 1.26.5 RC.6 artifact-attestation workflow with two clean
-release builds and exact sealed hash/metadata checks. It must stop before
-commit, push, attestation ref, remote run or artifact, suite preparation, model
-work, tag, release, external-use approval, queue authority, or `EXT-20`
-completion. `agent-ext20-rc6-remote.sh` must not be rerun: its one candidate-ref
-creation authority has been consumed. RC.1 through RC.5 and all retained
-runtime evidence remain immutable rejected history.
+The next prepared pass may add and locally exercise only the collision-free
+exact-checkout Go 1.26.5 RC.6 artifact-attestation workflow. It must stop
+before commit, push, attestation ref, remote run or artifact, suite preparation,
+model work, tag, release, external-use approval, queue authority, or `EXT-20`
+completion. RC.1 through RC.5 and all retained runtime evidence remain
+immutable rejected history.
 
 ## Exact Next-Session Resume
 
 From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`. Do exactly one bounded task: construct
-and locally verify only the collision-free RC.6 artifact-attestation workflow.
-It must check out exact source
-`73f1f81f1c51d927114f19818a18161d0fcb8541`, use exact Go `1.26.5`, perform
-two clean Linux/Darwin/FreeBSD amd64 release builds, compare each pair
-byte-for-byte, and require the sealed artifact hashes, source/tree metadata,
-release version, and empty Go build IDs. Do not commit, push, create an
-attestation ref, request a remote run or artifact, prepare a suite, start model
-work, tag, release, approve external use, grant queue authority, or complete
-`EXT-20`.
+durable state files named in `AGENTS.md`, then run exactly:
+
+```bash
+./agent-ext20-rc6-attestation.sh
+```
+
+That pass constructs and locally verifies only the RC.6 attestation workflow.
+It must not commit, push, publish an attestation ref, request a remote run or
+artifact, prepare a suite, start model work, tag, release, approve external
+use, grant queue authority, or complete `EXT-20`.
 
 ## RC.6 Remote Candidate And CI Authority
 
@@ -944,10 +943,10 @@ made, so no API-acceptance claim is authorized.
 
 ## Next Ordered Work
 
-1. Run `./agent-ext20-rc6-remote.sh` once to publish only the collision-free
-   RC.6 candidate ref and require exact-source remote CI success.
-2. Independently verify any resulting remote evidence and durable-state diff
-   before separately publishing it and preparing artifact attestation.
+1. Run `./agent-ext20-rc6-attestation.sh` once to construct and locally verify
+   the exact-candidate artifact-attestation workflow.
+2. Independently review the workflow, local execution, and durable-state diff
+   before separately authorized publication and remote execution.
 3. Do not retry RC.1 through RC.5, make a live model call, tag, release,
    approve external use, or complete `EXT-20`. Do not rerun RC.6 construction.
 
@@ -964,7 +963,7 @@ launcher.
 Exact next command:
 
 ```bash
-./agent-ext20-rc6-remote.sh
+./agent-ext20-rc6-attestation.sh
 ```
 
 The completed launchers and every retired suite live command must not be

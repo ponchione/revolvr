@@ -1,5 +1,23 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Remote-CI Review And Attestation Handoff (2026-07-25)
+
+- Independent raw-Git and public-REST readback accepted exact candidate ref
+  `refs/heads/level1-v0.1.0-rc.6` at
+  `73f1f81f1c51d927114f19818a18161d0fcb8541` and CI run `30153462797` as
+  push-triggered, exact-head, completed, and successful with exactly the ten
+  required unique successful jobs. Both sealed RC.6 bundles and all retained
+  historical authority remained unchanged.
+- Raw Git published the reviewed three-file remote-CI record on `main` as
+  exact commit `716c9a2293555f9abee80d384a673be426fe2ce0`, tree
+  `26c3039581cf12278ae5d58b58c0bd72fcd3e592`; exact local and remote readback
+  agree. This commit is not candidate source.
+- `agent-ext20-rc6-attestation.sh` is the next bounded local-only gate. It may
+  add and fully exercise only the collision-free exact-candidate Go 1.26.5
+  artifact-attestation workflow. It grants no workflow commit/push,
+  attestation ref, remote run or artifact, suite, model call, tag, release,
+  external-use, queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.6 Exact-Candidate Remote CI Authority (2026-07-25)
 
 - The RC.6 remote candidate authority is exact branch

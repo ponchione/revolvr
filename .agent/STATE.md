@@ -110,6 +110,31 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.6 Remote-CI Review And Attestation Handoff (2026-07-25)
+
+- Independent review used raw Git and the public GitHub REST API to confirm
+  remote candidate ref `refs/heads/level1-v0.1.0-rc.6` resolves only to exact
+  source `73f1f81f1c51d927114f19818a18161d0fcb8541`, with no local branch or
+  RC.6 tag. CI run `30153462797` independently read back as run number `66`,
+  attempt `1`, event `push`, exact branch/head, `completed`, and `success`.
+  Its jobs endpoint returned exactly the ten recorded mandatory unique jobs;
+  every job had the exact candidate head, `completed`, and `success`.
+- Review also repeated both RC.6 complete bundle verifiers and exact
+  inventory/seal hashes, raw historical ref/tag comparison, all three RC.5
+  retained content-stream hashes, the permanent RC.5 retirement check,
+  `.agent/TASKS.md` hash/unchecked status, exact three-file scope, and `git
+  diff --check`. All passed without a real model call or retained-evidence
+  mutation.
+- Raw Git published the accepted three-file remote-CI record as exact commit
+  `716c9a2293555f9abee80d384a673be426fe2ce0`, tree
+  `26c3039581cf12278ae5d58b58c0bd72fcd3e592`; exact local and remote `main`
+  readback matched after push.
+- New launcher `agent-ext20-rc6-attestation.sh` prepares one local-only pass to
+  add and fully exercise the collision-free exact-candidate Go 1.26.5
+  artifact-attestation workflow. That pass makes no commit, push, attestation
+  ref, remote run/artifact, suite, model-call, tag, release, external-use,
+  queue, or `EXT-20` completion claim. Blockers: none.
+
 ## EXT-20 RC.6 Exact-Candidate Remote CI (2026-07-25)
 
 - Task selected: the bounded RC.6 candidate-ref and push-triggered remote-CI
