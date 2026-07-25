@@ -4,40 +4,38 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Exact RC.7 candidate ref `refs/heads/level1-v0.1.0-rc.7` now reads back at
+Local-only RC.7 workflow `.github/workflows/level1-rc7-candidate-attestation.yml`
+is complete at SHA-256
+`f3e06992e72029d80162c9b5901c398dbfb3c79cfeae43c0e72ddd28cff4ee13`.
+Its exact embedded shell passed syntax validation and full execution from a
+fresh detached clone of candidate source
 `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
-`43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. Push-triggered CI run
-`30160277511` completed successfully with exactly the ten mandatory unique
-jobs at that exact head SHA. Both sealed RC.7 bundles, all historical remote
-refs, and the three protected RC.6 evidence streams remained exact. No RC.7
-attestation ref, workflow, remote artifact, suite, live/model operation, tag,
-release, external-use approval, queue authority, or `EXT-20` completion was
-created.
+`43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. The retained 29-file result is
+under `/tmp/revolvr-ext20-rc7-attestation.Uq3syS` with path-bearing content-
+stream SHA-256
+`5c56018487239868a8a5af83b14b37179b81e307d09956650085042be8ad31e0`.
+No commit, push, attestation ref, remote run/artifact, suite, model operation,
+tag, release, external-use approval, queue authority, or `EXT-20` completion
+occurred.
 
 ## Exact Next-Session Resume
 
-Independent raw-Git and public-REST review accepted exact RC.7 candidate ref
-and CI run `30160277511` with all ten mandatory successful jobs. Both sealed
-bundles and RC.6 preservation reverified. Raw Git published the accepted
-remote-CI record as commit `a0f5b069ea5189b11f1d4de71c93e825814adee5`,
-tree `46bbdfa195d6f2f45dbb0955328bca7d89c0baf0`.
+The next gate is a fresh independent, no-model review of exactly these four
+worktree files:
 
-The next gate is a separately bounded, no-model, local-only RC.7 artifact-
-attestation workflow construction and verification pass. Exact next command
-from `/home/gernsback/source/revolvr`:
+- `.github/workflows/level1-rc7-candidate-attestation.yml`
+- `.agent/HANDOFF.md`
+- `.agent/STATE.md`
+- `.agent/DECISIONS.md`
 
-```bash
-./agent-ext20-rc7-attestation.sh
-```
-
-The pass may add and fully exercise the collision-free workflow locally only.
-It must check out exact candidate source rather than trigger HEAD and reproduce
-the sealed Linux/Darwin/FreeBSD hashes from two clean non-local builds.
-
-This next gate grants no workflow commit/push, attestation-ref creation,
-remote run or artifact, suite preparation, live/model operation, confirmation
-token, tag, release, external-use approval, queue authority, or `EXT-20`
-completion.
+The reviewer must repeat workflow/YAML/embedded-shell checks, inspect retained
+root `/tmp/revolvr-ext20-rc7-attestation.Uq3syS`, and reverify both RC.7 sealed
+bundles, exact candidate/CI authority and collisions, all historical refs/
+workflows/bundles, and RC.6 terminal preservation. Only after acceptance may
+a separately authorized controller publish the reviewed four-file scope.
+There is no authority yet to create the attestation ref, request or collect a
+remote workflow run/artifact, prepare a suite, start a model operation, tag,
+release, approve external use, grant queue authority, or complete `EXT-20`.
 
 ## RC.7 Remote Candidate And CI Authority
 
@@ -77,9 +75,10 @@ completion.
   - `89684369447` — Build Windows diagnostic stub —
     `13:43:29Z` to `13:43:44Z` —
     `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369447`
-- RC.7 attestation ref, tag, workflow, and exact candidate/attestation
-  artifact names remain absent. All RC.1-through-RC.6 remote refs remain at
-  their recorded immutable SHAs.
+- RC.7 attestation ref, tags, remote workflow path, and exact candidate/
+  attestation artifact names remain absent. The candidate remains the only
+  RC.7 remote ref. Local workflow construction is awaiting independent review;
+  all RC.1-through-RC.6 remote refs remain at their recorded immutable SHAs.
 
 ## RC.7 Local Candidate Authority
 

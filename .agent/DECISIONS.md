@@ -1,5 +1,45 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Local Artifact-Attestation Workflow Authority (2026-07-25)
+
+- The sole locally admitted RC.7 attestation implementation is separate
+  workflow `.github/workflows/level1-rc7-candidate-attestation.yml`, SHA-256
+  `f3e06992e72029d80162c9b5901c398dbfb3c79cfeae43c0e72ddd28cff4ee13`,
+  triggered only by a push to `level1-v0.1.0-rc.7-attestation`. Trigger HEAD is
+  workflow authority only; release source remains exact candidate commit
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+  `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`, with source-CI run
+  `30160277511` recorded in the retained authority manifest.
+- Exact Go 1.26.5, two independent clean non-local clones with distinct build
+  and module caches, and the settled release flags must produce byte-identical
+  Linux/Darwin/FreeBSD amd64 pairs with sealed hashes
+  `1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a`,
+  `fb3ecdc5a6c9199b4c4f28e9b5d3babeaa54d645551b88e09b7dcf1969b6a086`,
+  and `13859c85ebf7d08aca5139625298bf90e2b4a4770976edaa710864cc077729fe`.
+  Every retained binary requires exact Go/tool/path/compiler/trimpath/target/
+  CGO/source/clean-VCS metadata, an empty build ID, and exact
+  `main.version=0.1.0` authority.
+- The single future artifact authority name is
+  `level1-v0.1.0-rc.7-attestation`. The workflow fails closed unless its exact
+  workflow/ref identity and candidate ref agree and the RC.7 tag, attestation-
+  ref, attestation-namespace, and artifact-name authorities have no foreign
+  collision. Before later publication, the exact candidate ref is the only
+  admitted RC.7 ref.
+- Complete unmodified embedded-shell execution from a fresh detached exact-
+  source clone passed. Retained local root
+  `/tmp/revolvr-ext20-rc7-attestation.Uq3syS` has exactly 29 attestation files
+  with path-bearing content-stream SHA-256
+  `5c56018487239868a8a5af83b14b37179b81e307d09956650085042be8ad31e0`.
+  Both RC.7 sealed bundles, exact candidate/CI authority, historical roots/
+  refs/workflows/tags, and RC.6 terminal evidence reverified before and after.
+- Local construction grants no commit, push, attestation ref, remote run or
+  artifact, suite, model call, tag, release, external-use approval, queue
+  authority, or `EXT-20` completion. A fresh independent reviewer must accept
+  the exact four-file scope and retained replay before any separately
+  authorized controller publication. Remote attestation publication remains a
+  later independent gate; RC.1 through RC.6 remain immutable rejected/failed
+  history.
+
 ## EXT-20 RC.7 Remote-CI Review And Attestation Gate (2026-07-25)
 
 - Independent raw-Git/public-REST review accepted exact candidate ref

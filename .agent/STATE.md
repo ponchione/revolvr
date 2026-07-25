@@ -1,5 +1,92 @@
 # Agent State
 
+## EXT-20 RC.7 Local Artifact-Attestation Workflow (2026-07-25)
+
+- Task selected: the bounded local RC.7 artifact-attestation workflow sub-gate
+  of still-unchecked `EXT-20`. Added only the separate workflow
+  `.github/workflows/level1-rc7-candidate-attestation.yml`, triggered solely by
+  a push to `level1-v0.1.0-rc.7-attestation`. Its SHA-256 is
+  `f3e06992e72029d80162c9b5901c398dbfb3c79cfeae43c0e72ddd28cff4ee13`.
+  Trigger HEAD is workflow authority only; checkout remains exact candidate
+  source `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+  `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`.
+- The workflow installs exact Go 1.26.5 with action caching disabled. Two
+  independent clean `--no-local` clones use distinct build and module caches
+  and build Linux, Darwin, and FreeBSD amd64 with module-readonly/local-
+  toolchain mode, disabled CGO, trimpath, explicit clean VCS metadata, empty
+  build IDs, and exact `main.version=0.1.0`. Both build sets are retained in
+  one future artifact named `level1-v0.1.0-rc.7-attestation` with exact hashes,
+  build metadata, version assertions, reproducibility evidence, and authority
+  manifest.
+- Local YAML verification passed PyYAML structure plus exact trigger, action,
+  environment, checkout, and upload assertions. Exact-constant and historical-
+  leak scans, extracted-shell `bash -n`, and `git diff --check` passed. The
+  exact parsed embedded shell has SHA-256
+  `3882c50d361ff95f0b49bc85c5ce44aceafd4ca5d632390dd4adfd686abaf646`.
+- The complete unmodified embedded shell executed successfully from fresh
+  detached exact-source clone
+  `/tmp/revolvr-ext20-rc7-attestation.Uq3syS/source`. Its two inner clean
+  clones remained detached at the exact candidate source/tree and used four
+  distinct `GOCACHE`/`GOMODCACHE` paths. All three build pairs were byte-
+  identical and matched exact Linux/Darwin/FreeBSD SHA-256 values
+  `1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a`,
+  `fb3ecdc5a6c9199b4c4f28e9b5d3babeaa54d645551b88e09b7dcf1969b6a086`,
+  and `13859c85ebf7d08aca5139625298bf90e2b4a4770976edaa710864cc077729fe`.
+  Every binary passed exact Go/tool/path/compiler/trimpath/target/CGO/source/
+  clean-VCS metadata, empty-build-ID, and `main.version` authority checks.
+- Retained output beneath
+  `/tmp/revolvr-ext20-rc7-attestation.Uq3syS/runner-temp/level1-v0.1.0-rc.7-attestation`
+  contains exactly 29 regular single-link files. Its path-bearing content-
+  stream SHA-256 is
+  `5c56018487239868a8a5af83b14b37179b81e307d09956650085042be8ad31e0`.
+  It has six exact artifact hash rows, three identical reproducibility rows,
+  six build-metadata files, six empty build-ID files, six version-authority
+  files, two exact Linux version outputs, and one exact authority manifest.
+- Pre/post raw-Git and public-REST checks kept local/remote `main` exact at
+  `b4c63dde894fec5805cd200164761c8f6e05b449` with published review record
+  `a0f5b069ea5189b11f1d4de71c93e825814adee5` in ancestry. Candidate ref,
+  source/tree, successful run `30160277511`, and its ten exact successful jobs
+  remain exact. The candidate is still the only RC.7 ref; the remote workflow
+  path, attestation ref, RC.7 tag namespace, and candidate/attestation artifact
+  names remain collision-free.
+- Both complete RC.7 bundles reverified at candidate inventory/seal
+  `7eb048cafce9ddbf0cb7e2be659fa9016a2d7a24a0454875f418e1571ac934ba` /
+  `2e2c05e29a265f5878f703c19db2d5adf0484c06fccfacbc13eed54612f67ed0`
+  and verification inventory/seal
+  `ca981a3659c36a5c5802995b84fd168f85edb7b999829b54963d974ca4665733` /
+  `6f5d8de817d7c1a286a1372ec841eb7a16682773b4ecb4fea9687590e33b8e8b`.
+  Build-instructions SHA-256 remained
+  `ccf6cba57b00b3bdf1d50b074e4bbe9f13e3579493c22e87682f9d5952048ecd`.
+  Fourteen historical sealed bundles, all 16 RC.1-through-RC.6 candidate roots,
+  five prior workflows, 13 remote historical/candidate refs, and absent RC
+  tags were unchanged before and after execution.
+- The RC.6 terminal manifest reverified without executing any retired path.
+  Protected suite, launch-record, and terminal-evidence content-stream hashes
+  remain respectively
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- Files changed: `.github/workflows/level1-rc7-candidate-attestation.yml`,
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`. No Go
+  source or dependency changed, so no Go test was required. Verification used
+  PyYAML structural assertions, exact constant/action scans, `bash -n`, full
+  local execution of the exact embedded shell, artifact/hash/metadata/build-ID/
+  version/reproducibility assertions, raw Git and public GitHub REST, complete
+  sealed-bundle inventories, historical content comparisons, RC.6 manifest and
+  content-stream checks, and `git diff --check`.
+- Result: pass, local-only attestation-workflow gate. Blockers: none.
+  `.agent/TASKS.md` remains byte-for-byte unchanged at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. No commit, push, attestation ref, remote workflow
+  run/artifact, suite, live/nested model operation, tag, release, external-use
+  approval, queue authority, or `EXT-20` completion occurred.
+- What remains: a fresh independent pass must review the exact four-file
+  worktree scope, workflow structure/constants/shell, retained local result,
+  sealed bundles, remote candidate/CI authority, collision state, and all
+  preservation evidence. Only after acceptance may a separately authorized
+  controller publish the reviewed workflow/state scope; attestation-ref and
+  remote-run authority remain later separate gates.
+
 ## EXT-20 RC.7 Remote-CI Review And Attestation Handoff (2026-07-25)
 
 - Independent raw-Git readback accepted only exact candidate ref
