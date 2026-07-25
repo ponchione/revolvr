@@ -4,33 +4,95 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Independent review accepted the exact four-file RC.7 local attestation-
-workflow result and retained 29-file replay. Raw Git published it as commit
-`3cc6d527f889c7b933828fbd832d07b5291aee79`, tree
-`1a35d15e75ce372d02f9499bd9634ca0f808f68d`, with workflow SHA-256
-`f3e06992e72029d80162c9b5901c398dbfb3c79cfeae43c0e72ddd28cff4ee13`.
-Local and remote `main` are exact. The RC.7 candidate ref and successful CI
-run remain exact; the attestation ref, run, and artifact remain absent. Both
-RC.7 bundles and all protected RC.6 hashes reverified. No suite, model
-operation, tag, release, external-use approval, queue authority, or `EXT-20`
-completion occurred.
+The bounded RC.7 remote artifact-attestation gate passed. Empty-expected raw
+Git created only `refs/heads/level1-v0.1.0-rc.7-attestation` at reviewed
+workflow commit `3cc6d527f889c7b933828fbd832d07b5291aee79`; exact remote readback
+agrees. Dedicated run/job `30163857880` / `89693466274`, artifact
+`8621008768`, and companion ten-job CI run `30163853353` all completed
+successfully at the exact workflow head. Both RC.7 bundles, the retained local
+29-file result, every historical ref/tag authority, unchanged `.agent/TASKS.md`,
+and all protected RC.6 hashes reverified before and after. No suite, Revolvr
+or nested model operation, tag, release, external-use approval, queue
+authority, or `EXT-20` completion occurred.
 
 ## Exact Next-Session Resume
 
-The next gate is the bounded remote RC.7 artifact-attestation pass. Exact next
-command from `/home/gernsback/source/revolvr`:
+There is no authorized suite command yet. The next pass is a fresh independent
+no-model controller review of the exact three-file durable-state delta and the
+remote RC.7 ref/run/job/artifact plus companion-CI evidence below. The
+controller may publish only the accepted durable-state record. Only afterward
+may a separately bounded, collision-free RC.7 suite-preparation launcher be
+authored and independently reviewed. RC.6 and all older history remain
+immutable and grant no authority; no suite or model operation is permitted by
+this handoff.
 
-```bash
-./agent-ext20-rc7-attestation-remote.sh
-```
+## RC.7 Remote Artifact-Attestation Authority
 
-That launcher authorizes only collision-safe creation of
-`refs/heads/level1-v0.1.0-rc.7-attestation` at exact reviewed workflow commit
-`3cc6d527f889c7b933828fbd832d07b5291aee79`, followed by finite read-only
-collection of its dedicated attestation run/artifact and companion CI run.
-It grants no authority to change the candidate, prepare or reuse a suite,
-start a Revolvr or nested model operation, tag, release, approve external use,
-grant queue authority, or complete `EXT-20`.
+- Attestation ref readback:
+  `3cc6d527f889c7b933828fbd832d07b5291aee79` at
+  `refs/heads/level1-v0.1.0-rc.7-attestation`. Raw Git created it with the
+  required empty-expected lease at `2026-07-25T15:33:24Z`; readback passed at
+  `2026-07-25T15:33:25Z`. No local branch was created and no existing ref was
+  moved or deleted.
+- Dedicated run `30163857880`, workflow ID `320320555`, run number/attempt
+  `1`/`1`, workflow `.github/workflows/level1-rc7-candidate-attestation.yml`,
+  event `push`, exact branch/head, completed/success; created/started
+  `2026-07-25T15:33:34Z`, updated `2026-07-25T15:36:20Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30163857880`.
+- Sole job `89693466274`, `Rebuild and attest Level 1 RC.7 candidate`, exact
+  head, completed/success, `2026-07-25T15:33:36Z` through
+  `2026-07-25T15:36:19Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30163857880/job/89693466274`.
+- Sole unexpired artifact `8621008768`,
+  `level1-v0.1.0-rc.7-attestation`, size `70275600`, digest
+  `sha256:ae87472ef86b5d25cca5df333f057f10d77cf74cd7f332f30d6770745bbf6356`,
+  created/updated `2026-07-25T15:36:17Z`, expires
+  `2026-10-23T15:33:35Z`; archive endpoint
+  `https://api.github.com/repos/ponchione/revolvr/actions/artifacts/8621008768/zip`.
+  No read-only token was configured and unauthenticated download returned HTTP
+  401, so there is no controller-side archive-byte claim.
+- Companion CI run `30163853353`, workflow ID `313588206`, run number/attempt
+  `85`/`1`, exact `.github/workflows/ci.yml` push branch/head,
+  completed/success; created/started `2026-07-25T15:33:26Z`, updated
+  `2026-07-25T15:36:50Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30163853353`.
+- Exact successful companion jobs, all at head
+  `3cc6d527f889c7b933828fbd832d07b5291aee79`:
+  - `89693455164` — Go 1.22 source floor and tests —
+    `15:33:28Z` to `15:35:14Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455164`
+  - `89693455158` — Production autonomous strict-fake suite —
+    `15:33:28Z` to `15:34:21Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455158`
+  - `89693455167` — Race tests — `15:33:28Z` to `15:36:49Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455167`
+  - `89693455176` — Vet and module verification —
+    `15:33:29Z` to `15:34:15Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455176`
+  - `89693455194` — Fake-Codex success smoke —
+    `15:33:28Z` to `15:34:06Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455194`
+  - `89693455193` — Fake-Codex verification-failure smoke —
+    `15:33:29Z` to `15:34:11Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455193`
+  - `89693455190` — Build linux/amd64 — `15:33:29Z` to `15:34:09Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455190`
+  - `89693455186` — Build darwin/amd64 — `15:33:29Z` to `15:34:10Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455186`
+  - `89693455183` — Build freebsd/amd64 — `15:33:28Z` to `15:34:02Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455183`
+  - `89693455189` — Build Windows diagnostic stub —
+    `15:33:29Z` to `15:33:47Z` —
+    `https://github.com/ponchione/revolvr/actions/runs/30163853353/job/89693455189`
+- Post-run preservation reverified both RC.7 inventory/seal pairs, workflow
+  and retained local-attestation hashes, exact candidate and attestation refs,
+  all RC.1-through-RC.6 remote refs, and absent RC tags. `.agent/TASKS.md`
+  remains SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. RC.6 suite/launch-record/terminal-evidence streams
+  remain `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
 
 ## RC.7 Remote Candidate And CI Authority
 
@@ -70,10 +132,11 @@ grant queue authority, or complete `EXT-20`.
   - `89684369447` — Build Windows diagnostic stub —
     `13:43:29Z` to `13:43:44Z` —
     `https://github.com/ponchione/revolvr/actions/runs/30160277511/job/89684369447`
-- RC.7 attestation ref, tags, remote workflow path, and exact candidate/
-  attestation artifact names remain absent. The candidate remains the only
-  RC.7 remote ref. Local workflow construction is awaiting independent review;
-  all RC.1-through-RC.6 remote refs remain at their recorded immutable SHAs.
+- This source-candidate CI authority remains exact. Current attestation ref,
+  run, job, and artifact authority is recorded in the preceding section; the
+  candidate and attestation branches are now the only two RC.7 remote refs.
+  RC.7 tags remain absent and all RC.1-through-RC.6 remote refs remain at their
+  recorded immutable SHAs.
 
 ## RC.7 Local Candidate Authority
 

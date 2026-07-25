@@ -1,5 +1,35 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Remote Artifact-Attestation Authority (2026-07-25)
+
+- Empty-expected raw Git created only
+  `refs/heads/level1-v0.1.0-rc.7-attestation` at exact reviewed workflow commit
+  `3cc6d527f889c7b933828fbd832d07b5291aee79`; exact remote readback agrees.
+  Candidate source/ref remains
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`.
+- Dedicated push run/job `30163857880` / `89693466274` completed successfully
+  at the exact workflow head. Its sole unexpired artifact is `8621008768`,
+  `level1-v0.1.0-rc.7-attestation`, `70275600` bytes, digest
+  `sha256:ae87472ef86b5d25cca5df333f057f10d77cf74cd7f332f30d6770745bbf6356`.
+  No read-only token was configured; the unauthenticated archive endpoint
+  returned HTTP 401, so remote archive bytes are not claimed by the
+  controller.
+- Companion CI run `30163853353` completed successfully at the exact head with
+  exactly its ten mandatory jobs: `89693455164`, `89693455158`, `89693455167`,
+  `89693455176`, `89693455194`, `89693455193`, `89693455190`, `89693455186`,
+  `89693455183`, and `89693455189`. Exact names, URLs, timestamps, head SHAs,
+  and conclusions are retained in `.agent/STATE.md` and `.agent/HANDOFF.md`.
+- Complete RC.7 bundle/workflow/local-replay, historical-ref/tag, and RC.6
+  terminal-evidence checks passed before and after publication. RC.1 through
+  RC.6 remain immutable rejected or failed history. `.agent/TASKS.md` remains
+  unchanged with `EXT-20` unchecked.
+- This authority stops at remote ref/run/job/artifact and companion-CI
+  evidence. A fresh independent no-model controller must accept and publish
+  the exact three-file record before a separate RC.7 suite-preparation gate
+  may be authored or reviewed. No suite, Revolvr or model operation, tag,
+  release, external-use approval, queue authority, or `EXT-20` completion is
+  granted.
+
 ## EXT-20 RC.7 Remote Attestation Gate Authority (2026-07-25)
 
 - Independent review accepted and raw Git published the exact RC.7 local
