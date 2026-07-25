@@ -1,5 +1,16 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Next No-Model Gate (2026-07-25)
+
+- After publication of the planner-profile remediation, the next bounded gate
+  is fresh local RC.7 candidate construction from exact source
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`. The attended launcher may create
+  and verify new local candidate and verification bundles only.
+- RC.7 must not reuse an RC.6 candidate, bundle, suite, operation, launch
+  record, or evidence. Local construction grants no remote publication,
+  attestation, suite preparation, live model call, tag, release, external-use,
+  queue, or EXT-20 completion authority.
+
 ## EXT-20 Planner Profile Identity And RC.6 Retirement (2026-07-25)
 
 - A repo-authored run profile may be represented by either its exact protected

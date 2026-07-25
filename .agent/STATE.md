@@ -1,5 +1,20 @@
 # Agent State
 
+## EXT-20 RC.7 Local-Candidate Continuation Prepared (2026-07-25)
+
+- Planner-profile remediation commit
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+  `43fc099d966cd6c06a74f00272c945fe3ca0a0f9`, is published on `origin/main`.
+- New attended-shell launcher `agent-ext20-rc7.sh` prepares one fresh session
+  whose only task is collision-free local construction and verification of
+  `level1-v0.1.0-rc.7` from that exact source. It forbids live Revolvr/model
+  operations, suite preparation or launch, remote refs, workflows, tags,
+  releases, external-use approval, queue authority, and EXT-20 completion.
+- The launcher requires clean local/remote-main agreement and binds RC.1
+  through RC.6 as immutable history. It explicitly protects the RC.6 suite,
+  launch record, and terminal evidence with manifest and pre/post content-hash
+  checks and forbids any reuse. Its next command is `./agent-ext20-rc7.sh`.
+
 ## EXT-20 RC.6 Failure Remediation (2026-07-25)
 
 - Read-only controller authority reverified clean local `main`, local

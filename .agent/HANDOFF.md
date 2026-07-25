@@ -12,7 +12,9 @@ validation, not API availability. RC.6 and its suite, launch record, and
 terminal evidence are retired immutable failed-attempt evidence and must never
 be rerun, repaired, deleted, or mutated.
 
-The retained terminal manifest at
+The remediation is published on `main` as exact commit
+`f63cbe3989cb281652cf4eec3f92614fec98294d`, tree
+`43fc099d966cd6c06a74f00272c945fe3ca0a0f9`. The retained terminal manifest at
 `.revolvr/ext20-rc6.LOLauh/suite/evidence/repo-a/01-successful-source-change-1/manifest.tsv`
 verifies. The root cause was planner profile normalization: the repository file
 is 1,459 bytes with SHA-256
@@ -26,10 +28,17 @@ validation contract and retains tamper rejection. Focused provenance tests,
 
 ## Exact Next-Session Resume
 
-No RC.6 command remains active. After this remediation is published, prepare a
-new attended-shell launcher for the next bounded no-model RC.7 local-candidate
-stage. RC.7 must use a newly constructed suite later and must not reuse any
-RC.6 runtime state or evidence. Do not start a live gate.
+No RC.6 command remains active. The sole next continuation is the newly
+prepared attended-shell launcher for the bounded no-model RC.7 local-candidate
+stage. It constructs local candidate bundles only; it must not prepare or start
+a suite, make a Revolvr product-model call, or reuse any RC.6 runtime state or
+evidence.
+
+Exact next command from `/home/gernsback/source/revolvr`:
+
+```bash
+./agent-ext20-rc7.sh
+```
 
 ## RC.6 Prepared No-Model Suite Authority
 
@@ -1104,8 +1113,11 @@ Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
 There is no active live command. Every RC.6 launcher and suite command is
-retired and must not be rerun. The next published handoff will name one new
-RC.7 no-model continuation command.
+retired and must not be rerun. The only active continuation command is:
+
+```bash
+./agent-ext20-rc7.sh
+```
 
 ## Session Rules
 
