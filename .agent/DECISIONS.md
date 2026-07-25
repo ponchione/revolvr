@@ -1,5 +1,24 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Direct-Live-Gate Construction Authority (2026-07-25)
+
+- Independent controller review accepted and raw Git published the exact RC.7
+  prepared-suite record as commit
+  `83078e8467f00439956252955d5c130d51f34214`, tree
+  `31e680996695e1bc71d38e1216a471250009fb0d`. The ignored suite root remains
+  exact, unstarted, and free of evidence, aggregate output, and launch records.
+- The next bounded authority is construction and no-model checking only via
+  `agent-ext20-rc7-live-gate.sh`. It may add one fail-closed RC.7 direct
+  launcher and its focused checker, bound to the published suite, candidate,
+  attestation, script, Codex, repository, and preservation identities.
+- Construction may exercise only refusal and `--check` paths. It cannot invoke
+  `--live`, pass a live confirmation, create a launch record, start Revolvr or
+  a nested model operation, or publish an active live command. The resulting
+  files require a fresh independent controller review before any later live
+  authorization decision.
+- RC.6 remains terminally retired and immutable. No RC.6 launcher or suite
+  path may be executed, repaired, deleted, mutated, derived from, or reused.
+
 ## EXT-20 RC.7 Prepared Suite Authority And Review Gate (2026-07-25)
 
 - The guarded suite's sole admitted candidate authority is now exact RC.7

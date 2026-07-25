@@ -4,41 +4,32 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-The guarded Level-1 suite now differs from published `main` only by the exact
-RC.7 candidate source, Linux SHA-256, and bundle-path substitutions. Exactly one
-fresh persistent no-model suite was prepared at
-`/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite`: suite ID
-`ext20-14b2bf40212b`, authority/plan/content-stream SHA-256 values
+Independent controller review accepted the exact four-file prepared-suite
+record and retained RC.7 root. Raw Git published it as commit
+`83078e8467f00439956252955d5c130d51f34214`, tree
+`31e680996695e1bc71d38e1216a471250009fb0d`. The guarded driver differs from
+its RC.6 predecessor only by three RC.7 candidate constants. Suite
+`ext20-14b2bf40212b` remains byte-exact at authority/plan/content-stream hashes
 `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e`,
 `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
 and `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
-Repo heads are `22bc5fd5ea1469fb76afef6425964f0b0c7f70bb` and
-`f92954597d8bd35372ee181c959be9a5fc637429`.
-
-All no-model preparation checks passed. The post-live `--verify-suite` mode
-correctly refused the unstarted suite at missing manifest
-`ext20-14b2bf40212b-01`; zero operation/collector manifests and the empty
-aggregate remain part of prepared authority. No model/Revolvr operation,
-launch record, live launcher, commit, push, tag, release, external-use
-approval, queue authority, or `EXT-20` completion occurred.
+No model/Revolvr operation, launch record, live launcher, tag, release,
+external-use approval, queue authority, or `EXT-20` completion occurred.
 
 ## Exact Next-Session Resume
 
-The next gate is a fresh independent no-model review of the exact four-file
-tracked delta and retained prepared root, followed by controller publication
-only if all authority and preservation checks pass. The exact first command
-from `/home/gernsback/source/revolvr` is:
+The next gate is construction and no-model checking of the fail-closed RC.7
+direct launcher. Exact next command from `/home/gernsback/source/revolvr`:
 
 ```bash
-git status --porcelain=v2 --branch
+./agent-ext20-rc7-live-gate.sh
 ```
 
-No live command is active or authorized. The reviewer must freshly fetch
-`origin/main`, require the exact tracked scope, independently reverify the
-prepared hashes and all RC.7/RC.6 authority, and publish only the reviewed
-tracked record with raw Git. It must not execute or mutate RC.6, pass `--live`,
-start Revolvr or a nested model, create a launch record or live launcher, tag,
-release, approve external use, grant queue authority, or complete `EXT-20`.
+This next pass may create and test only a direct launcher plus focused checker.
+It must not invoke `--live`, use a live confirmation, create a launch record,
+start Revolvr or a nested model, mutate RC.6, or make a live command the active
+handoff. A later fresh controller review is required before any separately
+authorized live decision.
 
 ## RC.7 Prepared Suite Authority
 

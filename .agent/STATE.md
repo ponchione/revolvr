@@ -1,5 +1,51 @@
 # Agent State
 
+## EXT-20 RC.7 Prepared-Suite Review And Live-Gate Construction Handoff (2026-07-25)
+
+- Independent review accepted the exact four-file suite-preparation scope.
+  The suite driver diff contains only RC.7 candidate source
+  `f63cbe3989cb281652cf4eec3f92614fec98294d`, Linux SHA-256
+  `1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a`,
+  and bundle-path substitutions; every other suite byte is unchanged.
+- Prepared suite `/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite`
+  independently reverified at suite ID `ext20-14b2bf40212b`, authority/plan/
+  content-stream SHA-256
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e` /
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1` /
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  It is the only persistent RC.7 parent. Exact candidate/Codex identities,
+  clean repository heads, configs, sentinels, 11-row plan, ten unique pending
+  zero-attempt tasks, and all ten doctor-ready results passed.
+- Independent no-model checks passed both repository `config check` commands,
+  exact `timeout=32m0s heartbeat_interval=10m40s required=32m0s` doctor
+  authority, suite/collector syntax, suite `--static`, both retained fixture
+  manifest validations and hashes, and expected `--verify-suite` refusal at
+  missing first manifest. RC.7 suite content was byte-identical before and
+  after; it retains zero evidence/manifests, an empty aggregate, and no launch
+  record. `go test -count=1 ./...` and `git diff --check` passed.
+- Both sealed RC.7 bundles and candidate self-verification passed. Raw Git and
+  public REST kept candidate/attestation refs, exact runs/jobs/artifact, all
+  historical refs, and absent RC tags exact. `.agent/TASKS.md` remains SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked.
+- The RC.6 terminal manifest passed read-only verification and its protected
+  suite/launch-record/terminal-evidence streams remained
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+  RC.6 was not executed or mutated.
+- Raw Git published the accepted prepared-suite record as commit
+  `83078e8467f00439956252955d5c130d51f34214`, tree
+  `31e680996695e1bc71d38e1216a471250009fb0d`, parent
+  `29ca11e24f2cc8832615fe5274d79c151d1eb5c0`; exact remote `main` readback
+  passed.
+- New attended launcher `agent-ext20-rc7-live-gate.sh`, SHA-256
+  `655e636894b22569feb934c53011582095d498fd0f80af410e2c7e83a7266f12`,
+  is construction-only. It may create a fail-closed direct launcher and
+  focused no-model checker, but cannot invoke `--live`, use confirmation,
+  create launch evidence, start a Revolvr/nested model operation, or make a
+  live command active. Its output requires fresh independent review.
+
 ## EXT-20 RC.7 Guarded No-Model Suite Preparation (2026-07-25)
 
 - Task selected: only the bounded RC.7 no-model suite-preparation sub-gate of
