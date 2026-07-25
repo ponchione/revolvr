@@ -4,31 +4,63 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Independent controller review accepted the exact three-file RC.7 remote-
-attestation record. Raw Git published it as commit
-`c17a8f08efe1fedb1edcdc5f98b6d03ebc0e5a3c`, tree
-`5d8580dc2b7a847c8d4ec83791781d3568b23296`. Exact attestation ref, dedicated
-run/job/artifact, companion ten-job CI, both RC.7 bundles, retained local
-replay, historical refs/tags, unchanged `.agent/TASKS.md`, and all protected
-RC.6 hashes independently reverified. No suite, Revolvr or nested model
-operation, tag, release, external-use approval, queue authority, or `EXT-20`
-completion occurred.
+The guarded Level-1 suite now differs from published `main` only by the exact
+RC.7 candidate source, Linux SHA-256, and bundle-path substitutions. Exactly one
+fresh persistent no-model suite was prepared at
+`/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite`: suite ID
+`ext20-14b2bf40212b`, authority/plan/content-stream SHA-256 values
+`c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e`,
+`5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
+and `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+Repo heads are `22bc5fd5ea1469fb76afef6425964f0b0c7f70bb` and
+`f92954597d8bd35372ee181c959be9a5fc637429`.
+
+All no-model preparation checks passed. The post-live `--verify-suite` mode
+correctly refused the unstarted suite at missing manifest
+`ext20-14b2bf40212b-01`; zero operation/collector manifests and the empty
+aggregate remain part of prepared authority. No model/Revolvr operation,
+launch record, live launcher, commit, push, tag, release, external-use
+approval, queue authority, or `EXT-20` completion occurred.
 
 ## Exact Next-Session Resume
 
-The next gate is one fresh, no-model RC.7 suite-preparation pass. Exact next
-command from `/home/gernsback/source/revolvr`:
+The next gate is a fresh independent no-model review of the exact four-file
+tracked delta and retained prepared root, followed by controller publication
+only if all authority and preservation checks pass. The exact first command
+from `/home/gernsback/source/revolvr` is:
 
 ```bash
-./agent-ext20-rc7-suite.sh
+git status --porcelain=v2 --branch
 ```
 
-The launcher may update only the three guarded candidate constants in
-`scripts/dogfood-external-level1-suite.sh` and prepare exactly one new
-persistent `.revolvr/ext20-rc7.XXXXXX/suite` root. It must not reuse or mutate
-RC.6, pass `--live`, create a launch record or live launcher, start a Revolvr
-or nested model operation, tag, release, approve external use, grant queue
-authority, or complete `EXT-20`.
+No live command is active or authorized. The reviewer must freshly fetch
+`origin/main`, require the exact tracked scope, independently reverify the
+prepared hashes and all RC.7/RC.6 authority, and publish only the reviewed
+tracked record with raw Git. It must not execute or mutate RC.6, pass `--live`,
+start Revolvr or a nested model, create a launch record or live launcher, tag,
+release, approve external use, grant queue authority, or complete `EXT-20`.
+
+## RC.7 Prepared Suite Authority
+
+- Root: `/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite`
+- Suite ID: `ext20-14b2bf40212b`
+- Authority SHA-256:
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e`
+- Plan SHA-256:
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`
+- Path-bearing content-stream SHA-256:
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`
+- Repo-a/repo-b heads:
+  `22bc5fd5ea1469fb76afef6425964f0b0c7f70bb` /
+  `f92954597d8bd35372ee181c959be9a5fc637429`
+- Exact 11-row plan retains ten unique pending doctor-ready tasks. Candidate
+  and Codex identities, `gpt-5.6-sol` / `xhigh`, 32-minute required
+  source-writer authority, both repository markers, clean `main` branches,
+  sentinels, zero manifests, empty aggregate, and absent launch records pass.
+- Suite/collector syntax and static checks, two fixture/manifests, full Go
+  tests, diff hygiene, both sealed RC.7 bundles, raw-Git/public-REST authority,
+  historical refs/tags, and all protected RC.6 streams passed before and
+  after preparation.
 
 ## RC.7 Remote Artifact-Attestation Authority
 

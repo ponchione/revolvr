@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Prepared Suite Authority And Review Gate (2026-07-25)
+
+- The guarded suite's sole admitted candidate authority is now exact RC.7
+  source `f63cbe3989cb281652cf4eec3f92614fec98294d`, Linux artifact SHA-256
+  `1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a`,
+  and bundle `.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb`.
+  Every non-candidate byte of the suite driver remains unchanged.
+- The sole newly prepared RC.7 suite authority is persistent root
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite`, suite ID
+  `ext20-14b2bf40212b`, authority/plan/content-stream SHA-256 values
+  `c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e`,
+  `5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
+  and `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  Its repository heads are
+  `22bc5fd5ea1469fb76afef6425964f0b0c7f70bb` and
+  `f92954597d8bd35372ee181c959be9a5fc637429`.
+- Preparation and independent inspection started no model and retained zero
+  operation/collector manifests, an empty aggregate, ten pending doctor-ready
+  tasks, intact sentinels, exact candidate/Codex/configuration authority, and
+  no launch record. `--verify-suite` is post-live evidence verification and
+  correctly refuses this unstarted suite at its first missing manifest; that
+  expected refusal is not authority to manufacture evidence or change the
+  verifier.
+- This prepared root is not published or live authority. A fresh independent
+  no-model controller must review the exact four-file tracked delta and every
+  retained authority/preservation claim before publication. No live command
+  is the active handoff, and this decision grants no model operation, launch
+  record or launcher, tag, release, external-use approval, queue authority, or
+  `EXT-20` completion. RC.1 through RC.6 remain immutable rejected or failed
+  history.
+
 ## EXT-20 RC.7 Fresh Suite-Preparation Gate Authority (2026-07-25)
 
 - Independent controller review accepted and raw Git published the exact RC.7
