@@ -4,30 +4,34 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-The attended RC.7 human-authorization checkpoint passed every no-model
-technical admission check and stopped because explicit human consent for a
-real-model launch is absent. Fresh local, fetched, raw-Git public, and public-
-REST `main` agreed at `133fb6ddb2f94873d572dd72b9c91ef337cb87b3`.
-Published recommendation `1a07077f24526b9202da55c2981911b7e0770a67`,
-tree `1cb2ed843d1d5cf294487e8e404a030bb9f9838c`, parent
-`b6351d108fc971dcfff5367267fb7eb1a3b00273`, its exact three-file delta,
-both required ancestries, safe refusals, and the complete published `--check`
-all passed. RC.7 remains unstarted; protected RC.6 remains exact.
+Independent controller replay accepted the RC.7 human-authorization checkpoint
+and raw Git published its exact three-file durable-state record as commit
+`3c621ddfb8d11905150498c9cd3cc173323ac816`, tree
+`d5a313ed6a86d73bedb9ad6b1997f2e8e32e5b2e`, parent
+`133fb6ddb2f94873d572dd72b9c91ef337cb87b3`. Local, fetched, and public
+`main` readback matched. Safe refusal, complete sourced authority, diff
+hygiene, and clean published `--check` paths passed. Technical admission is
+ready, but explicit human authorization remains absent; RC.7 is unstarted and
+RC.6 remains exact.
 
 ## Exact Next-Session Resume
 
-Return this exact three-file checkpoint record to a separate controller for
-independent review and publication. The first read-only command from
-`/home/gernsback/source/revolvr` is:
+The only safe continuation is an inert authorization-status readback.
+Executable `agent-ext20-rc7-await-live-authorization.sh`, SHA-256
+`4a90526c5e5fc26c57470ac6cae197976aca449d7394899c4ca37b9efc23b332`,
+performs clean/public authority checks plus the launcher's `--check` path and
+then reports the consent requirement. Exact next command from
+`/home/gernsback/source/revolvr`:
 
 ```bash
-git diff -- .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
+./agent-ext20-rc7-await-live-authorization.sh
 ```
 
-No executable live command is authorized or retained. After independent
-publication, a human may make a distinct explicit decision about the bounded
-effects below. Absent that decision, no further action is authorized and
-`EXT-20` remains unchecked.
+This status script contains no live confirmation, `--live` invocation, Codex
+session, or mutation path. It cannot start the suite or change durable state.
+After it reports, no further live preparation is authorized unless a human
+issues a new explicit instruction consenting to the bounded effects below.
+`EXT-20` remains unchecked and no live command is active.
 
 ## RC.7 Human-Authorization Boundary
 
@@ -1377,11 +1381,11 @@ made, so no API-acceptance claim is authorized.
 
 1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
    launcher or suite command.
-2. Run exactly one attended no-model human-authorization checkpoint through
-   `agent-ext20-rc7-live-authorization-checkpoint.sh`.
-3. Return its durable-state-only consent boundary for independent controller
-   review. Do not grant or activate live authority, create a launch record, or
-   complete `EXT-20` in that pass.
+2. Run only the inert authorization-status readback through
+   `agent-ext20-rc7-await-live-authorization.sh`.
+3. Stop at the reported consent boundary. Do not grant or activate live
+   authority, create a launch record, or complete `EXT-20` without a new
+   explicit human instruction.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1395,10 +1399,10 @@ launcher.
 
 There is no active live command. Every RC.6 launcher and suite command is
 retired and must not be rerun. The only active continuation command is the
-attended no-model human-authorization checkpoint:
+inert no-model authorization-status readback:
 
 ```bash
-./agent-ext20-rc7-live-authorization-checkpoint.sh
+./agent-ext20-rc7-await-live-authorization.sh
 ```
 
 ## Session Rules

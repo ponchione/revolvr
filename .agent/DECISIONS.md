@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Await Explicit Human Live Authorization (2026-07-25)
+
+- Independent controller replay accepted and raw Git published the exact human-
+  authorization checkpoint record as commit
+  `3c621ddfb8d11905150498c9cd3cc173323ac816`, tree
+  `d5a313ed6a86d73bedb9ad6b1997f2e8e32e5b2`. Technical admission remains
+  ready, but explicit human consent for real model effects is absent.
+- Executable `agent-ext20-rc7-await-live-authorization.sh`, SHA-256
+  `4a90526c5e5fc26c57470ac6cae197976aca449d7394899c4ca37b9efc23b332`,
+  is the only safe continuation. It performs check-only authority readback and
+  prints the consent boundary; it has no Codex, live-token, `--live`, launch-
+  record, or mutation path.
+- Running the inert status script is not live authorization. No further live
+  construction or execution is authorized until a human explicitly consents
+  to the recorded eleven-operation scope and material effects. `EXT-20`
+  remains unchecked and no live command is active.
+- RC.1 through RC.6 remain immutable rejected or failed history. RC.6 may be
+  rehashed read-only but cannot be executed, repaired, deleted, derived from,
+  or reused.
+
 ## EXT-20 RC.7 Explicit Human Consent Requirement (2026-07-25)
 
 - The exact published admission recommendation and a fresh complete

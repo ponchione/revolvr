@@ -1,5 +1,42 @@
 # Agent State
 
+## EXT-20 RC.7 Authorization Boundary Publication And Status Handoff (2026-07-25)
+
+- Independent controller replay accepted the human-authorization checkpoint's
+  exact three durable-state files and its result: technical admission PASS,
+  explicit human live authorization ABSENT. Raw Git published the record as
+  commit `3c621ddfb8d11905150498c9cd3cc173323ac816`, tree
+  `d5a313ed6a86d73bedb9ad6b1997f2e8e32e5b2e`, parent
+  `133fb6ddb2f94873d572dd72b9c91ef337cb87b3`; local, fetched, and public
+  `main` readback matched.
+- Replay passed syntax, focused refusal/collision checks, complete sourced
+  remote/bundle/suite/repository/task authority, and diff hygiene. No Go,
+  source, or test file changed, so the exact already-published full Go test
+  result remains applicable. The clean published direct-launcher `--check`
+  path also passed without a model call, launch record, or runtime mutation.
+- RC.7 remains exact at content-stream SHA-256
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`
+  with ten pending zero-attempt tasks, zero operation/collector/model/receipt
+  evidence, empty aggregate, and no launch-record root. Protected RC.6 suite,
+  launch record, and terminal evidence remain exact at
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- Added executable inert status continuation
+  `agent-ext20-rc7-await-live-authorization.sh`, SHA-256
+  `4a90526c5e5fc26c57470ac6cae197976aca449d7394899c4ca37b9efc23b332`.
+  It binds clean local/fetched/public main, exact published checkpoint,
+  launcher/backlog identities, and absent launch records; runs only the
+  launcher's `--check`; and prints the effects requiring explicit human
+  consent. It contains no Codex invocation, live confirmation, `--live`, or
+  state mutation path.
+- The current operator direction still forbids real model calls and does not
+  authorize the eleven-operation live suite. `.agent/TASKS.md` remains exact
+  at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. No live command is active; after the inert status
+  readback, further progress requires new explicit human authorization.
+
 ## EXT-20 RC.7 Human-Authorization Checkpoint (2026-07-25)
 
 - Task selected: exactly one no-model human-authorization checkpoint under
