@@ -1,5 +1,38 @@
 # Agent State
 
+## EXT-20 RC.7 Pre-Live Publication And Final No-Model Review Handoff (2026-07-25)
+
+- Independent controller replay accepted exactly the three durable-state files
+  produced by the pre-live review. Raw Git published them as commit
+  `f03258496621bbf8fd440a5c7293430a6ce44a22`, tree
+  `39ac014ebdcd56482b931fd79073429e51419df3`, parent
+  `460c2fa31155dca28a4f9ce861c03fbad8949acc`; local, fetched, and public
+  `main` readback matched.
+- Replay passed syntax, the focused refusal/collision checker, the complete
+  sourced remote/bundle/suite/repository/task authority path,
+  `go test -count=1 ./...`, and diff hygiene. On clean published `main`, the
+  complete direct-launcher `--check` preflight also returned success without a
+  model call, launch record, or runtime mutation.
+- RC.7 remains exact at content-stream SHA-256
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`
+  with zero operation/collector/model/receipt evidence, empty aggregate, ten
+  pending zero-attempt tasks, and no launch-record root. Protected RC.6 suite,
+  launch record, and terminal evidence remain exact at
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- Prepared executable continuation
+  `agent-ext20-rc7-live-authority-review.sh`, SHA-256
+  `79d8aea3ec9f46d4ccee8bdcdd33aec09502e4d0e7ed65acef2b54dbd93e563f`.
+  It admits one final attended no-model review and may update only
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md` with a
+  recommendation. It forbids the live token, `--live`, launch-record creation,
+  Revolvr/nested model execution, executable construction, tag/release/
+  external-use/queue authority, and `EXT-20` completion.
+- `.agent/TASKS.md` remains byte-exact at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. No live command is active.
+
 ## EXT-20 RC.7 Independent Pre-Live No-Model Review (2026-07-25)
 
 - Task selected: exactly one bounded independent pre-live no-model review of

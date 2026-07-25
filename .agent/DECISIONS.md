@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Final No-Model Live-Authority Review Gate (2026-07-25)
+
+- Independent controller replay accepted and raw Git published the exact
+  pre-live review record as commit
+  `f03258496621bbf8fd440a5c7293430a6ce44a22`, tree
+  `39ac014ebdcd56482b931fd79073429e51419df3`. Complete no-model replay and
+  clean published `--check` readback passed; RC.7 remains unstarted, RC.6
+  remains preserved, and `EXT-20` remains unchecked.
+- The next bounded authority is executable
+  `agent-ext20-rc7-live-authority-review.sh`, SHA-256
+  `79d8aea3ec9f46d4ccee8bdcdd33aec09502e4d0e7ed65acef2b54dbd93e563f`.
+  It may only review exact published/runtime authority and record a durable
+  pass/fail recommendation for a later human/controller decision.
+- This gate cannot invoke or activate the live path, supply or encode the live
+  confirmation, create a launch record, start Revolvr or a nested model,
+  construct another executable, complete `EXT-20`, or grant tag, release,
+  external-use, or queue authority. No live command is active.
+- RC.1 through RC.6 remain immutable rejected or failed history. RC.6 may be
+  rehashed read-only but cannot be executed, repaired, deleted, derived from,
+  or reused.
+
 ## EXT-20 RC.7 Independent Pre-Live Review Boundary (2026-07-25)
 
 - Independent pre-live review accepted the complete published direct launcher

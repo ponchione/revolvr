@@ -4,35 +4,35 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-The fresh independent RC.7 pre-live no-model review passed. Clean local,
-fetched, and public `main` agreed at
-`460c2fa31155dca28a4f9ce861c03fbad8949acc`; published direct-launch commit
-`d2e7d8ddda66db7685b021dcc33b94766ec00204`, tree
-`701639e624fc86a0a18c77cf19dc064f8e7bd511`, parent
-`6931b3ef790a6f0375944043596cb591cf589f2a`, remained exact in both required
-ancestries. Complete launcher/checker inspection, syntax, independent safe
-argument refusals, the complete published `--check` preflight, uncached full Go
-tests, diff hygiene, prepared-suite zero-activity authority, unchanged task
-backlog, and all protected RC.6 streams passed without runtime mutation or a
-model call.
+Independent controller replay accepted the RC.7 pre-live no-model review and
+raw Git published its exact three-file durable-state record as commit
+`f03258496621bbf8fd440a5c7293430a6ce44a22`, tree
+`39ac014ebdcd56482b931fd79073429e51419df3`, parent
+`460c2fa31155dca28a4f9ce861c03fbad8949acc`. Local, fetched, and public
+`main` readback matched. Refusal-only coverage, sourced downstream authority,
+the uncached full Go suite, diff hygiene, and the clean published full
+`--check` path passed. RC.7 remains unstarted and byte-exact; every protected
+RC.6 stream remains unchanged.
 
 ## Exact Next-Session Resume
 
-Return this exact three-file durable-state delta to the separate controller for
-review. No executable continuation or live command was created or activated in
-this pass. The controller's first read-only command from
-`/home/gernsback/source/revolvr` is:
+The next gate is one final attended no-model live-authority review. Prepared
+continuation `agent-ext20-rc7-live-authority-review.sh`, SHA-256
+`79d8aea3ec9f46d4ccee8bdcdd33aec09502e4d0e7ed65acef2b54dbd93e563f`,
+may only produce a durable pass/fail recommendation for a later human/
+controller decision. Exact next command from
+`/home/gernsback/source/revolvr`:
 
 ```bash
-git diff -- .agent/STATE.md .agent/DECISIONS.md .agent/HANDOFF.md
+./agent-ext20-rc7-live-authority-review.sh
 ```
 
-If the controller independently accepts the review record, it may publish only
-these three files using raw Git. Publication still grants no live invocation,
-launch record, model operation, tag, release, external-use approval, queue
-authority, or `EXT-20` completion. Any live-authority decision must occur in a
-later, distinct post-publication gate. `EXT-20` remains unchecked and no live
-command is active.
+The continuation requires clean exact local/fetched/public `main`, published
+pre-live record `f03258496621bbf8fd440a5c7293430a6ce44a22`, exact launcher,
+checker, backlog and runtime authorities, and no launch-record root. It cannot
+invoke `--live`, supply, reproduce, or embed the live confirmation, construct
+another executable, create a launch record, start Revolvr or a nested model,
+or activate a live command. `EXT-20` remains unchecked.
 
 ## RC.7 Independent Pre-Live Review Evidence
 
@@ -1292,11 +1292,11 @@ made, so no API-acceptance claim is authorized.
 
 1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
    launcher or suite command.
-2. Run exactly one attended pre-live no-model review of the published RC.7
-   direct launcher through `agent-ext20-rc7-prelive-review.sh`.
-3. Return its durable-state-only result for independent controller review and
-   a separate authority decision. Do not run a live command, create a launch
-   record, or complete `EXT-20` in that review pass.
+2. Run exactly one attended no-model live-authority review through
+   `agent-ext20-rc7-live-authority-review.sh`.
+3. Return its durable-state-only recommendation for independent controller and
+   human review. Do not run or activate a live command, create a launch record,
+   or complete `EXT-20` in that pass.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1310,10 +1310,10 @@ launcher.
 
 There is no active live command. Every RC.6 launcher and suite command is
 retired and must not be rerun. The only active continuation command is the
-attended no-model pre-live review:
+attended no-model live-authority review:
 
 ```bash
-./agent-ext20-rc7-prelive-review.sh
+./agent-ext20-rc7-live-authority-review.sh
 ```
 
 ## Session Rules
