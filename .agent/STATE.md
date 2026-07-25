@@ -110,6 +110,105 @@ independent focused, race, and full-suite verification evidence.
 Current external-project decision remains not approved; the readiness
 document's remaining blockers stay open until their ordered tasks pass.
 
+## EXT-20 RC.6 Exact-Candidate Remote CI (2026-07-25)
+
+- Task selected: the bounded RC.6 candidate-ref and push-triggered remote-CI
+  sub-gate of still-unchecked `EXT-20`. The pass stopped after remote CI
+  evidence and made exactly one external mutation.
+- Before publication, the complete 15-file candidate bundle and 50-file
+  verification bundle passed their sealed inventory and exact file-set
+  checks. Candidate ID `level1-v0.1.0-rc.6`, release `0.1.0`, source commit
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, source tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`, build-instructions SHA-256
+  `94d291ec80db7427bddc1db57cac147c5d061ca3dbdbdd038259e1da3505a906`,
+  candidate inventory/seal
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`,
+  and verification inventory/seal
+  `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`
+  matched exactly. Linux/Darwin/FreeBSD artifact SHA-256 values remained
+  `f3800b164c83728869a949d7b2240a1558ce2649668c0a05480cf8798304c22d`,
+  `596a17a21b5509cfa868762e8675a66251136cf483cdbb40cc0fa51a28f284f7`,
+  and `60c4052e2ff717b5f9d09db73d00073c4d182ed2b584328eaae4bd6d7f2b4344`.
+- Immediately before publication, raw Git fetched `origin/main` without tags
+  and proved exact local/remote `main`
+  `4aa16b63f05da16d2d1620be83aec18a28e6d0cb`, published local-candidate
+  record `60a19d4e38ddd5ea76490221973601e0efce2625` as its ancestor, and the exact
+  candidate source as reachable from `origin/main`. Local and remote RC.6
+  candidate and attestation refs, local and remote `*rc.6*` tags, the RC.6
+  attestation workflow, and remote artifact name
+  `level1-v0.1.0-rc.6-attestation` were all absent.
+- The sole external mutation used raw Git with the required empty-expected
+  lease:
+  `git push --force-with-lease=refs/heads/level1-v0.1.0-rc.6: origin
+  73f1f81f1c51d927114f19818a18161d0fcb8541:refs/heads/level1-v0.1.0-rc.6`.
+  Exact remote readback is
+  `73f1f81f1c51d927114f19818a18161d0fcb8541` at
+  `refs/heads/level1-v0.1.0-rc.6`; no local branch was created and no existing
+  ref was updated or deleted.
+- The public GitHub Actions REST API identified exactly one matching CI run:
+  run `30153462797`, run number `66`, attempt `1`, workflow `CI` at
+  `.github/workflows/ci.yml`, event `push`, branch
+  `level1-v0.1.0-rc.6`, head SHA
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, status `completed`, conclusion
+  `success`, URL
+  `https://github.com/ponchione/revolvr/actions/runs/30153462797`. It was
+  created at `2026-07-25T09:51:09Z` and completed by
+  `2026-07-25T09:54:24Z` within the finite polling bound.
+- The jobs endpoint returned exactly the ten mandatory unique jobs. Each had
+  head SHA `73f1f81f1c51d927114f19818a18161d0fcb8541`, status `completed`, and
+  conclusion `success`:
+  - `89667615436` — Go 1.22 source floor and tests —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615436`
+  - `89667615420` — Production autonomous strict-fake suite —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615420`
+  - `89667615421` — Race tests —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615421`
+  - `89667615427` — Vet and module verification —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615427`
+  - `89667615433` — Fake-Codex success smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615433`
+  - `89667615415` — Fake-Codex verification-failure smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615415`
+  - `89667615483` — Build linux/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615483`
+  - `89667615546` — Build darwin/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615546`
+  - `89667615476` — Build freebsd/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615476`
+  - `89667615399` — Build Windows diagnostic stub —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615399`
+- Post-CI preservation reverified both RC.6 complete sealed bundles, every
+  historical RC.1-through-RC.5 bundle inventory/seal, and all ten historical
+  remote candidate/attestation refs. Historical RC tags remain absent. The
+  retained RC.5 suite, first-operation evidence, and launch-record
+  path-bearing content-stream SHA-256 values remain exactly
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`;
+  the RC.5 live launcher remains permanently failed closed.
+- Files changed: `.agent/HANDOFF.md`, this file, and
+  `.agent/DECISIONS.md` only. `.agent/TASKS.md` is unchanged at SHA-256
+  `77c8b220a8ed49cdd5c937f295a9add45c9b1d20fc977182298ec9cbd5073917`
+  with `EXT-20` unchecked. No product, dependency, bundle, workflow, tag,
+  attestation ref, suite, operation, model call, `main` commit/push, release,
+  external-use approval, queue authority, or `EXT-20` completion occurred.
+- Verification commands run: complete RC.6 sealed-inventory/file-set and
+  candidate self-verification; exact manifest/source/tree/artifact checks;
+  RC.5 content-stream and permanent-retirement checks before and after work;
+  no-tags raw-Git fetch, ancestry and collision checks, empty-expected push and
+  exact readback; finite public-REST run polling; exact ten-job set comparison;
+  all historical inventory/seal and remote-ref preservation checks; and final
+  worktree/diff checks. Result: passed. Blockers: none.
+- What remains: one separately bounded pass may construct and locally verify
+  only a collision-free exact-checkout Go 1.26.5 RC.6 artifact-attestation
+  workflow with two clean release builds, byte equality, sealed artifact hash,
+  embedded metadata, version, and empty-build-ID checks. It must stop before
+  commit, push, attestation ref, remote run/artifact, suite preparation, model
+  work, tag, release, external-use approval, queue authority, or `EXT-20`
+  completion.
+
 ## EXT-20 RC.6 Independent Local Review And Publication (2026-07-25)
 
 - Independent review accepted the exact three-file durable-state diff and both

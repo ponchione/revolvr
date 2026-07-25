@@ -4,36 +4,81 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Latest authority supersedes the former RC.6 independent-review handoff below.
-Fresh review accepted the complete sealed RC.6 candidate and verification
-bundles, exact artifact/source/tool authority, vulnerability evidence, full Go
-suite on the retained candidate source, and historical preservation without
-changing them. Raw Git published the three-file local-candidate record on
-`main` as exact commit `60a19d4e38ddd5ea76490221973601e0efce2625`, tree
-`d4d8bedccb5309f108f8d10a18c42c8fa9a750e6`; exact local and remote readback
-agree.
-
-The next prepared pass may create only absent candidate ref
+Latest authority supersedes the former RC.6 independent-review and remote-CI
+handoffs below. Raw Git created only
 `refs/heads/level1-v0.1.0-rc.6` at exact source
-`73f1f81f1c51d927114f19818a18161d0fcb8541` and require its push-triggered ten-
-job CI matrix to succeed. It grants no attestation workflow, suite, model call,
-tag, release, external-use, queue, or `EXT-20` completion authority. RC.1
-through RC.5 and all retained runtime evidence remain immutable rejected
-history.
+`73f1f81f1c51d927114f19818a18161d0fcb8541`; exact remote readback matches and
+no local branch was created. Push-triggered CI run `30153462797`, run number
+`66`, attempt `1`, event `push`, branch `level1-v0.1.0-rc.6`, and that exact
+head SHA completed with conclusion `success` after exactly all ten mandatory
+jobs succeeded.
+
+The next fresh pass may only construct and locally verify a collision-free
+exact-checkout Go 1.26.5 RC.6 artifact-attestation workflow with two clean
+release builds and exact sealed hash/metadata checks. It must stop before
+commit, push, attestation ref, remote run or artifact, suite preparation, model
+work, tag, release, external-use approval, queue authority, or `EXT-20`
+completion. `agent-ext20-rc6-remote.sh` must not be rerun: its one candidate-ref
+creation authority has been consumed. RC.1 through RC.5 and all retained
+runtime evidence remain immutable rejected history.
 
 ## Exact Next-Session Resume
 
 From `/home/gernsback/source/revolvr`, first read this file and the other
-durable state files named in `AGENTS.md`, then run exactly:
+durable state files named in `AGENTS.md`. Do exactly one bounded task: construct
+and locally verify only the collision-free RC.6 artifact-attestation workflow.
+It must check out exact source
+`73f1f81f1c51d927114f19818a18161d0fcb8541`, use exact Go `1.26.5`, perform
+two clean Linux/Darwin/FreeBSD amd64 release builds, compare each pair
+byte-for-byte, and require the sealed artifact hashes, source/tree metadata,
+release version, and empty Go build IDs. Do not commit, push, create an
+attestation ref, request a remote run or artifact, prepare a suite, start model
+work, tag, release, approve external use, grant queue authority, or complete
+`EXT-20`.
 
-```bash
-./agent-ext20-rc6-remote.sh
-```
+## RC.6 Remote Candidate And CI Authority
 
-Execution authorizes only collision-safe publication of the exact absent RC.6
-candidate ref and read-only collection of its exact remote CI evidence. It must
-stop before main publication, attestation, suite preparation, model work, tag,
-release, external-use approval, or `EXT-20` completion.
+- Remote candidate readback is exact source
+  `73f1f81f1c51d927114f19818a18161d0fcb8541` at
+  `refs/heads/level1-v0.1.0-rc.6`, tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`.
+- CI run `30153462797` is `completed` / `success`, run number `66`, attempt
+  `1`, event `push`, branch `level1-v0.1.0-rc.6`, exact candidate head SHA,
+  and URL `https://github.com/ponchione/revolvr/actions/runs/30153462797`.
+- Every job below has head SHA
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, status `completed`, and
+  conclusion `success`:
+  - `89667615436` — Go 1.22 source floor and tests —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615436`
+  - `89667615420` — Production autonomous strict-fake suite —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615420`
+  - `89667615421` — Race tests —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615421`
+  - `89667615427` — Vet and module verification —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615427`
+  - `89667615433` — Fake-Codex success smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615433`
+  - `89667615415` — Fake-Codex verification-failure smoke —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615415`
+  - `89667615483` — Build linux/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615483`
+  - `89667615546` — Build darwin/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615546`
+  - `89667615476` — Build freebsd/amd64 —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615476`
+  - `89667615399` — Build Windows diagnostic stub —
+    `https://github.com/ponchione/revolvr/actions/runs/30153462797/job/89667615399`
+- Post-CI candidate and verification inventory/seals remain
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  and `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+  All ten historical remote refs remain exact, historical RC tags remain
+  absent, the RC.5 suite/evidence/launch-record content-stream hashes remain
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`,
+  and the RC.5 launcher remains permanently failed closed.
 
 ## RC.6 Local Candidate Authority
 

@@ -1,5 +1,56 @@
 # Agent Decisions
 
+## EXT-20 RC.6 Exact-Candidate Remote CI Authority (2026-07-25)
+
+- The RC.6 remote candidate authority is exact branch
+  `refs/heads/level1-v0.1.0-rc.6` at source
+  `73f1f81f1c51d927114f19818a18161d0fcb8541`, tree
+  `7c9753461a08b25915f4f53533d91e57d40a20ca`. It was created only after a
+  no-tags fetch, exact local/remote `main` agreement at
+  `4aa16b63f05da16d2d1620be83aec18a28e6d0cb`, ancestry of published
+  local-candidate record `60a19d4e38ddd5ea76490221973601e0efce2625`,
+  complete verification of both RC.6 sealed bundles, published-source
+  reachability, and absence of every RC.6 candidate, attestation, tag,
+  workflow, and remote artifact-name collision. Raw Git used the required
+  empty-expected lease and exact remote readback matched; no local branch was
+  created and no existing ref was moved or deleted.
+- Push-triggered CI run `30153462797`, run number `66`, attempt `1`, event
+  `push`, branch `level1-v0.1.0-rc.6`, and exact head SHA
+  `73f1f81f1c51d927114f19818a18161d0fcb8541` completed with conclusion
+  `success`. Its URL is
+  `https://github.com/ponchione/revolvr/actions/runs/30153462797`.
+  The jobs endpoint returned exactly the ten mandatory unique jobs, each at
+  that head SHA with status `completed` and conclusion `success`:
+  `89667615436` Go 1.22 source floor and tests,
+  `89667615420` Production autonomous strict-fake suite,
+  `89667615421` Race tests, `89667615427` Vet and module verification,
+  `89667615433` Fake-Codex success smoke,
+  `89667615415` Fake-Codex verification-failure smoke,
+  `89667615483` Build linux/amd64, `89667615546` Build darwin/amd64,
+  `89667615476` Build freebsd/amd64, and `89667615399` Build Windows
+  diagnostic stub. Exact job URLs are retained in `.agent/STATE.md` and
+  `.agent/HANDOFF.md`.
+- Post-run preservation keeps the RC.6 candidate inventory/seal exact at
+  `30353ecc7c828952d3afbff126223a5ff7c5cc3fd30d546774d850001a316ac1` /
+  `d1707466e4f3a8bf562fcbb4a5d32392df988e423aaadad75fca5ff0f5c05e88`
+  and verification inventory/seal exact at
+  `9ee4be200b5d71275dce0c5cb4fdbeb0428a00af17d30c9ae4ef426dd0daadcf` /
+  `f70f9cd944456c4b9e939973a297cd7f7169fb42790c86461d038cff2b7a822f`.
+  All ten historical RC.1-through-RC.5 remote refs still match their baseline,
+  historical RC tags remain absent, and the RC.5 suite/evidence/launch-record
+  content-stream hashes remain
+  `875398913b77aff293ea672ffd78fbcbab14a76fbaa5e00211c9d44f1cc8932c`,
+  `9dfee028b56dbed6d30c0952e77e8f1e8de55751914aff97178530fca7e12c76`,
+  and `f7c69ba137d2f1c58383df71750fc327fc5e22f6c7cf35350935fc5ba8c26ce8`.
+  The RC.5 launcher remains permanently failed closed.
+- Source CI is not artifact attestation. The next separate gate may only
+  construct and locally verify a collision-free RC.6 workflow that checks out
+  the immutable candidate SHA, uses exact Go 1.26.5, performs two clean
+  Linux/Darwin/FreeBSD release builds, and compares their hashes and embedded
+  identities with the sealed candidate. It grants no commit, push,
+  attestation ref, remote run or artifact, suite, model call, tag, release,
+  external-use approval, queue authority, or `EXT-20` completion.
+
 ## EXT-20 RC.6 Independent Local Review And Remote-CI Handoff (2026-07-25)
 
 - Fresh independent review accepted the complete RC.6 candidate and
