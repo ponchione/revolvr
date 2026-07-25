@@ -4,32 +4,57 @@ Updated: 2026-07-25
 
 ## Resume Point
 
-Independent controller review accepted the exact four-file prepared-suite
-record and retained RC.7 root. Raw Git published it as commit
-`83078e8467f00439956252955d5c130d51f34214`, tree
-`31e680996695e1bc71d38e1216a471250009fb0d`. The guarded driver differs from
-its RC.6 predecessor only by three RC.7 candidate constants. Suite
-`ext20-14b2bf40212b` remains byte-exact at authority/plan/content-stream hashes
-`c7172aa2b58539945ce4583f9effb55d9e4a491b6b9533c1e28223119f48c73e`,
-`5fad4050bd1e49b556819534c6025ddf048ac5325315e6dae59e40b09644eeb1`,
-and `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
-No model/Revolvr operation, launch record, live launcher, tag, release,
-external-use approval, queue authority, or `EXT-20` completion occurred.
+Construction and no-model checking produced executable RC.7 direct launcher
+`agent-ext20-rc7-live-direct.sh`, SHA-256
+`9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`,
+and focused checker `scripts/check-ext20-rc7-live-direct.sh`, SHA-256
+`c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+Syntax, focused refusal/collision checks, sourced downstream read-only
+preflight, full Go tests, diff hygiene, both sealed bundles, remote evidence,
+prepared-suite content, task/doctor/source-writer/sentinel authority, and RC.6
+preservation passed. No live token, model operation, launch record, tag,
+release, external-use approval, queue authority, or `EXT-20` completion
+occurred. The exact five-file delta is unpublished and requires independent
+review.
 
 ## Exact Next-Session Resume
 
-The next gate is construction and no-model checking of the fail-closed RC.7
-direct launcher. Exact next command from `/home/gernsback/source/revolvr`:
+The next gate is fresh independent no-model review of the exact launcher,
+checker, and three durable-state files, followed by controller publication only
+if every check passes. Exact first command from
+`/home/gernsback/source/revolvr`:
 
 ```bash
-./agent-ext20-rc7-live-gate.sh
+bash scripts/check-ext20-rc7-live-direct.sh
 ```
 
-This next pass may create and test only a direct launcher plus focused checker.
-It must not invoke `--live`, use a live confirmation, create a launch record,
-start Revolvr or a nested model, mutate RC.6, or make a live command the active
-handoff. A later fresh controller review is required before any separately
-authorized live decision.
+That review must independently rerun both sealed-bundle checks, raw-Git/public-
+REST authority, sourced downstream read-only preflight, `go test -count=1
+./...`, and `git diff --check`; rehash RC.7 and all protected RC.6 streams
+before and after; and verify `.agent/TASKS.md` remains exact and `EXT-20`
+unchecked. It must not invoke `--live`, supply a live confirmation, create a
+launch record, or start Revolvr or any model. No live command is active.
+
+## RC.7 Direct Launcher Construction
+
+- Launcher: `agent-ext20-rc7-live-direct.sh`, mode `0755`, SHA-256
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`.
+- Focused checker: `scripts/check-ext20-rc7-live-direct.sh`, mode `0755`,
+  SHA-256
+  `c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+- Check mode binds complete published-main, remote ref/run/job/artifact,
+  sealed-bundle/script, prepared-root, candidate/Codex, repository/task/doctor/
+  source-writer/sentinel, zero-evidence/aggregate, absent-launch-record, task-
+  backlog, and RC.6 preservation authority, then exits without mutation or a
+  model call.
+- The focused checker exercises syntax, missing/wrong/multiple-argument
+  refusal before authority, loading definitions without `main`, isolated
+  launch-record collision refusal, dirty/unpublished check-only refusal, and
+  exact before/after protected hashes. It never supplies the live token.
+- Construction-time check-only intentionally refuses at the dirty/unpublished
+  controller gate. Full downstream read-only functions were separately loaded
+  and passed without invoking `main`. A future clean published `--check` is
+  subject to the next independent controller gate; it is not authorized here.
 
 ## RC.7 Prepared Suite Authority
 
@@ -1239,11 +1264,11 @@ made, so no API-acceptance claim is authorized.
 
 1. Preserve RC.6 as immutable failed-attempt evidence; never execute an RC.6
    launcher or suite command.
-2. Use only the newly prepared attended-shell continuation for the local-only
-   RC.7 attestation-workflow gate; it must make no live Revolvr model call.
-3. Return for independent review before workflow/ref publication, suite
-   preparation, a live gate, task completion, tag, release, external-use
-   approval, or queue authority.
+2. Independently review the exact RC.7 direct launcher/checker and durable-
+   state delta using only no-model checks.
+3. If and only if review passes, publish the reviewed construction record with
+   raw Git, then stop for a separate authority decision. Do not run a live
+   command, create a launch record, or complete `EXT-20` in that review pass.
 
 The RC.5 remote-CI, artifact-attestation, and no-model preparation gates are
 complete. Do not rerun `agent-ext20-rc5-remote.sh`,
@@ -1256,10 +1281,11 @@ Do not rerun any completed RC.4 remote, attestation, or suite-preparation
 launcher.
 
 There is no active live command. Every RC.6 launcher and suite command is
-retired and must not be rerun. The only active continuation command is:
+retired and must not be rerun. The only active continuation command is the
+no-model focused checker:
 
 ```bash
-./agent-ext20-rc7-attestation.sh
+bash scripts/check-ext20-rc7-live-direct.sh
 ```
 
 ## Session Rules

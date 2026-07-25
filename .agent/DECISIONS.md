@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## EXT-20 RC.7 Direct Launcher Review Authority (2026-07-25)
+
+- The only newly constructed RC.7 direct-gate implementation is executable
+  `agent-ext20-rc7-live-direct.sh`, SHA-256
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`,
+  with focused checker `scripts/check-ext20-rc7-live-direct.sh`, SHA-256
+  `c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+  These unpublished bytes are review inputs, not live authority.
+- The launcher fails before authority checks unless given exactly `--check` or
+  the retained live confirmation. Its complete preflight binds published
+  main, every RC ref and absent RC tag, the exact source/attestation/companion
+  runs and jobs, the sole attestation artifact, both sealed candidate bundles,
+  script identities, the prepared suite and plan, candidate/Codex identities,
+  repositories, ten task states and doctor results, source-writer authority,
+  sentinels, zero evidence/aggregate, absent launch-record root, unchanged
+  task backlog, and all three protected RC.6 streams.
+- Check mode has no mutation or model path. A later separately authorized live
+  invocation may create exactly one previously absent ignored RC.7
+  launch-record root only after the complete preflight, retain exact pre-start
+  authority and terminal/interruption status, and start the guarded suite once.
+  Any existing RC.7 launch-record root or operation evidence refuses the
+  launcher; there is no retry, recovery, or evidence-reuse path.
+- Construction checks passed without the live token: syntax, focused refusal
+  and collision checks, direct downstream read-only preflight, full Go tests,
+  diff hygiene, both sealed RC.7 bundles, raw-Git/public-REST evidence, exact
+  prepared content, and RC.6 preservation. The next authority is fresh
+  independent no-model review and controller publication of the exact
+  five-file delta. No active live command, model operation, launch record,
+  tag, release, external-use approval, queue authority, or `EXT-20` completion
+  is granted.
+
 ## EXT-20 RC.7 Direct-Live-Gate Construction Authority (2026-07-25)
 
 - Independent controller review accepted and raw Git published the exact RC.7

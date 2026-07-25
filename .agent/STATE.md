@@ -1,5 +1,78 @@
 # Agent State
 
+## EXT-20 RC.7 Direct-Live-Gate Construction (2026-07-25)
+
+- Task selected: only the bounded construction and no-model checking sub-gate
+  of still-unchecked `EXT-20`. No live confirmation was supplied and no live,
+  Revolvr, nested Codex, or other model operation was started.
+- Construction began only after a no-tags fetch left clean local `main`,
+  fetched `origin/main`, and public remote `main` exact at
+  `6931b3ef790a6f0375944043596cb591cf589f2a`. Published prepared-suite commit
+  `83078e8467f00439956252955d5c130d51f34214`, tree
+  `31e680996695e1bc71d38e1216a471250009fb0d`, and parent
+  `29ca11e24f2cc8832615fe5274d79c151d1eb5c0` were exact and in both local and
+  fetched-main ancestries.
+- Added executable `agent-ext20-rc7-live-direct.sh`, SHA-256
+  `9cfe73e11f69a4e9ad138de6749da04ea5f7bd3d0508ef6858279d557125df45`.
+  It accepts only `--check` or the exact retained live confirmation, rejects
+  missing/wrong arguments before authority lookup, and binds the exact RC.7
+  suite, candidate, Codex, bundle, script, remote ref, CI, attestation,
+  artifact, repository, task, doctor, source-writer, sentinel, and RC.6
+  preservation authorities. Check mode completes the preflight without a
+  launch record or model call. A separately authorized future live invocation
+  can reserve one new ignored launch-record root only after preflight, records
+  pre-start authority plus terminal/interruption status, and has no retry or
+  reuse path.
+- Added executable `scripts/check-ext20-rc7-live-direct.sh`, SHA-256
+  `c434380918c8ec726504126ac42b3a1338fa34741329ac60b28d44c03fc4f414`.
+  It passed syntax, missing/wrong/multiple-argument refusal from a non-Git
+  directory, definition loading without `main`, isolated existing-record
+  collision refusal, dirty and clean-unpublished check-only refusal, and the
+  construction repository's unpublished check-only refusal. It supplied no
+  live token and created no RC.7 launch record.
+- Before and after construction, both complete sealed RC.7 bundles passed
+  their exact inventory/seal and candidate self-verification checks. Raw Git
+  retained the exact fourteen RC.1-through-RC.7 refs and absent RC tags.
+  Public REST retained exact source CI `30160277511`, its ten jobs, attestation
+  run/job `30163857880` / `89693466274`, sole artifact `8621008768` named
+  `level1-v0.1.0-rc.7-attestation` at digest
+  `sha256:ae87472ef86b5d25cca5df333f057f10d77cf74cd7f332f30d6770745bbf6356`,
+  and companion CI `30163853353` with its exact ten jobs.
+- Direct read-only loading of the new launcher definitions exercised the full
+  downstream preflight without calling `main`: both sealed bundles, exact
+  remote evidence, suite/collector static checks, prepared authority and
+  11-row plan, candidate/Codex identities, both clean repositories, ten unique
+  pending zero-attempt tasks, every task's doctor-ready result, exact
+  `timeout=32m0s heartbeat_interval=10m40s required=32m0s` source-writer
+  authority, sentinels, zero operation/collector/model evidence, empty
+  aggregate, and absent launch-record root all passed.
+- Verification passed `bash -n agent-ext20-rc7-live-direct.sh
+  scripts/check-ext20-rc7-live-direct.sh`,
+  `bash scripts/check-ext20-rc7-live-direct.sh`, the sourced downstream
+  read-only preflight, `go test -count=1 ./...`, and `git diff --check`.
+- The prepared RC.7 suite remained byte-exact at content-stream SHA-256
+  `2a69ade6adfbb410b5c2a150c7fec8276bfa3bd2fdf0e2b7d434cb0e1ae0f943`.
+  It retains no operation or collector manifest, no model run or receipt, an
+  empty aggregate, only its two sealed npm-preparation logs, and no RC.7
+  launch-record root. The protected RC.6 suite, launch record, and terminal
+  evidence remained exact at
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b`,
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce`,
+  and `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+  RC.6 was not executed, repaired, deleted, derived from, or mutated.
+- Files changed: `agent-ext20-rc7-live-direct.sh`,
+  `scripts/check-ext20-rc7-live-direct.sh`, this state file,
+  `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`. `.agent/TASKS.md` remains
+  byte-exact at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked.
+- Result: pass for construction and no-model checks; blockers: none. What
+  remains is a fresh independent no-model review of the exact five-file delta,
+  repeat verification of every authority and preservation claim, and
+  controller publication only if that review passes. This pass grants no live
+  command, launch record, model operation, tag, release, external-use
+  approval, queue authority, or `EXT-20` completion.
+
 ## EXT-20 RC.7 Prepared-Suite Review And Live-Gate Construction Handoff (2026-07-25)
 
 - Independent review accepted the exact four-file suite-preparation scope.
