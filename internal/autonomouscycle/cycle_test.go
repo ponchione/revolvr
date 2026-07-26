@@ -147,6 +147,17 @@ func TestRunEveryWorkerActionUsesExactProfileAndOneFreshWorker(t *testing.T) {
 				if !strings.Contains(fixture.workerPrompt, "finding-one") || !strings.Contains(fixture.workerPrompt, "Exclusive Correction Authority") {
 					t.Fatalf("corrector prompt lacks cited finding scope:\n%s", fixture.workerPrompt)
 				}
+			} else if tt.action == autonomous.ActionPlan {
+				for _, want := range []string{
+					"pending and in_progress use `evidence: []` and `rationale: null`",
+					"never in nonterminal step evidence",
+					"Pending acceptance criteria likewise use `evidence: []` and `rationale: null`",
+					"Every step in a new initial plan must be pending",
+				} {
+					if !strings.Contains(fixture.workerPrompt, want) {
+						t.Fatalf("planner prompt lacks lifecycle contract %q:\n%s", want, fixture.workerPrompt)
+					}
+				}
 			}
 			if !reflect.DeepEqual(mustJSON(t, fixture.cfg.State), stateBefore) {
 				t.Fatal("input execution state mutated")

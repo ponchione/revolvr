@@ -1,5 +1,137 @@
 # Agent State
 
+## EXT-20 Planner Lifecycle-Contract Independent Review (2026-07-26)
+
+- Task selected: one bounded independent review of the current uncommitted
+  planner-contract remediation and its focused tests. No source or test fix
+  was made because inspection and verification found no concrete correctness
+  defect.
+- The retained RC.7 planner prompt and raw output reproduced the contract
+  failure: pending steps used grounding references as terminal evidence and
+  carried skip-style rationale, while pending acceptance criteria carried
+  disposition rationale. The remediation consistently directs grounding to
+  plan provenance or top-level inputs and requires the empty/null
+  representation for nonterminal work.
+- The complete prompt, schema, planning-application, and autonomous-state path
+  was inspected. `PlanStep.Validate` and `AcceptanceCriterion.Validate` remain
+  unchanged and fail closed. Distinct nested `anyOf` branches cover every step
+  and acceptance lifecycle status; every branch object is closed and requires
+  every property, and the repository's Structured Outputs subset validator
+  accepts the resulting production schema.
+- Planning revision equality now treats only nil and empty evidence slices as
+  the same empty value after canonical JSON state round-trips. Status,
+  description, rationale, source, identity, ordering, and nonempty terminal
+  evidence remain exact; existing mutation regressions passed.
+- Verification passed: `bash -n agent-ext20-planner-contract-review.sh`;
+  zero-diff `gofmt -d` inspection of all seven changed Go files;
+  `go test -count=1 ./internal/autonomousplanning ./internal/prompt
+  ./internal/autonomouscycle`; the same packages with `-race`;
+  `go test -count=1 ./internal/app -run
+  '^(TestProductionAutonomousHappyPath|TestStrictFakeCodexContract)$'`;
+  `go test -count=1 ./...`; and `git diff --check`.
+- The RC.7 terminal bundle passed the required read-only `files.sha256` and
+  `bundle.sha256` verification before review and again after all review and
+  durable-state commands. RC.6 and RC.7 were not otherwise accessed or
+  changed.
+- Files changed by this independent review are only `.agent/HANDOFF.md`,
+  `.agent/STATE.md`, and `.agent/DECISIONS.md`. The reviewed source/test delta
+  and `agent-ext20-planner-contract-review.sh` remain otherwise unchanged and
+  uncommitted.
+- Result: PASS for a separate controller commit/publication decision. There
+  are no review blockers. `EXT-20` remains unchecked, and no commit, push,
+  candidate, suite, Revolvr/model operation, live path, tag, release,
+  external-use decision, or queue authority was created or exercised.
+
+## EXT-20 Planner Lifecycle-Contract Remediation (2026-07-26)
+
+- Task selected: one bounded root-cause remediation for the RC.7 planner
+  prompt/schema mismatch. The operator-supplied terminal-bundle checksum
+  result was independently reproduced read-only; every `files.sha256` entry
+  and `bundle.sha256` passed.
+- The retained RC.7 raw output proved two instances of one lifecycle contract
+  mismatch. All three `pending` plan steps carried evidence and rationale, and
+  all three `pending` acceptance criteria carried rationale. Existing Go
+  validators correctly rejected those nonterminal disposition fields before
+  persistence or source mutation.
+- The checked-in planner profile and its default template now state the exact
+  nonterminal empty/null representation and direct grounding facts to plan
+  provenance or top-level inputs. The generated plan-worker output section
+  repeats the contract at the point where `PlanningOutput` is requested.
+- `PlanningOutputSchema` now uses supported nested status-specific `anyOf`
+  object branches. Pending/in-progress steps and pending criteria structurally
+  require empty evidence and null rationale; completed/satisfied dispositions
+  require evidence; skipped/waived/not-applicable dispositions retain their
+  required rationale semantics. Every object remains closed with every
+  property required, and the post-model Go validators remain unchanged.
+- Planning revision comparison now uses semantic slice equality, so the
+  schema-required JSON `[]` remains equal to an omitted empty slice after
+  canonical state serialization. Exact nonempty evidence and all other stable
+  step/criterion fields remain protected.
+- Files changed for the remediation: `.agent/profiles/planner.md`,
+  `internal/prompt/profile.go`, `internal/prompt/profile_test.go`,
+  `internal/autonomouscycle/worker_prompt.go`,
+  `internal/autonomouscycle/cycle_test.go`,
+  `internal/autonomousplanning/schema.go`,
+  `internal/autonomousplanning/contracts.go`, and
+  `internal/autonomousplanning/contracts_test.go`. No dependency was added.
+- Focused tests passed with
+  `go test -count=1 ./internal/autonomousplanning ./internal/prompt
+  ./internal/autonomouscycle` and the same focused packages with `-race`.
+  `go test -count=1 ./...` and `git diff --check` also passed. Changed Go
+  files were formatted with `gofmt`.
+- `.agent/HANDOFF.md` was pruned from historical accumulation to a concise
+  active resume pointer; full history remains here, in `.agent/DECISIONS.md`,
+  Git, and immutable runtime evidence. New executable continuation launcher
+  `agent-ext20-planner-contract-review.sh` starts exactly one fresh independent
+  review and grants no publication or live authority.
+- `EXT-20` remains unchecked. RC.6 and RC.7 remain immutable and retired. No
+  candidate, suite, live operation, tag, release, external-use decision,
+  queue authority, commit, push, or product/nested model call was created or
+  executed during the remediation. Next work is the independent review
+  command recorded in `.agent/HANDOFF.md`.
+
+## EXT-20 RC.7 Terminal Live Failure (2026-07-25)
+
+- The operator executed the exact one-time authorized wrapper. Controller
+  local/fetched/public `main` was
+  `a9b4f50465466fee61e13f131ae6679e3d8b4729`; the complete direct-launcher
+  preflight passed and launch record
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc7-launch-records/ext20-14b2bf40212b-20260725T183415Z-1784416`
+  was created. It records terminal suite exit status `1` at
+  `2026-07-25T18:35:48Z` and content-stream SHA-256
+  `deb55229c31197830721f5fc7cff368281451139da0ad52560f29246b91f2e1c`.
+- Only `ext20-14b2bf40212b-01` ran. Its sealed terminal bundle is
+  `/home/gernsback/source/revolvr/.revolvr/ext20-rc7.rpIUM5/suite/evidence/repo-a/01-successful-source-change-1`,
+  content-stream SHA-256
+  `6bce7d6a7edd992ee23e138713bb6e0923d3be9d3c1ffebd0fd2c94ea47fbd9f`;
+  both retained manifests verify. Operations 02 through 11 never started.
+- Expected outcome was `completed`; observed outcome was
+  `unsafe_or_ambiguous`. The plan application rejected planner step 0 because
+  status `pending` included terminal evidence. No implementation,
+  verification, audit, correction, commit, or checkpoint ran. Repository and
+  workspace remained clean at
+  `22bc5fd5ea1469fb76afef6425964f0b0c7f70bb`; the outside sentinel remained
+  unchanged.
+- Both real model calls completed normally with Codex exit code `0` and
+  `turn.completed`: supervisor usage 19,118 input / 809 output tokens; planner
+  usage 20,464 input / 3,542 output tokens. This was not an API failure.
+- The planner output placed provenance-like references and explanatory
+  rationale on every new `pending` step. `PlanStep.Validate` intentionally
+  forbids both terminal evidence and skip rationale on `pending` or
+  `in_progress` steps. The planner JSON schema requires the two fields and
+  structurally permits those values, while the planner profile/prompt asks for
+  evidence citations without stating the required `evidence: []` and
+  `rationale: null` nonterminal representation. Safe post-model validation
+  caught the contract mismatch.
+- Post-failure suite content-stream SHA-256 is
+  `ef031fa8aa3f7849b50551824a9f7c4b8d72e42f19ad5906f32e4aa0d9a1fb3a`.
+  It contains exactly one terminal manifest and an empty aggregate. RC.7 is
+  retired and must not be rerun, repaired, deleted, mutated, derived from, or
+  reused. Any later candidate must be fresh RC.8 with new suite and authority.
+- RC.6 remains preserved at its three recorded hashes. `.agent/TASKS.md`
+  remains unchanged with `EXT-20` unchecked. No tag, release, external-use,
+  queue, recovery, or completion authority exists.
+
 ## EXT-20 RC.7 Authorized One-Shot Live Wrapper Construction (2026-07-25)
 
 - Raw Git published the human's exact one-time RC.7 live authorization as

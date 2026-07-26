@@ -1,5 +1,80 @@
 # Agent Decisions
 
+## EXT-20 Planner Lifecycle Contract Independent Review (2026-07-26)
+
+- Independent review accepts the current uncommitted planner lifecycle-
+  contract remediation without a source or test correction. The checked-in
+  profile/default template, generated planner prompt, Structured Outputs
+  schema, Go validation, and planning-revision comparison now express one
+  coherent lifecycle contract.
+- Nested status-specific `anyOf` branches are within the repository-guarded
+  Structured Outputs subset. Each branch is a closed object with all
+  properties required, singleton status branches are distinct, and all
+  Go-valid step and acceptance lifecycle dispositions are represented without
+  weakening `PlanStep.Validate` or `AcceptanceCriterion.Validate`.
+- Nil and empty evidence slices are equivalent only for planning-revision
+  value comparison, matching schema-required `[]` with canonical state JSON
+  that omits empty slices. Nonempty terminal evidence and every other stable
+  step or criterion field remain exact.
+- The review verification matrix and both pre/post RC.7 terminal-bundle hash
+  checks passed. The accepted local result grants only a separate controller
+  decision about committing and publishing the exact current working delta;
+  it grants no publication itself and no RC.8, live, tag, release,
+  external-use, queue, recovery, or `EXT-20` completion authority.
+
+## EXT-20 Planner Lifecycle Contract (2026-07-26)
+
+- Preserve `PlanStep.Validate` and `AcceptanceCriterion.Validate` as the
+  authoritative fail-closed semantic boundary. RC.7 exposed a model-facing
+  contract mismatch, not a reason to accept disposition evidence or rationale
+  on nonterminal work.
+- The repo-authored/default planner profile and the generated worker prompt
+  must both state the lifecycle representation at the point of planning:
+  pending/in-progress steps and pending criteria use empty evidence and null
+  rationale. Evidence that grounds future work belongs in plan provenance or
+  top-level inputs. Terminal evidence and skip/disposition rationale retain
+  their existing meanings.
+- The planner Structured Outputs schema encodes those rules with nested
+  status-specific `anyOf` branches. This uses the already guarded supported
+  subset, keeps all objects closed and all fields required, and prevents the
+  known invalid representation before post-model parsing without weakening
+  Go validation.
+- JSON requires `evidence: []` for nonterminal planner output, while canonical
+  Go state may omit an empty slice. Planning revision equality therefore uses
+  value equality for evidence slices, under which nil and empty are equal.
+  Nonempty terminal evidence, status, description, rationale, source, stable
+  identity, and terminal ordering remain exact.
+- This remediation is local and uncommitted pending a fresh independent
+  review. It creates no RC.8 or live authority. The historical detail formerly
+  accumulated in `.agent/HANDOFF.md` remains durable in this file,
+  `.agent/STATE.md`, Git history, and immutable evidence; the handoff is now a
+  concise active pointer.
+
+## EXT-20 RC.7 Retired After Planner-Contract Failure (2026-07-25)
+
+- RC.7 consumed its sole live authority and is terminally retired. Only
+  operation `ext20-14b2bf40212b-01` ran; it stopped
+  `unsafe_or_ambiguous` before implementation because the planner proposed
+  `pending` steps containing evidence and rationale that the authoritative Go
+  state validator reserves for terminal/skip dispositions.
+- Both model calls completed successfully. The failure is a product contract
+  mismatch between the planner profile/prompt, structurally permissive JSON
+  schema, and stricter safe semantic validator—not an API outage. The validator
+  remains the correct fail-closed boundary and must not be weakened merely to
+  accept the live output.
+- The next remediation must make the model-facing planner contract explicit:
+  nonterminal steps use `evidence: []` and `rationale: null`; terminal step
+  evidence and skip rationale retain their existing meanings. Confirm the
+  smallest coherent prompt/schema approach from the full provenance path and
+  add regression coverage before any fresh candidate decision.
+- Preserve RC.7 launch record
+  `ext20-14b2bf40212b-20260725T183415Z-1784416`, terminal evidence, and suite
+  at recorded content-stream hashes. Never rerun, repair, delete, mutate,
+  derive from, or reuse RC.7. RC.6 remains independently immutable. A future
+  live attempt requires a fresh RC.8 suite and separate explicit authority.
+- `EXT-20` remains unchecked. There is no active live command and no retry,
+  recovery, tag, release, external-use, queue, or completion authority.
+
 ## EXT-20 RC.7 Authorized One-Shot Wrapper (2026-07-25)
 
 - Human one-time live authority is durably separated at published commit

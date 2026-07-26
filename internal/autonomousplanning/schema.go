@@ -18,15 +18,6 @@ func PlanningOutputSchema() ([]byte, error) {
 		string(autonomous.EvidenceKindAudit), string(autonomous.EvidenceKindRepository),
 		string(autonomous.EvidenceKindFile),
 	}
-	acceptanceStatuses := []string{
-		string(autonomous.AcceptanceStatusPending), string(autonomous.AcceptanceStatusSatisfied),
-		string(autonomous.AcceptanceStatusWaived), string(autonomous.AcceptanceStatusNotApplicable),
-	}
-	stepStatuses := []string{
-		string(autonomous.PlanStepStatusPending), string(autonomous.PlanStepStatusInProgress),
-		string(autonomous.PlanStepStatusCompleted), string(autonomous.PlanStepStatusSkipped),
-	}
-
 	schema := map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
@@ -56,16 +47,11 @@ func PlanningOutputSchema() ([]byte, error) {
 				},
 			},
 			"plan_step": map[string]any{
-				"type": "object", "additionalProperties": false,
-				"required": []string{"id", "description", "status", "evidence", "rationale"},
-				"properties": map[string]any{
-					"id":          stableIDSchema(),
-					"description": nonblankString(nonblank),
-					"status":      map[string]any{"type": "string", "enum": stepStatuses},
-					"evidence": map[string]any{
-						"type": "array", "items": map[string]any{"$ref": "#/$defs/evidence_reference"},
-					},
-					"rationale": nullablePatternString(nonblank),
+				"anyOf": []any{
+					planStepSchema(autonomous.PlanStepStatusPending, emptyEvidenceArraySchema(), nullSchema(), nonblank),
+					planStepSchema(autonomous.PlanStepStatusInProgress, emptyEvidenceArraySchema(), nullSchema(), nonblank),
+					planStepSchema(autonomous.PlanStepStatusCompleted, requiredEvidenceArraySchema(), nullSchema(), nonblank),
+					planStepSchema(autonomous.PlanStepStatusSkipped, optionalEvidenceArraySchema(), nonblankString(nonblank), nonblank),
 				},
 			},
 			"task_plan": map[string]any{
@@ -86,17 +72,11 @@ func PlanningOutputSchema() ([]byte, error) {
 				},
 			},
 			"acceptance_criterion": map[string]any{
-				"type": "object", "additionalProperties": false,
-				"required": []string{"id", "requirement", "status", "evidence", "rationale", "source"},
-				"properties": map[string]any{
-					"id":          stableIDSchema(),
-					"requirement": nonblankString(nonblank),
-					"status":      map[string]any{"type": "string", "enum": acceptanceStatuses},
-					"evidence": map[string]any{
-						"type": "array", "items": map[string]any{"$ref": "#/$defs/evidence_reference"},
-					},
-					"rationale": nullablePatternString(nonblank),
-					"source":    map[string]any{"$ref": "#/$defs/evidence_reference"},
+				"anyOf": []any{
+					acceptanceCriterionSchema(autonomous.AcceptanceStatusPending, emptyEvidenceArraySchema(), nullSchema(), nonblank),
+					acceptanceCriterionSchema(autonomous.AcceptanceStatusSatisfied, requiredEvidenceArraySchema(), nullablePatternString(nonblank), nonblank),
+					acceptanceCriterionSchema(autonomous.AcceptanceStatusWaived, optionalEvidenceArraySchema(), nonblankString(nonblank), nonblank),
+					acceptanceCriterionSchema(autonomous.AcceptanceStatusNotApplicable, optionalEvidenceArraySchema(), nonblankString(nonblank), nonblank),
 				},
 			},
 			"decision_reference": decisionReferenceSchema(nonblank),
@@ -138,6 +118,49 @@ func PlanningOutputSchema() ([]byte, error) {
 		return nil, fmt.Errorf("marshal planning output schema: %w", err)
 	}
 	return append(raw, '\n'), nil
+}
+
+func planStepSchema(status autonomous.PlanStepStatus, evidence, rationale map[string]any, nonblank string) map[string]any {
+	return map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"id", "description", "status", "evidence", "rationale"},
+		"properties": map[string]any{
+			"id": stableIDSchema(), "description": nonblankString(nonblank),
+			"status": singletonString(string(status)), "evidence": evidence, "rationale": rationale,
+		},
+	}
+}
+
+func acceptanceCriterionSchema(status autonomous.AcceptanceStatus, evidence, rationale map[string]any, nonblank string) map[string]any {
+	return map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"id", "requirement", "status", "evidence", "rationale", "source"},
+		"properties": map[string]any{
+			"id": stableIDSchema(), "requirement": nonblankString(nonblank),
+			"status": singletonString(string(status)), "evidence": evidence, "rationale": rationale,
+			"source": map[string]any{"$ref": "#/$defs/evidence_reference"},
+		},
+	}
+}
+
+func optionalEvidenceArraySchema() map[string]any {
+	return map[string]any{"type": "array", "items": map[string]any{"$ref": "#/$defs/evidence_reference"}}
+}
+
+func emptyEvidenceArraySchema() map[string]any {
+	schema := optionalEvidenceArraySchema()
+	schema["maxItems"] = 0
+	return schema
+}
+
+func requiredEvidenceArraySchema() map[string]any {
+	schema := optionalEvidenceArraySchema()
+	schema["minItems"] = 1
+	return schema
+}
+
+func nullSchema() map[string]any {
+	return map[string]any{"type": "null"}
 }
 
 func nonblankString(pattern string) map[string]any {

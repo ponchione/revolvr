@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"reflect"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -286,14 +286,14 @@ func validatePlanRevision(previous, next autonomous.TaskPlan) error {
 		if prior.Description != step.Description {
 			return fmt.Errorf("step ID %q was reused for a materially different description", step.ID)
 		}
-		if !reflect.DeepEqual(prior, step) {
+		if !equalPlanStep(prior, step) {
 			return fmt.Errorf("existing step %q changed status, evidence, or rationale during planning", step.ID)
 		}
 		if terminalStep(prior.Status) {
 			nextTerminalOrder = append(nextTerminalOrder, step.ID)
 		}
 	}
-	if !reflect.DeepEqual(nextTerminalOrder, terminalOrder) {
+	if !slices.Equal(nextTerminalOrder, terminalOrder) {
 		return fmt.Errorf("terminal step order changed or terminal work disappeared: got %v, want %v", nextTerminalOrder, terminalOrder)
 	}
 	return nil
@@ -308,7 +308,7 @@ func validateAcceptanceOrigins(previous, next []autonomous.AcceptanceCriterion, 
 		previousByID[criterion.ID] = criterion
 	}
 	for _, criterion := range next {
-		if prior, exists := previousByID[criterion.ID]; exists && !reflect.DeepEqual(prior, criterion) {
+		if prior, exists := previousByID[criterion.ID]; exists && !equalAcceptanceCriterion(prior, criterion) {
 			return fmt.Errorf("existing criterion %q changed requirement, origin, status, evidence, or rationale", criterion.ID)
 		}
 		if criterion.Source == nil {
@@ -328,6 +328,25 @@ func validateAcceptanceOrigins(previous, next []autonomous.AcceptanceCriterion, 
 		}
 	}
 	return nil
+}
+
+func equalPlanStep(left, right autonomous.PlanStep) bool {
+	return left.ID == right.ID &&
+		left.Description == right.Description &&
+		left.Status == right.Status &&
+		slices.Equal(left.Evidence, right.Evidence) &&
+		left.Rationale == right.Rationale
+}
+
+func equalAcceptanceCriterion(left, right autonomous.AcceptanceCriterion) bool {
+	if left.ID != right.ID || left.Requirement != right.Requirement || left.Status != right.Status ||
+		!slices.Equal(left.Evidence, right.Evidence) || left.Rationale != right.Rationale {
+		return false
+	}
+	if left.Source == nil || right.Source == nil {
+		return left.Source == right.Source
+	}
+	return *left.Source == *right.Source
 }
 
 func MarshalPlanningOutput(output PlanningOutput) ([]byte, error) {

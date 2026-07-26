@@ -42,6 +42,30 @@ func TestPlanningOutputParseMarshalAndSchemaAreStrictAndDeterministic(t *testing
 	}
 }
 
+func TestPlanningOutputSchemaEncodesLifecycleDispositionFields(t *testing.T) {
+	raw, err := PlanningOutputSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	defs := schema["$defs"].(map[string]any)
+
+	stepBranches := lifecycleBranchesByStatus(t, defs["plan_step"])
+	assertLifecycleBranch(t, stepBranches[string(autonomous.PlanStepStatusPending)], nil, float64(0), "null")
+	assertLifecycleBranch(t, stepBranches[string(autonomous.PlanStepStatusInProgress)], nil, float64(0), "null")
+	assertLifecycleBranch(t, stepBranches[string(autonomous.PlanStepStatusCompleted)], float64(1), nil, "null")
+	assertLifecycleBranch(t, stepBranches[string(autonomous.PlanStepStatusSkipped)], nil, nil, "string")
+
+	criterionBranches := lifecycleBranchesByStatus(t, defs["acceptance_criterion"])
+	assertLifecycleBranch(t, criterionBranches[string(autonomous.AcceptanceStatusPending)], nil, float64(0), "null")
+	assertLifecycleBranch(t, criterionBranches[string(autonomous.AcceptanceStatusSatisfied)], float64(1), nil, []any{"string", "null"})
+	assertLifecycleBranch(t, criterionBranches[string(autonomous.AcceptanceStatusWaived)], nil, nil, "string")
+	assertLifecycleBranch(t, criterionBranches[string(autonomous.AcceptanceStatusNotApplicable)], nil, nil, "string")
+}
+
 func TestParsePlanningOutputRequiredNullAndEmptyOptionalsPreserveSemantics(t *testing.T) {
 	output, _, _, _ := validPlanningFixture(t)
 	wire := planningOutputWire(t, output)
@@ -75,6 +99,16 @@ func TestParsePlanningOutputRequiredNullAndEmptyOptionalsPreserveSemantics(t *te
 	}
 	if _, err := ParsePlanningOutput(raw); err == nil || !strings.Contains(err.Error(), "must not include skip rationale") {
 		t.Fatalf("ParsePlanningOutput() error = %v, want pending rationale rejection", err)
+	}
+
+	step["rationale"] = nil
+	criterion["rationale"] = "Proposed work is not disposition evidence."
+	raw, err = json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParsePlanningOutput(raw); err == nil || !strings.Contains(err.Error(), "pending status must not include disposition rationale") {
+		t.Fatalf("ParsePlanningOutput() error = %v, want pending criterion rationale rejection", err)
 	}
 }
 
@@ -296,6 +330,37 @@ func TestApplyProposalRevisionPreservesStableAndTerminalWork(t *testing.T) {
 	}
 }
 
+func TestApplyProposalRevisionTreatsRequiredEmptyArraysAsUnchanged(t *testing.T) {
+	output, previous, decision, taskRaw := validPlanningFixture(t)
+	initial, _, err := ApplyProposal(previous, output, decision, *output.AcceptanceCriteria[0].Source, taskRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial.Lifecycle = autonomous.LifecycleStateReady
+
+	canonicalRaw, err := json.Marshal(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reopened autonomous.ExecutionState
+	if err := json.Unmarshal(canonicalRaw, &reopened); err != nil {
+		t.Fatal(err)
+	}
+
+	revision := output
+	revision.Plan.ID = "plan-two"
+	revision.Plan.Revision = 2
+	revision.Plan.SupersedesPlanID = "plan-one"
+	revision.Plan.Steps = cloneStepsForTest(reopened.Plan.Steps)
+	revision.Plan.Steps[0].Evidence = make([]autonomous.EvidenceReference, 0)
+	revision.AcceptanceCriteria = cloneAcceptanceForTest(reopened.AcceptanceCriteria)
+	revision.AcceptanceCriteria[0].Evidence = make([]autonomous.EvidenceReference, 0)
+
+	if _, kind, err := ApplyProposal(reopened, revision, decision, *output.AcceptanceCriteria[0].Source, taskRaw); err != nil || kind != ChangeKindRevision {
+		t.Fatalf("required-empty revision kind=%q error=%v", kind, err)
+	}
+}
+
 func TestApplyProposalCanReviseCompletedPlanAndAddGroundedCriterion(t *testing.T) {
 	output, previous, decision, taskRaw := validPlanningFixture(t)
 	initial, _, err := ApplyProposal(previous, output, decision, *output.AcceptanceCriteria[0].Source, taskRaw)
@@ -414,4 +479,35 @@ func cloneAcceptanceForTest(criteria []autonomous.AcceptanceCriterion) []autonom
 	var cloned []autonomous.AcceptanceCriterion
 	_ = json.Unmarshal(raw, &cloned)
 	return cloned
+}
+
+func lifecycleBranchesByStatus(t *testing.T, definition any) map[string]map[string]any {
+	t.Helper()
+	branches := definition.(map[string]any)["anyOf"].([]any)
+	result := make(map[string]map[string]any, len(branches))
+	for _, rawBranch := range branches {
+		branch := rawBranch.(map[string]any)
+		properties := branch["properties"].(map[string]any)
+		status := properties["status"].(map[string]any)["enum"].([]any)[0].(string)
+		if _, exists := result[status]; exists {
+			t.Fatalf("duplicate lifecycle schema branch for status %q", status)
+		}
+		result[status] = branch
+	}
+	return result
+}
+
+func assertLifecycleBranch(t *testing.T, branch map[string]any, minItems, maxItems any, rationaleType any) {
+	t.Helper()
+	if branch == nil {
+		t.Fatal("missing lifecycle schema branch")
+	}
+	properties := branch["properties"].(map[string]any)
+	evidence := properties["evidence"].(map[string]any)
+	if evidence["minItems"] != minItems || evidence["maxItems"] != maxItems {
+		t.Fatalf("evidence bounds = %v/%v, want %v/%v", evidence["minItems"], evidence["maxItems"], minItems, maxItems)
+	}
+	if got := properties["rationale"].(map[string]any)["type"]; !reflect.DeepEqual(got, rationaleType) {
+		t.Fatalf("rationale type = %#v, want %#v", got, rationaleType)
+	}
 }
