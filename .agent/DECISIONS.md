@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## Prospective RC.12 First Neutral Draft Rejected (2026-07-26)
+
+- The first neutral-validation evidence is authentic and preserved, but its
+  draft is not construction-ready. Passing syntax, semantic copy admission,
+  and a neutral-path self refusal did not test full-mode runtime context.
+- Full mode's admission is contradictory: exact self-identity requires the
+  builder present, after which collision admission requires it absent. The
+  same absence list incorrectly includes the required construction launcher
+  and tracked validation-review launcher. This is a deterministic blocker,
+  not an RC.12 candidate failure; no candidate identity has been consumed.
+- Complete construction admission must distinguish required controller inputs
+  from forbidden outputs. It verifies exact builder and construction launcher,
+  permits immutable validation-history launchers, and rejects only actual
+  candidate/ref/workflow/artifact/runtime/post-candidate-review collisions.
+- A replacement neutral design must also restore complete RC.6-RC.11 before/
+  after preservation, exact shallow source clones excluding later controller
+  objects, and complete build instructions/tool/environment/vulnerability/
+  target-metadata/bundle evidence from the settled reproducible procedure.
+- The sealed first draft/root may be reviewed but never edited, copied,
+  derived from, published as a builder, or used as candidate input. A second
+  independently authored neutral draft must pass syntax, semantic admission,
+  an explicit full-context audit, static review, and expected identity refusal
+  before construction can be considered.
+- Revalidation consumes no RC.12 identity and grants no construction, remote,
+  suite, live-model, release, external-use, recovery, queue, or `EXT-20`
+  completion authority.
+
 ## Prospective RC.12 Neutral Draft Accepted For Independent Review (2026-07-26)
 
 - Neutral validation is a separate preconstruction authority boundary. The

@@ -290,10 +290,12 @@
     RC.8 through RC.11 are immutable failed local-construction evidence after
     a host Go-root mismatch, a denied staged-directory move, an RC.10 builder
     syntax failure, and an RC.11 neutral copy-publication probe failure before
-    preflight/build-root creation. None may be reused. The next gate validates
-    an anonymous prospective RC.12 builder without consuming RC.12; candidate
-    construction still requires later independent review and explicit
-    authority. EXT-20 remains incomplete.
+    preflight/build-root creation. None may be reused. The first anonymous
+    prospective RC.12 draft passed its limited validation but failed
+    independent full-context review; the next gate independently reauthors
+    and revalidates a neutral draft without consuming RC.12. Construction
+    still requires later review and explicit authority. EXT-20 remains
+    incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

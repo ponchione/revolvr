@@ -60,18 +60,45 @@ Executable `agent-ext20-rc12-builder-validation-review.sh` is mode `0755`,
 `0cdbde37d6c33404c988b68c2da28fd325c50c277333ba35983bad419a235fbb`.
 It has passed `bash -n` but has not been executed.
 
+## Independent Review Result
+
+Controller review verified every sealed evidence-manifest entry, both exact
+before/after history comparisons, draft syntax, recorded neutral admissions,
+semantic probe evidence, and expected status-64 self-identity refusal. The
+limited validation record is published as commit
+`7585c40f1a0048d3d7d29267403e0810ca6e352f`.
+
+The draft is rejected for construction. Full mode first requires the exact
+builder to exist at lines 564-568, but `require_collision_free` at lines
+165-179 then requires that same builder absent. It also rejects the required
+construction launcher and the existing validation-review launcher. The
+neutral modes never exercise that contradictory context.
+
+Review also found that full mode checks only RC.10/RC.11 identities rather
+than complete RC.6-RC.11 before/after preservation; uses a full clone that
+contains later controller history instead of an exact shallow fetch; and
+omits required bundle build instructions, complete tool/environment identity,
+verbose vulnerability evidence, remote artifact/release collision checks,
+and full target/CGO embedded-metadata verification. The sealed root remains
+valid review evidence but cannot be copied, repaired, or used for RC.12.
+
 ## Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
-./agent-ext20-rc12-builder-validation-review.sh
+./agent-ext20-rc12-builder-revalidation.sh
 ```
 
-This starts one fresh independent review of the sealed neutral draft and
-evidence. It grants no construction, publication, remote CI, attestation,
-suite, live-model, dogfood, tag, release, external-use, recovery, queue, or
-`EXT-20` completion authority. `EXT-20` remains unchecked.
+The executable launcher SHA-256 is
+`9218d873e24214aa7fff9574e1e35ede1e967629947e101e961ad87eb285b4d7`.
+It starts one fresh Codex pass to author and validate a second independent
+anonymous draft satisfying the review findings. It consumes no RC.12 identity
+and cannot run full construction.
+
+This command grants no builder/candidate construction, publication, remote
+CI, attestation, suite, live-model, dogfood, tag, release, external-use,
+recovery, queue, or `EXT-20` completion authority. `EXT-20` remains unchecked.
 
 ## Previous Resume Point
 

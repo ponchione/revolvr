@@ -1,5 +1,45 @@
 # Agent State
 
+## Prospective RC.12 Neutral Builder Independent Review (2026-07-26)
+
+- Controller review independently verified sealed root
+  `/tmp/revolvr-builder-validation.maYqgv`: mode `0500`, 40 regular files,
+  mode-`0444` 24,352-byte/575-line draft SHA-256
+  `71b196d77b6eb89157492609b89e51d0c56a4e418b10b0f28ed43c94d5a4210d`,
+  and mode-`0444` 3,695-byte/38-line evidence-manifest SHA-256
+  `2ae2f598dffd37f333c672f492438a81fb346c896964c0107d063423a515ae85`.
+  Every manifest entry's name/mode/size/hash passed; evidence totals
+  37,123,439 bytes.
+- Recorded syntax/admission statuses are all `0`, full-mode refusal is exact
+  status `64`, both metadata and content before/after inventories are byte-
+  identical, semantic probe output proves correct copy/mode/link/inode/cleanup
+  behavior, and no prospective runtime identity exists. The review launcher
+  passed syntax and pre-prompt sealed-evidence checks but was not executed.
+- Raw Git committed and pushed the limited neutral-validation record plus
+  inert review launcher as
+  `7585c40f1a0048d3d7d29267403e0810ca6e352f` (`Record prospective RC.12
+  builder validation`); public main readback matched.
+- Independent code review rejects the draft for construction. Lines 564-568
+  require the exact builder to exist before `run_full_mode`, while lines
+  165-179 require the same `expected_builder` absent. That list also wrongly
+  requires the necessary construction launcher and existing validation-review
+  launcher absent, so full mode must fail before preflight.
+- Additional blocking gaps: full mode preserves only RC.10/RC.11 rather than
+  complete RC.6-RC.11 before/after history and terminal manifests; uses full
+  clones containing later controller objects; and omits bundle build
+  instructions, complete tool/environment identity, verbose unreachable-
+  vulnerability evidence, remote artifact/release collision reads, and exact
+  GOOS/GOARCH/CGO target metadata assertions. The first sealed draft cannot be
+  modified, copied, derived from, or used for construction.
+- Added executable `agent-ext20-rc12-builder-revalidation.sh`, SHA-256
+  `9218d873e24214aa7fff9574e1e35ede1e967629947e101e961ad87eb285b4d7`.
+  It authorizes only a second independent anonymous draft/revalidation root,
+  with explicit neutral full-context audits for self/launcher admission and
+  every settled candidate requirement above.
+- Exact next command: `./agent-ext20-rc12-builder-revalidation.sh`. RC.12 is
+  still unconsumed. No construction, remote, suite, live-model, release,
+  external-use, recovery, queue, or `EXT-20` completion authority exists.
+
 ## EXT-20 Prospective RC.12 Neutral Builder Validation (2026-07-26)
 
 - Task selected: exactly one bounded independent authoring and validation pass
