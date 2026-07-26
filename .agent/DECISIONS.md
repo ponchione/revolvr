@@ -1,5 +1,29 @@
 # Agent Decisions
 
+## EXT-20 RC.11 Draft-Before-Identity Boundary (2026-07-26)
+
+- Independent controller review accepts RC.10 as terminal failed construction
+  history. Its builder has one exact quoting defect: the final `file_hash`
+  substitution on line 441 omits the inner closing quote. The builder remains
+  immutable and unexecuted; no RC.10 candidate evidence exists.
+- A candidate identity must not be consumed by an unparsed builder draft.
+  RC.11 construction therefore authors only an anonymous neutral draft first,
+  runs `bash -n`, permits at most one syntax repair while it remains neutral,
+  and reviews command-substitution/inventory quoting before publishing any
+  RC.11-named runtime file.
+- Only syntax-passing draft bytes may be copied to the exact RC.11 builder.
+  The exact builder is made read-only, required to match the draft hash, and
+  parsed again before its sole execution. Once that named builder exists, any
+  failure exhausts RC.11 and neither builder nor output may be repaired.
+- Candidate source remains published commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`. Construction retains clean
+  exact-Go invocation, independent builds/caches, full local verification,
+  and `mkdir`/`cp -a` final publication with post-copy identity checks.
+- RC.11 remains a local construction gate. It grants no ref/workflow
+  publication, remote CI, attestation, suite, dogfood, live model, tag,
+  release, external use, recovery, queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.10 Failed Builder Boundary (2026-07-26)
 
 - RC.10 is terminal failed local-construction history. Its sole new ignored

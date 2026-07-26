@@ -1,5 +1,42 @@
 # Agent State
 
+## EXT-20 RC.10 Review And RC.11 Local Continuation (2026-07-26)
+
+- Independent controller review reproduced RC.10's sole ignored builder at
+  474 lines, mode `0664`, and SHA-256
+  `229d000616812af01bf001b979b97313d3fb89d18243edb900ab0c4d6f14e8be`.
+  `bash -n` again exited `2` at line 443 with an unexpected `}`.
+- Byte-level inspection found the precise cause at line 441: the final
+  candidate-inventory `file_hash` substitution has no inner closing quote
+  before `)`. The subsequent verification-inventory line has the correct
+  quote/substitution order. The RC.10 builder remains unchanged and was not
+  executed.
+- The builder is the only RC.10 runtime path. Both final bundle paths, every
+  preflight/build/stage/diagnostic path, refs, tags, workflow, suite, launch
+  record, and review launcher remain absent. Exact source/tree admission and
+  the empty product-source diff passed.
+- RC.6 and RC.7 terminal manifest pairs passed again and all six protected
+  streams matched. RC.8 files/trees and RC.9 files/trees/staged manifests and
+  all historical final-path absences matched. No source, dependency, or
+  historical artifact changed.
+- Raw Git committed the accepted RC.10 failure record as
+  `eda445f11eb52fcab9414311fb33f931921cd881` (`Record failed RC.10 local
+  construction`) and pushed it by fast-forward to `origin/main`; public
+  readback matched.
+- Added executable `agent-ext20-rc11.sh`, SHA-256
+  `f143179a6baa9b8851c5472aac9b8702b5f2800f76a2da4ce33c05446203b447`.
+  It pins the same source, preserves RC.10's sole malformed-builder identity,
+  rejects RC.11 collisions, and retains the clean exact-toolchain and proven
+  copy-publication boundaries.
+- RC.11 builder text must first pass `bash -n` in a neutral anonymous draft
+  path containing no RC.11 identity. At most one syntax repair is allowed
+  there. Only syntax-passing exact bytes may become the read-only RC.11
+  builder, which must remain byte-identical to the draft and pass `bash -n`
+  again before one execution. A later failure exhausts RC.11.
+- Exact next command: `./agent-ext20-rc11.sh`. This grants no remote, suite,
+  live-model, release, external-use, recovery, queue, or `EXT-20` completion
+  authority.
+
 ## EXT-20 RC.10 Local Construction Failed Before Execution (2026-07-26)
 
 - Task selected: exactly one bounded construction and local-verification pass

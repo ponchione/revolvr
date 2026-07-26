@@ -12,6 +12,13 @@ before builder execution. Fresh ignored builder
 failed its first `bash -n` verification with exit status `2` at line 443:
 `syntax error near unexpected token '}'`.
 
+Independent controller review reproduced the exact hash, mode, line count,
+and parser failure and identified the cause: line 441 omits the inner closing
+quote in its final candidate-inventory `file_hash` command substitution, so
+the parser encounters the following `}` while the substitution is incomplete.
+The accepted failure record is published as commit
+`eda445f11eb52fcab9414311fb33f931921cd881`.
+
 The builder must remain unchanged. RC.10 is an exhausted failed identity and
 cannot be repaired, executed, retried, completed, relabeled, deleted, mutated,
 derived from, or reused. The failure preceded the neutral copy-publication
@@ -44,13 +51,23 @@ exact at the identities recorded in `.agent/STATE.md`.
 
 ## Next Gate
 
-No continuation command or candidate local-review launcher is authorized.
-The next bounded task is an independent read-only controller review of the
-immutable RC.10 syntax failure and the four durable-state files. If that
-review accepts the failure record, any later construction still requires a
-new collision-free candidate identity and separate explicit operator
-authority.
+From `/home/gernsback/source/revolvr`, run exactly:
 
-RC.10 grants no remote-CI, attestation, suite, dogfood, live-model, tag,
-release, external-use, recovery, queue, or `EXT-20` completion authority.
-`EXT-20` remains unchecked.
+```bash
+./agent-ext20-rc11.sh
+```
+
+The executable launcher SHA-256 is
+`f143179a6baa9b8851c5472aac9b8702b5f2800f76a2da4ce33c05446203b447`.
+It starts one fresh Codex pass to build `level1-v0.1.0-rc.11` from the pinned
+published source. Before creating any RC.11 runtime identity, the pass must
+author and syntax-check a neutral anonymous draft, review quoting-heavy
+inventory lines, then publish the exact byte-identical read-only builder and
+parse it again before its sole execution.
+
+This command does not repair or reuse RC.10, publish refs or workflows, run a
+suite or live product model operation, commit, push, tag, release, approve
+external use, grant recovery/queue authority, or complete `EXT-20`. It must
+stop after local construction and at most one inert independent-review
+continuation. RC.6 through RC.10 remain immutable, and `EXT-20` remains
+unchecked.
