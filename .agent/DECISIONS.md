@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## EXT-20 RC.8 Failed Local-Construction Boundary (2026-07-26)
+
+- The sole authorized `level1-v0.1.0-rc.8` local-construction attempt is
+  terminal failed diagnostic history. Exact source authority and all collision
+  checks passed, but the Go 1.22.12 source-floor suite was invoked under an
+  inherited `GOROOT=/usr/local/go` and selected Go 1.26.5 tools, producing a
+  tool-version mismatch before any candidate artifact was built.
+- Preserve the ignored builder, unique diagnostic, two exact source clones,
+  caches, and unsealed partial verification tree exactly as retained. They are
+  not a candidate, bundle, or authority and cannot be retried, repaired,
+  completed, relabeled, overwritten, or reused. The absent final RC.8 bundle
+  paths must not be populated under this exhausted pass.
+- A candidate-construction environment must bind `GOROOT` to the selected
+  exact toolchain or remove inherited `GOROOT` before invoking a different Go
+  executable. Recording both executable identity and `go env GOROOT` is part
+  of future source-floor admission. This construction rule changes no product
+  source or dependency.
+- No local-review launcher is appropriate without sealed candidate and
+  verification bundles. Further work requires a separate independent
+  controller review plus new explicit operator authority for a fresh
+  collision-free candidate identity; nothing in the failed RC.8 attempt
+  grants remote CI, attestation, suite, dogfood, live-model, tag, release,
+  external-use, recovery, queue, or `EXT-20` completion authority.
+- RC.6 and RC.7 remain independently immutable at all six recorded protected
+  content-stream hashes, with both terminal checksum manifests passing before
+  and after the failed RC.8 attempt. `EXT-20` remains unchecked.
+
 ## EXT-20 Published Planner Remediation And RC.8 Source Boundary (2026-07-26)
 
 - The independently reviewed planner lifecycle-contract remediation is

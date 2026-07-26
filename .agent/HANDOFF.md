@@ -4,40 +4,54 @@ Updated: 2026-07-26
 
 ## Resume Point
 
-The planner lifecycle-contract remediation passed independent and controller
-review and is published on raw-Git `origin/main` as exact source commit
+The single authorized `level1-v0.1.0-rc.8` local-construction attempt failed
+closed during the Go 1.22.12 source-floor full suite. No candidate artifact or
+final candidate/verification bundle was produced.
+
+The exact source authority passed before construction: published source commit
 `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
-`2c8ee9f6b4283410547a9f99972e25eac06c9e33`, parent
-`a9b4f50465466fee61e13f131ae6679e3d8b4729`. Local, fetched, and public
-`main` readback matched that commit before the separate RC.8 continuation was
-created.
+`2c8ee9f6b4283410547a9f99972e25eac06c9e33`, and local/fetched/public
+`main` `221d8becdc0aee9aa00b4879f11bec28f97c242f`. The source is reachable
+from `origin/main`, and the diff from source through controller HEAD is empty
+for `.agent/profiles`, `cmd`, `internal`, `go.mod`, and `go.sum`.
 
-The accepted remediation keeps the safe Go validators strict, makes planner
-prompts and the Structured Outputs schema express the exact lifecycle fields,
-and treats schema-required empty evidence arrays as equal to omitted empty
-slices after canonical state round-trips. Focused, race, production
-strict-fake, full-suite, formatting, syntax, diff-hygiene, and pre/post RC.7
-bundle verification passed.
+## Fail-Closed RC.8 Attempt
 
-## Exact Next-Session Resume
+- Ignored builder:
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.8.sh`, SHA-256
+  `b4b23c2ede3502f666253e8b34e6962df58bbf848fe108c51172b95619d45b6e`.
+- Diagnostic:
+  `.revolvr/release-candidates/diagnostics/level1-v0.1.0-rc.8-20260726T121225Z-227936.txt`,
+  SHA-256
+  `5cc3e477270fd051d967bf63de50a4c2ad007ed8b5217a429e8a8525ebcc89c5`.
+- Retained partial build root:
+  `/tmp/revolvr-ext20-rc8-build.wnKv7Q`, 15,882 regular files,
+  path-bearing content-stream SHA-256
+  `576db5a2a76ef52013b54c1cb29d5623908e57b1f34a772d7f56e5635cf952e2`.
+- Retained partial verification root:
+  `/tmp/revolvr-ext20-rc8-build.wnKv7Q/verification`, 20 regular files,
+  path-bearing content-stream SHA-256
+  `ea9fdc5cc97e475d13109d8a3b1d7eafb25e4b3cd87e4085c5bef44aa3e2841a`.
 
-From `/home/gernsback/source/revolvr`, run exactly:
+The exact source-floor executable reports `go1.22.12`, but the inherited host
+environment sets `GOROOT=/usr/local/go`. It therefore selected the Go 1.26.5
+standard library/tool directory and failed compilation with repeated
+`compile: version "go1.26.5" does not match go tool version "go1.22.12"`.
+This is a construction-environment defect, not a product test failure.
 
-```bash
-./agent-ext20-rc8.sh
-```
+Planner lifecycle ordinary/race tests, the Structured Outputs compatibility
+guard, and production happy-path/strict-fake ordinary/race tests passed before
+the stop. Go 1.26.5 full-suite/vet/module verification, vulnerability scans,
+release builds, reproducibility comparison, metadata verification, and bundle
+sealing did not run.
 
-The executable launcher SHA-256 is
-`d27842590accf418e20f9ddd5ca048e6b299776ad7d8b17f02fc933c51003284`.
-It starts one fresh Codex pass with approval/sandbox bypass to construct and
-locally verify `level1-v0.1.0-rc.8` from the exact published source above.
-Remain aware that the fresh Codex process inherits host access and may use
-network/toolchain resources for local build and vulnerability verification.
+The intended final paths remain absent:
 
-This command does not run Revolvr dogfood, create a suite, make a live product
-model call, publish a ref, commit, push, tag, release, approve external use,
-grant queue authority, or complete `EXT-20`. It must stop after local candidate
-construction and preparation of an inert independent-review continuation.
+- `.revolvr/release-candidates/level1-v0.1.0-rc.8-a24804bcf2a3`
+- `.revolvr/release-candidates/level1-v0.1.0-rc.8-a24804bcf2a3-verification`
+
+No local-review launcher was created. No RC.8 ref, tag, workflow, suite,
+launch record, model operation, or release/external-use authority exists.
 
 ## Immutable Failure Boundary
 
@@ -50,26 +64,19 @@ construction and preparation of an inert independent-review continuation.
   `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
   `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
 
-Never execute, retry, repair, delete, mutate, derive from, or reuse any RC.6 or
-RC.7 wrapper, launcher, suite, operation, launch record, or evidence root.
-The RC.7 terminal checksum manifests may be reverified read-only.
+Both checksum manifests in each terminal evidence root passed before and after
+the failed attempt. Never execute, retry, repair, delete, mutate, derive from,
+or reuse any RC.6, RC.7, or failed RC.8 material.
 
-## Next Ordered Work
+## Exact Next-Session Resume
 
-1. Run `./agent-ext20-rc8.sh` for one bounded local candidate-construction
-   pass.
-2. Run the inert independent local-review continuation produced by that pass.
-3. Return for separate controller decisions about candidate publication,
-   remote CI, attestation, suite preparation, and human live authority. None is
-   granted in advance.
+There is no authorized executable continuation. A fresh independent
+controller must first review the retained RC.8 diagnostic and preservation
+evidence, then obtain explicit operator direction for a new collision-free
+candidate identity and clean construction environment. The failed RC.8
+namespace and partial output cannot be reused or overwritten.
 
-## Session Rules
-
-- Read `AGENTS.md`, this file, `.agent/TASKS.md`, `.agent/STATE.md`,
-  `.agent/DECISIONS.md`, and `.agent/LOOP_PROMPT.md` before acting.
-- Use a new `codex exec` invocation for each bounded task; never resume an old
-  session or rely on old transcripts.
-- Do exactly one task per pass, preserve unrelated changes and immutable
-  evidence, and never use `gh`.
-- `EXT-20` remains unchecked. The repository is durable memory; this file is
-  only the active resume pointer.
+`EXT-20` remains unchecked. Do not commit, push, publish a ref, create a
+workflow or suite, start Revolvr/Codex/model work, tag, release, approve
+external use, grant recovery/queue authority, or complete `EXT-20` without a
+new explicit gate.

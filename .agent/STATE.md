@@ -1,5 +1,86 @@
 # Agent State
 
+## EXT-20 RC.8 Local Candidate Construction Failed Closed (2026-07-26)
+
+- Task selected: exactly one bounded local construction and verification
+  attempt for collision-free candidate `level1-v0.1.0-rc.8`, under the still-
+  unchecked `EXT-20`. No live Revolvr/model operation, suite, remote ref,
+  workflow, tag, release, external-use decision, recovery, or queue authority
+  was admitted.
+- Source/collision preflight passed before construction. Local, fetched, and
+  public `main` agreed at controller commit
+  `221d8becdc0aee9aa00b4879f11bec28f97c242f`; exact published source
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba` is reachable from it and has
+  tree `2c8ee9f6b4283410547a9f99972e25eac06c9e33`. The product-source diff
+  through controller HEAD is empty for `.agent/profiles`, `cmd`, `internal`,
+  `go.mod`, and `go.sum`. Local/remote RC.8 refs and tags, workflow, public
+  artifact name, final bundles, build root, suite/launch/runtime roots,
+  diagnostic namespace, and local-review launcher were all absent.
+- Exact tools admitted were release Go `/usr/local/go/bin/go`, `go1.26.5`,
+  SHA-256
+  `8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9`;
+  source-floor Go
+  `/home/gernsback/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.22.12.linux-amd64/bin/go`,
+  `go1.22.12`, SHA-256
+  `929407e69c08952cd944a7457ae4eb289078a35473dd5dad2179369db7c5a6ec`;
+  and `govulncheck@v1.1.4`.
+- Added ignored fail-closed builder
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.8.sh`, SHA-256
+  `b4b23c2ede3502f666253e8b34e6962df58bbf848fe108c51172b95619d45b6e`.
+  Its one construction attempt retained diagnostic
+  `.revolvr/release-candidates/diagnostics/level1-v0.1.0-rc.8-20260726T121225Z-227936.txt`,
+  SHA-256
+  `5cc3e477270fd051d967bf63de50a4c2ad007ed8b5217a429e8a8525ebcc89c5`.
+- Retained partial build root `/tmp/revolvr-ext20-rc8-build.wnKv7Q` contains
+  15,882 regular files and has path-bearing content-stream SHA-256
+  `576db5a2a76ef52013b54c1cb29d5623908e57b1f34a772d7f56e5635cf952e2`.
+  Its unsealed 20-file verification subtree has content-stream SHA-256
+  `ea9fdc5cc97e475d13109d8a3b1d7eafb25e4b3cd87e4085c5bef44aa3e2841a`.
+  It includes two independently fetched, exact detached clean source clones;
+  neither contains the later RC.8 controller launcher. This partial root is
+  immutable diagnostic history, not candidate evidence, and must not be
+  retried, repaired, completed, relabeled, or reused.
+- Verification passed before the stop: complete ordinary and race tests for
+  `internal/autonomousplanning`, `internal/prompt`, and
+  `internal/autonomouscycle`; focused Structured Outputs compatibility guard
+  `TestProductionModelOutputSchemasUseSupportedStructuredOutputsSubset`; and
+  ordinary/race production tests `TestProductionAutonomousHappyPath` and
+  `TestStrictFakeCodexContract`.
+- Verification then failed during `go1.22.12 test -count=1 ./...`. The host
+  exports `GOROOT=/usr/local/go`, so direct invocation of the exact Go 1.22.12
+  binary selected the Go 1.26.5 standard library/tool directory and emitted
+  repeated `compile: version "go1.26.5" does not match go tool version
+  "go1.22.12"`. With `GOROOT` unset, the executable resolves its own exact
+  module-toolchain root. Per the no-reuse/fail-closed direction, no repair or
+  second attempt was made. This is a construction-environment blocker, not a
+  failing product regression.
+- Go 1.26.5 full tests, vet, module verification, vulnerability scans,
+  release builds, reproducibility checks, artifact metadata checks, and bundle
+  sealing did not run. Final candidate path
+  `.revolvr/release-candidates/level1-v0.1.0-rc.8-a24804bcf2a3` and final
+  verification path with suffix `-verification` remain absent. No inert
+  local-review launcher was created because there is no candidate to review.
+- Both RC.7 and RC.6 terminal `files.sha256` and `bundle.sha256` manifests
+  passed before and after. Their suite / launch-record / terminal-evidence
+  content-stream SHA-256 values remained respectively RC.7
+  `ef031fa8aa3f7849b50551824a9f7c4b8d72e42f19ad5906f32e4aa0d9a1fb3a` /
+  `deb55229c31197830721f5fc7cff368281451139da0ad52560f29246b91f2e1c` /
+  `6bce7d6a7edd992ee23e138713bb6e0923d3be9d3c1ffebd0fd2c94ea47fbd9f`
+  and RC.6
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+- `.agent/TASKS.md` remains unchanged at SHA-256
+  `33d1ead280d00a0246528bf091e526c5010c8e40ebe41cbe35f37e50d652d448`
+  with `EXT-20` unchecked. Tracked files changed by this pass are only
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`; ignored
+  changes are the builder and retained diagnostic/work root above.
+- Result: BLOCKED, no candidate constructed. No separately authorized local
+  review gate exists. What remains is a fresh controller review of this
+  failure and explicit operator direction for a new collision-free candidate
+  identity and construction environment; the failed RC.8 namespace cannot be
+  overwritten or reused.
+
 ## EXT-20 Planner Remediation Publication And RC.8 Continuation (2026-07-26)
 
 - Controller review independently reverified exact local/fetched/public
