@@ -1,5 +1,46 @@
 # Agent Decisions
 
+## Prospective RC.12 Neutral Draft Accepted For Independent Review (2026-07-26)
+
+- Neutral validation is a separate preconstruction authority boundary. The
+  sealed anonymous draft at `/tmp/revolvr-builder-validation.maYqgv` passed
+  syntax, semantic neutral admission, focused static audit, final syntax, and
+  expected full-mode self-identity refusal. It creates no candidate identity
+  and is not a builder publication or construction authority.
+- The copy-publication contract is ordered write, file seal, nested/root seal,
+  destination `mkdir`, `cp -a source/. destination/.`, destination-root seal,
+  byte/mode/link/inode verification, parent write restoration, exact unique-
+  root cleanup, and residue proof. Directory rename, hard links, and symlinks
+  are excluded from the procedure.
+- One neutral static-audit repair was appropriate after the first successful
+  syntax/admission attempt: every Go metadata command now uses the same clean
+  tool boundary as tests/builds, the executable version probe uses
+  `--version`, all independent caches are explicit, and ERR/signal traps
+  preserve correct failure status. Complete syntax/admission checks passed
+  after the repair; no candidate namespace was consumed.
+- The full-mode design is accepted only as prospective review material. It
+  preserves source commit `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`
+  and tree `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, exact clean Go tools,
+  independent clones/caches, both Go-version ordinary/race matrices, vet,
+  module and vulnerability checks, reproducible supported amd64 artifacts,
+  staged manifests, and `mkdir`/`cp -a` final publication with post-copy
+  identity checks. It must not run until a later independent review and
+  separate explicit construction authorization.
+- Root `/tmp/revolvr-builder-validation.maYqgv` is immutable mode `0500`.
+  Draft SHA-256 is
+  `71b196d77b6eb89157492609b89e51d0c56a4e418b10b0f28ed43c94d5a4210d`;
+  evidence-manifest SHA-256 is
+  `2ae2f598dffd37f333c672f492438a81fb346c896964c0107d063423a515ae85`.
+  Exact historical metadata and content inventories match before/after. RC.1
+  through RC.11 and every recorded historical identity/absence remain
+  immutable and cannot be inputs to a later builder or candidate.
+- `agent-ext20-rc12-builder-validation-review.sh` is the sole next gate. It
+  may start one fresh read-only independent review of the sealed draft and
+  evidence, but it cannot execute either draft mode, construct or publish a
+  builder/candidate, create a construction launcher, run tests/builds/live
+  work, or grant remote, release, external-use, recovery, queue, or `EXT-20`
+  completion authority. `EXT-20` stays unchecked.
+
 ## Prospective RC.12 Neutral Builder-Validation Boundary (2026-07-26)
 
 - Independent review accepts RC.11 as terminal failed construction history.

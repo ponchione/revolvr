@@ -4,6 +4,77 @@ Updated: 2026-07-26
 
 ## Resume Point
 
+The prospective candidate-construction procedure passed its anonymous neutral
+validation gate without creating a candidate identity. Sealed root
+`/tmp/revolvr-builder-validation.maYqgv` is mode `0500` and contains exactly
+40 regular files: one mode-`0444` neutral draft plus 39 mode-`0444` evidence
+files.
+
+Neutral draft
+`/tmp/revolvr-builder-validation.maYqgv/candidate-construction-draft.sh` is
+24,352 bytes, 575 lines, and SHA-256
+`71b196d77b6eb89157492609b89e51d0c56a4e418b10b0f28ed43c94d5a4210d`.
+Its path, filename, and bytes contain none of the forbidden prospective
+identity literals. The 39 evidence files total 37,123,439 bytes. Manifest
+`evidence-manifest.tsv` is mode `0444`, 3,695 bytes, 38 lines, and SHA-256
+`2ae2f598dffd37f333c672f492438a81fb346c896964c0107d063423a515ae85`;
+it records and verifies every other evidence file's exact name, mode, size,
+and SHA-256. Its own exact identity is recorded here.
+
+Initial `bash -n` and `--neutral-admission` both exited `0`. A focused audit
+then made the sole neutral repair: all Go metadata invocations now use the
+clean environment, the binary check uses `--version`, the second build cache
+is explicit, and ERR/signal propagation is complete. The entire syntax and
+neutral-admission sequence passed again. A final `bash -n` exited `0`; the
+draft's one no-argument invocation exited expected status `64` at its exact
+self-identity boundary before any candidate mutation.
+
+The semantic probe wrote under mode-`0700` source parents, changed the value
+file to `0400`, sealed source/nested to `0500`, used only `mkdir` plus `cp -a
+source/. destination/.`, made the destination root `0500`, proved exact bytes
+and all six modes, proved distinct single-link inodes and no symlinks, made
+both parents writable, removed only its unique neutral probe, and proved no
+residue. The draft full-mode design retains exact source commit
+`a24804bcf2a32ee5434d3686eabad5b72d9f39ba` and tree
+`2c8ee9f6b4283410547a9f99972e25eac06c9e33`, clean exact Go tools,
+independent clones/caches, both Go-version ordinary/race matrices, vet/module/
+vulnerability checks, reproducible Linux/Darwin/FreeBSD amd64 artifacts,
+staged manifests, and `mkdir`/`cp -a` final publication with stage/final
+identity checks. Full mode was not run.
+
+Before/after preservation inventories are byte-identical: 57,135 metadata
+entries at SHA-256
+`b4ea4ce169e5ec575c52d579aff6d868dbe8069245c556adb6a93ab301537360`
+and 52,870 file-content entries at SHA-256
+`15f89741ef58e4e6b7f1e590a6692bf60669faa91088aca1965228b04a8d6c59`.
+They cover complete `.revolvr` history, the recorded RC.8/RC.9 temporary
+roots, the RC.11 neutral draft, all pre-existing EXT-20 launchers, and every
+Level-1 workflow. RC.10/RC.11 exact builder/draft identities and all recorded
+prospective absences also passed. The only prospective-name paths now present
+are the pre-existing validation-pass launcher and the new review launcher;
+there is no construction launcher, builder, candidate path, preflight/build/
+stage root, artifact, bundle, ref, workflow, tag, suite, or launch record.
+
+Executable `agent-ext20-rc12-builder-validation-review.sh` is mode `0755`,
+4,583 bytes, 104 lines, and SHA-256
+`0cdbde37d6c33404c988b68c2da28fd325c50c277333ba35983bad419a235fbb`.
+It has passed `bash -n` but has not been executed.
+
+## Next Gate
+
+From `/home/gernsback/source/revolvr`, run exactly:
+
+```bash
+./agent-ext20-rc12-builder-validation-review.sh
+```
+
+This starts one fresh independent review of the sealed neutral draft and
+evidence. It grants no construction, publication, remote CI, attestation,
+suite, live-model, dogfood, tag, release, external-use, recovery, queue, or
+`EXT-20` completion authority. `EXT-20` remains unchecked.
+
+## Previous Resume Point
+
 The sole authorized `level1-v0.1.0-rc.11` local-construction attempt failed
 closed during its exact builder's one execution, before RC.11 preflight or
 build-root creation.
@@ -59,7 +130,7 @@ files, trees, staged inventories/manifests, and absences remain exact. RC.10
 remains exactly its sole 474-line mode-`0664` builder at SHA-256
 `229d000616812af01bf001b979b97313d3fb89d18243edb900ab0c4d6f14e8be`.
 
-## Next Gate
+## Previous Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:
 

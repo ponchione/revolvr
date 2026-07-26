@@ -1,5 +1,103 @@
 # Agent State
 
+## EXT-20 Prospective RC.12 Neutral Builder Validation (2026-07-26)
+
+- Task selected: exactly one bounded independent authoring and validation pass
+  for an anonymous prospective Level-1 candidate-construction builder. No
+  `gh`, commit, push, fetch, nested Codex/model operation, Revolvr operation,
+  product test/build, candidate construction, candidate identity, preflight/
+  build/stage root, artifact, bundle, ref, workflow, tag, suite, launch record,
+  release, or external-use action was used. `EXT-20` remains unchecked.
+- Created unique neutral root `/tmp/revolvr-builder-validation.maYqgv`, now
+  sealed mode `0500`. Draft `candidate-construction-draft.sh` is mode `0444`,
+  24,352 bytes, 575 lines, SHA-256
+  `71b196d77b6eb89157492609b89e51d0c56a4e418b10b0f28ed43c94d5a4210d`.
+  The root path, draft filename, and draft bytes contain none of `rc12`,
+  `rc.12`, or `level1-v0.1.0-rc.12`; prospective digits are joined only at
+  runtime from separate values.
+- The draft dispatches `--neutral-admission` after all function definitions
+  and before self-identity enforcement. That mode ran only read-only source,
+  history, tool, and collision admission plus fresh neutral publication
+  probes. Exact published source commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, public controller HEAD
+  `ab525e26a8bdc837d6182a85ffcfda1bc7c5017f`, Go 1.22.12/1.26.5 executable
+  identities and roots, and `govulncheck@v1.1.4` identity passed.
+- The semantic probe correctly created source/nested writable, wrote the
+  value, changed the file to mode `0400`, then sealed nested and source mode
+  `0500`. It created the destination with `mkdir`, copied only with `cp -a
+  source/. destination/.`, made the destination root `0500`, and proved byte
+  equality; exact source/destination root `0500`, nested `0500`, and file
+  `0400` modes; single link counts; distinct inodes; and no symlinks. It made
+  destination/source parents writable before removing only the validated
+  unique neutral probe and proved no residue.
+- Initial commands `bash -n
+  /tmp/revolvr-builder-validation.maYqgv/candidate-construction-draft.sh` and
+  `bash /tmp/revolvr-builder-validation.maYqgv/candidate-construction-draft.sh
+  --neutral-admission` both exited `0`; stdout, empty stderr, statuses, and
+  commands are sealed. Focused review of all 57 command substitutions,
+  manifest exclusions, the sole cleanup command/target, stage/final identity
+  checks, failure traps, and three archival-copy lines found one repairable
+  neutral design issue. One repair bound every Go metadata invocation to the
+  clean environment, corrected the binary version probe to `--version`, made
+  the second build cache explicit, and completed ERR/signal propagation.
+- The full syntax/admission sequence was rerun after that sole repair and both
+  commands again exited `0`. The focused audit passed with exactly one guarded
+  `rm -rf` cleanup target, exactly three `cp -a` lines (one neutral probe and
+  two full publications), no directory rename/hard-link/symlink command, no
+  forbidden draft literal, and no probe residue. Final `bash -n` exited `0`.
+- The draft was invoked exactly once without `--neutral-admission`. It wrote
+  no stdout, exited required status `64`, and reported its neutral-path
+  refusal against expected exact builder identity before the failure trap or
+  full-mode function could run. All prospective runtime paths were absent
+  afterward except the already existing validation-pass launcher.
+- The unexecuted full-mode design pins the exact published source commit/tree;
+  requires clean Go 1.22.12 and 1.26.5 invocation with independent source
+  clones and caches; runs ordinary and race full test matrices under both Go
+  versions plus vet, module, and vulnerability verification; builds twice and
+  byte-compares Linux/Darwin/FreeBSD amd64 artifacts; verifies embedded source
+  and empty build IDs; stages checksum manifests; seals trees; and publishes
+  only with `mkdir` plus `cp -a`, followed by complete stage/final inventory,
+  manifest, content, mode, and root-mode identity checks. Full mode was not
+  executed.
+- Historical before/after inventories are exact. The 57,135-entry metadata
+  files are byte-identical at SHA-256
+  `b4ea4ce169e5ec575c52d579aff6d868dbe8069245c556adb6a93ab301537360`;
+  the 52,870-entry content files are byte-identical at SHA-256
+  `15f89741ef58e4e6b7f1e590a6692bf60669faa91088aca1965228b04a8d6c59`.
+  Coverage includes all `.revolvr` history, recorded RC.8/RC.9 temporary
+  roots, the RC.11 neutral draft, all pre-existing EXT-20 launchers, and all
+  Level-1 workflows. Neutral admission also reverified exact RC.10/RC.11
+  builder/draft hashes, sizes, lines, modes, and the recorded absent paths.
+  No historical source, dependency, builder, artifact, bundle, tree, suite,
+  operation, record, diagnostic, evidence, identity, or absence changed.
+- The sealed root has exactly 40 regular files: one draft and 39 evidence
+  files. All are mode `0444`; evidence totals 37,123,439 bytes and the entire
+  root totals 37,147,791 bytes. Mode-`0444` `evidence-manifest.tsv` is 3,695
+  bytes, 38 lines, SHA-256
+  `2ae2f598dffd37f333c672f492438a81fb346c896964c0107d063423a515ae85`;
+  its 38 entries reverify every other evidence file's exact mode, size, and
+  SHA-256. Its own exact identity and the draft identity are recorded here.
+- Files changed: new executable
+  `agent-ext20-rc12-builder-validation-review.sh` plus `.agent/HANDOFF.md`,
+  `.agent/STATE.md`, and `.agent/DECISIONS.md`; no product source, dependency,
+  or task-backlog byte changed. The review launcher is mode `0755`, 4,583
+  bytes, 104 lines, SHA-256
+  `0cdbde37d6c33404c988b68c2da28fd325c50c277333ba35983bad419a235fbb`.
+  It passed `bash -n` and was not executed. Final prospective-name scanning
+  finds exactly the pre-existing validation launcher and this authorized
+  review launcher; the construction launcher and every candidate runtime
+  identity remain absent.
+- Verification result: **PASSED neutral validation**. `go test ./...` was not
+  run because no Go source changed and this pass expressly prohibited product
+  tests/builds. Final `bash -n` checks for the draft and review launcher,
+  complete sealed-root/manifest identity verification, empty product-source
+  and task-backlog diffs, and `git diff --check` all passed. What remains is
+  one independent review of the exact sealed neutral draft/evidence. That
+  review grants no construction authority; a later candidate attempt still
+  requires separate explicit operator direction. There are no current
+  blockers.
+
 ## EXT-20 RC.11 Review And Prospective RC.12 Builder Validation (2026-07-26)
 
 - Independent controller review reproduced the mode-`0444` neutral draft and
