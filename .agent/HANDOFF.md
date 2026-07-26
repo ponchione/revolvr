@@ -12,6 +12,14 @@ Neither authorized final bundle path appeared. RC.9 is terminal failed local-
 construction history, not a candidate, and cannot be repaired, moved,
 completed, relabeled, retried, derived from, or reused.
 
+Independent controller review reproduced every retained identity and manifest
+and published the failure record as commit
+`f81b4a0144164aac71f8d943ca2ee6f4ca801648`. A neutral probe reproduced
+the execution-environment denial when moving a sealed directory into a sibling
+final path. Ownership, Unix modes, ACLs, ext4 mount state, and free space were
+compatible. A separate neutral `mkdir` plus `cp -a source/. destination/`
+probe succeeded and preserved read-only modes; all probe paths were removed.
+
 Exact source remained published commit
 `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
 `2c8ee9f6b4283410547a9f99972e25eac06c9e33`. Local, fetched, and public
@@ -82,8 +90,22 @@ remained exact.
 
 ## Next Gate
 
-There is no authorized executable continuation. The next bounded gate is an
-independent controller review of this exact failed-construction record. A new
-candidate identity and executable require separate explicit operator
-authority after that review. Do not execute or mutate any RC.6, RC.7, RC.8,
-or RC.9 material. `EXT-20` remains unchecked.
+From `/home/gernsback/source/revolvr`, run exactly:
+
+```bash
+./agent-ext20-rc10.sh
+```
+
+The executable launcher SHA-256 is
+`14d99ada8f2adb78a2e80c18a19df27428a3848f66a0627bbe7cad6ff73fdde6`.
+It starts one fresh Codex pass to build `level1-v0.1.0-rc.10` independently
+from the pinned published source. It prohibits directory rename publication,
+preflights the proven `mkdir`/`cp -a` method, and requires exact manifests and
+stage/final hashes after copying into newly created final paths.
+
+This command does not reuse RC.9 artifacts, publish refs or workflows, run a
+suite or live product model operation, commit, push, tag, release, approve
+external use, grant recovery/queue authority, or complete `EXT-20`. It must
+stop after local construction and at most one inert independent-review
+continuation. RC.6 through RC.9 remain immutable, and `EXT-20` remains
+unchecked.

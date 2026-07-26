@@ -1,5 +1,31 @@
 # Agent Decisions
 
+## EXT-20 RC.10 Copy-Publication Boundary (2026-07-26)
+
+- RC.9 is accepted as a terminal environment/construction failure. Independent
+  review reproduced that this execution environment denies moving a sealed
+  directory from a staging parent into a sibling final path even though Unix
+  ownership/modes, ACLs, ext4 mount state, and capacity permit it. This is not
+  a product, artifact, or manifest defect.
+- Neutral review proved that creating a destination directory and copying
+  sealed contents with `cp -a source/. destination/` succeeds and preserves
+  read-only modes. RC.10 must preflight that exact method and may not use
+  directory rename, hard links, or symlinks for final bundle publication.
+- The operator's next-task direction authorizes one fresh local construction
+  pass for `level1-v0.1.0-rc.10`, sourced only from published commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`. RC.9 staged artifacts,
+  binaries, clones, caches, builder, and results are immutable history, not
+  RC.10 inputs.
+- Final RC.10 paths are created only after independent builds and staged
+  verification pass. Each is populated by archival copy and must match its
+  stage in inventory, inventory hash, regular-file count, content-stream hash,
+  and modes. Once either final path exists, any failure exhausts RC.10; no
+  cleanup, completion, or repair is authorized.
+- RC.10 remains a local construction gate. It grants no ref/workflow
+  publication, remote CI, attestation, suite, dogfood, live model, tag,
+  release, external use, recovery, queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.9 Failed Local-Construction Boundary (2026-07-26)
 
 - The sole authorized `level1-v0.1.0-rc.9` local-construction attempt is

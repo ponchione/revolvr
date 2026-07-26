@@ -1,5 +1,45 @@
 # Agent State
 
+## EXT-20 RC.9 Review And RC.10 Local Continuation (2026-07-26)
+
+- Independent controller review reproduced the RC.9 builder/diagnostic hashes
+  and modes; all preflight/build/stage/subtree counts and content-stream
+  hashes; both staged inventory and inventory-file hashes; all three artifact
+  hashes; exact source/tree/tool metadata; and both absent final paths. Both
+  staged manifests pass read-only.
+- The retained Go 1.22.12 and Go 1.26.5 full-suite/module results, Go 1.26.5
+  vet result, reproducibility table, embedded metadata, and govulncheck output
+  are consistent. Govulncheck reports no reachable or imported-package
+  vulnerability and only unreachable Windows-specific `GO-2026-5024` in a
+  required module. No source or dependency changed.
+- The exact RC.9 directory-move failure was reproduced with a fresh neutral
+  probe under `.revolvr/release-candidates`: creating and sealing a directory
+  succeeded, while moving it from its staging parent into a sibling path was
+  denied. Ownership, modes, ACLs, ext4 mount options, and free space were
+  compatible. A separate neutral probe proved `mkdir` plus `cp -a
+  source/. destination/` succeeds and preserves read-only directory modes.
+  All controller probe paths were removed.
+- RC.6 and RC.7 terminal checksum manifest pairs passed again; all six
+  protected content-stream hashes matched. RC.8 retained files/trees and
+  absent paths also matched. Product source remained identical to pinned
+  source commit `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`.
+- Raw Git committed the accepted RC.9 failure record as
+  `f81b4a0144164aac71f8d943ca2ee6f4ca801648` (`Record failed RC.9 local
+  construction`) and pushed it by fast-forward to `origin/main`; public
+  readback matched.
+- Added executable `agent-ext20-rc10.sh`, SHA-256
+  `14d99ada8f2adb78a2e80c18a19df27428a3848f66a0627bbe7cad6ff73fdde6`.
+  It pins the same published source, preserves all failed RC.9 identities,
+  rejects RC.10 collisions, retains the clean exact-Go environment, and
+  requires a fresh build with a preflighted non-rename publication method.
+- RC.10 may publish sealed staged content locally only by creating absent
+  final directories, copying with `cp -a`, then verifying complete manifests,
+  content hashes, modes, file counts, and stage/final equality. A failure after
+  either final path appears exhausts RC.10 and cannot be repaired.
+- Exact next command: `./agent-ext20-rc10.sh`. This grants no remote, suite,
+  live-model, release, external-use, recovery, queue, or `EXT-20` completion
+  authority.
+
 ## EXT-20 RC.9 Local Candidate Construction Failed Closed (2026-07-26)
 
 - Task selected: exactly one bounded construction and local-verification

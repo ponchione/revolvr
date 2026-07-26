@@ -287,9 +287,10 @@
 
 - [ ] EXT-20 — Execute the quantitative Level-1 real-Codex dogfood gate.
   - Current gate: RC.6 and RC.7 remain immutable failed live-attempt evidence;
-    RC.8 is immutable failed local-construction evidence after a host Go-root
-    mismatch. None may be reused. The next candidate is a fresh RC.9 under a
-    clean exact-toolchain environment, and EXT-20 remains incomplete.
+    RC.8 and RC.9 are immutable failed local-construction evidence after a
+    host Go-root mismatch and a denied staged-directory move. None may be
+    reused. The next candidate is fresh RC.10 under clean exact-toolchain and
+    copy-publication boundaries, and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for
