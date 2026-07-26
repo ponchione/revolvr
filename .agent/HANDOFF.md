@@ -100,6 +100,22 @@ live-model, release, external-use, recovery, queue, or `EXT-20` authority.
 Even acceptance requires a separately published exact builder and construction
 launcher plus new explicit operator authorization. RC.12 remains unconsumed.
 
+## Daily Stop Point
+
+The sealed neutral record, durable-state updates, and inert review launcher
+were committed and pushed with raw Git as
+`aa47925f78f4fcaf44be9b9fa84403d57bed9fca` (`Record third prospective
+RC.12 neutral validation`). Local, fetched, and public `main` were exact at
+that commit. Running the launcher with `--preflight-only` then passed every
+published-controller and sealed-evidence guard without starting Codex or the
+review.
+
+Work is intentionally stopped for the day. Do not create a builder,
+construction launcher, candidate, or additional continuation. In a fresh
+later session, read this handoff and run only the exact Next Gate command
+above. The independent review must confirm or reject the controller concerns
+before any further design or construction task is authorized.
+
 ## Previous Rejected-Draft Resume Point
 
 The prospective candidate-construction procedure passed its anonymous neutral

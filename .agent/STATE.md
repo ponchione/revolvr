@@ -26,6 +26,12 @@
   `./agent-ext20-rc12-builder-revalidation-v3-review.sh`. It performs one
   read-only review and creates no continuation launcher. `EXT-20` remains
   unchecked and RC.12 remains unconsumed.
+- Raw Git published the neutral record and strengthened review launcher as
+  `aa47925f78f4fcaf44be9b9fa84403d57bed9fca`. Exact local/fetched/public
+  `main` matched, and
+  `./agent-ext20-rc12-builder-revalidation-v3-review.sh --preflight-only`
+  passed without starting Codex. The session then stopped; the no-argument
+  review command is reserved for the next fresh session.
 
 ## Third Prospective RC.12 Neutral Revalidation Passed (2026-07-26)
 
