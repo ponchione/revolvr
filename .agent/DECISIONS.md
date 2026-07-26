@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## Prospective RC.12 Neutral Builder-Validation Boundary (2026-07-26)
+
+- Independent review accepts RC.11 as terminal failed construction history.
+  Its builder's neutral copy probe sealed the nested source directory before
+  writing the probe file. The failure is a procedure-order defect, not a
+  product, toolchain, copy mechanism, or filesystem-permission defect.
+- Repeated candidate identities must not be consumed while validating builder
+  mechanics. The next bounded task is therefore neutral builder validation,
+  not RC.12 construction. It creates no RC.12-named runtime file or authority.
+- A neutral prospective builder must expose `--neutral-admission` before its
+  exact-self-identity boundary. That mode runs only read-only admission and a
+  fully cleaned copy-publication probe: write under writable parents, seal,
+  `mkdir`/`cp -a`, compare contents/modes, re-enable parent writes, and remove
+  only the unique neutral probe.
+- The neutral draft must pass `bash -n`, semantic admission, focused static
+  audit, and an expected full-mode self-identity refusal. At most one neutral
+  repair is allowed; any remaining failure stops without consuming RC.12.
+  Construction authority requires later independent review and a separate
+  launcher decision.
+- This validation grants no builder publication, candidate, remote CI,
+  attestation, suite, dogfood, live model, tag, release, external use,
+  recovery, queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.11 Failed Copy-Probe Boundary (2026-07-26)
 
 - RC.11 is terminal failed local-construction history. Its syntax-passing

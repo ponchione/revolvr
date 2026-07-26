@@ -1,5 +1,40 @@
 # Agent State
 
+## EXT-20 RC.11 Review And Prospective RC.12 Builder Validation (2026-07-26)
+
+- Independent controller review reproduced the mode-`0444` neutral draft and
+  mode-`0555` exact RC.11 builder as byte-identical 35,599-byte, 634-line
+  files at SHA-256
+  `c92b7611028cf54abe37735c44fb116826193abd97673c1d69f8747f1b6f7355`.
+  Both still pass `bash -n`, and the neutral draft contains none of the
+  forbidden literal RC.11 identity strings.
+- Inspection and an independent neutral probe reproduced the semantic defect:
+  creating `source/nested` mode `0500` succeeds, but the immediately following
+  file creation fails with exit `1` because its parent is not writable. The
+  original probe left no residue. Correct ordering is write while the nested
+  directory is writable, seal file/nested/source, then copy and verify.
+- The exact builder remains the only RC.11 runtime path. Both final paths and
+  every preflight/build/stage/diagnostic/ref/workflow/suite/review path remain
+  absent. Exact source/tree and empty product-source diff checks passed.
+- RC.6/RC.7 terminal manifest pairs and six streams passed again. RC.8 files
+  and trees, RC.9 files/trees/staged manifests, and RC.10's sole builder all
+  matched. No source, dependency, or historical evidence changed.
+- Raw Git committed the accepted RC.11 failure record as
+  `0bb21ad157d79a2583f58ce385746cfc24713e12` (`Record failed RC.11 local
+  construction`) and pushed it by fast-forward to `origin/main`; public
+  readback matched.
+- Added executable `agent-ext20-rc12-builder-validation.sh`, SHA-256
+  `9aa31f45fc925e214c180fad8abac262d812f93b795f3a22105ac4d3853820e3`.
+  This is a neutral preconstruction gate, not RC.12 construction authority.
+- The next pass may author only an anonymous prospective builder under a
+  unique `/tmp/revolvr-builder-validation.*` root. Before any RC.12-named
+  runtime object, it must pass syntax, execute a complete non-mutating
+  `--neutral-admission` mode with the corrected copy probe, pass a focused
+  static audit, and safely refuse full mode from its neutral identity.
+- Exact next command: `./agent-ext20-rc12-builder-validation.sh`. It grants no
+  candidate construction, remote, suite, live-model, release, external-use,
+  recovery, queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.11 Local Construction Failed At Copy Probe (2026-07-26)
 
 - Task selected: exactly one bounded local construction and verification

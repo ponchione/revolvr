@@ -21,6 +21,13 @@ mode `0500`; line 295 then received `Permission denied` while creating
 removed only the neutral probe, left no probe path, and exited with
 `candidate construction failed: copy-publication probe failed`.
 
+Independent controller review reproduced the draft/builder byte identity,
+syntax success, exact write denial, and absent probe residue. The procedure
+sealed the nested directory one command too early; the file must be written
+while the directory is writable and only then sealed. The accepted failure
+record is published as commit
+`0bb21ad157d79a2583f58ce385746cfc24713e12`.
+
 The exact builder must remain unchanged and unexecuted. RC.11 is exhausted
 and cannot be repaired, retried, completed, relabeled, deleted, mutated,
 derived from, or reused. No RC.11 preflight, build/stage root, clone, cache,
@@ -54,14 +61,21 @@ remains exactly its sole 474-line mode-`0664` builder at SHA-256
 
 ## Next Gate
 
-No executable continuation or candidate local-review launcher is authorized.
-The next action is an independent controller review of the immutable RC.11
-failure. Its exact safe read-only starting command is:
+From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
-sha256sum /tmp/revolvr-builder-draft.cZLxf2/builder.sh .revolvr/release-candidates/build-level1-v0.1.0-rc.11.sh && stat -c '%a %s %n' /tmp/revolvr-builder-draft.cZLxf2/builder.sh .revolvr/release-candidates/build-level1-v0.1.0-rc.11.sh && bash -n .revolvr/release-candidates/build-level1-v0.1.0-rc.11.sh
+./agent-ext20-rc12-builder-validation.sh
 ```
 
-This review grants no future candidate identity, remote publication, suite,
-live operation, tag, release, external-use, recovery, queue, or `EXT-20`
-completion authority. `EXT-20` remains unchecked.
+The executable launcher SHA-256 is
+`9aa31f45fc925e214c180fad8abac262d812f93b795f3a22105ac4d3853820e3`.
+It starts one fresh Codex pass to author and validate only an anonymous
+prospective RC.12 builder. The draft must pass syntax, a complete semantic
+`--neutral-admission` copy probe, static review, and an expected safe refusal
+in full mode before any RC.12 identity may be considered.
+
+This command does not create an RC.12 builder or candidate, run product tests
+or builds, publish refs/workflows, run a suite or live model operation, commit,
+push, tag, release, approve external use, grant recovery/queue authority, or
+complete `EXT-20`. RC.6 through RC.11 remain immutable, and `EXT-20` remains
+unchecked.
