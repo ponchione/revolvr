@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## EXT-20 RC.10 Failed Builder Boundary (2026-07-26)
+
+- RC.10 is terminal failed local-construction history. Its sole new ignored
+  builder identity failed the first `bash -n` verification at line 443 before
+  execution. Under the explicit no-repair rule, the builder is retained
+  unchanged and RC.10 cannot be corrected, executed, retried, completed,
+  relabeled, deleted, mutated, derived from, or reused.
+- No RC.10 publication probe, selected-Go work invocation, preflight/build/
+  stage root, clone, cache, diagnostic, artifact, candidate/verification
+  bundle, final path, or local-review launcher exists. Thus RC.10 establishes
+  no artifact, manifest, reproducibility, vulnerability, remote, suite, live,
+  release, or external-use evidence.
+- RC.6 and RC.7 terminal histories and RC.8 and RC.9 construction histories
+  remain immutable at every previously recorded file, tree, stream, manifest,
+  inventory, and absent-path identity. The syntax failure does not authorize
+  repair or reuse of any historical material.
+- `EXT-20` remains unchecked. The only next gate is an independent controller
+  review of the exact RC.10 failure record. Any future candidate requires a
+  new collision-free identity and separate explicit authority; no executable
+  continuation or local candidate-review gate is created by this decision.
+
 ## EXT-20 RC.10 Copy-Publication Boundary (2026-07-26)
 
 - RC.9 is accepted as a terminal environment/construction failure. Independent

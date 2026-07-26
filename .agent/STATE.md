@@ -1,5 +1,69 @@
 # Agent State
 
+## EXT-20 RC.10 Local Construction Failed Before Execution (2026-07-26)
+
+- Task selected: exactly one bounded construction and local-verification pass
+  for fresh candidate identity `level1-v0.1.0-rc.10-a24804bcf2a3`, under
+  still-unchecked `EXT-20`. No nested Codex run was started; the tracked
+  `agent-ext20-rc10.sh` wrapper was inspected but not executed because it
+  delegates to `codex exec`, which this pass expressly prohibited.
+- Pre-construction read-only admission passed against exact local, fetched,
+  and public `main` commit
+  `19f73c426558c5b9d2567c76b3a7fc57206e3e8a`. Published source commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba` was reachable from
+  `origin/main`, resolved tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, and the product-source diff
+  for `.agent/profiles`, `cmd`, `internal`, `go.mod`, and `go.sum` was empty,
+  SHA-256
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  Local/remote RC.10 refs and tags, workflow, exact public candidate and
+  verification artifacts, release assets, runtime/build/stage/preflight/
+  diagnostic roots, suite/launch roots, final bundles, and review launcher
+  were collision-free.
+- Fresh independently authored ignored builder
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.10.sh` is 474 lines,
+  mode `0664`, and SHA-256
+  `229d000616812af01bf001b979b97313d3fb89d18243edb900ab0c4d6f14e8be`.
+  Its first verification command, `bash -n
+  .revolvr/release-candidates/build-level1-v0.1.0-rc.10.sh`, failed with exit
+  status `2` at line 443: `syntax error near unexpected token '}'`. Because
+  an RC.10 identity path already existed, the fail-closed no-repair rule
+  exhausted RC.10. The builder was retained unchanged and was never executed.
+- Failure occurred before selected-Go admission, the required neutral
+  `mkdir`/`cp -a` publication probe, or creation of an RC.10 preflight root,
+  build root, clone, cache, stage, diagnostic, artifact, candidate bundle, or
+  verification bundle. Exact intended final paths
+  `.revolvr/release-candidates/level1-v0.1.0-rc.10-a24804bcf2a3` and
+  `.revolvr/release-candidates/level1-v0.1.0-rc.10-a24804bcf2a3-verification`
+  remain absent. No local-review launcher was created because there is no
+  candidate to review.
+- Before builder creation and again after the syntax failure, RC.8's builder,
+  diagnostic, 15,882-file partial root, 20-file verification subtree, and
+  both final-path absences matched their recorded identities. RC.9's builder,
+  diagnostic, 6-file preflight root, 34,435-file build root, 63-file stage
+  root, 13-file staged candidate, 50-file staged verification subtree, both
+  inventories, and both final-path absences also matched. Both RC.9 staged
+  manifest pairs passed read-only.
+- Before and after, RC.6 suite / launch record / terminal evidence remained
+  exact at
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`,
+  and RC.7 remained exact at
+  `ef031fa8aa3f7849b50551824a9f7c4b8d72e42f19ad5906f32e4aa0d9a1fb3a` /
+  `deb55229c31197830721f5fc7cff368281451139da0ad52560f29246b91f2e1c` /
+  `6bce7d6a7edd992ee23e138713bb6e0923d3be9d3c1ffebd0fd2c94ea47fbd9f`.
+  Both terminal `files.sha256` / `bundle.sha256` manifest pairs passed.
+- Files changed in tracked durable state are `.agent/TASKS.md`,
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`; no
+  product source or dependency changed. Result: **BLOCKED; RC.10 exhausted
+  before construction**. It grants no remote-CI, attestation, dogfood,
+  live-model, suite, tag, release, external-use, recovery, queue, or
+  `EXT-20` completion authority. The next gate is independent controller
+  review of this immutable failure. Any later construction requires a new
+  collision-free identity and explicit operator authority; no continuation
+  launcher is authorized here.
+
 ## EXT-20 RC.9 Review And RC.10 Local Continuation (2026-07-26)
 
 - Independent controller review reproduced the RC.9 builder/diagnostic hashes
