@@ -1,5 +1,39 @@
 # Agent State
 
+## Second Revalidation Review and Third Neutral Gate (2026-07-26)
+
+- Independent controller review reverified sealed root
+  `/tmp/revolvr-builder-revalidation.CSGs5E`: mode `0500`, 12 mode-`0444`
+  files totaling 50,756 bytes, exact 42,999-byte/895-line draft SHA-256
+  `ae560b6eebc0c2d77721df426477727c473774cc1661db9dc9ef2194fd120768`,
+  exact 1,037-byte/11-line manifest SHA-256
+  `0b962f2cfc2095c530d4414676e17c53a06d8ef65223baf7d9f26e6e958453ee`,
+  and every manifest entry's mode, size, and content hash.
+- Read-only source inspection confirmed `bash -n` and the terminal defect:
+  cleanup changes only the probe, source, and destination root modes, while
+  source/destination `nested` remain mode `0500`; unlinking their mode-`0400`
+  files fails. The exact failed probe is absent. The full-context corrections
+  are present but remain unexecuted and provide no construction authority.
+- Independently reverified all RC.6/RC.7 suite, launch, and terminal-evidence
+  counts/content-stream hashes; RC.8/RC.9 build/preflight/stage stream hashes;
+  all six terminal/staged payload manifests; both terminal evidence bundles;
+  RC.8-RC.11 and prior neutral-root file hashes; pinned Go/govulncheck hashes;
+  source commit/tree; and the clean product diff. No product test/build or
+  failed draft mode was run.
+- Raw Git committed and pushed the terminal failed record as
+  `3523fec538fade321b1d549adcc35e016889a166` (`Record failed prospective
+  RC.12 revalidation`). Public `main` matched after push.
+- Added mode-`0755` executable
+  `agent-ext20-rc12-builder-revalidation-v3.sh`, 12,687 bytes, 178 lines,
+  SHA-256
+  `591a79098ced60f9aa0abbd11f66cf722b2adba22b1fd277237e0890aa536ee5`.
+  It pins both sealed records, checks the clean published controller boundary,
+  refuses every RC.12 output identity, and authorizes only one independently
+  authored third anonymous draft with corrected all-directory depth-first
+  cleanup and two complete neutral validation sequences.
+- Exact next command: `./agent-ext20-rc12-builder-revalidation-v3.sh`.
+  `EXT-20` remains unchecked and RC.12 remains unconsumed.
+
 ## Prospective RC.12 Neutral Builder Revalidation Failed (2026-07-26)
 
 - Task selected: exactly one bounded independent authoring and validation pass

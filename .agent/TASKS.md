@@ -292,8 +292,11 @@
     syntax failure, and an RC.11 neutral copy-publication probe failure before
     preflight/build-root creation. None may be reused. The first anonymous
     prospective RC.12 draft passed its limited validation but failed
-    independent full-context review; the next gate independently reauthors
-    and revalidates a neutral draft without consuming RC.12. Construction
+    independent full-context review. The second anonymous draft corrected the
+    full-context design but failed its second neutral sequence because sealed
+    nested probe directories were not made writable before cleanup. The next
+    gate independently authors and revalidates a third neutral design with
+    depth-first all-directory cleanup, without consuming RC.12. Construction
     still requires later review and explicit authority. EXT-20 remains
     incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task

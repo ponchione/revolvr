@@ -54,10 +54,34 @@ workflow, suite, launch record, release, Revolvr/model operation, or external-
 use authority was created. No revalidation-review launcher was created after
 the failed verification. `EXT-20` remains unchecked.
 
-There is no active next command. The next bounded task, only after fresh
-operator authorization, is an independent read-only review of this exact
-failed revalidation record and a decision whether a third anonymous neutral
-design may be attempted. RC.12 remains unconsumed.
+Controller review independently reverified all 11 manifest entries, exact
+root/draft/manifest metadata, draft syntax, the cleanup defect in source,
+absence of the failed probe residue, the clean product-source boundary, all
+recorded RC.6-RC.9 history streams, terminal and staged manifests, prior
+builder/draft hashes, and pinned tool hashes. The failed record is published
+on `main` as commit `3523fec538fade321b1d549adcc35e016889a166`.
+
+The review authorizes one third anonymous neutral design, not construction.
+The next launcher pins both sealed records and requires historical constants
+to be remeasured before validation. Its publication probe must restore owner
+write permission on every sealed descendant directory before depth-first
+deletion, prove both success-path and induced-failure cleanup, and pass two
+complete neutral sequences.
+
+## Next Gate
+
+From `/home/gernsback/source/revolvr`, run exactly:
+
+```bash
+./agent-ext20-rc12-builder-revalidation-v3.sh
+```
+
+The executable launcher is mode `0755`, 12,687 bytes, 178 lines, and SHA-256
+`591a79098ced60f9aa0abbd11f66cf722b2adba22b1fd277237e0890aa536ee5`.
+It passed `bash -n` and has not been executed. It grants only one fresh
+anonymous authoring/revalidation pass. It grants no RC.12 builder, candidate,
+construction, remote, suite, live-model dogfood, release, external-use,
+recovery, queue, or `EXT-20` completion authority. RC.12 remains unconsumed.
 
 ## Previous Rejected-Draft Resume Point
 

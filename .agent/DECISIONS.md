@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## Third Anonymous Prospective Design Authorized (2026-07-26)
+
+- Independent controller review accepts the second sealed revalidation root
+  as authentic failed evidence and confirms the defect is confined to neutral
+  probe cleanup. This does not rehabilitate or authorize the sealed draft.
+- A third independently authored anonymous design is permitted because RC.12
+  remains unconsumed and the prior failure occurred before any candidate
+  identity, full mode, product build, or construction output.
+- The third design may reuse independently verified requirements and exact
+  historical constants, but no prior builder/draft bytes or implementation
+  text. It must remeasure constants before validation, restore write access to
+  every exact probe directory before depth-first deletion, exercise cleanup
+  after both success and induced failure, and pass two complete neutral
+  validation sequences.
+- Passing that gate permits only a later inert independent-review launcher.
+  Construction still requires a separately published exact builder and
+  launcher plus explicit operator authorization. No candidate, remote,
+  dogfood, release, external-use, or `EXT-20` authority follows from this
+  decision.
+
 ## Prospective RC.12 Second Neutral Revalidation Rejected (2026-07-26)
 
 - The second independently authored anonymous draft corrects the first
