@@ -1,5 +1,52 @@
 # Agent Decisions
 
+## Third Anonymous Prospective Design Accepted For Review (2026-07-26)
+
+- The independently authored third anonymous design passed two complete
+  neutral validation sequences without using its repair allowance. Both
+  sequences passed syntax, semantic admission, full-context role audit,
+  focused static review, expected status-64 exact-self refusal, forbidden-
+  identity/residue scans, and immutable-history checks.
+- Neutral cleanup is now one exact-root guard. It rejects a non-active path,
+  a non-directory or symlink-bearing tree, restores owner write permission to
+  every directory depth-first, deletes only the proved tree depth-first, and
+  proves absence. Cleanup status overrides an earlier probe status. Successful
+  `mkdir`/`cp -a` publication and an induced pre-copy failure each proved
+  cleanup through two sealed nested levels containing mode-`0400` files.
+- The full-context design assigns roles instead of treating every prospective
+  name as absent. Exact read-only builder, tracked construction launcher, and
+  the sealed third validation root are required full-mode inputs; tracked
+  validation-history launchers are permitted; candidate/verification outputs,
+  post-candidate review, refs/tags/workflow/remote publication namespaces,
+  and construction/runtime roots remain forbidden collisions.
+- The unexecuted full design retains complete RC.6-RC.11/prior-root snapshot,
+  checksum, and recorded-absence preservation; two exact non-local shallow
+  source fetches excluding later controller objects; complete build and clean
+  tool/environment instructions/evidence; both Go test/race/vet/module
+  matrices; ordinary/verbose vulnerability results; reproducible target and
+  embedded metadata; and terminal `mkdir` plus `cp -a` publication with
+  complete stage/final identity checks. Full mode was not run.
+- Sealed root `/tmp/revolvr-builder-revalidation-v3.PKfbRl`, draft SHA-256
+  `302738277108837a7282d9abe5650d34bee5896ec58ef13fefa85b8edf9345fc`,
+  evidence-manifest SHA-256
+  `5018b79e47ea393eed9a3f0a3646f5d9ae20a65426993ed0bbe5c08a25b7e746`,
+  and root stream
+  `bf01b03207cbd2d3f056c31ee6c001f3efcff02a5fbace30cdeace228473bb77`
+  are immutable prospective review evidence. They cannot themselves serve as
+  a builder or candidate authority.
+- The sole next gate is inert
+  `agent-ext20-rc12-builder-revalidation-v3-review.sh`. It authorizes only a
+  later read-only independent review of the sealed record. Even a favorable
+  review requires a separately published exact builder and construction
+  launcher plus new explicit operator authorization. No RC.12 identity was
+  consumed, no construction/candidate/remote/dogfood/release/external-use
+  authority exists, and `EXT-20` remains unchecked.
+- Controller publication inspection found unresolved full-mode sequencing,
+  exact-runtime-collision, recorded-absence, and remote-artifact coverage
+  concerns. These do not invalidate the authentic neutral evidence, but they
+  prohibit construction inference and are explicit required checks in the
+  independent review.
+
 ## Third Anonymous Prospective Design Authorized (2026-07-26)
 
 - Independent controller review accepts the second sealed revalidation root

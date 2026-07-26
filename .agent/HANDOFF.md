@@ -4,84 +4,101 @@ Updated: 2026-07-26
 
 ## Resume Point
 
-The second anonymous prospective candidate-construction draft is terminally
-rejected after its one permitted neutral repair. Sealed revalidation root
-`/tmp/revolvr-builder-revalidation.CSGs5E` is mode `0500` and contains exactly
-12 mode-`0444` regular files totaling 50,756 bytes: the draft, ten direct
-evidence files, and a self-verifying evidence manifest.
+The third independently authored anonymous prospective RC.12 construction
+design passed its complete neutral gate without creating or consuming an
+RC.12 identity. Sealed root
+`/tmp/revolvr-builder-revalidation-v3.PKfbRl` is mode `0500` and contains
+exactly nine mode-`0444` regular files totaling 53,181 bytes.
 
-Draft `prospective-construction.sh` is 42,999 bytes, 895 lines, and SHA-256
-`ae560b6eebc0c2d77721df426477727c473774cc1661db9dc9ef2194fd120768`.
-Manifest `evidence-manifest.tsv` is 1,037 bytes, 11 lines, and SHA-256
-`0b962f2cfc2095c530d4414676e17c53a06d8ef65223baf7d9f26e6e958453ee`;
-every listed file's exact name, mode, size, and SHA-256 reverified before the
-root was sealed.
+Draft `prospective-builder.sh` is 42,446 bytes, 789 lines, and SHA-256
+`302738277108837a7282d9abe5650d34bee5896ec58ef13fefa85b8edf9345fc`.
+Manifest `evidence-manifest.tsv` is 754 bytes, 8 lines, and SHA-256
+`5018b79e47ea393eed9a3f0a3646f5d9ae20a65426993ed0bbe5c08a25b7e746`;
+every listed file's exact name, mode, size, and content hash passed. Complete
+root content-stream SHA-256 is
+`bf01b03207cbd2d3f056c31ee6c001f3efcff02a5fbace30cdeace228473bb77`.
 
-The first complete sequence passed `bash -n`, `--neutral-full-context-audit`,
-focused static inspection, and the expected no-argument status-64 identity
-refusal. `--neutral-admission` refused because the independently entered
-RC.6/RC.7 stream file counts were wrong. The sole neutral repair corrected
-those counts and incorporated the static audit's remote-collision, inventory,
-stage-sealing, and terminal-final-path corrections.
+Before sequence one, every historical constant was independently remeasured.
+The corrected RC.6/RC.7 tuples were exact at `461/4/130` and all six recorded
+hashes; RC.8/RC.9 retained trees, RC.9 staged manifests, RC.10/RC.11 builders,
+both terminal checksum pairs, both prior sealed roots, source commit/tree, and
+pinned tools also matched durable state. Authoring corrections occurred only
+before validation sequence one, so the neutral repair allowance was unused.
 
-The required second sequence again passed syntax, full-context audit, focused
-static audit, and the expected status-64 refusal. Neutral admission then
-reached the copy-publication probe but failed cleanup: the draft restored
-write permission on the source and destination roots but left both nested
-directories sealed mode `0500`, so removal of the two mode-`0400` value files
-was denied. The exact failed probe
-`/tmp/revolvr-neutral-publication.Jcoaht` was inspected, its five directory
-parents were made owner-writable, and only that exact probe was removed by
-depth-first deletion; its absence was proved.
+Both complete sequences returned exact statuses `0,0,0,0,64,0,0` for syntax,
+neutral admission, neutral full-context audit, focused static audit, expected
+no-argument self-identity refusal, forbidden-identity/residue scans, and
+history-preservation checks. Sequence one passed, no repair was made, and the
+mandatory unchanged sequence two passed.
 
-The full-context model itself is corrected: full mode requires and hashes the
-exact read-only builder and separately published construction launcher,
-permits the two tracked validation-history launchers, and rejects final
-candidate/verification outputs, the post-candidate local-review launcher,
-refs/tags/workflow/remote releases/assets/Actions artifacts, and runtime,
-suite, and launch roots. The unexecuted full path independently snapshots all
-RC.6-RC.11 histories and both validation roots; uses `git init` plus shallow
-exact-commit fetches; excludes later controller objects/launchers; records
-complete clean tool/environment, test/race/vet/module/vulnerability,
-reproducibility, artifact metadata, inventory, build-instruction, and history
-evidence; and specifies `mkdir` plus `cp -a` final publication with complete
-stage/final comparison. None of full mode ran.
+The semantic publication probe writes only beneath writable parents, uses two
+nested levels and two files, seals files mode `0400` and all source/nested
+directories mode `0500`, creates the destination separately, uses only `cp -a
+source/. destination/.`, and proves bytes, complete inventories, modes, single
+links, distinct inodes, and no symlinks. Its one cleanup guard accepts only the
+active exact `/tmp/revolvr-neutral-publication.XXXXXX` root, rejects symlinks,
+restores owner write permission to every directory depth-first, deletes only
+that tree depth-first, and proves absence. It passed after both publication
+success and an induced status-73 pre-copy failure without hiding cleanup
+status. No probe residue remains.
 
-The one-repair limit is exhausted. Do not edit, copy, execute, derive from,
-publish, or reuse this draft or root. No construction launcher, exact builder,
-candidate, preflight/build/stage/diagnostic root, artifact, bundle, ref,
-workflow, suite, launch record, release, Revolvr/model operation, or external-
-use authority was created. No revalidation-review launcher was created after
-the failed verification. `EXT-20` remains unchecked.
+The unexecuted full design has the corrected role model: exact read-only
+builder, tracked construction launcher, and this sealed validation root are
+required immutable inputs; tracked validation-history launchers are permitted;
+only actual candidate/verification, post-candidate review, remote/local
+publication, construction, runtime, suite, and launch namespaces are
+forbidden collisions. It snapshots complete RC.6-RC.11 and prior validation
+history, verifies terminal/staged manifests and recorded absences, fetches two
+clean detached exact-source clones shallowly from a non-local origin, excludes
+later controller objects and launchers, and retains executable build,
+source/controller/tool/environment, both Go test/race/vet/module matrices,
+ordinary/verbose vulnerability, reproducibility, target/CGO/VCS/build-ID,
+manifest/inventory, and history evidence.
 
-Controller review independently reverified all 11 manifest entries, exact
-root/draft/manifest metadata, draft syntax, the cleanup defect in source,
-absence of the failed probe residue, the clean product-source boundary, all
-recorded RC.6-RC.9 history streams, terminal and staged manifests, prior
-builder/draft hashes, and pinned tool hashes. The failed record is published
-on `main` as commit `3523fec538fade321b1d549adcc35e016889a166`.
+Final construction publication remains only unexecuted design. It creates
+each exact final directory with `mkdir`, sets appeared state only afterward,
+copies with `cp -a`, restores sealed stage/root modes, and verifies complete
+stage/final manifests, inventories, counts, hashes, modes, links, distinct
+inodes, and no extra entries. Failure after appearance is terminal and has no
+rename/link/symlink fallback or final-path cleanup.
 
-The review authorizes one third anonymous neutral design, not construction.
-The next launcher pins both sealed records and requires historical constants
-to be remeasured before validation. Its publication probe must restore owner
-write permission on every sealed descendant directory before depth-first
-deletion, prove both success-path and induced-failure cleanup, and pass two
-complete neutral sequences.
+No product test/build, full mode, builder, construction launcher, candidate,
+preflight/build/stage/diagnostic root, artifact, bundle, ref, workflow, tag,
+suite, launch record, Revolvr/model operation, release, or external-use action
+occurred. `EXT-20` remains unchecked. Passing neutral validation grants only
+later independent review, not construction.
+
+Controller publication review independently reverified every sealed manifest
+entry, root/draft/manifest identity, root content stream, syntax, recorded
+sequence status, corrected neutral cleanup source, historical constants,
+source boundary, and absence of probe/RC.12 runtime residue. The sealed neutral
+result is authentic and publishable for review.
+
+The unexecuted full design is not accepted for construction. Read-only source
+inspection found concrete concerns for the independent review to confirm or
+refute: verification inventory is recorded before `seal_tree` changes modes
+but compared with a post-seal final inventory; the exact
+`.revolvr/ext20-rc12` collision is not matched by `ext20-rc12.*`; prior
+recorded-absence checks omit several retired runtime/ref/tag/glob authorities;
+and remote Actions checks cover fewer output names than the prior contract.
+The review launcher now names these checks explicitly. It has not been run.
 
 ## Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
-./agent-ext20-rc12-builder-revalidation-v3.sh
+./agent-ext20-rc12-builder-revalidation-v3-review.sh
 ```
 
-The executable launcher is mode `0755`, 12,687 bytes, 178 lines, and SHA-256
-`591a79098ced60f9aa0abbd11f66cf722b2adba22b1fd277237e0890aa536ee5`.
-It passed `bash -n` and has not been executed. It grants only one fresh
-anonymous authoring/revalidation pass. It grants no RC.12 builder, candidate,
-construction, remote, suite, live-model dogfood, release, external-use,
-recovery, queue, or `EXT-20` completion authority. RC.12 remains unconsumed.
+The inert review launcher is mode `0755`, 6,879 bytes, 79 lines, and SHA-256
+`3bafb2b55cde7a872e5b159f3fc9e721d39942b208f83718875721d45dca888d`.
+It passed `bash -n` and has not been executed. It authorizes only a fresh
+read-only independent review after controller publication. It cannot execute
+the draft, construct or publish a builder/candidate, or create remote, suite,
+live-model, release, external-use, recovery, queue, or `EXT-20` authority.
+Even acceptance requires a separately published exact builder and construction
+launcher plus new explicit operator authorization. RC.12 remains unconsumed.
 
 ## Previous Rejected-Draft Resume Point
 

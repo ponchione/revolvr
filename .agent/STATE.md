@@ -1,5 +1,118 @@
 # Agent State
 
+## Controller Verification Before Daily Handoff (2026-07-26)
+
+- Independently verified the third sealed root's mode, nine-file/53,181-byte
+  inventory, all eight manifest entries, draft/manifest hashes, complete root
+  stream, draft syntax, recorded two-sequence statuses, and zero probe/RC.12
+  runtime residue. Historical streams/manifests and the source/product
+  boundary remain unchanged. No draft mode, product test/build, or full mode
+  was run.
+- Source inspection confirms the corrected exact-root, all-directory,
+  depth-first neutral cleanup. The neutral pass is authentic review evidence,
+  not construction authority.
+- Preliminary full-mode inspection found unresolved issues for independent
+  review: a pre-seal verification inventory is compared with post-seal modes;
+  the exact RC.12 runtime root is not covered by the dotted glob; retired
+  runtime/ref/tag/glob absence coverage is incomplete; and remote artifact
+  checks appear narrower than the durable contract. No builder or candidate
+  continuation is authorized.
+- Strengthened inert
+  `agent-ext20-rc12-builder-revalidation-v3-review.sh` with an explicit
+  `--preflight-only` mode and exact instructions to confirm or refute those
+  concerns. Final identity: mode `0755`, 6,879 bytes, 79 lines, SHA-256
+  `3bafb2b55cde7a872e5b159f3fc9e721d39942b208f83718875721d45dca888d`.
+- Tomorrow's only command is
+  `./agent-ext20-rc12-builder-revalidation-v3-review.sh`. It performs one
+  read-only review and creates no continuation launcher. `EXT-20` remains
+  unchecked and RC.12 remains unconsumed.
+
+## Third Prospective RC.12 Neutral Revalidation Passed (2026-07-26)
+
+- Task selected: exactly one bounded pass to independently author and validate
+  a third anonymous prospective RC.12 construction design. No `gh`, commit,
+  push, RC.12 builder/candidate/construction launcher, product test/build,
+  full mode, preflight/build/stage/diagnostic root, artifact, bundle, ref,
+  workflow, tag, suite, launch record, Revolvr/model operation, release, or
+  external-use action occurred. `EXT-20` remains unchecked.
+- Before validation sequence one, every embedded historical count/hash
+  constant was remeasured read-only and compared with durable state. Exact
+  RC.6/RC.7 suite, launch, and terminal tuples matched `461/4/130` and their
+  six recorded stream hashes. RC.8/RC.9 retained trees, RC.9 staged manifests,
+  RC.10/RC.11 builders, both terminal checksum pairs, both prior sealed roots,
+  pinned source commit/tree, and exact Go/govulncheck identities also passed.
+  Authoring-time corrections to exact tool metadata, probe variable scope,
+  explicit pre-cleanup status propagation, and cross-target version inspection
+  were completed before sequence one and did not consume the neutral repair.
+- Created unique sealed root
+  `/tmp/revolvr-builder-revalidation-v3.PKfbRl`, mode `0500`, containing nine
+  mode-`0444` regular files totaling 53,181 bytes. Draft
+  `prospective-builder.sh` is 42,446 bytes, 789 lines, SHA-256
+  `302738277108837a7282d9abe5650d34bee5896ec58ef13fefa85b8edf9345fc`.
+  Eight-entry, 754-byte `evidence-manifest.tsv` has SHA-256
+  `5018b79e47ea393eed9a3f0a3646f5d9ae20a65426993ed0bbe5c08a25b7e746`;
+  every entry's mode, size, and hash passed. Complete root content-stream
+  SHA-256 is
+  `bf01b03207cbd2d3f056c31ee6c001f3efcff02a5fbace30cdeace228473bb77`.
+- Both complete validation sequences independently returned statuses
+  `0,0,0,0,64,0,0` for `bash -n`, `--neutral-admission`,
+  `--neutral-full-context-audit`, focused static audit, expected no-argument
+  exact-self refusal, forbidden-identity/residue scans, and history-
+  preservation checks. Sequence one passed, so no repair was made before the
+  mandatory passing sequence two.
+- In each sequence the semantic probe wrote two files only beneath writable
+  two-level parents, sealed files mode `0400` and all source/nested directories
+  mode `0500`, separately created the destination, copied with `cp -a
+  source/. destination/.`, and verified bytes, complete tree/file inventories,
+  all modes, link count one, distinct inodes, and no symlinks. The single
+  guarded cleanup accepted only its active exact unique root, proved no
+  symlink, restored owner write permission to every directory depth-first,
+  deleted that exact tree depth-first, and proved absence. An induced status-
+  `73` pre-copy path with two sealed levels and two mode-`0400` files proved
+  cleanup success without hiding cleanup status. No probe residue remains.
+- The unexecuted full design separates required exact builder, tracked
+  construction launcher, and sealed third validation root from permitted
+  tracked validation-history launchers and forbidden output/collision
+  namespaces. It snapshots all exact RC.6-RC.11 and prior validation history,
+  verifies terminal/staged manifests and recorded absences, and requires the
+  third root only as a full-mode immutable input after publication.
+- The unexecuted construction path uses two non-local `git init` plus shallow
+  exact-commit fetches, detached clean commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba` and tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, exclusion of later controller
+  objects/launchers, executable build instructions, exact source/controller/
+  tool/environment evidence, both Go test/race/vet/module matrices, ordinary
+  and verbose vulnerability evidence, reproducibility and exact target/CGO/
+  VCS/build-ID metadata, and complete sorted manifests/inventories/hashes.
+  Final publication uses `mkdir`, sets appeared state only after success,
+  uses `cp -a`, restores sealed stage/root modes, and verifies stage/final
+  manifests, inventories, counts, hashes, modes, links, distinct inodes, and
+  absence of extra entries. It has no rename/link/symlink fallback and retains
+  appeared paths terminally on failure.
+- Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, and new inert review launcher
+  `agent-ext20-rc12-builder-revalidation-v3-review.sh`; untracked sealed
+  evidence root `/tmp/revolvr-builder-revalidation-v3.PKfbRl`. Product source,
+  dependencies, all historical evidence, and every RC.12 output identity are
+  unchanged/absent.
+- Verification commands run: mandatory read-only constant remeasurement;
+  terminal/staged manifest checks; two complete neutral sequences; final
+  draft/root manifest, mode, size, count, line, stream, syntax, symlink, and
+  residue checks; `bash -n` on the review launcher; and `git diff --check`.
+  `go test ./...` was not run because this pass expressly forbids product
+  tests/builds and changed no Go code. Result: **PASS for later independent
+  review only**. There are no blockers in this bounded gate.
+- Added inert review launcher
+  `agent-ext20-rc12-builder-revalidation-v3-review.sh`, SHA-256
+  `3bafb2b55cde7a872e5b159f3fc9e721d39942b208f83718875721d45dca888d`.
+  Controller review strengthened it to mode `0755`, 6,879 bytes, 79 lines,
+  then syntax-checked it without executing the review. Exact suggested next
+  command after controller publication is
+  `./agent-ext20-rc12-builder-revalidation-v3-review.sh`. Independent review
+  cannot create construction authority; a separately published exact builder,
+  construction launcher, and new explicit operator authorization remain
+  required.
+
 ## Second Revalidation Review and Third Neutral Gate (2026-07-26)
 
 - Independent controller review reverified sealed root
