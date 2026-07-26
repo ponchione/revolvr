@@ -1,5 +1,87 @@
 # Agent State
 
+## Prospective RC.12 Neutral Builder Revalidation Failed (2026-07-26)
+
+- Task selected: exactly one bounded independent authoring and validation pass
+  for a corrected anonymous prospective RC.12 construction builder. No `gh`,
+  commit, push, RC.12 builder/candidate/construction launcher, product test or
+  build, full mode, preflight/build/stage/diagnostic root, artifact, bundle,
+  ref, workflow, tag, suite, launch record, Revolvr/model operation, release,
+  or external-use action occurred. `EXT-20` remains unchecked.
+- Created unique root `/tmp/revolvr-builder-revalidation.CSGs5E`, now sealed
+  mode `0500`. It contains 12 mode-`0444` regular files totaling 50,756 bytes.
+  Draft `prospective-construction.sh` is 42,999 bytes, 895 lines, SHA-256
+  `ae560b6eebc0c2d77721df426477727c473774cc1661db9dc9ef2194fd120768`.
+  Self-verifying `evidence-manifest.tsv` is 1,037 bytes, 11 lines, SHA-256
+  `0b962f2cfc2095c530d4414676e17c53a06d8ef65223baf7d9f26e6e958453ee`;
+  every listed mode, size, and content hash passed before sealing.
+- Independent full-context remediation is present in the unexecuted draft.
+  Exact builder and separately published construction launcher are required
+  full-mode inputs and never absence-list members. Both tracked validation-
+  history launchers are allowed and verified. Exact final candidate and
+  verification paths, post-candidate local-review launcher, local/remote refs
+  and tags, workflow, release/asset/Actions-artifact namespaces, construction
+  conflicts, and preflight/build/stage/diagnostic/suite/launch roots are the
+  forbidden output set. `--neutral-full-context-audit` statically enforces
+  these distinctions before self-identity enforcement.
+- The unexecuted full design independently records before/after metadata and
+  content identities for complete RC.6/RC.7 candidate, verification, suite,
+  launch-record, and terminal-evidence history; RC.6/RC.7 terminal manifests;
+  RC.8 builder/diagnostic/build/verification trees; RC.9 builder/diagnostic/
+  preflight/build/stage trees and staged manifests; RC.10/RC.11 builders and
+  the RC.11 neutral draft; both sealed neutral-validation roots; and every
+  recorded RC.8-RC.11 absence. It compares the complete snapshots after work.
+- Each prospective source clone uses `git init`, a non-local origin, and a
+  `--depth=1` exact-commit fetch; requires detached source commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, clean status, and exclusion of
+  later controller commits/launchers from checkout and object database. The
+  candidate/verification design includes executable instructions, exact
+  source/tree/controller/product-diff and clean tool/environment identity,
+  both Go versions' ordinary/race/vet/module results, ordinary and verbose
+  vulnerability results, reproducibility hashes, exact GOOS/GOARCH/CGO/VCS/
+  build-ID metadata, sorted complete inventories and hashes, and history
+  preservation results.
+- First validation sequence: `bash -n` status `0`; neutral admission status
+  `1` on incorrectly entered RC.6/RC.7 stream file counts; full-context audit
+  status `0`; focused static inspection completed; no-argument invocation
+  status `64` at the expected self-identity refusal. The sole allowed neutral
+  repair corrected counts to 461/4/130 for both histories and incorporated
+  explicit glob checks, exact remote release/artifact collisions, stable
+  directory comparisons, correct payload/manifest sealing order, and accurate
+  terminal final-path state.
+- Required second sequence: `bash -n` status `0`; neutral admission status `1`
+  during publication-probe cleanup; full-context audit status `0`; focused
+  static audit status `0`; no-argument invocation status `64` at the expected
+  self-identity refusal. The semantic probe correctly wrote under writable
+  parents, sealed file/nested/source, used `mkdir` and `cp -a`, and verified
+  bytes, all modes, link counts, separate inodes, and no symlinks. Cleanup
+  restored write permission only on the source/destination roots, not their
+  sealed nested directories, so deletion of both mode-`0400` files was denied.
+- Exact residue `/tmp/revolvr-neutral-publication.Jcoaht` was inspected and
+  contained only the expected two roots, two nested directories, and two
+  value files. Owner write permission was restored on exactly those parent
+  directories; depth-first deletion removed only that probe and its absence
+  passed. No other historical or candidate path was removed or changed.
+- Files changed: `.agent/HANDOFF.md`, `.agent/STATE.md`, and
+  `.agent/DECISIONS.md`; untracked temporary sealed evidence root
+  `/tmp/revolvr-builder-revalidation.CSGs5E`. `.agent/TASKS.md`, product
+  source, dependencies, and all historical evidence remain unchanged. No
+  revalidation-review launcher was created because the second verification
+  failed after the one repair.
+- Verification commands run: `bash -n` twice; both neutral modes twice; two
+  focused static audits; expected no-argument identity refusal twice; exact
+  probe-residue inspection/removal/absence; evidence-manifest mode/size/hash
+  verification; final root/draft/manifest identity checks; and repository
+  diff checks. `go test ./...` was not run because the pass expressly forbids
+  product tests/builds and changed no Go code.
+- Verification result: **FAILED after the one permitted repair**. Blocker is
+  the prospective draft's incomplete nested-parent cleanup. The sealed draft
+  cannot be edited, copied, executed, derived from, published, or used for
+  construction. What remains is a separately authorized independent review of
+  this exact failed record and a decision whether to permit a third anonymous
+  neutral design. There is no active next command; RC.12 is unconsumed.
+
 ## Prospective RC.12 Neutral Builder Independent Review (2026-07-26)
 
 - Controller review independently verified sealed root

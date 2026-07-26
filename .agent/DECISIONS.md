@@ -1,5 +1,45 @@
 # Agent Decisions
 
+## Prospective RC.12 Second Neutral Revalidation Rejected (2026-07-26)
+
+- The second independently authored anonymous draft corrects the first
+  draft's full-context contradiction and missing prospective construction
+  requirements, but it is rejected because its second complete neutral
+  validation sequence failed after the one permitted repair.
+- Full-context authority is now modeled by role: the exact read-only builder
+  and separately published construction launcher are required inputs; the two
+  tracked validation-history launchers are permitted; and only candidate/
+  verification outputs, the post-candidate local-review launcher, refs/tags/
+  workflow/remote release and Actions namespaces, and runtime/suite/launch
+  roots are forbidden collisions. Neutral full-context audit passed this
+  distinction without creating an identity.
+- The full design restores complete RC.6-RC.11 and two-neutral-root before/
+  after preservation, terminal and staged manifest verification, non-local
+  shallow exact-commit fetches excluding later controller objects, complete
+  executable build instructions and source/tool/environment/command/
+  vulnerability/reproducibility/artifact/inventory/history evidence, and
+  terminal `mkdir` plus `cp -a` stage/final publication checks. Full mode was
+  not run and these design improvements grant no construction authority.
+- The first sequence's incorrect historical file counts were a neutral draft
+  defect and consumed the sole repair. The second sequence then exposed a
+  distinct cleanup defect: source/destination roots became writable, but
+  their nested directories remained mode `0500`, preventing removal of the
+  two mode-`0400` probe files. The exact probe was safely removed after
+  inspection, and no residue or unrelated mutation remains.
+- Sealed root `/tmp/revolvr-builder-revalidation.CSGs5E`, draft SHA-256
+  `ae560b6eebc0c2d77721df426477727c473774cc1661db9dc9ef2194fd120768`,
+  and evidence-manifest SHA-256
+  `0b962f2cfc2095c530d4414676e17c53a06d8ef65223baf7d9f26e6e958453ee`
+  are terminal failed neutral-validation evidence. They cannot be edited,
+  copied, executed, derived from, published as a builder, or used as candidate
+  input.
+- No RC.12 identity was consumed and no builder, construction launcher,
+  candidate, review launcher, remote authority, suite, live-model action,
+  release, external-use decision, or `EXT-20` completion exists. A third
+  anonymous design requires a fresh independent review and new explicit
+  operator authorization; there is no executable continuation from this
+  decision.
+
 ## Prospective RC.12 First Neutral Draft Rejected (2026-07-26)
 
 - The first neutral-validation evidence is authentic and preserved, but its

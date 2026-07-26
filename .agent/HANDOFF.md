@@ -4,6 +4,63 @@ Updated: 2026-07-26
 
 ## Resume Point
 
+The second anonymous prospective candidate-construction draft is terminally
+rejected after its one permitted neutral repair. Sealed revalidation root
+`/tmp/revolvr-builder-revalidation.CSGs5E` is mode `0500` and contains exactly
+12 mode-`0444` regular files totaling 50,756 bytes: the draft, ten direct
+evidence files, and a self-verifying evidence manifest.
+
+Draft `prospective-construction.sh` is 42,999 bytes, 895 lines, and SHA-256
+`ae560b6eebc0c2d77721df426477727c473774cc1661db9dc9ef2194fd120768`.
+Manifest `evidence-manifest.tsv` is 1,037 bytes, 11 lines, and SHA-256
+`0b962f2cfc2095c530d4414676e17c53a06d8ef65223baf7d9f26e6e958453ee`;
+every listed file's exact name, mode, size, and SHA-256 reverified before the
+root was sealed.
+
+The first complete sequence passed `bash -n`, `--neutral-full-context-audit`,
+focused static inspection, and the expected no-argument status-64 identity
+refusal. `--neutral-admission` refused because the independently entered
+RC.6/RC.7 stream file counts were wrong. The sole neutral repair corrected
+those counts and incorporated the static audit's remote-collision, inventory,
+stage-sealing, and terminal-final-path corrections.
+
+The required second sequence again passed syntax, full-context audit, focused
+static audit, and the expected status-64 refusal. Neutral admission then
+reached the copy-publication probe but failed cleanup: the draft restored
+write permission on the source and destination roots but left both nested
+directories sealed mode `0500`, so removal of the two mode-`0400` value files
+was denied. The exact failed probe
+`/tmp/revolvr-neutral-publication.Jcoaht` was inspected, its five directory
+parents were made owner-writable, and only that exact probe was removed by
+depth-first deletion; its absence was proved.
+
+The full-context model itself is corrected: full mode requires and hashes the
+exact read-only builder and separately published construction launcher,
+permits the two tracked validation-history launchers, and rejects final
+candidate/verification outputs, the post-candidate local-review launcher,
+refs/tags/workflow/remote releases/assets/Actions artifacts, and runtime,
+suite, and launch roots. The unexecuted full path independently snapshots all
+RC.6-RC.11 histories and both validation roots; uses `git init` plus shallow
+exact-commit fetches; excludes later controller objects/launchers; records
+complete clean tool/environment, test/race/vet/module/vulnerability,
+reproducibility, artifact metadata, inventory, build-instruction, and history
+evidence; and specifies `mkdir` plus `cp -a` final publication with complete
+stage/final comparison. None of full mode ran.
+
+The one-repair limit is exhausted. Do not edit, copy, execute, derive from,
+publish, or reuse this draft or root. No construction launcher, exact builder,
+candidate, preflight/build/stage/diagnostic root, artifact, bundle, ref,
+workflow, suite, launch record, release, Revolvr/model operation, or external-
+use authority was created. No revalidation-review launcher was created after
+the failed verification. `EXT-20` remains unchecked.
+
+There is no active next command. The next bounded task, only after fresh
+operator authorization, is an independent read-only review of this exact
+failed revalidation record and a decision whether a third anonymous neutral
+design may be attempted. RC.12 remains unconsumed.
+
+## Previous Rejected-Draft Resume Point
+
 The prospective candidate-construction procedure passed its anonymous neutral
 validation gate without creating a candidate identity. Sealed root
 `/tmp/revolvr-builder-validation.maYqgv` is mode `0500` and contains exactly
