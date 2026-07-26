@@ -5,8 +5,11 @@ Updated: 2026-07-26
 ## Resume Point
 
 The single authorized `level1-v0.1.0-rc.8` local-construction attempt failed
-closed during the Go 1.22.12 source-floor full suite. No candidate artifact or
-final candidate/verification bundle was produced.
+closed during the Go 1.22.12 source-floor full suite. Independent controller
+review accepted that result as a construction-environment failure and
+published its immutable record as commit
+`247b4f6065049a77fa6f07504410de7549e10ac0`. No candidate artifact or
+final RC.8 candidate/verification bundle was produced.
 
 The exact source authority passed before construction: published source commit
 `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
@@ -70,13 +73,24 @@ or reuse any RC.6, RC.7, or failed RC.8 material.
 
 ## Exact Next-Session Resume
 
-There is no authorized executable continuation. A fresh independent
-controller must first review the retained RC.8 diagnostic and preservation
-evidence, then obtain explicit operator direction for a new collision-free
-candidate identity and clean construction environment. The failed RC.8
-namespace and partial output cannot be reused or overwritten.
+From `/home/gernsback/source/revolvr`, run exactly:
 
-`EXT-20` remains unchecked. Do not commit, push, publish a ref, create a
-workflow or suite, start Revolvr/Codex/model work, tag, release, approve
-external use, grant recovery/queue authority, or complete `EXT-20` without a
-new explicit gate.
+```bash
+./agent-ext20-rc9.sh
+```
+
+The executable launcher SHA-256 is
+`4fe92d41af3d6d0144168d7b0867f9ea1bace7f4648b395485af7501cfdc05e3`.
+It starts one fresh Codex pass to construct and locally verify the new
+collision-free candidate `level1-v0.1.0-rc.9` from the same exact published
+source commit/tree. It removes inherited Go root/tool/flag settings, disables
+the Go environment file and automatic toolchain switching, and requires each
+exact selected Go executable to resolve its own matching root and tool
+directory before construction.
+
+This command does not retry or reuse RC.8, run Revolvr dogfood, create a suite,
+make a live product model call, publish a ref, commit, push, add a remote
+workflow, tag, release, approve external use, grant recovery/queue authority,
+or complete `EXT-20`. It must stop after local candidate construction and
+preparation of at most one inert independent-review continuation. `EXT-20`
+remains unchecked.

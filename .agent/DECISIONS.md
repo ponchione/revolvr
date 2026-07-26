@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## EXT-20 RC.9 Clean Construction Boundary (2026-07-26)
+
+- Independent controller review accepts RC.8 as a terminal construction-
+  environment failure and publishes only its durable failure record. The
+  failed builder, diagnostic, partial roots, and absent final paths remain an
+  immutable exhausted namespace; none may become RC.9 input.
+- The operator's next-task direction authorizes one fresh local construction
+  pass under collision-free identity `level1-v0.1.0-rc.9`. Candidate source
+  remains exact published commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`; later controller records and
+  launchers are not candidate source.
+- Go-tool admission removes inherited `GOROOT`, `GOTOOLDIR`, and `GOFLAGS`,
+  sets `GOENV=off` and `GOTOOLCHAIN=local`, and requires the selected
+  executable's exact SHA-256/version to resolve the matching toolchain root
+  and tool directory. Every construction Go invocation repeats this boundary
+  and uses independent task-specific caches.
+- RC.9 is local construction and verification only. It grants no ref/workflow
+  publication, remote CI, attestation, suite, dogfood, live-model, tag,
+  release, external-use, recovery, queue, or `EXT-20` completion authority.
+
 ## EXT-20 RC.8 Failed Local-Construction Boundary (2026-07-26)
 
 - The sole authorized `level1-v0.1.0-rc.8` local-construction attempt is

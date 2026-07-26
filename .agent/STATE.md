@@ -1,5 +1,41 @@
 # Agent State
 
+## EXT-20 RC.8 Review And RC.9 Local Continuation (2026-07-26)
+
+- Independent controller review reproduced the failed RC.8 builder and
+  diagnostic SHA-256 values, the 15,882-file partial-root and 20-file partial-
+  verification content-stream hashes, both absent final paths, and the lack of
+  RC.8 refs, tags, workflow, suite, launch record, or review launcher. The
+  product-source diff from exact source commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba` through controller HEAD was
+  empty.
+- With `GOROOT=/usr/local/go` inherited, the exact Go 1.22.12 executable is
+  misbound. With `GOROOT` and `GOTOOLDIR` removed, `GOENV=off`, and
+  `GOTOOLCHAIN=local`, it resolves its own module-toolchain root and matching
+  tool directory. The exact Go 1.26.5 executable similarly resolves
+  `/usr/local/go`. This confirms an environment defect rather than a product
+  test failure.
+- Both RC.6 and RC.7 terminal checksum manifests passed again. All six
+  protected suite / launch-record / terminal-evidence content-stream hashes
+  matched. No product or historical evidence file was changed.
+- Raw Git committed the accepted RC.8 failure record as
+  `247b4f6065049a77fa6f07504410de7549e10ac0` (`Record failed RC.8 local
+  construction`) and pushed it by fast-forward to `origin/main`; public
+  readback matched.
+- Added executable `agent-ext20-rc9.sh`, SHA-256
+  `4fe92d41af3d6d0144168d7b0867f9ea1bace7f4648b395485af7501cfdc05e3`.
+  Its admission preserves the exact failed RC.8 files/trees and absent final
+  paths, rejects every RC.9 collision, pins the approved source commit/tree,
+  and requires exact clean bindings for the Go 1.22.12 source floor and Go
+  1.26.5 release toolchain before a fresh construction pass.
+- The child pass receives no inherited `GOROOT`, `GOTOOLDIR`, or `GOFLAGS`,
+  uses `GOENV=off` and `GOTOOLCHAIN=local`, and must repeat those controls for
+  every Go invocation with independent task-specific caches. It may only
+  construct and locally verify `level1-v0.1.0-rc.9`; it cannot publish, create
+  a suite, run live Revolvr/model work, tag, release, approve external use,
+  grant recovery/queue authority, or complete `EXT-20`.
+- Exact next command: `./agent-ext20-rc9.sh`.
+
 ## EXT-20 RC.8 Local Candidate Construction Failed Closed (2026-07-26)
 
 - Task selected: exactly one bounded local construction and verification
