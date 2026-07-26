@@ -1,5 +1,96 @@
 # Agent State
 
+## EXT-20 RC.11 Local Construction Failed At Copy Probe (2026-07-26)
+
+- Task selected: exactly one bounded local construction and verification
+  attempt for fresh candidate `level1-v0.1.0-rc.11`, under still-unchecked
+  `EXT-20`. No `gh`, commit, push, nested Codex/model invocation, Revolvr live
+  operation, suite, confirmation token, ref, workflow, tag, release,
+  attestation, external-use decision, recovery, or queue action was used.
+- Read-only admission passed before any RC.11 runtime identity. Local, fetched,
+  and public `main` were exact at controller commit
+  `846e76199a9ad6c7c286fd3371d670881e5ab2d8`; published source
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba` was reachable from
+  `origin/main` with tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`; and the product-source diff
+  for `.agent/profiles`, `cmd`, `internal`, `go.mod`, and `go.sum` was empty.
+  Local/remote candidate and attestation refs, tags, workflow, public release
+  assets, public Actions artifacts, final bundles, runtime/build/stage/
+  preflight/diagnostic roots, suite/launch roots, and local-review launcher
+  were collision-free.
+- The proposed builder was first authored only as neutral draft
+  `/tmp/revolvr-builder-draft.cZLxf2/builder.sh`; neither its path nor content
+  contains `rc11`, `rc.11`, or the candidate name. Its first `bash -n` passed.
+  Quoting/inventory review found one `find -name` inventory-exclusion defect,
+  which was corrected only while the file remained neutral; no syntax repair
+  was needed. The final sealed draft is 35,599 bytes, 634 lines, mode `0444`,
+  SHA-256
+  `c92b7611028cf54abe37735c44fb116826193abd97673c1d69f8747f1b6f7355`,
+  and passed `bash -n` and the complete quoting/inventory review.
+- Exact ignored builder
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.11.sh` was copied from
+  the sealed draft, made mode `0555`, and required byte identity. It is also
+  35,599 bytes and 634 lines with SHA-256
+  `c92b7611028cf54abe37735c44fb116826193abd97673c1d69f8747f1b6f7355`;
+  `cmp` and its independent `bash -n` passed. It was then executed exactly
+  once and was never edited.
+- The sole execution failed closed at line 295 before the `cp -a` operation:
+  `source/nested` had been created at mode `0500`, so the following
+  `printf` could not create `source/nested/value.txt` and returned
+  `Permission denied`. The function made the neutral probe parents writable,
+  removed only that probe, confirmed the probe absent, and reported
+  `candidate construction failed: copy-publication probe failed`. Because the
+  exact builder already existed, RC.11 is exhausted and no repair or rerun is
+  authorized.
+- Failure preceded RC.11 preflight, selected-toolchain record, build root,
+  clones, caches, stage, diagnostic, artifact, candidate bundle, and
+  verification bundle. Intended final paths
+  `.revolvr/release-candidates/level1-v0.1.0-rc.11-a24804bcf2a3` and
+  `.revolvr/release-candidates/level1-v0.1.0-rc.11-a24804bcf2a3-verification`
+  remain absent. No tests, vet, module verification, vulnerability scan,
+  release builds, reproducibility comparison, embedded-metadata check, or
+  bundle-manifest verification ran inside the builder. No local-review
+  launcher was created because no candidate exists.
+- Before and after, RC.6 suite / launch record / terminal evidence remained
+  exact at
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`,
+  and RC.7 remained exact at
+  `ef031fa8aa3f7849b50551824a9f7c4b8d72e42f19ad5906f32e4aa0d9a1fb3a` /
+  `deb55229c31197830721f5fc7cff368281451139da0ad52560f29246b91f2e1c` /
+  `6bce7d6a7edd992ee23e138713bb6e0923d3be9d3c1ffebd0fd2c94ea47fbd9f`.
+  Both terminal `files.sha256` / `bundle.sha256` manifest pairs passed before
+  and after.
+- RC.8's exact mode-`0555` builder, mode-`0664` diagnostic, 15,882-file
+  partial root, 20-file verification subtree, four recorded hashes, and both
+  final-path absences passed before and after. RC.9's exact builder,
+  diagnostic, 6-file preflight root, 34,435-file build root, 63-file stage
+  root, 13-file candidate stage, 50-file verification stage, inventory files,
+  manifest checks, and final-path absences also passed. RC.10 remained exactly
+  one 474-line mode-`0664` builder with SHA-256
+  `229d000616812af01bf001b979b97313d3fb89d18243edb900ab0c4d6f14e8be`;
+  every other RC.10 path stayed absent.
+- Verification commands run included forbidden-identity scans and `bash -n`
+  on the neutral draft; quoting/inventory line review; `cmp`, SHA-256, mode,
+  size, line-count, and `bash -n` checks on the exact builder; raw `git fetch`,
+  `rev-parse`, `merge-base`, `diff`, `show-ref`, `ls-remote`, and public GitHub
+  release/artifact/tree collision reads; the exact builder's sole execution;
+  read-only `sha256sum -c` checks for both RC.6/RC.7 terminal manifest pairs
+  and both RC.9 staged manifest pairs; complete recorded file/tree
+  hash/count/mode checks for RC.6 through RC.10; and `git diff --check`.
+  Admission, syntax, byte-identity, collision, and historical-preservation
+  checks passed. Construction failed at the copy probe as described above;
+  the explicit post-identity no-repair rule prohibited a repair attempt.
+- Tracked durable-state changes are `.agent/TASKS.md`, `.agent/HANDOFF.md`,
+  `.agent/STATE.md`, and `.agent/DECISIONS.md`; no product source or dependency
+  changed. Ignored output is only the exact RC.11 builder, while the neutral
+  draft remains outside the repository. Result: **BLOCKED; RC.11 exhausted
+  before construction**. `EXT-20` remains unchecked. What remains is an
+  independent controller review of this exact failure record. Any future
+  candidate requires a new collision-free identity and explicit operator
+  authority.
+
 ## EXT-20 RC.10 Review And RC.11 Local Continuation (2026-07-26)
 
 - Independent controller review reproduced RC.10's sole ignored builder at

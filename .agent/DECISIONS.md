@@ -1,5 +1,35 @@
 # Agent Decisions
 
+## EXT-20 RC.11 Failed Copy-Probe Boundary (2026-07-26)
+
+- RC.11 is terminal failed local-construction history. Its syntax-passing
+  neutral draft and sole exact builder are byte-identical at 35,599 bytes,
+  634 lines, and SHA-256
+  `c92b7611028cf54abe37735c44fb116826193abd97673c1d69f8747f1b6f7355`;
+  their modes are respectively `0444` and `0555`. Neither may be edited,
+  executed, retried, repaired, completed, relabeled, deleted, mutated, derived
+  from, or reused.
+- The builder's one execution failed before preflight/build-root creation when
+  its neutral copy-publication probe created the source child directory mode
+  `0500` before attempting to create the probe file within it. The file write
+  at line 295 was denied, the builder removed only its neutral probe as
+  designed, and the explicit post-identity no-repair boundary exhausted
+  RC.11. This is a builder procedure defect, not product, toolchain, test,
+  artifact, manifest, or final-copy evidence.
+- RC.11 produced no preflight, selected-tool record, build/stage root, clone,
+  cache, diagnostic, artifact, candidate bundle, verification bundle, final
+  path, suite, launch record, or local-review launcher. The intended final
+  bundle paths remain absent and establish no local candidate authority.
+- RC.6 and RC.7 terminal histories, RC.8 and RC.9 construction histories, and
+  RC.10's sole malformed-builder identity remain exact at their recorded
+  hashes, counts, modes, manifests, inventories, and absences. RC.11 grants no
+  remote CI, attestation, dogfood, live model, suite, tag, release, external
+  use, recovery, queue, or `EXT-20` completion authority.
+- The next gate is independent controller review of the immutable RC.11
+  failure record. A future candidate, if separately authorized, must use a
+  fresh collision-free identity and independently authored neutral draft;
+  this decision authorizes no executable continuation.
+
 ## EXT-20 RC.11 Draft-Before-Identity Boundary (2026-07-26)
 
 - Independent controller review accepts RC.10 as terminal failed construction
