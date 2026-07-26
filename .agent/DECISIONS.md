@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## EXT-20 RC.9 Failed Local-Construction Boundary (2026-07-26)
+
+- The sole authorized `level1-v0.1.0-rc.9` local-construction attempt is
+  terminal failed history. Exact source, toolchain, collision, preservation,
+  regression, full-suite, vet, module, vulnerability, reproducibility,
+  embedded-metadata, build-ID, and staged-manifest checks passed. Publication
+  of the sealed staged candidate directory to its authorized final path was
+  denied by the filesystem before either final candidate/verification path
+  appeared.
+- Preserve the exact read-only builder and diagnostic, unique preflight/build/
+  staging roots, sealed staged subtrees, and absent final paths at the hashes
+  recorded in `.agent/STATE.md` and `.agent/HANDOFF.md`. They are not a local
+  candidate, bundle, review authority, or input to future construction. They
+  cannot be retried, repaired, completed, reconciled, moved, relabeled,
+  deleted, mutated, derived from, or reused.
+- Passing staged evidence does not broaden authority after the final-path
+  publication failure. RC.9 grants no ref/workflow publication, remote CI,
+  attestation, suite, dogfood, Revolvr/model operation, tag, release,
+  external-use, recovery, queue, local candidate review, or `EXT-20`
+  completion authority.
+- The next gate is an independent controller review of the immutable RC.9
+  failure record. A future candidate, if explicitly authorized, must use a new
+  collision-free identity, independently authored construction procedure, and
+  unique roots; no executable continuation is authorized here. RC.6, RC.7,
+  and RC.8 remain separately immutable at their recorded identities, and
+  `EXT-20` remains unchecked.
+
 ## EXT-20 RC.9 Clean Construction Boundary (2026-07-26)
 
 - Independent controller review accepts RC.8 as a terminal construction-

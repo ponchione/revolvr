@@ -4,93 +4,86 @@ Updated: 2026-07-26
 
 ## Resume Point
 
-The single authorized `level1-v0.1.0-rc.8` local-construction attempt failed
-closed during the Go 1.22.12 source-floor full suite. Independent controller
-review accepted that result as a construction-environment failure and
-published its immutable record as commit
-`247b4f6065049a77fa6f07504410de7549e10ac0`. No candidate artifact or
-final RC.8 candidate/verification bundle was produced.
+The sole authorized `level1-v0.1.0-rc.9` construction attempt passed all
+source/tool admission, tests, vulnerability scans, reproducible builds,
+embedded metadata, and staged manifest checks, then failed closed at exact
+command `mv "$STAGE_CANDIDATE" "$FINAL_CANDIDATE"` with `Permission denied`.
+Neither authorized final bundle path appeared. RC.9 is terminal failed local-
+construction history, not a candidate, and cannot be repaired, moved,
+completed, relabeled, retried, derived from, or reused.
 
-The exact source authority passed before construction: published source commit
+Exact source remained published commit
 `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
-`2c8ee9f6b4283410547a9f99972e25eac06c9e33`, and local/fetched/public
-`main` `221d8becdc0aee9aa00b4879f11bec28f97c242f`. The source is reachable
-from `origin/main`, and the diff from source through controller HEAD is empty
-for `.agent/profiles`, `cmd`, `internal`, `go.mod`, and `go.sum`.
+`2c8ee9f6b4283410547a9f99972e25eac06c9e33`. Local, fetched, and public
+`main` were controller commit `9393c58c36a0a9d55397cbf1f2db1490d8650f50`,
+and the product-source diff was empty.
 
-## Fail-Closed RC.8 Attempt
+## Failed RC.9 Identities
 
-- Ignored builder:
-  `.revolvr/release-candidates/build-level1-v0.1.0-rc.8.sh`, SHA-256
-  `b4b23c2ede3502f666253e8b34e6962df58bbf848fe108c51172b95619d45b6e`.
-- Diagnostic:
-  `.revolvr/release-candidates/diagnostics/level1-v0.1.0-rc.8-20260726T121225Z-227936.txt`,
+- Builder:
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.9.sh`, mode `0555`,
   SHA-256
-  `5cc3e477270fd051d967bf63de50a4c2ad007ed8b5217a429e8a8525ebcc89c5`.
-- Retained partial build root:
-  `/tmp/revolvr-ext20-rc8-build.wnKv7Q`, 15,882 regular files,
-  path-bearing content-stream SHA-256
-  `576db5a2a76ef52013b54c1cb29d5623908e57b1f34a772d7f56e5635cf952e2`.
-- Retained partial verification root:
-  `/tmp/revolvr-ext20-rc8-build.wnKv7Q/verification`, 20 regular files,
-  path-bearing content-stream SHA-256
-  `ea9fdc5cc97e475d13109d8a3b1d7eafb25e4b3cd87e4085c5bef44aa3e2841a`.
-
-The exact source-floor executable reports `go1.22.12`, but the inherited host
-environment sets `GOROOT=/usr/local/go`. It therefore selected the Go 1.26.5
-standard library/tool directory and failed compilation with repeated
-`compile: version "go1.26.5" does not match go tool version "go1.22.12"`.
-This is a construction-environment defect, not a product test failure.
-
-Planner lifecycle ordinary/race tests, the Structured Outputs compatibility
-guard, and production happy-path/strict-fake ordinary/race tests passed before
-the stop. Go 1.26.5 full-suite/vet/module verification, vulnerability scans,
-release builds, reproducibility comparison, metadata verification, and bundle
-sealing did not run.
+  `0b4dcba0a68aa9d801d657a085fa1c8b7a81fd503bea773b0670ec394f456ab4`.
+- Diagnostic:
+  `.revolvr/release-candidates/diagnostics/level1-v0.1.0-rc.9-20260726T130454Z-370868.qiRJxA.txt`,
+  mode `0400`, SHA-256
+  `b61fc1cf82d7777b58337766c0fe941b901101b6e14fd1b9e1cd9fb7a1774160`.
+- Preflight root:
+  `.revolvr/release-candidates/.level1-v0.1.0-rc.9-preflight.XQ9PIf`, 6 regular
+  files, content-stream SHA-256
+  `a52b2f624e03276d2079a45c73e3c172a5387608c341f7376bd7f6cb54959547`.
+- Build root: `/tmp/revolvr-ext20-rc9-build.CRYAYI`, 34,435 regular files,
+  content-stream SHA-256
+  `2f2d3392a20afffc6b676cd72b4b71e1f8283f2567dac623b506880c273237e6`.
+- Stage root:
+  `.revolvr/release-candidates/.level1-v0.1.0-rc.9-stage.Znq9cp`, 63 regular
+  files, content-stream SHA-256
+  `382e16afb4efbbf25330572ab5ee186001a06bc21112cd18b41414e790519a46`.
+- Staged candidate subtree: 13 files, content-stream SHA-256
+  `435bf3a09174857c8c855538a3d29ab87d528db167d997e34a8db6737c889e54`,
+  inventory SHA-256
+  `d08e74abedbe089196ab4bc1e6f05384b370fa114bc715eab3196c708d60c69d`.
+- Staged verification subtree: 50 files, content-stream SHA-256
+  `9c47547b117436453f4610021bf677d245adf918da05d5f642361cde684342dd`,
+  inventory SHA-256
+  `52d9ad1cd586929a97c20c069f7ce086d4e7df464aeb679819f273d58773eb35`.
 
 The intended final paths remain absent:
 
-- `.revolvr/release-candidates/level1-v0.1.0-rc.8-a24804bcf2a3`
-- `.revolvr/release-candidates/level1-v0.1.0-rc.8-a24804bcf2a3-verification`
+- `.revolvr/release-candidates/level1-v0.1.0-rc.9-a24804bcf2a3`
+- `.revolvr/release-candidates/level1-v0.1.0-rc.9-a24804bcf2a3-verification`
 
-No local-review launcher was created. No RC.8 ref, tag, workflow, suite,
-launch record, model operation, or release/external-use authority exists.
+No RC.9 ref, tag, workflow, suite, launch record, local-review launcher,
+Revolvr/Codex/model operation, or release/external-use authority exists.
 
-## Immutable Failure Boundary
+## Verification And Preservation
 
-- RC.7 suite / launch record / terminal-evidence content-stream SHA-256:
-  `ef031fa8aa3f7849b50551824a9f7c4b8d72e42f19ad5906f32e4aa0d9a1fb3a` /
-  `deb55229c31197830721f5fc7cff368281451139da0ad52560f29246b91f2e1c` /
-  `6bce7d6a7edd992ee23e138713bb6e0923d3be9d3c1ffebd0fd2c94ea47fbd9f`.
-- RC.6 suite / launch record / terminal-evidence content-stream SHA-256:
-  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
-  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
-  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`.
+Both exact Go 1.22.12 and Go 1.26.5 runs passed the planner/prompt/schema/
+revision regressions, focused Structured Outputs guard, production happy-path
+and strict-fake ordinary/race tests, and full suite. Go 1.26.5 vet passed;
+both module verifications passed. Govulncheck reported zero reachable
+vulnerabilities and retained unreachable Windows-only `GO-2026-5024`.
+Linux, Darwin, and FreeBSD amd64 artifacts were byte-identical across two
+independent exact-source builds and retained exact metadata and empty build
+IDs. Both staged bundle manifests verify, but staged output is diagnostic
+history only.
 
-Both checksum manifests in each terminal evidence root passed before and after
-the failed attempt. Never execute, retry, repair, delete, mutate, derive from,
-or reuse any RC.6, RC.7, or failed RC.8 material.
+Before and after, RC.6 suite / launch record / terminal evidence remained at
+`d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+`2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+`e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`,
+and RC.7 remained at
+`ef031fa8aa3f7849b50551824a9f7c4b8d72e42f19ad5906f32e4aa0d9a1fb3a` /
+`deb55229c31197830721f5fc7cff368281451139da0ad52560f29246b91f2e1c` /
+`6bce7d6a7edd992ee23e138713bb6e0923d3be9d3c1ffebd0fd2c94ea47fbd9f`.
+Both terminal manifest pairs passed. RC.8 builder, diagnostic, 15,882-file
+partial root, 20-file verification subtree, and both final-path absences also
+remained exact.
 
-## Exact Next-Session Resume
+## Next Gate
 
-From `/home/gernsback/source/revolvr`, run exactly:
-
-```bash
-./agent-ext20-rc9.sh
-```
-
-The executable launcher SHA-256 is
-`4fe92d41af3d6d0144168d7b0867f9ea1bace7f4648b395485af7501cfdc05e3`.
-It starts one fresh Codex pass to construct and locally verify the new
-collision-free candidate `level1-v0.1.0-rc.9` from the same exact published
-source commit/tree. It removes inherited Go root/tool/flag settings, disables
-the Go environment file and automatic toolchain switching, and requires each
-exact selected Go executable to resolve its own matching root and tool
-directory before construction.
-
-This command does not retry or reuse RC.8, run Revolvr dogfood, create a suite,
-make a live product model call, publish a ref, commit, push, add a remote
-workflow, tag, release, approve external use, grant recovery/queue authority,
-or complete `EXT-20`. It must stop after local candidate construction and
-preparation of at most one inert independent-review continuation. `EXT-20`
-remains unchecked.
+There is no authorized executable continuation. The next bounded gate is an
+independent controller review of this exact failed-construction record. A new
+candidate identity and executable require separate explicit operator
+authority after that review. Do not execute or mutate any RC.6, RC.7, RC.8,
+or RC.9 material. `EXT-20` remains unchecked.

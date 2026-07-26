@@ -1,5 +1,137 @@
 # Agent State
 
+## EXT-20 RC.9 Local Candidate Construction Failed Closed (2026-07-26)
+
+- Task selected: exactly one bounded construction and local-verification
+  attempt for fresh candidate identity `level1-v0.1.0-rc.9`, under still-
+  unchecked `EXT-20`. The pass did not start Revolvr, Codex, a model, a
+  dogfood operation, or a suite and did not create or publish a ref, workflow,
+  attestation, tag, release, or external-use/recovery/queue authority.
+- Pre-construction authority passed. Local, fetched, and public `main` were
+  exact at controller commit
+  `9393c58c36a0a9d55397cbf1f2db1490d8650f50`; pinned published source
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba` was reachable in its ancestry
+  with exact tree `2c8ee9f6b4283410547a9f99972e25eac06c9e33`. The diff through
+  controller HEAD for `.agent/profiles`, `cmd`, `internal`, `go.mod`, and
+  `go.sum` was empty, SHA-256
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+  Local/remote RC.9 refs and tags, workflow, public candidate/verification
+  artifacts, final bundles, temporary roots, suite/launch roots, diagnostics,
+  and review launcher were collision-free.
+- Before creating the build root, exact clean tool admission recorded source-
+  floor Go
+  `/home/gernsback/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.22.12.linux-amd64/bin/go`,
+  SHA-256
+  `929407e69c08952cd944a7457ae4eb289078a35473dd5dad2179369db7c5a6ec`,
+  `go1.22.12`, GOROOT
+  `/home/gernsback/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.22.12.linux-amd64`,
+  and matching `pkg/tool/linux_amd64`; release Go `/usr/local/go/bin/go`,
+  SHA-256
+  `8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9`,
+  `go1.26.5`, GOROOT `/usr/local/go`, and matching
+  `/usr/local/go/pkg/tool/linux_amd64`; and `govulncheck@v1.1.4` at
+  `/home/gernsback/go/bin/govulncheck`, SHA-256
+  `f66036976d8995fbed427315bb2d6b525e58ee5867e88f097709e62fe93b412f`.
+  Every selected Go invocation explicitly removed `GOROOT`, `GOTOOLDIR`, and
+  `GOFLAGS`, set `GOENV=off` and `GOTOOLCHAIN=local`, and used distinct
+  task/clone/toolchain `GOCACHE` and `GOMODCACHE` roots.
+- Fresh independently authored ignored builder
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.9.sh` is mode `0555`,
+  452 lines, SHA-256
+  `0b4dcba0a68aa9d801d657a085fa1c8b7a81fd503bea773b0670ec394f456ab4`.
+  `bash -n` passed before its sole execution. It independently fetched two
+  shallow exact-source checkouts from `git@github.com:ponchione/revolvr.git`;
+  both were clean at the pinned commit/tree and neither object database
+  contained later controller commit
+  `9393c58c36a0a9d55397cbf1f2db1490d8650f50`.
+- All requested source and product verification completed successfully before
+  sealing: with both Go 1.22.12 and Go 1.26.5, full ordinary package tests for
+  `internal/autonomousplanning`, `internal/prompt`, and
+  `internal/autonomouscycle`; the same packages with `-race`; focused
+  `TestProductionModelOutputSchemasUseSupportedStructuredOutputsSubset`;
+  ordinary and race `TestProductionAutonomousHappyPath` plus
+  `TestStrictFakeCodexContract`; and `go test -mod=readonly -count=1 ./...`.
+  Go 1.26.5 `go vet -mod=readonly ./...` passed, and `go mod verify` passed
+  under both toolchains. All detailed command/output and effective-environment
+  records are retained in the staged verification tree below.
+- `govulncheck ./...` and `govulncheck -show verbose ./...` passed. The result
+  reports zero reachable and zero imported-package vulnerabilities. It records
+  unreachable Windows-only required-module finding `GO-2026-5024` in
+  `golang.org/x/sys@v0.30.0`, fixed in `v0.44.0`; no dependency was changed.
+- Exact Go 1.26.5, version `0.1.0`, module-readonly, CGO-disabled, amd64,
+  trimpath, clean-VCS, empty-build-ID builds completed twice in independent
+  clones for all three supported targets. Clone-one/clone-two artifacts were
+  byte-identical: Linux SHA-256
+  `c164c7da5a9926b5893c2a4679bf7b31b6423a74f7e86504cedab4d12fe68456`,
+  Darwin `a9a7a56883ef5026ec87b4beaca277dfe1c54083565b17d3aa7fd0ce8c0bc88d`,
+  and FreeBSD
+  `7d2bd704259dad5ef060670ea33c0d5bbde1463e42c5700cac00110c40d1db94`.
+  `revolvr 0.1.0`, embedded Go/target/source revision, clean VCS state, disabled
+  CGO, and empty Go build IDs all passed.
+- Both staged inventories verified before the terminal failure and verify
+  read-only afterward. Staged candidate
+  `.revolvr/release-candidates/.level1-v0.1.0-rc.9-stage.Znq9cp/candidate`
+  has 13 regular files, content-stream SHA-256
+  `435bf3a09174857c8c855538a3d29ab87d528db167d997e34a8db6737c889e54`,
+  `files.sha256` SHA-256
+  `d08e74abedbe089196ab4bc1e6f05384b370fa114bc715eab3196c708d60c69d`,
+  and `files.sha256.sha256` SHA-256
+  `afd7d45ca3e1e91972bcff57c3cb9435f21a7383a50b5e00822ca7dedf3332aa`.
+  Staged verification
+  `.revolvr/release-candidates/.level1-v0.1.0-rc.9-stage.Znq9cp/verification`
+  has 50 regular files, content-stream SHA-256
+  `9c47547b117436453f4610021bf677d245adf918da05d5f642361cde684342dd`,
+  `files.sha256` SHA-256
+  `52d9ad1cd586929a97c20c069f7ce086d4e7df464aeb679819f273d58773eb35`,
+  and `files.sha256.sha256` SHA-256
+  `62156c79a484c8337955963292919ea910b20fdfc194e472c5d0a6a6a6b8afc8`.
+  They are terminal partial construction output, not candidate bundles, and
+  cannot be moved, relabeled, completed, repaired, or reused.
+- Construction failed closed at exact command
+  `mv "$STAGE_CANDIDATE" "$FINAL_CANDIDATE"` with `Permission denied`, after
+  staging/sealing but before either authorized final path appeared. Retained
+  mode-`0400` diagnostic
+  `.revolvr/release-candidates/diagnostics/level1-v0.1.0-rc.9-20260726T130454Z-370868.qiRJxA.txt`
+  has SHA-256
+  `b61fc1cf82d7777b58337766c0fe941b901101b6e14fd1b9e1cd9fb7a1774160`.
+  Retained preflight root
+  `.revolvr/release-candidates/.level1-v0.1.0-rc.9-preflight.XQ9PIf` has 6
+  regular files and content-stream SHA-256
+  `a52b2f624e03276d2079a45c73e3c172a5387608c341f7376bd7f6cb54959547`;
+  complete stage root
+  `.revolvr/release-candidates/.level1-v0.1.0-rc.9-stage.Znq9cp` has 63 files
+  and SHA-256
+  `382e16afb4efbbf25330572ab5ee186001a06bc21112cd18b41414e790519a46`;
+  retained build root `/tmp/revolvr-ext20-rc9-build.CRYAYI` has 34,435 files
+  and SHA-256
+  `2f2d3392a20afffc6b676cd72b4b71e1f8283f2567dac623b506880c273237e6`.
+- Intended final candidate
+  `.revolvr/release-candidates/level1-v0.1.0-rc.9-a24804bcf2a3` and final
+  verification path with suffix `-verification` remain absent. No candidate
+  or verification bundle is admitted, and no local-review launcher was
+  created. No ref, tag, workflow, suite, launch record, Revolvr/Codex/model
+  operation, or external authority exists for RC.9.
+- RC.6 and RC.7 terminal `files.sha256` and `bundle.sha256` manifests passed
+  before and after. Their suite / launch-record / terminal-evidence stream
+  SHA-256 values remained respectively RC.6
+  `d619c58b88f9c32380981ab5688e13b0079ff6afc42c77963531cfccd116470b` /
+  `2de8901e2f2f037627fb400a241a69542d9a6dab2a74acb87595ae70e1d4f2ce` /
+  `e12757ebbcb10322d020c3347e5cc7ef4fedfb7cd93079efd4b861f577fa3259`
+  and RC.7
+  `ef031fa8aa3f7849b50551824a9f7c4b8d72e42f19ad5906f32e4aa0d9a1fb3a` /
+  `deb55229c31197830721f5fc7cff368281451139da0ad52560f29246b91f2e1c` /
+  `6bce7d6a7edd992ee23e138713bb6e0923d3be9d3c1ffebd0fd2c94ea47fbd9f`.
+  RC.8 builder/diagnostic and 15,882-file/20-file retained roots remained at
+  all four admitted hashes, and both intended RC.8 final paths stayed absent.
+- Files changed in tracked state are only `.agent/HANDOFF.md`,
+  `.agent/STATE.md`, and `.agent/DECISIONS.md`; `.agent/TASKS.md` remains
+  SHA-256 `e3fd07a399498aaebf4191938813081fc86b841f8baf1b050a169ceb57ba10b1`
+  with `EXT-20` unchecked. Result: **BLOCKED; RC.9 terminally failed local
+  construction**. The next gate is independent controller review of this
+  exact failure record. Any later candidate requires a fresh collision-free
+  identity and explicit operator authority; no command or review launcher for
+  such work is authorized by this pass.
+
 ## EXT-20 RC.8 Review And RC.9 Local Continuation (2026-07-26)
 
 - Independent controller review reproduced the failed RC.8 builder and
