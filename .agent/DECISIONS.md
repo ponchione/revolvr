@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## EXT-20 Published Planner Remediation And RC.8 Source Boundary (2026-07-26)
+
+- The independently reviewed planner lifecycle-contract remediation is
+  accepted and published as exact source commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`. This commit is the only source
+  authority for a possible RC.8 local candidate.
+- The later controller commit containing `agent-ext20-rc8.sh` and durable
+  publication records is intentionally not candidate source. RC.8 construction
+  must prove the pinned source is published and in current `main` ancestry and
+  that `.agent/profiles`, `cmd`, `internal`, `go.mod`, and `go.sum` are
+  unchanged from it.
+- RC.8 local construction is a distinct no-live gate. It may reproduce and
+  retain candidate/verification bundles but cannot publish refs or workflows,
+  prepare or launch a suite, invoke Revolvr dogfood, tag, release, approve
+  external use, grant recovery/queue authority, or complete `EXT-20`.
+- RC.6 and RC.7 remain immutable terminal failed-attempt history. A fresh
+  candidate number does not authorize reuse, derivation, repair, retry, or
+  mutation of any historical launcher, suite, operation, record, or evidence.
+
 ## EXT-20 Planner Lifecycle Contract Independent Review (2026-07-26)
 
 - Independent review accepts the current uncommitted planner lifecycle-

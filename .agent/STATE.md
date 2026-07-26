@@ -1,5 +1,36 @@
 # Agent State
 
+## EXT-20 Planner Remediation Publication And RC.8 Continuation (2026-07-26)
+
+- Controller review independently reverified exact local/fetched/public
+  `main` at parent `a9b4f50465466fee61e13f131ae6679e3d8b4729`, shell syntax,
+  zero formatting delta for all changed Go files, focused ordinary and race
+  packages, production happy-path and strict-fake tests, `go test -count=1
+  ./...`, `git diff --check`, and the RC.7 terminal checksum manifests. No
+  blocker or source correction was found.
+- Raw Git committed the accepted 12-file remediation/review scope as
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, parent
+  `a9b4f50465466fee61e13f131ae6679e3d8b4729`, with subject `Align planner
+  lifecycle output contract`, and pushed it by fast-forward to
+  `refs/heads/main`. Local, fetched, and public raw-Git readback all matched.
+- The separate controller continuation adds executable
+  `agent-ext20-rc8.sh`, SHA-256
+  `d27842590accf418e20f9ddd5ca048e6b299776ad7d8b17f02fc933c51003284`.
+  Syntax passed. Pre-construction checks found no local/remote RC.8 candidate
+  or attestation ref, local/remote RC.8 tag, workflow, review launcher, runtime
+  root, or bundle collision.
+- The launcher pins candidate source to the published remediation commit/tree,
+  requires clean exact local/fetched/public `main`, and refuses any later
+  `.agent/profiles`, `cmd`, `internal`, `go.mod`, or `go.sum` delta. The
+  controller-only launcher/state commit therefore cannot silently become
+  candidate source.
+- The next pass is local RC.8 candidate construction only. It preserves RC.6
+  and RC.7 at their recorded immutable hashes, runs no live suite or product
+  model operation, publishes nothing, and grants no remote-CI, attestation,
+  dogfood, tag, release, external-use, recovery, queue, or `EXT-20` completion
+  authority. Exact next command is `./agent-ext20-rc8.sh`.
+
 ## EXT-20 Planner Lifecycle-Contract Independent Review (2026-07-26)
 
 - Task selected: one bounded independent review of the current uncommitted
