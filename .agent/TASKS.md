@@ -342,7 +342,9 @@
     persistent v6 design with two complete neutral sequences and explicit
     cleanup-lifetime, canonical-EOF, status-propagation, v5-preservation, and
     accepted-byte gates. It cannot create or execute an RC.13 builder or
-    candidate. RC.12 remains terminal and EXT-20 remains incomplete.
+    candidate. Raw Git published it with the rejected-v5 record as
+    `92eb3d85cad3e78f4e980da1031cca485c8ae8da`, and its clean non-creating
+    preflight passed. RC.12 remains terminal and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

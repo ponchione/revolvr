@@ -26,10 +26,12 @@
   a new persistent root, preserve v5 exactly, and make trap lifetime,
   canonical history EOF, no-collision status propagation, and full sequence
   completion explicit gates. `agent-ext20-rc13-builder-revalidation-v6.sh` is
-  the sole next gate after raw-Git publication. It cannot create a builder or
-  candidate or grant construction, remote, suite, release, external-use, or
-  `EXT-20` authority. V5 must not be repaired, rerun, derived from, or reused;
-  RC.12 remains terminal.
+  the sole next gate after raw-Git publication. Raw Git published it with the
+  rejected-v5 record as `92eb3d85cad3e78f4e980da1031cca485c8ae8da`;
+  exact local, fetched, and public `main` plus its non-creating preflight
+  passed. It cannot create a builder or candidate or grant construction,
+  remote, suite, release, external-use, or `EXT-20` authority. V5 must not be
+  repaired, rerun, derived from, or reused; RC.12 remains terminal.
 
 ## RC.12 Failure Accepted; Prospective RC.13 Validation Authorized (2026-07-30)
 

@@ -54,10 +54,16 @@ Codex pass to independently author only a new persistent
 must reach cleanup-lifetime, canonical-EOF, status-propagation, v5-preservation,
 and accepted-byte checks. It grants no builder or construction authority.
 
+Raw Git published the five-file rejected-v5 record and v6 authorization as
+`92eb3d85cad3e78f4e980da1031cca485c8ae8da` (`Record rejected RC.13 v5
+validation`). Local, fetched, and public `main` matched exactly. The clean v6
+`--preflight-only` path replayed RC.12 terminal evidence, exact v5 preservation,
+and all RC.13 collision guards, then stopped without creating a design,
+builder, or candidate.
+
 ### Next Gate
 
-After this rejection record and tracked v6 authorization are published on
-exact clean `main`, run from `/home/gernsback/source/revolvr`:
+From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
 ./agent-ext20-rc13-builder-revalidation-v6.sh

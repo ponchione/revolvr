@@ -69,11 +69,15 @@
   neutral-validation pass. Its two sequences must completely reach explicit
   trap-lifetime, canonical-EOF, status-propagation, v5-preservation, and
   accepted-byte gates.
+- Raw Git committed and pushed the five-file rejected-v5 record and v6
+  authorization as `92eb3d85cad3e78f4e980da1031cca485c8ae8da` (`Record
+  rejected RC.13 v5 validation`). Local, fetched, and public `main` matched.
+  The clean published v6 `--preflight-only` path exited `0` without creating a
+  design, builder, or candidate.
 - Updated result: **v5 remains FAIL / BLOCKED; PASS for a separately authorized
-  v6 neutral revalidation gate only**. After raw-Git publication, exact next
-  command is `./agent-ext20-rc13-builder-revalidation-v6.sh`. Do not repair,
-  rerun, seal, derive from, or reuse v5. RC.12 stays terminal and `EXT-20`
-  stays incomplete.
+  v6 neutral revalidation gate only**. Exact next command is
+  `./agent-ext20-rc13-builder-revalidation-v6.sh`. Do not repair, rerun, seal,
+  derive from, or reuse v5. RC.12 stays terminal and `EXT-20` stays incomplete.
 
 ## RC.12 Failure Review Accepted And RC.13 Prospective Gate Prepared (2026-07-30)
 
