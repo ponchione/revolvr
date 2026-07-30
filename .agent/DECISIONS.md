@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## RC.12 Failure Accepted; Prospective RC.13 Validation Authorized (2026-07-30)
+
+- The completed independent review changed nothing. Controller replay accepts
+  the immutable RC.12 failure record and deterministic pre-root
+  status-propagation cause. RC.12 stays terminal; no historical builder,
+  launcher, draft, output, or namespace may be retried, repaired, derived
+  from, removed, relabeled, or reused.
+- The operator's next-gate direction authorizes one fresh anonymous
+  prospective RC.13 builder-design validation, not construction. It must use a
+  unique persistent ignored root, independently authored bytes, two complete
+  neutral validation sequences, and an explicit regression that every
+  no-collision function returns success instead of propagating a false probe.
+  At most one repair is allowed only between sequences.
+- `agent-ext20-rc13-builder-validation.sh` is the sole next gate after raw-Git
+  publication. It cannot run product tests/builds or full construction and
+  cannot create an RC.13 builder, candidate, ref, workflow, artifact, suite,
+  release, external-use authority, or `EXT-20` completion. Passing may retain
+  only sealed prospective evidence and one inert later read-only review
+  launcher.
+
 ## RC.12 Terminal Construction Status-Propagation Failure (2026-07-30)
 
 - The operator's published no-argument construction gate executed the exact

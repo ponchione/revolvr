@@ -1,5 +1,48 @@
 # Agent State
 
+## RC.12 Failure Review Accepted And RC.13 Prospective Gate Prepared (2026-07-30)
+
+- Task selected: verify the completed read-only RC.12 construction-failure
+  review, accept or reject its immutable conclusion, and prepare only the next
+  non-construction gate.
+- The operator completed the published no-argument failure-review pass. Git
+  remained clean at exact local/fetched/public `main`; no process or RC.12
+  preflight/build/stage/diagnostic/final/runtime output appeared. Independent
+  controller replay of the published preflight passed without executing the
+  builder or construction launcher.
+- Exact RC.12 builder, sealed draft, construction launcher, evidence manifest,
+  and content stream remain unchanged. Complete local/remote ref, tag,
+  workflow, Actions-artifact, release-asset, and construction-path absences
+  passed. The neutral Bash reproduction again proves that exact builder lines
+  496-499 return status `1` when release assets are correctly absent, causing
+  the terminal pre-root failure through `set -e`. The review is accepted.
+- Added inert `agent-ext20-rc13-builder-validation.sh`, mode `0755`, 9,701
+  bytes, 160 lines, SHA-256
+  `052e97aa653f57bb380ccc130c1f1aa0181f8517f7e65332ab80727a6fcecb2c`.
+  It requires clean published controller/self identity, replays the exact RC.12
+  terminal preflight, and rejects every local/remote RC.13 collision before
+  starting one fresh Codex design-validation pass.
+- The prospective pass may author only a fresh design and sealed evidence in
+  one unique persistent ignored `.revolvr/prospective-builder-validation-v5.*`
+  root. It cannot reuse historical bytes, run product tests/builds or full
+  construction, or create any RC.13 builder/candidate/remote/suite/release
+  identity. Two complete neutral sequences and an explicit no-collision
+  status-propagation regression are mandatory; at most one repair is permitted
+  only between sequences. Success may add only one inert later review launcher
+  and durable state.
+- Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, and the new inert RC.13 validation launcher. No Go
+  source, dependency, ignored runtime evidence, builder, or candidate changed.
+- Verification: clean raw-Git local/fetched/public identity; published RC.12
+  failure-review preflight; process and complete RC.12 residue inventory;
+  launcher `bash -n`; exact mode/size/line/hash reads; focused control-flow
+  review; and `git diff --check`. Product tests/builds were not run because no
+  product code changed and this gate expressly forbids construction.
+- Result: **PASS for prospective RC.13 builder-design authorization only**.
+  After controller publication, exact next command is
+  `./agent-ext20-rc13-builder-validation.sh`. RC.12 remains terminal and
+  `EXT-20` remains unchecked.
+
 ## RC.12 Terminal Pre-Root Construction Failure (2026-07-30)
 
 - Task selected: verify the operator-reported one-shot RC.12 construction

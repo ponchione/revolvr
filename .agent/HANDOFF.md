@@ -4,6 +4,51 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The operator completed the published no-argument
+`agent-ext20-rc12-construction-failure-review.sh` pass. As required, it left
+tracked and ignored state unchanged and created no RC.12 output. Independent
+controller verification replayed the clean published preflight, exact
+builder/draft/launcher/evidence identities, complete construction-output and
+remote collision absences, and the neutral Bash status reproduction. The
+terminal RC.12 failure record is accepted: the exact builder's final
+no-release-asset loop propagated status `1` before its first construction root.
+RC.12 remains terminal and cannot be retried, repaired, removed, relabeled,
+derived from, or reused.
+
+The operator's direction to prepare the next gate authorizes only a fresh
+anonymous prospective RC.13 builder-design validation. Added inert tracked
+launcher `agent-ext20-rc13-builder-validation.sh`, mode `0755`, 9,701 bytes,
+160 lines, SHA-256
+`052e97aa653f57bb380ccc130c1f1aa0181f8517f7e65332ab80727a6fcecb2c`.
+Its preflight requires clean exact published `main`, replays the complete
+RC.12 terminal preflight, and rejects all local/remote RC.13 identity and
+output collisions.
+
+The no-argument gate starts one fresh Codex pass to independently author only
+a prospective design under a unique persistent ignored
+`.revolvr/prospective-builder-validation-v5.*` root. It forbids reuse or
+derivation of historical builder/draft bytes, any product test/build or full
+construction, and every RC.13 builder/candidate/remote/suite/release identity.
+It requires two complete neutral validation sequences plus a regression for
+the RC.12 status-propagation defect. At most one repair is allowed only between
+sequences. Passing may create only sealed evidence and one inert later review
+launcher. `EXT-20` remains unchecked.
+
+### Next Gate
+
+After this tracked authorization is published on exact clean `main`, run from
+`/home/gernsback/source/revolvr`:
+
+```bash
+./agent-ext20-rc13-builder-validation.sh
+```
+
+This grants prospective design validation only. It cannot create a builder or
+candidate and grants no construction, remote, suite, live dogfood, release,
+external-use, or `EXT-20` authority.
+
+## Previous Resume Point
+
 The operator executed the published no-argument `./agent-ext20-rc12.sh` gate.
 Its exact builder began once, printed
 `prospective construction failed before final path appearance`, and stopped.

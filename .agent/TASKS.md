@@ -316,7 +316,14 @@
     `agent-ext20-rc12-construction-failure-review.sh`. Raw Git published that
     record as `cfee541546da35ea60eac102996691f144279e4f`, and its clean
     non-executing preflight passed. RC.12 is terminal and EXT-20 remains
-    incomplete.
+    incomplete. The operator completed its no-argument independent review;
+    repository state remained unchanged, and controller replay accepted the
+    deterministic pre-root status-propagation failure. A fresh candidate is
+    not yet authorized. The sole next gate after raw-Git publication is
+    `agent-ext20-rc13-builder-validation.sh`, which may create only a fresh
+    anonymous persistent prospective design, two-sequence neutral evidence,
+    and one inert later review launcher. It cannot create or execute an RC.13
+    builder or candidate. RC.12 remains terminal and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for
