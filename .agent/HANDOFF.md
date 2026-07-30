@@ -39,18 +39,35 @@ candidate, remote workflow, suite, Revolvr/model operation, release, or
 external-use action occurred. RC.12 remains unconsumed and `EXT-20` remains
 unchecked.
 
+Independent controller review accepted the prepared publication after
+replaying the sealed evidence, builder/draft byte identity and distinct inode,
+protected-parent mode, construction-launcher source and exact temporary-byte
+identity, its single preflight/exec boundary, all four exported authority
+hashes, historical controller/source identities, and local/remote output
+collisions. Public Actions artifacts and release assets for all three RC.12
+names were absent. The planned review launcher was not needed to establish
+this fresh controller conclusion and was not executed.
+
+Raw Git published the tracked six-file record as
+`b09a1c5d9973f39f2447711a58e03cacf8edf642` (`Publish RC.12 builder and
+construction launcher`). Local, fetched, and public `main` matched exactly.
+The clean published `agent-ext20-rc12.sh --preflight-only` path passed every
+guard and stopped before builder execution. Both final candidate paths remain
+absent.
+
 ### Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
-./agent-ext20-rc12-builder-publication-review.sh
+./agent-ext20-rc12.sh
 ```
 
-This starts only a fresh read-only accept/reject review of the prepared
-publication. It cannot execute the builder or construction launcher, edit,
-stage, commit, push, or create continuation. Favorable review still requires
-separate controller publication and new explicit construction authority.
+This no-argument command is the one-shot local RC.12 construction authority.
+It executes the exact builder after all guards pass. Any failure after builder
+execution begins is terminal: do not retry, repair, remove, or relabel RC.12.
+It grants no remote, suite, live-model, release, external-use, or `EXT-20`
+completion authority.
 
 ## Previous Resume Point
 

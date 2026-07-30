@@ -1,5 +1,20 @@
 # Agent Decisions
 
+## RC.12 Exact Builder And Construction Launcher Published (2026-07-30)
+
+- Independent controller review accepted the exact builder publication and
+  construction launcher without executing either. Raw Git published the
+  tracked record as `b09a1c5d9973f39f2447711a58e03cacf8edf642`; exact local,
+  fetched, and public `main` plus the construction launcher's non-executing
+  preflight passed.
+- `agent-ext20-rc12.sh` is now the sole local construction gate. Its
+  no-argument execution is one-shot authority to run the exact reviewed
+  builder. Any post-execution failure is terminal and forbids repair, retry,
+  deletion, completion, or relabeling of RC.12.
+- This gate grants no ref/workflow publication, remote CI, attestation, suite,
+  dogfood/live model, tag, release, external use, recovery, queue, or `EXT-20`
+  completion authority. RC.12 remains unconsumed until the builder begins.
+
 ## RC.12 Exact Builder Publication Prepared For Independent Review (2026-07-30)
 
 - The accepted sealed draft was copied once to exact ignored builder

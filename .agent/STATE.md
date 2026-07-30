@@ -1,5 +1,28 @@
 # Agent State
 
+## RC.12 Builder Publication Accepted And Construction Handoff (2026-07-30)
+
+- Independent controller review accepted the exact ignored builder, hardened
+  release parent, tracked construction launcher, and durable record. It
+  replayed sealed evidence, byte/mode/hash/line/link/inode identities,
+  temporary/final launcher equality, syntax and source control flow, authority
+  exports, source/controller history, and complete local/remote refs, tags,
+  artifacts, release assets, workflow, runtime, and final-output absences. No
+  builder or construction path was executed.
+- Raw Git committed and pushed the six-file tracked record as
+  `b09a1c5d9973f39f2447711a58e03cacf8edf642` (`Publish RC.12 builder and
+  construction launcher`). The ignored mode-`0555` builder and mode-`0755`
+  parent remained unchanged. Local, fetched, and public `main` matched exactly.
+- The clean published `./agent-ext20-rc12.sh --preflight-only` command exited
+  `0` with launcher SHA-256
+  `f2a5f95323cf95334aed2c79c08368d63d0a73646600155a0032e6027bec6572`.
+  It did not execute the builder; candidate and verification final paths remain
+  absent.
+- Exact next command is `./agent-ext20-rc12.sh`. The operator's execution of
+  that no-argument command grants one local construction attempt only. A
+  failure is terminal and cannot be retried or repaired. No remote, suite,
+  live-model, release, external-use, or `EXT-20` authority follows.
+
 ## RC.12 Builder And Construction Launcher Publication Prepared (2026-07-30)
 
 - Task selected: exactly one bounded EXT-20 RC.12 builder-publication pass.

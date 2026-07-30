@@ -304,10 +304,11 @@
     `.revolvr/release-candidates/build-level1-v0.1.0-rc.12.sh`, published the
     inert mode-`0755` construction-launcher target `agent-ext20-rc12.sh`, and
     preserved the protected parent at tightened mode `0755`. Neither identity
-    was executed. The sole next gate is the inert read-only
-    `agent-ext20-rc12-builder-publication-review.sh`; favorable review still
-    requires separate controller publication and explicit construction
-    authority. RC.12 remains unconsumed and EXT-20 remains incomplete.
+    was executed. Independent controller review accepted and raw Git published
+    the record as `b09a1c5d9973f39f2447711a58e03cacf8edf642`; the clean
+    construction preflight passed without executing the builder. The sole next
+    gate is one-shot local construction via `agent-ext20-rc12.sh`. RC.12
+    remains unconsumed and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for
