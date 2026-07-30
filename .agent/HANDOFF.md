@@ -1,8 +1,49 @@
 # Agent Handoff
 
-Updated: 2026-07-26
+Updated: 2026-07-30
 
 ## Resume Point
+
+The published third-design review launcher was invoked on 2026-07-30. It
+fetched public `main` and then exited status `1` before `codex exec` because
+sealed root `/tmp/revolvr-builder-revalidation-v3.PKfbRl` no longer exists.
+The failure is its silent line-28 directory guard. A separate
+`--preflight-only` trace reproduced the same stop. No independent review,
+draft execution, candidate identity, product test/build, or continuation
+occurred. RC.12 remains unconsumed and `EXT-20` remains unchecked.
+
+The missing 42,446-byte draft and its eight evidence files were never
+published outside volatile `/tmp`; their recorded hashes and summaries cannot
+reconstruct reviewable filesystem evidence. The missing root is terminal lost
+evidence. Do not recreate that path or derive bytes from old transcripts.
+
+Prepared recovery uses a fourth independently authored anonymous design and
+stores its sole retained evidence beneath persistent ignored `.revolvr/`
+state. It explicitly carries forward the four unresolved design checks from
+the lost review: post-seal verification inventory ordering, the exact
+`.revolvr/ext20-rc12` collision, complete retired runtime/ref/tag/glob absence
+coverage, and every prior Actions artifact name. It grants no builder,
+construction, candidate, remote, suite, release, external-use, or `EXT-20`
+authority.
+
+### Next Gate
+
+From `/home/gernsback/source/revolvr`, run exactly:
+
+```bash
+./agent-ext20-rc12-volatile-root-recovery-review.sh
+```
+
+This fresh pass reviews only the uncommitted six-file recovery preparation.
+It must not execute the fourth-design launcher. Even a passing review leaves
+commit/push and fourth neutral revalidation as separate explicit gates.
+The review launcher is mode `0755`, 2,599 bytes, 26 lines, and SHA-256
+`8def05def6c116b2b4645090a0661bd70146d52076710214b8be1084c3f771ea`.
+The unexecuted fourth-design launcher is mode `0755`, 10,543 bytes, 143
+lines, and SHA-256
+`5d9c82acbe9527e93421355a06843d60a2dd55c877dc2fb856c367fd02bc647c`.
+
+## Previous Resume Point
 
 The third independently authored anonymous prospective RC.12 construction
 design passed its complete neutral gate without creating or consuming an

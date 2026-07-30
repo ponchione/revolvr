@@ -1,5 +1,34 @@
 # Agent Decisions
 
+## RC.12 Volatile Neutral-Evidence Loss Boundary (2026-07-30)
+
+- Sealed root `/tmp/revolvr-builder-revalidation-v3.PKfbRl` disappeared before
+  the published independent review. The review launcher failed at its exact
+  root-presence guard before `codex exec`. The third draft's durable hashes and
+  summaries prove the former record's identity claims but cannot substitute
+  for its missing reviewable bytes. The third design is terminal lost evidence
+  and grants no construction authority.
+- Recovery must not recreate the old path, reconstruct draft bytes from old
+  transcripts, or silently weaken review. RC.12 remains unconsumed because no
+  builder, construction launcher, candidate identity, or full-mode execution
+  occurred.
+- A fourth independently authored anonymous design may be neutrally validated
+  only after the recovery preparation is independently reviewed and published.
+  Its sole retained sealed evidence must be created under persistent ignored
+  `.revolvr/` state, not volatile `/tmp`. Semantic probes may use unique `/tmp`
+  roots only when they are completely cleaned.
+- The fourth design must treat lost roots as recorded absences and resolve
+  post-seal verification-inventory ordering, exact RC.12 runtime-root
+  collision coverage, complete retired runtime/ref/tag/glob absences, and all
+  prior Actions artifact-name collisions before its first validation sequence.
+  It retains the two-sequence neutral gate and cannot run product tests/builds
+  or full construction.
+- `agent-ext20-rc12-volatile-root-recovery-review.sh` is the sole immediate
+  next gate. Passing it grants only later explicit publication authority for
+  the recovery preparation. Builder publication, construction, candidate,
+  remote, suite, release, external use, and `EXT-20` completion remain
+  unauthorized.
+
 ## Third Anonymous Prospective Design Accepted For Review (2026-07-26)
 
 - The independently authored third anonymous design passed two complete

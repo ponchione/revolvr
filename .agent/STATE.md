@@ -1,5 +1,42 @@
 # Agent State
 
+## RC.12 Volatile Validation-Root Recovery Preparation (2026-07-30)
+
+- Task selected: diagnose and prepare one fail-closed recovery for the missing
+  third anonymous prospective-design evidence. The published review launcher
+  fetched `main` and silently exited status `1` at line 28 because
+  `/tmp/revolvr-builder-revalidation-v3.PKfbRl` is absent. Traced
+  `--preflight-only` reproduced the exact stop before `codex exec`; no review,
+  draft execution, product test/build, full mode, candidate identity, or
+  continuation occurred.
+- The third draft and evidence existed only in volatile `/tmp` and cannot be
+  independently reviewed from durable summaries or hashes. Recovery must not
+  recreate its path, derive its bytes from old Codex transcripts, or treat its
+  summary as evidence. RC.12 remains unconsumed and `EXT-20` remains
+  unchecked.
+- Added `agent-ext20-rc12-builder-revalidation-v4.sh` to authorize, only after
+  clean publication, one fresh independently authored fourth anonymous design.
+  Its retained sealed evidence must live under a unique persistent ignored
+  `.revolvr/prospective-builder-revalidation-v4.XXXXXX` root. The prompt
+  preserves the two-sequence neutral gate, forbids product/full construction,
+  records lost prior roots as absences, and requires corrections for all four
+  controller concerns that the lost review was meant to decide.
+- Added inert
+  `agent-ext20-rc12-volatile-root-recovery-review.sh` for independent review of
+  exactly this recovery preparation. Files changed are the two new launchers
+  plus `.agent/HANDOFF.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`, and
+  `.agent/TASKS.md`. No Go source or dependency changed; no commit or push was
+  authorized. The v4 launcher is mode `0755`, 10,543 bytes, 143 lines, SHA-256
+  `5d9c82acbe9527e93421355a06843d60a2dd55c877dc2fb856c367fd02bc647c`;
+  the recovery-review launcher is mode `0755`, 2,599 bytes, 26 lines, SHA-256
+  `8def05def6c116b2b4645090a0661bd70146d52076710214b8be1084c3f771ea`.
+- Verification for this preparation: launcher syntax, executable modes,
+  tracked/untracked scope, `git diff --check`, missing-root reproduction,
+  absence of RC.12 runtime/ref/tag/workflow identities, and expected dirty-tree
+  refusal from the v4 `--preflight-only` mode. Exact next command is
+  `./agent-ext20-rc12-volatile-root-recovery-review.sh`. That review cannot run
+  the fourth revalidation or create construction authority.
+
 ## Controller Verification Before Daily Handoff (2026-07-26)
 
 - Independently verified the third sealed root's mode, nine-file/53,181-byte
