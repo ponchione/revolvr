@@ -4,6 +4,55 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The operator executed the published no-argument `./agent-ext20-rc12.sh` gate.
+Its exact builder began once, printed
+`prospective construction failed before final path appearance`, and stopped.
+That execution consumed RC.12. Under its published one-shot rule, RC.12 is
+terminal and its builder and identity must not be retried, repaired, removed,
+completed, relabeled, derived from, or reused.
+
+Independent post-failure inspection found no RC.12 preflight, build, stage,
+diagnostic, candidate, verification, runtime, ref, tag, workflow, Actions
+artifact, or release asset. The exact mode-`0555` builder, tracked construction
+launcher, sealed draft, manifest, and persistent validation stream remain
+unchanged. The release-candidate parent is mode `0755`; filesystem capacity,
+inodes, ownership, and ACLs were healthy.
+
+The failure is deterministic in exact builder lines 496-499, before the first
+construction `mktemp`. Each absent release asset makes the loop's
+`grep ... && fail` AND-list return status `1`. Because that loop is the final
+command in `verify_remote_collisions`, the function also returns `1`; `set -e`
+then invokes the generic terminal trap. An independent neutral Bash
+reproduction returned status `1`, and both candidate release assets were
+independently confirmed absent. This is a builder control-flow defect, not a
+product, toolchain, storage, permission, test, build, artifact, manifest, or
+copy-publication failure.
+
+Prepared inert read-only launcher
+`agent-ext20-rc12-construction-failure-review.sh`, mode `0755`, 8,862 bytes,
+182 lines, SHA-256
+`43cdfee5154ed70e689f4db7cc9df589f1b3bc6f56cd53a0ac6cd16c78148cd9`.
+It verifies the immutable failure boundary without executing any RC.12
+identity, then may start one fresh read-only independent review. Favorable
+review grants no construction or continuation authority. `EXT-20` remains
+unchecked.
+
+### Next Gate
+
+After this failure record is published on exact clean `main`, run from
+`/home/gernsback/source/revolvr`:
+
+```bash
+./agent-ext20-rc12-construction-failure-review.sh
+```
+
+The launcher may return only an independent accept/reject report. It cannot
+retry or repair RC.12, create a candidate, or grant remote, suite, live-model,
+release, external-use, or `EXT-20` authority. A fresh collision-free candidate
+requires a later separate controller decision and explicit operator authority.
+
+## Previous Resume Point
+
 The accepted fourth-design draft was copied once to exact ignored builder
 `/home/gernsback/source/revolvr/.revolvr/release-candidates/build-level1-v0.1.0-rc.12.sh`.
 It is mode `0555`, UID `1000`, link count 1, 38,528 bytes, 756 lines, and

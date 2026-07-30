@@ -1,5 +1,25 @@
 # Agent Decisions
 
+## RC.12 Terminal Construction Status-Propagation Failure (2026-07-30)
+
+- The operator's published no-argument construction gate executed the exact
+  builder once. RC.12 is consumed and terminal despite stopping before any
+  construction root or final path. Its builder and namespace cannot be
+  retried, repaired, deleted, completed, relabeled, derived from, or reused.
+- Exact builder lines 496-499 deterministically return failure when release
+  assets are correctly absent: the final `grep ... && fail` AND-list has
+  status `1`, the final loop and `verify_remote_collisions` propagate it, and
+  `set -e` reaches the generic terminal trap. This happened before the first
+  construction `mktemp`; all RC.12 construction/output identities remain
+  absent. The failure is builder control flow, not product or environment
+  evidence.
+- `agent-ext20-rc12-construction-failure-review.sh` is the sole next gate after
+  controller publication. It may verify and independently review only this
+  immutable terminal record; it cannot execute any RC.12 identity or create
+  continuation. A future candidate requires a fresh collision-free identity,
+  separate controller decision, and explicit operator authority. `EXT-20`
+  remains unchecked.
+
 ## RC.12 Exact Builder And Construction Launcher Published (2026-07-30)
 
 - Independent controller review accepted the exact builder publication and

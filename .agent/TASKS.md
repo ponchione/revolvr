@@ -287,7 +287,7 @@
 
 - [ ] EXT-20 — Execute the quantitative Level-1 real-Codex dogfood gate.
   - Current gate: RC.6 and RC.7 remain immutable failed live-attempt evidence;
-    RC.8 through RC.11 remain immutable failed local-construction evidence and
+    RC.8 through RC.12 remain immutable failed local-construction evidence and
     every missing former `/tmp` root is terminal lost evidence. The fourth
     independently authored anonymous design passed sequence one, used its one
     neutral repair, then passed sequence two with repaired bytes unchanged. It
@@ -306,9 +306,15 @@
     preserved the protected parent at tightened mode `0755`. Neither identity
     was executed. Independent controller review accepted and raw Git published
     the record as `b09a1c5d9973f39f2447711a58e03cacf8edf642`; the clean
-    construction preflight passed without executing the builder. The sole next
-    gate is one-shot local construction via `agent-ext20-rc12.sh`. RC.12
-    remains unconsumed and EXT-20 remains incomplete.
+    construction preflight passed without executing the builder. The operator
+    then executed the exact builder once. It terminally stopped before its
+    first construction root because the final absent-release-asset loop in
+    `verify_remote_collisions` propagated status `1` into `set -e`. All RC.12
+    construction outputs remain absent, but the one-shot rule consumes RC.12
+    and forbids retry or repair. The sole next gate after controller
+    publication is read-only independent failure review via
+    `agent-ext20-rc12-construction-failure-review.sh`. RC.12 is terminal and
+    EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

@@ -1,5 +1,51 @@
 # Agent State
 
+## RC.12 Terminal Pre-Root Construction Failure (2026-07-30)
+
+- Task selected: verify the operator-reported one-shot RC.12 construction
+  failure, determine its exact cause without rerunning the builder, preserve
+  the terminal boundary, and prepare only a later read-only failure review.
+- The operator executed published `./agent-ext20-rc12.sh` with no arguments.
+  The launcher reached its exact builder, which printed
+  `prospective construction failed before final path appearance`. This one
+  execution consumed RC.12 under the published no-retry/no-repair rule.
+- No RC.12 preflight, build, stage, diagnostic, candidate, verification,
+  runtime, local/remote ref or tag, workflow, Actions artifact, or release
+  asset exists. No RC.12 process remains. Exact builder, construction launcher,
+  sealed draft, manifest, persistent evidence, historical source, and product
+  boundary remain unchanged.
+- Root cause is exact builder lines 496-499. With a release asset absent, the
+  final `grep ... && fail` AND-list returns status `1`. The enclosing loop is
+  the final command of `verify_remote_collisions`, so that function propagates
+  status `1`; `set -e` reaches the generic terminal trap before the first
+  construction `mktemp`. A neutral Bash reproduction returned status `1`, and
+  the candidate and verification release assets were independently absent.
+  Filesystem space, inodes, owner permissions, ACLs, and parent mode were
+  healthy. This is a deterministic builder control-flow defect, not product,
+  toolchain, test, build, storage, artifact, manifest, or publication evidence.
+- Added inert `agent-ext20-rc12-construction-failure-review.sh`, mode `0755`,
+  8,862 bytes, 182 lines, SHA-256
+  `43cdfee5154ed70e689f4db7cc9df589f1b3bc6f56cd53a0ac6cd16c78148cd9`.
+  Its preflight verifies immutable identities, complete output absence, remote
+  collisions, and the status mechanism without executing the builder or
+  construction launcher. Its no-argument path may start only one fresh
+  read-only independent review and cannot create continuation.
+- Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, and the new inert review launcher. No Go source,
+  dependency, ignored builder, sealed evidence, or runtime output changed.
+- Verification: raw Git status/history/identity reads; complete RC.12 root,
+  final-path, process, ref, tag, workflow, Actions-artifact, and release-asset
+  absence reads; exact builder/draft/launcher hashes, modes, sizes, lines,
+  syntax, and persistent evidence identities; filesystem capacity/inode/ACL
+  inspection; neutral Bash status reproduction; launcher `bash -n`; and
+  `git diff --check`. Product tests/builds were not run because no product code
+  changed and RC.12 construction may not be retried.
+- Result: **BLOCKED; RC.12 terminally failed before construction-root
+  creation**. `EXT-20` remains unchecked. After controller publication, the
+  exact next command is
+  `./agent-ext20-rc12-construction-failure-review.sh`; it grants read-only
+  review only.
+
 ## RC.12 Builder Publication Accepted And Construction Handoff (2026-07-30)
 
 - Independent controller review accepted the exact ignored builder, hardened
