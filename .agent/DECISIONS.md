@@ -1,5 +1,20 @@
 # Agent Decisions
 
+## RC.12 Persistent Fourth-Validation Gate Published (2026-07-30)
+
+- Independent review and controller verification accepted the exact six-file
+  volatile-root recovery preparation unchanged. Raw Git published it as
+  `70aefe61ccdf6c6c6359558c483f6f1d9efac393`, and exact local, fetched, and
+  public `main` plus the clean published v4 preflight passed.
+- The immediate gate is now
+  `agent-ext20-rc12-builder-revalidation-v4.sh`. It authorizes only one fresh
+  independently authored fourth anonymous design and two-sequence neutral
+  validation with persistent ignored evidence. It cannot create or execute a
+  builder, construction launcher, candidate, full mode, product build, remote
+  workflow, suite, release, or external-use action.
+- Even a passing fourth neutral validation grants only a later inert
+  independent review. RC.12 remains unconsumed and `EXT-20` remains unchecked.
+
 ## RC.12 Volatile Neutral-Evidence Loss Boundary (2026-07-30)
 
 - Sealed root `/tmp/revolvr-builder-revalidation-v3.PKfbRl` disappeared before

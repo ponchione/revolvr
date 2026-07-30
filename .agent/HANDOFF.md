@@ -26,18 +26,31 @@ coverage, and every prior Actions artifact name. It grants no builder,
 construction, candidate, remote, suite, release, external-use, or `EXT-20`
 authority.
 
+The fresh recovery review accepted the exact six-file preparation unchanged.
+Independent controller verification repeated its scope, syntax, executable
+modes, hashes, missing-root boundary, source/public-main identity, RC.12
+collision absences, and `git diff --check`. Raw Git published it as
+`70aefe61ccdf6c6c6359558c483f6f1d9efac393` (`Prepare persistent RC.12
+validation recovery`). Local, fetched, and public `main` matched exactly, and
+the published v4 `--preflight-only` path passed without starting Codex or
+creating evidence.
+
 ### Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
-./agent-ext20-rc12-volatile-root-recovery-review.sh
+./agent-ext20-rc12-builder-revalidation-v4.sh
 ```
 
-This fresh pass reviews only the uncommitted six-file recovery preparation.
-It must not execute the fourth-design launcher. Even a passing review leaves
-commit/push and fourth neutral revalidation as separate explicit gates.
-The review launcher is mode `0755`, 2,599 bytes, 26 lines, and SHA-256
+This starts exactly one fresh fourth-design neutral-revalidation pass. It may
+create only anonymous persistent validation evidence and, after two passing
+sequences, one inert later review launcher. It cannot create a builder,
+construction launcher, candidate, product build, remote authority, suite,
+release, external-use approval, or `EXT-20` completion.
+
+The already completed recovery-review launcher is mode `0755`, 2,599 bytes,
+26 lines, and SHA-256
 `8def05def6c116b2b4645090a0661bd70146d52076710214b8be1084c3f771ea`.
 The unexecuted fourth-design launcher is mode `0755`, 10,543 bytes, 143
 lines, and SHA-256

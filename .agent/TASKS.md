@@ -293,11 +293,11 @@
     published launcher failed closed before `codex exec`, and its hashes and
     summaries cannot replace the lost bytes. Recovery preparation authorizes
     a fourth independent design with evidence retained under persistent
-    ignored `.revolvr/` state, but it is uncommitted and has not run. The next
-    gate is independent review via
-    `agent-ext20-rc12-volatile-root-recovery-review.sh`. RC.12 remains
-    unconsumed, no construction authority exists, and EXT-20 remains
-    incomplete.
+    ignored `.revolvr/` state. Independent review accepted the preparation,
+    raw Git published it as `70aefe61ccdf6c6c6359558c483f6f1d9efac393`,
+    and its clean published preflight passed. The next gate is
+    `agent-ext20-rc12-builder-revalidation-v4.sh`. RC.12 remains unconsumed,
+    no construction authority exists, and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

@@ -1,5 +1,27 @@
 # Agent State
 
+## RC.12 Persistent Recovery Review And Publication (2026-07-30)
+
+- The operator completed the fresh recovery-review launcher. It left the exact
+  intended six-file preparation unchanged. Independent controller verification
+  repeated the tracked/untracked scope, shell syntax, executable modes and
+  hashes, missing-root boundary, source/product boundary, local/fetched/public
+  main identity, RC.12 runtime/ref/tag/workflow absences, and
+  `git diff --check`; all passed.
+- Raw Git committed and pushed the reviewed scope as
+  `70aefe61ccdf6c6c6359558c483f6f1d9efac393` (`Prepare persistent RC.12
+  validation recovery`). Local, fetched, and public `main` matched that exact
+  commit after publication.
+- The clean published command
+  `./agent-ext20-rc12-builder-revalidation-v4.sh --preflight-only` exited `0`
+  with `Fourth persistent neutral builder-revalidation preflight passed`. It
+  started no Codex pass and created no evidence or RC.12 identity.
+- Exact next command is
+  `./agent-ext20-rc12-builder-revalidation-v4.sh`. It authorizes only one fresh
+  fourth anonymous neutral-revalidation pass with retained evidence beneath
+  persistent ignored `.revolvr/` state. Construction and `EXT-20` completion
+  remain unauthorized.
+
 ## RC.12 Volatile Validation-Root Recovery Preparation (2026-07-30)
 
 - Task selected: diagnose and prepare one fail-closed recovery for the missing
