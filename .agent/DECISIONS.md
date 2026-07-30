@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## RC.13 V6 Review Rejected; V7 Neutral Revalidation Authorized (2026-07-30)
+
+- Independent review rejects the sealed v6 design for builder publication.
+  Its full-role collision list requires tracked review/publication history to
+  be absent, so an exact future builder would fail deterministically before
+  construction. Full mode also lacks exact self-byte equality with sealed
+  design authority, and stage/final root directories are outside its sealing
+  and equality proof.
+- V6 remains authentic sealed passing-neutral evidence but is not a publishable
+  builder design. It cannot be repaired, rerun, copied, derived from, or reused.
+  No RC.13 identity was consumed and no candidate or construction authority
+  exists.
+- The operator's next-gate direction separately authorizes one fresh v7
+  neutral validation. It must use independently authored bytes and explicitly
+  test full-role admission with permitted tracked history, exact builder and
+  current-controller authority, root-inclusive sealed publication, and
+  terminal retention after final-path appearance. Two complete sequences are
+  mandatory.
+- `agent-ext20-rc13-builder-revalidation-v7.sh` is the sole next gate after
+  raw-Git publication. It cannot create a builder or candidate or grant
+  construction, remote, suite, dogfood, release, external-use, or `EXT-20`
+  authority.
+
 ## Prospective RC.13 V6 Design Is Accepted For Read-Only Review Only (2026-07-30)
 
 - The sole authorized v6 prospective root is sealed persistent ignored

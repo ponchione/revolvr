@@ -4,6 +4,54 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The operator completed the published no-argument
+`agent-ext20-rc13-builder-revalidation-v6-review.sh` pass. It left tracked and
+ignored state unchanged and created no RC.13 identity or output. Independent
+controller inspection replayed the sealed manifest and review preflight, then
+rejected v6 for builder publication.
+
+The exact v6 full-role function requires both the already-published
+`agent-ext20-rc13-builder-revalidation-v6-review.sh` and the future
+`agent-ext20-rc13-builder-publication.sh` to be absent. Either tracked history
+path makes full construction fail deterministically before build-root creation.
+The exact-self boundary also admits the builder by path/mode only without
+proving byte equality to the sealed design, and its sealing/publication logic
+does not seal or compare the stage and final root directories themselves.
+These are design-authority defects, not a product, tool, or neutral-evidence
+failure. The sealed v6 root remains authentic but cannot be published as a
+builder, repaired, rerun, derived from, or reused.
+
+No RC.13 builder, construction launcher, candidate, preflight/build/stage/
+diagnostic path, ref, tag, workflow, artifact, suite, release, or external-use
+identity exists. RC.13 remains unconsumed; RC.12 remains terminal; `EXT-20`
+remains unchecked.
+
+The operator's next-gate direction authorizes only one fresh independently
+authored v7 neutral revalidation. Added inert tracked launcher
+`agent-ext20-rc13-builder-revalidation-v7.sh`, mode `0755`, 10,953 bytes, 159
+lines, SHA-256
+`d435626a07cadd9abbf77550b46315782cb5410d26d315d6547bcbde2b41e11b`.
+It freezes v5/v6 exactly and requires v7 to correct role admission, exact
+builder/sealed-design authority, current-controller authority, root-inclusive
+sealing/copy comparison, and post-final terminal evidence retention. Both
+complete sequences must exercise those corrections without constructing an
+RC.13 identity.
+
+### Next Gate
+
+After this rejection and v7 authorization are published on exact clean `main`,
+run from `/home/gernsback/source/revolvr`:
+
+```bash
+./agent-ext20-rc13-builder-revalidation-v7.sh
+```
+
+This grants fresh neutral design validation only. It cannot create a builder,
+candidate, construction, remote, suite, dogfood, release, external-use, or
+`EXT-20` authority.
+
+## Previous Resume Point
+
 The one authorized prospective RC.13 v6 builder-design revalidation completed
 successfully without creating or executing any builder, construction launcher,
 candidate, product test/build, full mode, remote identity, suite, dogfood,

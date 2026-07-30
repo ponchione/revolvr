@@ -366,7 +366,17 @@
     for later read-only review after controller publication. Independent
     controller inspection accepted and raw Git published that record as
     `bb68b8016646e571bff1711f66dd81ff5ede5e7d`; its clean non-executing
-    preflight passed. RC.12 remains terminal and EXT-20 remains incomplete.
+    preflight passed. The operator completed the independent review with no
+    state change. Controller inspection then rejected v6 for publication:
+    full-role admission wrongly requires tracked review/publication history to
+    be absent, exact builder bytes are not bound to the sealed design, and
+    stage/final roots are outside the sealing/equality proof. V6 remains sealed
+    immutable evidence but cannot become a builder. The sole next gate after
+    publication is `agent-ext20-rc13-builder-revalidation-v7.sh`, authorizing
+    only one independently authored persistent v7 neutral design with two
+    complete sequences and explicit role, self-authority, root-sealing, and
+    post-final-retention probes. RC.13 remains unconsumed, RC.12 remains
+    terminal, and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

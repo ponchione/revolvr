@@ -1,5 +1,58 @@
 # Agent State
 
+## RC.13 V6 Review Rejected; Fresh V7 Revalidation Prepared (2026-07-30)
+
+- Task selected: verify the completed independent read-only v6 review, decide
+  whether the sealed design may proceed to builder publication, and prepare
+  only the next safe gate.
+- The operator completed the published review. Git and both v5/v6 roots stayed
+  unchanged; the review preflight passed again; and no process, RC.13 builder,
+  construction launcher, candidate, runtime/output path, ref, tag, workflow,
+  artifact, release asset, suite, or external-use state appeared.
+- Independent static inspection rejects v6 for publication. In exact design
+  lines 209-217, full-role admission requires the already tracked v6 review
+  launcher and future builder-publication launcher to be absent. Full mode
+  would therefore fail deterministically before its first build root.
+- Two additional authority defects reinforce rejection: full mode verifies the
+  prospective builder only by path/mode/owner/link without comparing its bytes
+  to the sealed design, and `seal_and_inventory` seals only descendants while
+  stage/final root modes are omitted from inventory and comparison. Current
+  controller identity after the validated commit and explicit post-final
+  evidence retention are also not bound strongly enough for publication.
+- V6 remains authentic sealed neutral evidence at 13 files, 45,820 bytes,
+  manifest
+  `ecdd6f9f5a589038754d1bdb8326d5e19a1ea660eb0bb53a17029fa2aa7734be`,
+  stream `1b0c16fe2d886b60c04ea390b4d364bdfc9431dfde1617c1d34e7da28f8bc56f`,
+  and inventory
+  `0cd5ef032c89cf7be7a6872df665deb8d28481ee3beb80203473909cbdefbf41`.
+  Passing neutral sequences do not override the full-design review defects.
+  V6 must not be repaired, rerun, copied, derived from, or used as builder
+  input.
+- Added inert `agent-ext20-rc13-builder-revalidation-v7.sh`, mode `0755`,
+  10,953 bytes, 159 lines, SHA-256
+  `d435626a07cadd9abbf77550b46315782cb5410d26d315d6547bcbde2b41e11b`.
+  It preserves v5/v6, rejects all RC.13 collisions, and may start only one
+  fresh independently authored persistent v7 neutral-validation pass.
+- V7 must distinguish required builder/construction roles, permitted tracked
+  validation/publication history, and forbidden outputs; bind exact builder
+  bytes to sealed evidence and current published controller authority; include
+  root directories in sealing/inventory/copy equality; and retain all evidence
+  after any final path appears. Neutral full-role and post-first-final probes
+  plus two complete sequences are required.
+- Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, and the new inert v7 launcher. No product source,
+  dependency, ignored evidence, builder, candidate, or remote state changed.
+- Verification: clean raw Git and exact local/fetched/public `main`; published
+  v6 review preflight; v5/v6 manifest/stream/inventory preservation; source and
+  remote collision reads; design and launcher `bash -n`; focused static
+  full-role/self/seal/publication review; launcher control-flow inspection;
+  and `git diff --check`. Product tests/builds and all design modes were not
+  run.
+- Result: **V6 REJECTED for builder publication; PASS for fresh v7 neutral
+  revalidation authorization only**. After raw-Git publication, exact next
+  command is `./agent-ext20-rc13-builder-revalidation-v7.sh`. RC.13 remains
+  unconsumed and `EXT-20` remains unchecked.
+
 ## Prospective RC.13 V6 Builder Design Accepted For Read-Only Review (2026-07-30)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to exactly one
