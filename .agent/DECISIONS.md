@@ -14,11 +14,13 @@
   no-collision function returns success instead of propagating a false probe.
   At most one repair is allowed only between sequences.
 - `agent-ext20-rc13-builder-validation.sh` is the sole next gate after raw-Git
-  publication. It cannot run product tests/builds or full construction and
-  cannot create an RC.13 builder, candidate, ref, workflow, artifact, suite,
-  release, external-use authority, or `EXT-20` completion. Passing may retain
-  only sealed prospective evidence and one inert later read-only review
-  launcher.
+  publication. Raw Git published it as
+  `9e9e8740686efd17991da38b17fbda1d5eaaff0d`; exact local, fetched, and public
+  `main` plus its non-creating preflight passed. It cannot run product
+  tests/builds or full construction and cannot create an RC.13 builder,
+  candidate, ref, workflow, artifact, suite, release, external-use authority,
+  or `EXT-20` completion. Passing may retain only sealed prospective evidence
+  and one inert later read-only review launcher.
 
 ## RC.12 Terminal Construction Status-Propagation Failure (2026-07-30)
 

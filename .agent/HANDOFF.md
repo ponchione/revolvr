@@ -34,10 +34,16 @@ the RC.12 status-propagation defect. At most one repair is allowed only between
 sequences. Passing may create only sealed evidence and one inert later review
 launcher. `EXT-20` remains unchecked.
 
+Raw Git published the five-file authorization as
+`9e9e8740686efd17991da38b17fbda1d5eaaff0d` (`Authorize prospective RC.13
+builder validation`). Local, fetched, and public `main` matched exactly. Its
+clean `--preflight-only` path replayed the RC.12 failure preflight and every
+RC.13 collision guard, then stopped without creating a design, builder, or
+candidate.
+
 ### Next Gate
 
-After this tracked authorization is published on exact clean `main`, run from
-`/home/gernsback/source/revolvr`:
+From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
 ./agent-ext20-rc13-builder-validation.sh

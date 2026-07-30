@@ -30,6 +30,11 @@
   status-propagation regression are mandatory; at most one repair is permitted
   only between sequences. Success may add only one inert later review launcher
   and durable state.
+- Raw Git committed and pushed the five-file authorization as
+  `9e9e8740686efd17991da38b17fbda1d5eaaff0d` (`Authorize prospective RC.13
+  builder validation`). Local, fetched, and public `main` matched exactly. The
+  published launcher's `--preflight-only` path exited `0`, replayed the RC.12
+  terminal preflight and all RC.13 collision guards, and created nothing.
 - Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
   `.agent/DECISIONS.md`, and the new inert RC.13 validation launcher. No Go
   source, dependency, ignored runtime evidence, builder, or candidate changed.
@@ -39,7 +44,7 @@
   review; and `git diff --check`. Product tests/builds were not run because no
   product code changed and this gate expressly forbids construction.
 - Result: **PASS for prospective RC.13 builder-design authorization only**.
-  After controller publication, exact next command is
+  Exact next command is
   `./agent-ext20-rc13-builder-validation.sh`. RC.12 remains terminal and
   `EXT-20` remains unchecked.
 
