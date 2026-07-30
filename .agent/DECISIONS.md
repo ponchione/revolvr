@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## Prospective RC.13 V6 Design Is Accepted For Read-Only Review Only (2026-07-30)
+
+- The sole authorized v6 prospective root is sealed persistent ignored
+  `.revolvr/prospective-builder-validation-v6.bHfL29`, mode `0500`, with 13
+  mode-`0444` files, 45,820 bytes, self-verifying manifest SHA-256
+  `ecdd6f9f5a589038754d1bdb8326d5e19a1ea660eb0bb53a17029fa2aa7734be`,
+  root stream
+  `1b0c16fe2d886b60c04ea390b4d364bdfc9431dfde1617c1d34e7da28f8bc56f`,
+  and inventory
+  `0cd5ef032c89cf7be7a6872df665deb8d28481ee3beb80203473909cbdefbf41`.
+- Both complete neutral sequences reached and passed every required gate with
+  accepted bytes unchanged, no repair, and no residue. Trap cleanup identities
+  are stable across success, induced failure, status-regression, early return,
+  signal, and EXIT paths. The history baseline is exact at 1,662 bytes and 18
+  lines with one final LF and no surplus newline. Every no-collision function
+  has explicit success propagation.
+- Rejected v5 remains immutable failed evidence at its exact 11-file,
+  44,298-byte stream and inventory before and after each sequence. Passing v6
+  does not repair, rehabilitate, relabel, derive from, or replace v5. RC.12 and
+  all earlier candidates/designs remain terminal history.
+- The fresh unexecuted design covers the complete construction procedure, but
+  its neutral acceptance is evidence for independent review only. No full mode
+  or product test/build ran, and no RC.13 builder, construction launcher,
+  candidate, output path, ref, tag, workflow, artifact, suite, dogfood,
+  release, external-use decision, or `EXT-20` completion exists.
+- Inert tracked-path review launcher
+  `agent-ext20-rc13-builder-revalidation-v6-review.sh` is the sole proposed
+  next gate after independent controller inspection and raw-Git publication.
+  It may only produce a read-only accept/reject recommendation and cannot
+  execute retained design modes or create continuation. A favorable review
+  still requires a new explicit operator decision before any builder
+  publication or construction authority. `EXT-20` remains unchecked.
+
 ## Prospective RC.13 V5 Validation Is Rejected (2026-07-30)
 
 - The sole authorized v5 prospective design root is

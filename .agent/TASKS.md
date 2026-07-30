@@ -344,7 +344,27 @@
     accepted-byte gates. It cannot create or execute an RC.13 builder or
     candidate. Raw Git published it with the rejected-v5 record as
     `92eb3d85cad3e78f4e980da1031cca485c8ae8da`, and its clean non-creating
-    preflight passed. RC.12 remains terminal and EXT-20 remains incomplete.
+    preflight passed. The separately authorized v6 pass then independently
+    authored the sole persistent root
+    `.revolvr/prospective-builder-validation-v6.bHfL29`. Before sequence one,
+    trap-lifetime and all cleanup variants passed, and the canonical history
+    baseline was independently reproduced at exactly 1,662 bytes, 18 lines,
+    SHA-256
+    `09ee1691d91f1e1e63b83f63e0e3819c7db034c330253e193f9ec8e7797c1dd2`,
+    with exactly one final LF and no blank line. Both complete sequences
+    reached and passed all 12 gates without using the repair allowance;
+    accepted design bytes and the frozen v5 aggregate identities remained
+    unchanged before and after both. The v6 root is sealed mode `0500` with 13
+    mode-`0444` files, 45,820 bytes, manifest SHA-256
+    `ecdd6f9f5a589038754d1bdb8326d5e19a1ea660eb0bb53a17029fa2aa7734be`,
+    stream
+    `1b0c16fe2d886b60c04ea390b4d364bdfc9431dfde1617c1d34e7da28f8bc56f`,
+    and inventory
+    `0cd5ef032c89cf7be7a6872df665deb8d28481ee3beb80203473909cbdefbf41`.
+    No design full mode or product command ran. Inert
+    `agent-ext20-rc13-builder-revalidation-v6-review.sh` is prepared solely
+    for later read-only review after controller publication. RC.12 remains
+    terminal and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

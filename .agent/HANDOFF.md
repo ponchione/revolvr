@@ -4,6 +4,68 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The one authorized prospective RC.13 v6 builder-design revalidation completed
+successfully without creating or executing any builder, construction launcher,
+candidate, product test/build, full mode, remote identity, suite, dogfood,
+release, or external-use action. `EXT-20` remains unchecked and RC.12 remains
+terminal.
+
+The sole fresh ignored root is
+`/home/gernsback/source/revolvr/.revolvr/prospective-builder-validation-v6.bHfL29`.
+It is sealed mode `0500` with 13 mode-`0444`, single-link regular files totaling
+45,820 bytes. Its 12-entry manifest is 1,195 bytes, SHA-256
+`ecdd6f9f5a589038754d1bdb8326d5e19a1ea660eb0bb53a17029fa2aa7734be`;
+the root content stream is
+`1b0c16fe2d886b60c04ea390b4d364bdfc9431dfde1617c1d34e7da28f8bc56f`
+and complete inventory is
+`0cd5ef032c89cf7be7a6872df665deb8d28481ee3beb80203473909cbdefbf41`.
+The fresh 22,459-byte, 541-line prospective design has SHA-256
+`e457a4f8566f24fe5cd824cc8dc186a96019470838b94b9794069037cd03b8ff`.
+
+Before sequence one, static inspection proved every design and harness trap
+uses a stable global cleanup identity. Successful publication, induced status
+73, status-propagation success, and early-return status 19 all cleaned their
+exact owned neutral roots without residue. The canonical available-history
+baseline was written directly from the measurement command and independently
+remeasured byte-for-byte: 1,662 bytes, 18 lines, SHA-256
+`09ee1691d91f1e1e63b83f63e0e3819c7db034c330253e193f9ec8e7797c1dd2`,
+final byte `0a`, penultimate byte `30`. It has one final LF and no terminal blank
+line.
+
+Both complete sequences reached and passed syntax, all cleanup variants,
+full-context role/collision audit, focused static audit, exact status-64 self
+refusal, forbidden identity/residue audit, canonical history and EOF identity,
+the no-collision status-propagation regression, rejected-v5 preservation, and
+accepted-byte preservation. No repair was used between sequences and no repair
+occurred after sequence two began. V5 remained exactly 11 files, 44,298 bytes,
+stream `6931b60c434205e2ce3130c119aa82750c117f8c947dd7c39f62b5011ddcb7e0`,
+and inventory
+`3f7403726cf59e3d02533deeb0c0f975e773adc0423e1f9a470eb30e5cf88cb5`
+before and after each sequence.
+
+Prepared inert review launcher
+`agent-ext20-rc13-builder-revalidation-v6-review.sh`, mode `0755`, 9,215
+bytes, 146 lines, SHA-256
+`c0c187322fb4597b62666332ff8595296f81c59b8fb853a0ab24dc799a06f5e2`.
+It cannot execute any retained design mode and may start only a later fresh
+read-only review after this exact tracked record is independently inspected and
+published. It is not staged, committed, pushed, or executed in this pass.
+
+### Next Gate
+
+First independently inspect and raw-Git publish only the bounded tracked
+record. After exact local and public `main` match, run:
+
+```bash
+./agent-ext20-rc13-builder-revalidation-v6-review.sh
+```
+
+The review may return only an accept/reject recommendation. It grants no
+builder publication, construction, candidate, remote, suite, dogfood, release,
+external-use, or `EXT-20` completion authority.
+
+## Previous Resume Point
+
 The one authorized prospective RC.13 builder-design validation is complete
 and rejected. It created exactly one persistent ignored root,
 `/home/gernsback/source/revolvr/.revolvr/prospective-builder-validation-v5.tL50Wc`,

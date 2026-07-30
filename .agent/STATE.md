@@ -1,5 +1,85 @@
 # Agent State
 
+## Prospective RC.13 V6 Builder Design Accepted For Read-Only Review (2026-07-30)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to exactly one
+  explicitly authorized fresh prospective RC.13 v6 builder-design
+  revalidation. `EXT-20` remains unchecked.
+- Re-established exact source commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, empty product-source diff,
+  exact Go 1.22.12/1.26.5 and govulncheck 1.1.4 executable identities,
+  surviving construction and controller history, all recorded terminal
+  lost-root absences, RC.12 terminal builder/launcher/failure-review evidence,
+  exact rejected-v5 aggregate identity, and all local/remote RC.13 collision
+  absences.
+- Created exactly one fresh ignored root,
+  `.revolvr/prospective-builder-validation-v6.bHfL29`. The independently
+  authored 22,459-byte, 541-line design SHA-256 is
+  `e457a4f8566f24fe5cd824cc8dc186a96019470838b94b9794069037cd03b8ff`.
+  Its unexecuted full design specifies two non-local shallow exact-source
+  fetches; isolated exact Go environments, caches, and module caches; ordinary,
+  race, vet, and module matrices under both Go versions; ordinary and verbose
+  vulnerability evidence; two reproducible Linux/Darwin/FreeBSD amd64 build
+  sets; embedded source/target/CGO metadata and empty build IDs; manifests;
+  post-seal inventories; and terminal `mkdir` plus `cp -a source/.
+  destination/.` publication with complete stage/final and distinct-inode
+  comparisons.
+- Before sequence one, static audit proved all design and validation traps use
+  stable global identities. Successful publication, induced-failure status 73,
+  status-propagation success, and early-return status 19 cleanup variants all
+  passed with no residue. The canonical history baseline was written directly,
+  independently remeasured, and proved exact at 1,662 bytes, 18 lines, SHA-256
+  `09ee1691d91f1e1e63b83f63e0e3819c7db034c330253e193f9ec8e7797c1dd2`,
+  final byte `0a`, penultimate byte `30`, with no added blank line.
+- Both complete validation sequences reached and passed all 12 gates: syntax,
+  all cleanup variants, full-context role/collision audit, focused static
+  audit, exact status-64 self refusal, forbidden identity/residue audit,
+  canonical history plus EOF preservation, no-collision status propagation,
+  rejected-v5 preservation, and accepted-byte preservation. No repair was
+  used. Sequence hashes are
+  `d3543310e5308117bb18df9533ca9ac6071722326c02f00016fe085d6784ee37`
+  and
+  `d8d01c54f0b2f9c8e8b853254e98fdba723537d2145a1d999ccc0a2e182ec9bc`.
+- V5 remained exact before and after each sequence at 11 files, 44,298 bytes,
+  content stream
+  `6931b60c434205e2ce3130c119aa82750c117f8c947dd7c39f62b5011ddcb7e0`,
+  and inventory
+  `3f7403726cf59e3d02533deeb0c0f975e773adc0423e1f9a470eb30e5cf88cb5`.
+  No earlier builder, launcher, draft mode, script, or output was executed,
+  edited, copied, transformed, derived from, removed, sealed, or reused.
+- Sealed the sole v6 root mode `0500`: 13 mode-`0444`, single-link regular
+  files, 45,820 bytes; 12-entry manifest SHA-256
+  `ecdd6f9f5a589038754d1bdb8326d5e19a1ea660eb0bb53a17029fa2aa7734be`;
+  root stream
+  `1b0c16fe2d886b60c04ea390b4d364bdfc9431dfde1617c1d34e7da28f8bc56f`;
+  inventory
+  `0cd5ef032c89cf7be7a6872df665deb8d28481ee3beb80203473909cbdefbf41`.
+- Added inert `agent-ext20-rc13-builder-revalidation-v6-review.sh`, mode
+  `0755`, 9,215 bytes, 146 lines, SHA-256
+  `c0c187322fb4597b62666332ff8595296f81c59b8fb853a0ab24dc799a06f5e2`.
+  It was syntax/static checked but not executed, staged, committed, pushed, or
+  published. It cannot execute a retained design mode and may later launch
+  only a read-only independent review.
+- Files changed: the sole ignored sealed v6 root, the inert review launcher,
+  `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`, and
+  `.agent/DECISIONS.md`. No product source, dependency, builder, candidate,
+  construction/output path, ref, tag, workflow, artifact, suite, dogfood,
+  release, or external-use state changed.
+- Verification commands: exact source/tool/history/v5/collision reads;
+  `bash -n` on every prospective script; focused static audits; pre-sequence
+  cleanup/status/context probes; direct and independent canonical-history
+  measurements; both complete validation sequences; terminal accepted-byte,
+  v5, forbidden-identity, and residue checks; manifest self-verification;
+  sealed-root stream/inventory verification; review-launcher syntax/static
+  checks; and `git diff --check`. Product tests/builds and full construction
+  were expressly forbidden and did not run.
+- Result: **PASS for later independent read-only review only**. What remains is
+  independent controller inspection and raw-Git publication of this bounded
+  record, followed by
+  `./agent-ext20-rc13-builder-revalidation-v6-review.sh`. No blocker exists
+  within this task. No builder/construction/candidate authority exists.
+
 ## Prospective RC.13 Builder Validation Rejected (2026-07-30)
 
 - Task selected: the first unchecked backlog item, `EXT-20`, narrowed to the
