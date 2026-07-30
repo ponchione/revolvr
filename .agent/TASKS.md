@@ -295,10 +295,11 @@
     `.revolvr/prospective-builder-revalidation-v4.5pWwTx` and grants only later
     read-only review. Controller verification published the record as
     `bae8ff6b1e5d7e14a9002cd7fbba1ece101dc005`, and every clean published
-    preflight diagnostic passed. The next gate is
-    `agent-ext20-rc12-builder-revalidation-v4-review.sh`. RC.12 remains
-    unconsumed, no builder or construction authority exists, and EXT-20 remains
-    incomplete.
+    preflight diagnostic passed. Fresh read-only review accepted the design
+    only for exact builder/construction-launcher publication. The next gate is
+    `agent-ext20-rc12-builder-publication.sh`; it cannot execute construction.
+    RC.12 remains unconsumed, no builder or construction authority exists, and
+    EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

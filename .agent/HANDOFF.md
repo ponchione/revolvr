@@ -71,17 +71,35 @@ prospective RC.12 neutral validation`). Local, fetched, and public `main`
 matched, and every published `--preflight-only` review diagnostic passed
 without executing the draft.
 
+The operator completed the fresh no-argument review. It left the repository
+and sealed root unchanged, as required. Independent controller review again
+verified the complete manifest and stream, both accepted sequences and single
+repair, every surviving historical constant, terminal lost-root boundary,
+source/tool identities, cleanup behavior, full-mode role split, all four
+corrected design concerns, and terminal publication ordering. The fourth
+design is accepted only for exact builder/construction-launcher publication;
+no builder or candidate identity exists yet.
+
+Prepared inert launcher `agent-ext20-rc12-builder-publication.sh`, mode `0755`,
+8,269 bytes, 119 lines, SHA-256
+`180254489c4fe55b42681fe88726518b6b6acc6a83ae1d3593d8d462dccb16b7`.
+It authorizes one fresh publication-only pass: prepare final launcher bytes
+neutrally, copy the sealed draft once to the exact mode-`0555` builder, create
+the mode-`0755` tracked construction launcher, and stop without executing
+either. It also tightens the builder parent against group/other writes.
+
 ### Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
-./agent-ext20-rc12-builder-revalidation-v4-review.sh
+./agent-ext20-rc12-builder-publication.sh
 ```
 
-A favorable review remains non-authoritative. Any builder or construction
-launcher requires a separate published decision and new explicit operator
-authorization.
+This command cannot run product tests/builds, full mode, construction, or any
+candidate, remote, suite, release, or external-use action. Successful builder
+publication still requires an independent review and controller publication
+before construction can be authorized.
 
 ## Previous Resume Point
 

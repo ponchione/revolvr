@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## Fourth Design Accepted For Exact Builder Publication (2026-07-30)
+
+- The completed read-only review changed no repository or sealed-evidence byte.
+  Independent controller review accepts the fourth design's manifest,
+  sequence/repair record, surviving-history boundary, cleanup, role model,
+  corrected collision/inventory coverage, and unexecuted terminal publication
+  procedure.
+- This acceptance grants only a separately reviewable exact builder and
+  construction-launcher publication pass. It does not authorize executing the
+  builder, construction, candidate creation, product tests/builds, remote
+  publication, suite work, release, external use, or `EXT-20` completion.
+- The exact builder must be byte-identical to sealed draft SHA-256
+  `dfa46ae7c21cb238cf2191696de159aee19b4fe46c5a835b77a130acb583d90e`,
+  mode `0555`, and immutable after appearance. The tracked construction
+  launcher must be fully authored and syntax-checked anonymously before its
+  exact path appears, verify all authority, expose a non-executing preflight,
+  and dynamically bind its own final hash when later invoking the builder.
+- `agent-ext20-rc12-builder-publication.sh` is the sole next gate after raw-Git
+  publication. It cannot execute either published identity and may create only
+  one inert review launcher on success. RC.12 remains unconsumed.
+
 ## Fourth Persistent Validation Record Published For Review (2026-07-30)
 
 - Independent controller verification accepted the fourth sealed record after

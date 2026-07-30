@@ -1,5 +1,33 @@
 # Agent State
 
+## Fourth Design Review And Builder-Publication Gate (2026-07-30)
+
+- The operator completed the published fourth-design read-only review. The
+  tracked repository and sealed persistent root remained unchanged. Independent
+  controller verification replayed root/draft/manifest identities, both
+  sequence records and the sole repair, surviving historical constants, lost
+  roots, source/product/tool boundaries, cleanup, role/collision separation,
+  the four corrected design concerns, and terminal post-seal publication; all
+  passed without executing the draft.
+- Review result: **ACCEPTED FOR BUILDER/CONSTRUCTION-LAUNCHER PUBLICATION
+  ONLY**. No builder, construction launcher, candidate, product test/build,
+  full mode, remote action, or continuation was created. RC.12 remains
+  unconsumed and `EXT-20` unchecked.
+- Added inert `agent-ext20-rc12-builder-publication.sh`, mode `0755`, 8,269
+  bytes, 119 lines, SHA-256
+  `180254489c4fe55b42681fe88726518b6b6acc6a83ae1d3593d8d462dccb16b7`.
+  After clean publication it may start one fresh pass that prepares launcher
+  bytes anonymously, publishes the sealed draft once as the exact mode-`0555`
+  ignored builder, creates the mode-`0755` tracked construction launcher, and
+  stops without executing either. It requires the release-candidate parent to
+  become non-group/other-writable before builder publication.
+- Files changed: this file, `.agent/HANDOFF.md`, `.agent/DECISIONS.md`,
+  `.agent/TASKS.md`, and the new publication launcher. Verification includes
+  shell syntax, launcher source review, `git diff --check`, raw local/remote
+  identity and collision checks, sealed-root replay, and expected dirty-tree
+  preflight refusal before publication. Exact next command after controller
+  publication is `./agent-ext20-rc12-builder-publication.sh`.
+
 ## Fourth Persistent Validation Publication And Review Handoff (2026-07-30)
 
 - Independent controller verification replayed the evidence manifest and
