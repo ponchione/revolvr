@@ -4,6 +4,42 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The reusable EXT-20 candidate-workflow stage is complete.
+`scripts/build-level1-candidate.sh` now binds an explicit candidate ID/version,
+clean source commit/tree, new output root, exact Go tools/versions, and exact
+govulncheck executable. It records the required floor/current/race/module/vet/
+vulnerability/build/reproducibility evidence and emits an externally hash-
+bound `candidate-authority.tsv`. The quantitative suite now requires that
+authority path and hash in every mode instead of hard-coding RC.7.
+
+This pass ran only syntax, help, refusal-boundary, obsolete-authority search,
+and diff checks. It did not enter workflow build mode, prepare a suite, invoke
+Codex, or modify `.revolvr/`. `EXT-20` remains incomplete.
+
+Before tonight's publication, the combined tree again passed `bash -n` for all
+10 remaining shell scripts, both workflow/suite help paths, the missing-
+authority and malformed-ID no-output refusals, the suite missing-authority
+refusal, the obsolete RC.7 authority search, and `git diff --check`.
+
+### Next Gate
+
+From `/home/gernsback/source/revolvr`, start exactly one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+The next bounded EXT-20 stage is one fresh candidate construction and
+verification through `scripts/build-level1-candidate.sh`; it must not run live
+dogfood. The workflow requires a clean exact commit containing its own bytes.
+The operator reviewed the finished combined wrapper-cleanup and reusable-
+workflow work and explicitly authorized raw-Git commit and push as tonight's
+stop point. Do not start construction unless that publication completed and
+local, fetched, and public `main` are exact at the published commit. Do not
+create another top-level agent wrapper.
+
+## Previous Resume Point
+
 The one authorized prospective RC.13 v7 builder-design revalidation is
 terminally rejected. Its sole persistent ignored root is
 `/home/gernsback/source/revolvr/.revolvr/prospective-builder-validation-v7.hYcT7T`,
@@ -43,7 +79,7 @@ or `EXT-20` completion exists. RC.12, v5, v6, and now rejected v7 are immutable
 terminal history. Do not execute, repair, rerun, seal, copy, derive from,
 relabel, or remove v7.
 
-### Next Gate
+### Previous Next Gate
 
 None. A fresh identity or independent review requires new explicit operator
 direction. Do not run any script in the rejected v7 root.

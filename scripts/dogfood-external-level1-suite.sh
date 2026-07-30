@@ -7,9 +7,6 @@ readonly SCRIPT_NAME="dogfood-external-level1-suite"
 readonly SUITE_SCHEMA="revolvr-external-level1-suite-v1"
 readonly REPORT_SCHEMA="revolvr-external-level1-suite-report-v1"
 readonly LIVE_CONFIRMATION="EXT20_LIVE_REAL_CODEX_MODEL_CALLS"
-readonly CANDIDATE_SOURCE_COMMIT="f63cbe3989cb281652cf4eec3f92614fec98294d"
-readonly CANDIDATE_SHA256="1ebbedc87b9a91d2e097df405a2ca23d68d67e79a861166aac2ed697e5866c8a"
-readonly CANDIDATE_VERSION="revolvr 0.1.0"
 readonly CODEX_PACKAGE_VERSION="0.144.4"
 readonly CODEX_VERSION="codex-cli 0.144.4"
 readonly CODEX_SHA256="134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477"
@@ -17,8 +14,14 @@ readonly CODEX_SHA256="134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f
 SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 readonly SOURCE_ROOT
 readonly COLLECTOR="$SOURCE_ROOT/scripts/dogfood-external-level1.sh"
-readonly CANDIDATE_BUNDLE="$SOURCE_ROOT/.revolvr/release-candidates/level1-v0.1.0-rc.7-f63cbe3989cb"
-readonly CANDIDATE_BINARY="$CANDIDATE_BUNDLE/artifacts/revolvr-v0.1.0-linux-amd64"
+readonly CANDIDATE_WORKFLOW="$SOURCE_ROOT/scripts/build-level1-candidate.sh"
+
+CANDIDATE_AUTHORITY=""
+CANDIDATE_AUTHORITY_SHA256=""
+CANDIDATE_BINARY=""
+CANDIDATE_SHA256=""
+CANDIDATE_SOURCE_COMMIT=""
+CANDIDATE_VERSION=""
 
 VERIFY_ROWS_TMP=""
 VERIFY_REPORT_TMP=""
@@ -37,12 +40,16 @@ fail() {
 usage() {
 	cat <<EOF
 Usage:
-  scripts/dogfood-external-level1-suite.sh --static
+  scripts/dogfood-external-level1-suite.sh --static \\
+    --candidate-authority <file> --candidate-authority-sha256 <sha256>
   scripts/dogfood-external-level1-suite.sh --prepare --run-root <new-dir> \\
+    --candidate-authority <file> --candidate-authority-sha256 <sha256> \\
     (--install-codex | --codex-package-root <isolated-prefix>)
   scripts/dogfood-external-level1-suite.sh --live --run-root <prepared-dir> \\
+    --candidate-authority <file> --candidate-authority-sha256 <sha256> \\
     --confirm-live-real-codex $LIVE_CONFIRMATION
-  scripts/dogfood-external-level1-suite.sh --verify-suite --run-root <prepared-dir>
+  scripts/dogfood-external-level1-suite.sh --verify-suite --run-root <prepared-dir> \\
+    --candidate-authority <file> --candidate-authority-sha256 <sha256>
 
 --static performs no package installation, repository preparation, or model call.
 --prepare may install the exact Codex package and creates two disposable external
@@ -100,13 +107,37 @@ verify_plan() {
 }
 
 verify_candidate() {
-	[[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || fail "the retained EXT-18 candidate is Linux amd64"
-	[[ -x "$CANDIDATE_BUNDLE/build-instructions.sh" ]] || fail "candidate bundle verifier is missing"
-	"$CANDIDATE_BUNDLE/build-instructions.sh" --verify "$CANDIDATE_BUNDLE" >/dev/null
+	[[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || fail "the Level-1 candidate is Linux amd64"
+	"$CANDIDATE_WORKFLOW" --verify \
+		--candidate-authority "$CANDIDATE_AUTHORITY" \
+		--candidate-authority-sha256 "$CANDIDATE_AUTHORITY_SHA256" >/dev/null
 	[[ "$(hash_file "$CANDIDATE_BINARY")" == "$CANDIDATE_SHA256" ]] || fail "candidate Linux SHA-256 changed"
 	[[ "$("$CANDIDATE_BINARY" --version)" == "$CANDIDATE_VERSION" ]] || fail "candidate version output changed"
 	go version -m "$CANDIDATE_BINARY" | grep -Fq "vcs.revision=$CANDIDATE_SOURCE_COMMIT" || fail "candidate source commit metadata changed"
 	go version -m "$CANDIDATE_BINARY" | grep -Fq 'vcs.modified=false' || fail "candidate records modified source"
+}
+
+candidate_authority_value() {
+	local key="$1"
+	awk -F '\t' -v key="$key" '$1 == key {print $2}' "$CANDIDATE_AUTHORITY"
+}
+
+load_candidate_authority() {
+	local root relative_binary
+	[[ -x "$CANDIDATE_WORKFLOW" ]] || fail "Level-1 candidate workflow is missing or not executable"
+	CANDIDATE_AUTHORITY="$(canonical_file "$CANDIDATE_AUTHORITY")" || fail "candidate authority is missing or aliased"
+	[[ "$CANDIDATE_AUTHORITY_SHA256" =~ ^[0-9a-f]{64}$ ]] || fail "candidate authority SHA-256 is malformed"
+	"$CANDIDATE_WORKFLOW" --verify \
+		--candidate-authority "$CANDIDATE_AUTHORITY" \
+		--candidate-authority-sha256 "$CANDIDATE_AUTHORITY_SHA256" >/dev/null
+	root="$(canonical_dir "$(dirname -- "$CANDIDATE_AUTHORITY")")" || fail "candidate root is unavailable"
+	relative_binary="$(candidate_authority_value candidate_binary)"
+	CANDIDATE_BINARY="$(canonical_file "$root/$relative_binary")" || fail "candidate binary is unavailable"
+	CANDIDATE_SHA256="$(candidate_authority_value candidate_binary_sha256)"
+	CANDIDATE_SOURCE_COMMIT="$(candidate_authority_value candidate_source_commit)"
+	CANDIDATE_VERSION="$(candidate_authority_value candidate_version_output)"
+	readonly CANDIDATE_AUTHORITY CANDIDATE_AUTHORITY_SHA256 CANDIDATE_BINARY
+	readonly CANDIDATE_SHA256 CANDIDATE_SOURCE_COMMIT CANDIDATE_VERSION
 }
 
 codex_binary_for_prefix() {
@@ -356,6 +387,8 @@ prepare_suite() {
 	{
 		printf 'schema_version\t%s\n' "$SUITE_SCHEMA"
 		printf 'suite_id\t%s\n' "$suite_id"
+		printf 'candidate_authority\t%s\n' "$CANDIDATE_AUTHORITY"
+		printf 'candidate_authority_sha256\t%s\n' "$CANDIDATE_AUTHORITY_SHA256"
 		printf 'candidate_binary\t%s\n' "$CANDIDATE_BINARY"
 		printf 'candidate_sha256\t%s\n' "$CANDIDATE_SHA256"
 		printf 'candidate_source_commit\t%s\n' "$CANDIDATE_SOURCE_COMMIT"
@@ -381,6 +414,8 @@ verify_prepared() {
 	(cd "$root" && sha256sum -c prepared.sha256 >/dev/null) || fail "prepared authority hash changed"
 	[[ "$(authority_value "$root" schema_version)" == "$SUITE_SCHEMA" ]] || fail "prepared suite schema changed"
 	cmp -s <(operation_plan) "$root/operation-plan.tsv" || fail "prepared operation plan changed"
+	[[ "$(authority_value "$root" candidate_authority)" == "$CANDIDATE_AUTHORITY" ]] || fail "prepared candidate authority path changed"
+	[[ "$(authority_value "$root" candidate_authority_sha256)" == "$CANDIDATE_AUTHORITY_SHA256" ]] || fail "prepared candidate authority identity changed"
 	[[ "$(authority_value "$root" candidate_binary)" == "$CANDIDATE_BINARY" ]] || fail "prepared candidate path changed"
 	[[ "$(authority_value "$root" candidate_sha256)" == "$CANDIDATE_SHA256" ]] || fail "prepared candidate hash changed"
 	[[ "$(authority_value "$root" candidate_source_commit)" == "$CANDIDATE_SOURCE_COMMIT" ]] || fail "prepared candidate source changed"
@@ -693,6 +728,8 @@ while [[ "$#" -gt 0 ]]; do
 		shift
 		;;
 	--run-root) RUN_ROOT="${2:-}"; shift 2 ;;
+	--candidate-authority) CANDIDATE_AUTHORITY="${2:-}"; shift 2 ;;
+	--candidate-authority-sha256) CANDIDATE_AUTHORITY_SHA256="${2:-}"; shift 2 ;;
 	--install-codex) INSTALL_CODEX=true; shift ;;
 	--codex-package-root) CODEX_PREFIX="${2:-}"; shift 2 ;;
 	--confirm-live-real-codex) CONFIRMATION="${2:-}"; shift 2 ;;
@@ -706,6 +743,8 @@ command -v git >/dev/null 2>&1 || fail "git is required"
 command -v go >/dev/null 2>&1 || fail "go is required"
 command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required"
 [[ -x "$COLLECTOR" ]] || fail "EXT-17 collector is missing or not executable"
+[[ -n "$CANDIDATE_AUTHORITY" && -n "$CANDIDATE_AUTHORITY_SHA256" ]] || fail "every mode requires both candidate authority options"
+load_candidate_authority
 verify_plan
 verify_candidate
 
@@ -732,7 +771,7 @@ case "$MODE" in
 	;;
 --verify-suite)
 	[[ -n "$RUN_ROOT" ]] || fail "--verify-suite requires --run-root"
-	[[ "$INSTALL_CODEX" == false && -z "$CODEX_PREFIX$CONFIRMATION" ]] || fail "--verify-suite accepts only --run-root"
+	[[ "$INSTALL_CODEX" == false && -z "$CODEX_PREFIX$CONFIRMATION" ]] || fail "--verify-suite accepts only run-root and candidate authority options"
 	verify_suite "$RUN_ROOT"
 	;;
 *) usage >&2; exit 64 ;;

@@ -1,5 +1,99 @@
 # Agent State
 
+## Reusable Level-1 Candidate Workflow (2026-07-30)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its explicitly
+  authorized reusable candidate build-and-verification workflow stage. This
+  was the sole bounded task; `EXT-20` remains unchecked.
+- Added executable `scripts/build-level1-candidate.sh`. Its build mode requires
+  explicit candidate ID/version, a clean exact source commit and tree, a new
+  output root, exact floor/current Go executables and versions, and an exact
+  govulncheck executable. It verifies the running workflow against the source-
+  commit copy before any output creation, uses two independent no-local clones
+  and isolated caches, records Go 1.22/current/race/module/vet plus ordinary
+  and verbose vulnerability evidence, builds Linux/Darwin/FreeBSD amd64 twice,
+  verifies embedded metadata and empty build IDs, compares exact bytes, and
+  emits a complete bundle manifest plus externally hash-bound
+  `candidate-authority.tsv`. Failures after output admission retain a typed
+  failed status and their work/evidence root.
+- Updated `scripts/dogfood-external-level1-suite.sh` to remove its obsolete
+  hard-coded RC.7 candidate. Every static, prepare, live, and verify-suite mode
+  now requires an exact candidate-authority path and SHA-256, validates the
+  bundle through the reusable workflow, derives the exact Linux binary/source/
+  version identities from it, and persists the authority path/hash in prepared
+  suite evidence.
+- Files changed in this pass: `scripts/build-level1-candidate.sh`,
+  `scripts/dogfood-external-level1-suite.sh`, `.agent/TASKS.md`,
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`. Pre-existing
+  wrapper-cleanup changes were preserved and not reworked. Nothing under
+  `.revolvr/` was modified.
+- Verification commands: `bash -n` for every current `scripts/*.sh`; both new
+  and updated `--help` paths; read-only missing-authority refusal for workflow
+  verification; malformed candidate-ID build refusal with proof that no output
+  root appeared; suite refusal without both authority arguments; search proving
+  the obsolete RC.7 candidate identity/path is absent from the suite; and
+  `git diff --check`.
+- Verification result: **PASS**. No candidate was built, no repository fixture
+  was prepared, no Codex/model process ran, and no commit, push, tag, artifact,
+  release, or dogfood evidence was created. Go tests were not run because no Go
+  source changed and this stage explicitly prohibited candidate construction;
+  actual build/test/vulnerability execution belongs to the separate candidate-
+  construction pass.
+- What remains: `EXT-20` still requires one fresh candidate construction and
+  independent verification, followed in a later pass by the quantitative real-
+  Codex dogfood gate. The immediate candidate-build stage requires a clean
+  exact commit containing this workflow and the current approved repository
+  changes. The worktree is intentionally uncommitted under repository policy,
+  so that stage must not start until the operator reviews the diff and gives
+  explicit commit authorization. This is not a blocker to the completed
+  implementation stage.
+
+## Top-Level Agent Wrapper Policy And Cleanup (2026-07-30)
+
+- Task selected: settle and implement the repository policy for accumulated
+  tracked top-level `agent-*.sh` wrappers. This was the sole bounded task.
+- Read-only inventory found 69 tracked top-level wrappers. Retained 2 as
+  genuinely reusable fresh-pass infrastructure: `agent-one.sh` and
+  `agent-loop.sh`. Required-current-authority count is 0, uncertain count is
+  0, and 67 one-shot development-control wrappers were classified as retired
+  historical artifacts and removed from the current tree. The exact per-file
+  classification is recorded in `.agent/DECISIONS.md`.
+- Exact-name and execution-pattern searches covered Go code, all tracked shell
+  scripts, CI, documentation, durable state, and every other tracked file.
+  References outside durable historical prose were confined to relationships
+  among the retired wrappers and three uncalled RC-specific checker scripts.
+  Removed those checkers with their launcher dependencies:
+  `scripts/check-ext20-rc5-live-direct.sh`,
+  `scripts/check-ext20-rc6-live-direct.sh`, and
+  `scripts/check-ext20-rc7-live-direct.sh`. No executable or non-historical
+  tracked reference to any of the 70 removed files remains.
+- Durable policy now says reusable operational behavior belongs under
+  `scripts/`; top-level entrypoints remain only when genuinely reusable or
+  currently required; retired wrappers are preserved by Git history rather
+  than `HEAD`; and future validation may not depend on retired wrappers being
+  present or absent. This supersedes conflicting wrapper-retention directives
+  while retaining their historical execution and evidence facts as prose.
+- Reframed EXT-20 without another RC-numbered wrapper lineage. Its next pass
+  implements one tracked, reusable, parameterized Level-1 candidate build-and-
+  verification workflow under `scripts/` without building a candidate or
+  calling live Codex. A later pass uses it once for one fresh candidate, after
+  which the existing quantitative Level-1 dogfood gate runs against that exact
+  candidate.
+- Files changed: `.agent/DECISIONS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `.agent/TASKS.md`; 67 retired top-level wrappers deleted; and the three
+  retired RC-specific checker scripts deleted. Nothing under `.revolvr/`, no
+  Go source, no dependency, no product script, and no product behavior changed.
+- Verification: the recorded retired inventory exactly matched all 67 deleted
+  top-level wrappers; a per-removed-file search found no dangling executable
+  or non-historical tracked reference across all 70 deletions; `bash -n`
+  passed for all 9 remaining tracked shell scripts; and `git diff --check`
+  passed. Go tests were intentionally not run because this cleanup did not
+  affect executable product behavior.
+- Result: **PASS**. No uncertainties or blockers remain. No candidate build,
+  live Codex dogfood, commit, push, tag, or publication occurred. The exact
+  next fresh-pass command is `./agent-one.sh`; its sole task is the reusable
+  workflow implementation described above.
+
 ## Prospective RC.13 V7 Builder Design Rejected (2026-07-30)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to exactly one

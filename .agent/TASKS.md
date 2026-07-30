@@ -286,7 +286,26 @@
     without explicit commit/push authorization.
 
 - [ ] EXT-20 — Execute the quantitative Level-1 real-Codex dogfood gate.
-  - Current gate: RC.6 and RC.7 remain immutable failed live-attempt evidence;
+  - Current gate (supersedes the historical wrapper gates below): do not create
+    another `agent-ext20-*.sh` wrapper and do not require any retired wrapper to
+    be present or absent. The reusable workflow implementation stage is
+    complete: `scripts/build-level1-candidate.sh` accepts explicit candidate,
+    clean source commit/tree, output-root, Go-toolchain, and vulnerability-tool
+    authority; runs and records the required floor/current tests, race, module,
+    vet, ordinary/verbose vulnerability, supported-target, embedded-metadata,
+    complete-manifest, and two-clone reproducibility checks; retains failures;
+    and emits an externally hash-bound `candidate-authority.tsv`.
+    `scripts/dogfood-external-level1-suite.sh` now requires that authority path
+    and SHA-256 in every mode and records them in prepared suite authority. The
+    implementation was syntax/help/negative-boundary verified without building
+    a candidate or calling Codex. The next bounded task is to use the workflow
+    once against one clean exact source commit to build and verify one fresh
+    candidate; a later pass then runs the quantitative Level-1 dogfood gate
+    against only that candidate. Retired wrappers remain recoverable from Git
+    history only. Ignored `.revolvr/` evidence remains untouched and is not
+    governed by wrapper-retention policy.
+  - Historical gate record (non-operative): RC.6 and RC.7 remain immutable
+    failed live-attempt evidence;
     RC.8 through RC.12 remain immutable failed local-construction evidence and
     every missing former `/tmp` root is terminal lost evidence. The fourth
     independently authored anonymous design passed sequence one, used its one

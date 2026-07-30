@@ -1,5 +1,119 @@
 # Agent Decisions
 
+## Reusable Level-1 Candidate Authority (2026-07-30)
+
+- `scripts/build-level1-candidate.sh` is the reusable Level-1 candidate
+  construction and verification workflow. Candidate-specific top-level wrapper
+  scripts are not authority. Build mode requires a clean exact source commit
+  and tree, and the executing workflow bytes must equal
+  `scripts/build-level1-candidate.sh` at that commit before an output root may
+  be created.
+- A successful bundle is anchored by `candidate-authority.tsv` plus an
+  externally supplied SHA-256. That authority fixes the candidate ID/version,
+  source commit/tree, workflow hash, dogfood Linux binary path/hash, bundle-
+  manifest hash, floor/current Go versions, and govulncheck executable hash.
+  The bundle manifest is a complete regular-file inventory; verification
+  rejects symbolic links, hard links, unlisted files, changed metadata, changed
+  artifacts, nonempty build IDs, or non-identical independent builds.
+- The quantitative Level-1 suite no longer owns a hard-coded historical
+  candidate identity. Every suite mode requires `--candidate-authority` and
+  `--candidate-authority-sha256`; preparation persists both, and later live or
+  verification runs must present the same exact authority. Candidate
+  construction and live Codex dogfood remain separate fresh-pass tasks.
+- Build failures after output-root admission are retained with typed failed
+  status and evidence. Successful construction uses two no-local clones,
+  isolated Go build/module caches, explicit effective build settings, the Go
+  1.22 source-floor test, current ordinary/race/module/vet checks, ordinary and
+  verbose govulncheck, and byte-identical Linux/macOS/FreeBSD amd64 builds.
+  Verification mode and suite static mode are read-only and never invoke Codex.
+
+## Top-Level Agent Wrapper Policy (2026-07-30)
+
+- Reusable operational behavior belongs under `scripts/`. Repository-top-level
+  entrypoints are exceptional and remain only when they are genuinely reusable
+  or are current authority. Retired one-shot development-control wrappers are
+  preserved by Git history, not indefinitely in `HEAD`; they must not be moved
+  to an archive directory.
+- New candidate construction, verification, review, or other validation must
+  never depend on a retired wrapper being present or absent. Historical wrapper
+  names in durable prose remain historical facts, not executable dependencies
+  or current authority. This decision supersedes older instructions that a
+  tracked wrapper itself must remain in the current tree, without changing the
+  recorded facts about what the wrapper did or which evidence it created.
+- The read-only tracked-file audit classified all 69 top-level `agent-*.sh`
+  files as follows:
+  - **Currently referenced reusable infrastructure (2, retained):**
+    `agent-one.sh`, the generic one-fresh-`codex exec` entrypoint required by
+    the repository loop model; and `agent-loop.sh`, its interactive bounded
+    multi-pass driver. `agent-loop.sh` executes `agent-one.sh`.
+  - **Required current authority (0):** none. EXT-20 has no current wrapper
+    authority, and its next gate is a reusable workflow under `scripts/`.
+  - **Uncertain (0):** none.
+  - **Retired historical wrappers (67, removed from `HEAD`):**
+    `agent-attended-alpha-readiness.sh`, `agent-ext19.sh`,
+    `agent-ext20-lifecycle-remediation.sh`,
+    `agent-ext20-planner-contract-review.sh`, `agent-ext20-rc10.sh`,
+    `agent-ext20-rc11.sh`,
+    `agent-ext20-rc12-builder-publication-review.sh`,
+    `agent-ext20-rc12-builder-publication.sh`,
+    `agent-ext20-rc12-builder-revalidation-v3-review.sh`,
+    `agent-ext20-rc12-builder-revalidation-v3.sh`,
+    `agent-ext20-rc12-builder-revalidation-v4-review.sh`,
+    `agent-ext20-rc12-builder-revalidation-v4.sh`,
+    `agent-ext20-rc12-builder-revalidation.sh`,
+    `agent-ext20-rc12-builder-validation-review.sh`,
+    `agent-ext20-rc12-builder-validation.sh`,
+    `agent-ext20-rc12-construction-failure-review.sh`,
+    `agent-ext20-rc12-volatile-root-recovery-review.sh`,
+    `agent-ext20-rc12.sh`,
+    `agent-ext20-rc13-builder-revalidation-v6-review.sh`,
+    `agent-ext20-rc13-builder-revalidation-v6.sh`,
+    `agent-ext20-rc13-builder-revalidation-v7.sh`,
+    `agent-ext20-rc13-builder-validation.sh`,
+    `agent-ext20-rc2-attestation.sh`, `agent-ext20-rc2-suite.sh`,
+    `agent-ext20-rc2.sh`, `agent-ext20-rc3-attestation.sh`,
+    `agent-ext20-rc3-suite.sh`, `agent-ext20-rc3.sh`,
+    `agent-ext20-rc4-attestation.sh`, `agent-ext20-rc4-live-direct.sh`,
+    `agent-ext20-rc4-live.sh`, `agent-ext20-rc4-remote.sh`,
+    `agent-ext20-rc4-suite.sh`, `agent-ext20-rc4.sh`,
+    `agent-ext20-rc5-attestation.sh`, `agent-ext20-rc5-live-direct.sh`,
+    `agent-ext20-rc5-live-failure-remediation.sh`,
+    `agent-ext20-rc5-no-start-publish.sh`,
+    `agent-ext20-rc5-no-start-remediation.sh`,
+    `agent-ext20-rc5-no-start-review.sh`,
+    `agent-ext20-rc5-recovery-publish.sh`,
+    `agent-ext20-rc5-recovery-review.sh`, `agent-ext20-rc5-remote.sh`,
+    `agent-ext20-rc5-suite.sh`, `agent-ext20-rc5.sh`,
+    `agent-ext20-rc6-attestation-remote.sh`,
+    `agent-ext20-rc6-attestation.sh`, `agent-ext20-rc6-live-direct.sh`,
+    `agent-ext20-rc6-remote.sh`, `agent-ext20-rc6-suite.sh`,
+    `agent-ext20-rc6.sh`, `agent-ext20-rc7-attestation-remote.sh`,
+    `agent-ext20-rc7-attestation.sh`,
+    `agent-ext20-rc7-await-live-authorization.sh`,
+    `agent-ext20-rc7-live-authority-review.sh`,
+    `agent-ext20-rc7-live-authorization-checkpoint.sh`,
+    `agent-ext20-rc7-live-direct.sh`, `agent-ext20-rc7-live-gate.sh`,
+    `agent-ext20-rc7-live-once.sh`, `agent-ext20-rc7-prelive-review.sh`,
+    `agent-ext20-rc7-remote.sh`, `agent-ext20-rc7-suite.sh`,
+    `agent-ext20-rc7.sh`, `agent-ext20-rc8.sh`, `agent-ext20-rc9.sh`,
+    `agent-ext20-source-lock.sh`, and `agent-ext20.sh`.
+- Exact-name and execution-pattern searches across Go code, scripts, CI,
+  documentation, durable state, and all other tracked files found only
+  historical prose, references among the retired wrappers themselves, and
+  three executable RC-specific checkers. The latter—
+  `scripts/check-ext20-rc5-live-direct.sh`,
+  `scripts/check-ext20-rc6-live-direct.sh`, and
+  `scripts/check-ext20-rc7-live-direct.sh`—had no callers and depended on the
+  retired launchers plus ignored historical evidence, so they are retired and
+  removed in the same cleanup. No `.revolvr/` path is changed by this policy.
+- EXT-20 now proceeds in three bounded stages without another RC-numbered
+  wrapper lineage: first implement one tracked, reusable, parameterized
+  Level-1 candidate build-and-verification workflow under `scripts/`; next use
+  it once to build and verify one fresh candidate; then run the existing
+  quantitative Level-1 dogfood gate against that exact candidate. The first
+  stage may make the existing dogfood suite consume parameterized candidate
+  authority if needed, but it must not build a candidate or call live Codex.
+
 ## Prospective RC.13 V7 Design Is Rejected (2026-07-30)
 
 - The sole v7 root is
