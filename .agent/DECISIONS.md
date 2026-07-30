@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## Prospective RC.13 V7 Design Is Rejected (2026-07-30)
+
+- The sole v7 root is
+  `.revolvr/prospective-builder-validation-v7.hYcT7T`. It is unsealed rejected
+  evidence and cannot be repaired, rerun, sealed, copied, derived from,
+  relabeled, removed, published as a builder, or submitted through the passing-
+  design review path.
+- A pre-sequence preservation bootstrap exposed one `set -u` same-command
+  local expansion. The one permitted repair retained the failure evidence and
+  split that declaration. Repaired sequence one then passed five gates before
+  an analogous unbound `rel` expansion stopped the success publication probe
+  after its first neutral final path appeared. The terminal retention contract
+  worked: all build, sealed-stage, final-candidate, inventory, log, and failure-
+  report evidence remains, and no post-final cleanup occurred.
+- The sole repair is consumed. Sequence one is incomplete and sequence two was
+  not started, so two complete passing unchanged sequences do not exist. No
+  self-verifying manifest, seal authority, or
+  `agent-ext20-rc13-builder-revalidation-v7-review.sh` may be created.
+- V5, v6, and RC.12 remained exact before and after the attempted sequence.
+  The v7 failure created no actual RC.13 builder, construction launcher,
+  candidate/output/runtime path, ref, tag, workflow, artifact, release asset,
+  suite, dogfood operation, release, external-use decision, or `EXT-20`
+  completion. RC.13 remains unconsumed and `EXT-20` remains unchecked.
+- No continuation is implied. Any independent failure review or fresh design
+  identity requires new explicit operator direction and must treat RC.12, v5,
+  v6, and v7 as immutable terminal history.
+
 ## RC.13 V6 Review Rejected; V7 Neutral Revalidation Authorized (2026-07-30)
 
 - Independent review rejects the sealed v6 design for builder publication.

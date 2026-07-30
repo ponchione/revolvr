@@ -4,6 +4,52 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The one authorized prospective RC.13 v7 builder-design revalidation is
+terminally rejected. Its sole persistent ignored root is
+`/home/gernsback/source/revolvr/.revolvr/prospective-builder-validation-v7.hYcT7T`,
+mode `0700`, with 32 regular files totaling 65,387 bytes. Its content stream is
+`73327470c97c4d9be73d7c2ca6fca6734b4d50ecc42ef55f651611d910194a91`
+and root-inclusive inventory is
+`5f8302a35b6d042212a904acccb9bd815b5e113596ac72d5a9b7d492b67b083b`.
+It is unsealed rejected evidence, not a builder design eligible for review.
+
+The first preservation bootstrap stopped before a neutral publication path
+because `validate-sequence.sh` expanded a same-command local `phase` under
+`set -u`. The sole repair retained that exact evidence under
+`pre-sequence-harness-failure`, recorded `REPAIR-RECORD.tsv`, and split only
+that declaration. The repaired first sequence then passed five gates:
+accepted bytes, v5/v6/RC.12 preservation, current controller/source/tools,
+syntax, and cleanup lifetime. During the success publication probe, the exact
+candidate stage and final roots were sealed mode `0500`, their root-inclusive
+inventories compared equal, and the final candidate appeared. The probe then
+failed status `1` because `assert_distinct_file_inodes` used the same invalid
+same-command local expansion for `rel`. Its terminal trap correctly retained
+the build, both sealed stages, first final, inventories, logs, and exact report
+showing candidate `yes`, verification `no`, and cleanup forbidden.
+
+No further repair is permitted. Sequence one did not complete and sequence two
+did not start, so the root was not sealed and no manifest or
+`agent-ext20-rc13-builder-revalidation-v7-review.sh` was created. Exact v5,
+v6, and RC.12 after-snapshots remained
+`f01a28b55fb4f5a3a556af511ca610459c91bd9c0c864ec636a310adf2856de7`,
+`2655f4122ce3a3a6e1a37470e657b678ca26b5129a183e8ec5bf49d7d0667b0f`,
+and `78bd6732dafe042647af2d93b70d7ea9e4892554302c4af45c2d4b75c96d2d5d`.
+All accepted post-repair input bytes also remained exact.
+
+No RC.13 builder, construction launcher, candidate, actual preflight/build/
+stage/diagnostic path, ref, tag, workflow, Actions artifact, release asset,
+suite, product test/build, dogfood operation, release, external-use decision,
+or `EXT-20` completion exists. RC.12, v5, v6, and now rejected v7 are immutable
+terminal history. Do not execute, repair, rerun, seal, copy, derive from,
+relabel, or remove v7.
+
+### Next Gate
+
+None. A fresh identity or independent review requires new explicit operator
+direction. Do not run any script in the rejected v7 root.
+
+## Previous Resume Point
+
 The operator completed the published no-argument
 `agent-ext20-rc13-builder-revalidation-v6-review.sh` pass. It left tracked and
 ignored state unchanged and created no RC.13 identity or output. Independent

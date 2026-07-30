@@ -1,5 +1,80 @@
 # Agent State
 
+## Prospective RC.13 V7 Builder Design Rejected (2026-07-30)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to exactly one
+  authorized prospective RC.13 v7 builder-design revalidation. `EXT-20`
+  remains unchecked.
+- Re-established clean local, fetched, and public `main` at
+  `d9d32fd356ef1cafe47bd6635e107546d51b5ace`; pinned source commit/tree
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba` /
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`; empty product-source diff;
+  exact Go 1.22.12, Go 1.26.5, and govulncheck 1.1.4 identities; and absent
+  local/remote RC.13 output, ref, tag, Actions-artifact, and release-asset
+  collisions.
+- Created exactly one persistent ignored root,
+  `.revolvr/prospective-builder-validation-v7.hYcT7T`. The independently
+  authored 29,474-byte, 626-line design SHA-256 is
+  `42aecdbc849428c1ed0378b645705a14873426d64d11ed3bbc9d627aaf631635`.
+  Its unexecuted full mode covers exact sealed-design/builder equality,
+  launcher tracked-blob and dynamic-self authority, dynamic current published
+  controller authority, permitted tracked history, actual collision classes,
+  two shallow fetches, isolated dual-Go test/race/vet/module matrices,
+  ordinary/verbose vulnerability evidence, reproducible supported builds,
+  embedded metadata/empty build IDs, payload manifests, root-inclusive
+  sealing/publication comparison, and terminal post-final retention. No full
+  mode or product command ran.
+- The initial sequence-one preservation bootstrap failed before a publication
+  probe: `validate-sequence.sh` line 84 expanded local `phase` in the same
+  declaration under `set -u`. Retained the exact bootstrap evidence, used the
+  sole permitted repair to split the declaration, recorded
+  `REPAIR-RECORD.tsv`, and hash-locked the repaired accepted inputs. No repair
+  remains.
+- Repaired sequence one passed five gates: accepted-byte preservation,
+  v5/v6/RC.12 preservation, current controller/source/tool authority, Bash
+  syntax, and exit/early-return/signal cleanup lifetime. Its success
+  publication probe sealed both stage roots and descendants, created and
+  copied the candidate final from the sealed stage, reapplied mode `0500`, and
+  produced equal root-inclusive type/mode/link/size/hash inventories.
+- After the neutral candidate final appeared, the probe stopped status `1` at
+  design line 190 because `assert_distinct_file_inodes` expanded local `rel`
+  in the same declaration under `set -u`. The terminal report correctly
+  retained candidate `yes`, verification `no`, cleanup
+  `forbidden-after-final-appearance`, and all build/stage/final/inventory/log
+  evidence under non-RC.13 probe names. No cleanup was attempted.
+- Because the repair allowance was consumed, no second repair or sequence two
+  was attempted. The required two complete passing sequences do not exist.
+  The root remains unsealed mode `0700`: 32 regular files, 65,387 bytes,
+  content stream
+  `73327470c97c4d9be73d7c2ca6fca6734b4d50ecc42ef55f651611d910194a91`,
+  and root-inclusive inventory
+  `5f8302a35b6d042212a904acccb9bd815b5e113596ac72d5a9b7d492b67b083b`.
+  `FAILURE-SUMMARY.tsv` is the canonical failure record. No seal authority,
+  manifest, or review launcher was created.
+- Exact post-failure preservation passed: v5 snapshot
+  `f01a28b55fb4f5a3a556af511ca610459c91bd9c0c864ec636a310adf2856de7`,
+  v6 snapshot
+  `2655f4122ce3a3a6e1a37470e657b678ca26b5129a183e8ec5bf49d7d0667b0f`,
+  and RC.12 history snapshot
+  `78bd6732dafe042647af2d93b70d7ea9e4892554302c4af45c2d4b75c96d2d5d`.
+  Repaired accepted-input hashes and canonical one-final-LF history also
+  remained exact.
+- Files changed: the sole ignored rejected v7 root plus `.agent/TASKS.md`,
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`. No product
+  source, dependency, historical evidence, builder, candidate, remote state,
+  or review launcher changed.
+- Verification commands: clean exact-controller/source/tool and collision
+  reads; fresh v5/v6/RC.12 snapshots; `bash -n` for all prospective scripts;
+  accepted-input `sha256sum -c`; the stopped bootstrap; the sole repair; the
+  repaired sequence-one run through five passed gates and retained terminal
+  publication failure; post-failure accepted/history preservation; local and
+  remote forbidden-identity reads; and `git diff --check`. Product tests,
+  builds, full mode, construction, and sequence two were forbidden or
+  ineligible and did not run.
+- Result: **FAIL / BLOCKED**. V7 is immutable unsealed rejected evidence.
+  What remains is a new explicit operator decision; there is no authorized
+  review, builder-publication, construction, or fresh-design gate.
+
 ## RC.13 V6 Review Rejected; Fresh V7 Revalidation Prepared (2026-07-30)
 
 - Task selected: verify the completed independent read-only v6 review, decide

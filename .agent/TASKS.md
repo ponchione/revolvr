@@ -378,7 +378,26 @@
     post-final-retention probes. Raw Git published it with the v6 rejection as
     `4b90b5b511168034a890468a3336b71806c87300`, and its clean non-creating
     preflight passed. RC.13 remains unconsumed, RC.12 remains terminal, and
-    EXT-20 remains incomplete.
+    EXT-20 remains incomplete. The separately authorized v7 pass created the
+    sole ignored root `.revolvr/prospective-builder-validation-v7.hYcT7T` and
+    independently authored a fresh full design plus neutral harness. Its first
+    preservation bootstrap stopped before publication because a `set -u`
+    same-command local expansion referenced `phase` before assignment. The one
+    permitted repair retained that bootstrap evidence and split the local
+    declarations. Repaired sequence one then passed accepted-byte, terminal-
+    history, current-controller/source/tool, syntax, and cleanup-lifetime
+    gates. Its success publication probe sealed and copied the candidate root
+    with equal root-inclusive inventories, but status `1` followed when
+    `assert_distinct_file_inodes` used the same invalid local expansion for
+    `rel`. The exact neutral final candidate had appeared, so build, stage,
+    final, inventory, log, and terminal-report evidence was correctly retained
+    and no cleanup ran. The repair allowance is consumed; sequence one did not
+    complete, sequence two did not start, and the unsealed 32-file v7 root is
+    rejected terminal evidence. V5, v6, and RC.12 exact snapshots remained
+    unchanged. No manifest, v7 review launcher, RC.13 identity, product
+    command, remote object, or continuation authority was created. No next
+    gate exists without new explicit operator direction; `EXT-20` remains
+    incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for
