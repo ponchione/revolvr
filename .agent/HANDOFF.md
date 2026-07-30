@@ -88,6 +88,12 @@ neutrally, copy the sealed draft once to the exact mode-`0555` builder, create
 the mode-`0755` tracked construction launcher, and stop without executing
 either. It also tightens the builder parent against group/other writes.
 
+Raw Git published the accepted review record and inert publication launcher as
+`2f21a4399a0a1bc00ceac345e0ebbeac9616d75a` (`Authorize RC.12 builder
+publication`). Local, fetched, and public `main` matched. Its clean
+`--preflight-only` path replayed all 12 sealed-review diagnostics and passed
+without creating the builder or construction launcher.
+
 ### Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:

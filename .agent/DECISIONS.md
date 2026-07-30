@@ -1,5 +1,16 @@
 # Agent Decisions
 
+## RC.12 Builder-Publication Gate Published (2026-07-30)
+
+- Raw Git published the accepted fourth-design review and exact inert
+  builder-publication gate as
+  `2f21a4399a0a1bc00ceac345e0ebbeac9616d75a`. Exact local, fetched, and public
+  `main` plus the complete clean non-creating preflight passed.
+- `agent-ext20-rc12-builder-publication.sh` is now the immediate gate. It may
+  create only the exact reviewed read-only builder, tracked inert construction
+  launcher, and one later read-only publication-review launcher. It cannot
+  execute construction or create candidate authority.
+
 ## Fourth Design Accepted For Exact Builder Publication (2026-07-30)
 
 - The completed read-only review changed no repository or sealed-evidence byte.

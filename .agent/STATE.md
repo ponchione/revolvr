@@ -1,5 +1,22 @@
 # Agent State
 
+## RC.12 Builder-Publication Launcher Published (2026-07-30)
+
+- Raw Git committed and pushed the accepted fourth-design review record and
+  inert builder-publication launcher as
+  `2f21a4399a0a1bc00ceac345e0ebbeac9616d75a` (`Authorize RC.12 builder
+  publication`). Local, fetched, and public `main` matched exactly.
+- The clean published
+  `./agent-ext20-rc12-builder-publication.sh --preflight-only` path exited `0`.
+  It replayed all 12 sealed fourth-review diagnostics, source/public-main and
+  collision guards, and reported that no identity was created. The exact
+  builder, construction launcher, and publication-review launcher remain
+  absent.
+- Exact next command is `./agent-ext20-rc12-builder-publication.sh`. It may
+  publish only the reviewed builder bytes and inert tracked construction
+  launcher, then create one read-only publication-review launcher. It cannot
+  execute construction. RC.12 remains unconsumed and `EXT-20` unchecked.
+
 ## Fourth Design Review And Builder-Publication Gate (2026-07-30)
 
 - The operator completed the published fourth-design read-only review. The
