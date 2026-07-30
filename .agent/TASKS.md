@@ -299,8 +299,15 @@
     only for exact builder/construction-launcher publication. The next gate is
     published as `2f21a4399a0a1bc00ceac345e0ebbeac9616d75a` and is
     `agent-ext20-rc12-builder-publication.sh`; its clean non-creating preflight
-    passed, and it cannot execute construction. RC.12 remains unconsumed, no
-    builder or construction authority exists, and EXT-20 remains incomplete.
+    passed. That bounded publication pass copied the reviewed draft bytes once
+    to the exact ignored mode-`0555` builder
+    `.revolvr/release-candidates/build-level1-v0.1.0-rc.12.sh`, published the
+    inert mode-`0755` construction-launcher target `agent-ext20-rc12.sh`, and
+    preserved the protected parent at tightened mode `0755`. Neither identity
+    was executed. The sole next gate is the inert read-only
+    `agent-ext20-rc12-builder-publication-review.sh`; favorable review still
+    requires separate controller publication and explicit construction
+    authority. RC.12 remains unconsumed and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

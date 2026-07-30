@@ -1,5 +1,83 @@
 # Agent State
 
+## RC.12 Builder And Construction Launcher Publication Prepared (2026-07-30)
+
+- Task selected: exactly one bounded EXT-20 RC.12 builder-publication pass.
+  The pass published only the reviewed builder bytes, one inert construction
+  launcher at its tracked target, and one inert later publication-review
+  launcher. It did not use `gh`, commit, push, stage, execute either published
+  identity, run a draft mode, product test/build, full construction, candidate,
+  remote workflow, suite, Revolvr/model operation, release, external-use
+  action, or `EXT-20` completion. RC.12 remains unconsumed and `EXT-20`
+  remains unchecked.
+- Before either publication path appeared, construction-launcher bytes were
+  authored only at unique anonymous temporary path
+  `/tmp/revolvr-construction-launcher.zsWPHa/construction-launcher.sh`.
+  `bash -n` and focused source review passed, then the 14,242-byte, 284-line
+  source was sealed mode `0444` at SHA-256
+  `f2a5f95323cf95334aed2c79c08368d63d0a73646600155a0032e6027bec6572`.
+  Its explicit `--preflight-only` path returns before its sole builder
+  execution site. It accepts no other arguments, dynamically hashes its final
+  tracked bytes, exports all four required builder/launcher/manifest/stream
+  identities, and then can exec only the exact builder with no argument.
+- Protected parent
+  `/home/gernsback/source/revolvr/.revolvr/release-candidates` retained its
+  exact real path and UID `1000`; mode was tightened once from `0775` to
+  `0755` before builder publication and remains `0755` without group/other
+  write permission.
+- The reviewed draft was copied once to sole ignored builder
+  `/home/gernsback/source/revolvr/.revolvr/release-candidates/build-level1-v0.1.0-rc.12.sh`.
+  Published identity is mode `0555`, UID `1000`, link count 1, 38,528 bytes,
+  756 lines, SHA-256
+  `dfa46ae7c21cb238cf2191696de159aee19b4fe46c5a835b77a130acb583d90e`.
+  It is byte-identical to, but a distinct inode from, the mode-`0444` sealed
+  draft; syntax passed. It was not executed and is immutable after appearance.
+- The already validated temporary bytes were copied once to inert tracked
+  publication target `/home/gernsback/source/revolvr/agent-ext20-rc12.sh`.
+  Published identity is mode `0755`, UID `1000`, link count 1, 14,242 bytes,
+  284 lines, SHA-256
+  `f2a5f95323cf95334aed2c79c08368d63d0a73646600155a0032e6027bec6572`.
+  It is byte-identical to, but a distinct inode from, the sealed temporary
+  source; syntax passed. It was not staged, committed, or executed.
+- Sealed persistent root
+  `/home/gernsback/source/revolvr/.revolvr/prospective-builder-revalidation-v4.5pWwTx`
+  remained exact at mode `0500`, 10 mode-`0444` files, 53,626 bytes, manifest
+  SHA-256 `f4cbe051d3b6cb13cb111b7374fb3d17c99e6f93979cb31853bbcd1db3da91c2`,
+  and content stream
+  `22e50f2dfc7ce0f0e935b080f567a0527b7e6a943234241161977c78fdaa9cd8`.
+  Exact source commit/tree and empty product-source diff passed. Local,
+  fetched, and public `main` were exact at
+  `ca702ef2931a006843c10b3b899db2b5ca0689dd`; all six persistent controller
+  anchors, nine historical controller file hashes, and complete RC.12 local/
+  remote output, ref, tag, workflow, runtime, Actions-artifact, and release-
+  asset collision absences passed before publication.
+- Only after both exact publications passed, added inert later review launcher
+  `agent-ext20-rc12-builder-publication-review.sh`, mode `0755`, 8,431 bytes,
+  148 lines, SHA-256
+  `3360511b57aeee4258e2d5530f5a4067202e9160eb524b58b735a2d3a4a70966`.
+  Syntax and static no-builder/no-construction-execution review passed. It has
+  not been run and can return only a later independent read-only accept/reject
+  report; it cannot create continuation authority.
+- Files changed: ignored exact builder above; new inert launchers
+  `agent-ext20-rc12.sh` and
+  `agent-ext20-rc12-builder-publication-review.sh`; `.agent/TASKS.md`,
+  `.agent/HANDOFF.md`, `.agent/STATE.md`, and `.agent/DECISIONS.md`; plus the
+  protected parent's safer ignored-directory mode. No Go source or dependency
+  changed.
+- Verification commands: raw `git fetch`, local/fetched/public-main and
+  ancestry/tree comparisons, empty product-source `git diff`, sealed-root
+  manifest/mode/count/size/hash/stream checks, draft and all launcher/builder
+  `bash -n`, focused construction-launcher source review, raw-Git local/remote
+  ref/tag checks, public Actions/release collision reads, one-shot copy byte/
+  hash/mode/size/line/link/inode comparisons, review-launcher static review,
+  and final `git diff --check`. Product tests/builds were expressly forbidden
+  and were not run.
+- Result: **PASS for builder-publication preparation only**. Blockers: none.
+  What remains is one fresh independent read-only run of
+  `agent-ext20-rc12-builder-publication-review.sh`, followed by separate
+  controller publication if accepted. Builder execution and construction
+  require new explicit authority.
+
 ## RC.12 Builder-Publication Launcher Published (2026-07-30)
 
 - Raw Git committed and pushed the accepted fourth-design review record and

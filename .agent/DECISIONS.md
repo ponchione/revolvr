@@ -1,5 +1,35 @@
 # Agent Decisions
 
+## RC.12 Exact Builder Publication Prepared For Independent Review (2026-07-30)
+
+- The accepted sealed draft was copied once to exact ignored builder
+  `.revolvr/release-candidates/build-level1-v0.1.0-rc.12.sh`, mode `0555`,
+  38,528 bytes, 756 lines, SHA-256
+  `dfa46ae7c21cb238cf2191696de159aee19b4fe46c5a835b77a130acb583d90e`.
+  It is byte-identical to the sealed draft and was not executed. The protected
+  release-candidate parent was tightened from mode `0775` to `0755` before the
+  builder appeared and must retain mode `0755`.
+- Inert construction launcher `agent-ext20-rc12.sh` was fully authored and
+  syntax/static-review validated only under a unique anonymous temporary root,
+  then copied once to its tracked publication target. Its mode is `0755`, size
+  14,242 bytes, line count 284, and SHA-256
+  `f2a5f95323cf95334aed2c79c08368d63d0a73646600155a0032e6027bec6572`.
+  It was not staged, committed, or executed. Its preflight cannot execute the
+  builder; its no-argument path dynamically binds its own published hash and
+  can exec only the exact builder after every authority/collision guard passes.
+- Sealed root, manifest, stream, source/tree/product boundary, six controller
+  anchors, nine historical controller hashes, and all RC.12 output/ref/tag/
+  workflow/runtime/Actions/release-asset absences remained exact. These
+  preservation results authorize no construction.
+- Inert `agent-ext20-rc12-builder-publication-review.sh`, mode `0755`, 8,431
+  bytes, 148 lines, SHA-256
+  `3360511b57aeee4258e2d5530f5a4067202e9160eb524b58b735a2d3a4a70966`,
+  is the sole next gate. It may produce only a fresh read-only accept/reject
+  report and cannot execute construction or create further continuation.
+  Favorable review still requires separate controller publication and new
+  explicit builder-execution authority. RC.12 remains unconsumed and EXT-20
+  remains unchecked.
+
 ## RC.12 Builder-Publication Gate Published (2026-07-30)
 
 - Raw Git published the accepted fourth-design review and exact inert

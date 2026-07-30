@@ -4,6 +4,56 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The accepted fourth-design draft was copied once to exact ignored builder
+`/home/gernsback/source/revolvr/.revolvr/release-candidates/build-level1-v0.1.0-rc.12.sh`.
+It is mode `0555`, UID `1000`, link count 1, 38,528 bytes, 756 lines, and
+SHA-256
+`dfa46ae7c21cb238cf2191696de159aee19b4fe46c5a835b77a130acb583d90e`.
+It is byte-identical to, but a distinct inode from, the sealed draft. Syntax
+passed. It has not been executed and is immutable after appearance.
+
+Construction launcher bytes were authored only in unique anonymous temporary
+root `/tmp/revolvr-construction-launcher.zsWPHa`, syntax/static-review
+validated, and sealed mode `0444` before either exact publication path
+appeared. Those exact bytes were copied once to tracked publication target
+`/home/gernsback/source/revolvr/agent-ext20-rc12.sh`, then set mode `0755`.
+The launcher is UID `1000`, link count 1, 14,242 bytes, 284 lines, SHA-256
+`f2a5f95323cf95334aed2c79c08368d63d0a73646600155a0032e6027bec6572`.
+It has not been staged, committed, or executed.
+
+Protected parent `/home/gernsback/source/revolvr/.revolvr/release-candidates`
+retained its exact real path and owner; mode was tightened from `0775` to
+`0755` before builder publication and remains `0755`. The sealed persistent
+root remains exact at its draft, manifest, stream, count, byte, and mode
+identities. Source commit/tree, empty product-source diff, current published
+controller `ca702ef2931a006843c10b3b899db2b5ca0689dd`, historical controller
+hashes, and all RC.12 collision absences passed before publication.
+
+Only after both one-shot publications passed, added inert
+`agent-ext20-rc12-builder-publication-review.sh`, mode `0755`, 8,431 bytes,
+148 lines, SHA-256
+`3360511b57aeee4258e2d5530f5a4067202e9160eb524b58b735a2d3a4a70966`.
+It passed syntax and static no-builder/no-construction-execution review but has
+not been run. No builder/draft mode, product test/build, construction,
+candidate, remote workflow, suite, Revolvr/model operation, release, or
+external-use action occurred. RC.12 remains unconsumed and `EXT-20` remains
+unchecked.
+
+### Next Gate
+
+From `/home/gernsback/source/revolvr`, run exactly:
+
+```bash
+./agent-ext20-rc12-builder-publication-review.sh
+```
+
+This starts only a fresh read-only accept/reject review of the prepared
+publication. It cannot execute the builder or construction launcher, edit,
+stage, commit, push, or create continuation. Favorable review still requires
+separate controller publication and new explicit construction authority.
+
+## Previous Resume Point
+
 The fourth independently authored anonymous prospective RC.12 builder design
 passed sequence one, used its one permitted neutral repair, and passed the
 accepted sequence two with repaired bytes unchanged. Its sole retained
@@ -94,7 +144,7 @@ publication`). Local, fetched, and public `main` matched. Its clean
 `--preflight-only` path replayed all 12 sealed-review diagnostics and passed
 without creating the builder or construction launcher.
 
-### Next Gate
+### Previous Next Gate
 
 From `/home/gernsback/source/revolvr`, run exactly:
 
