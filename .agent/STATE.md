@@ -1,5 +1,27 @@
 # Agent State
 
+## Fourth Persistent Validation Publication And Review Handoff (2026-07-30)
+
+- Independent controller verification replayed the evidence manifest and
+  content stream, draft identity/syntax, both sequence records, single repair,
+  historical constants, terminal lost-root absences, source/product/tool
+  boundary, role/collision corrections, and RC.12 local/remote absences. All
+  passed. The only correction was backlog wording clarifying that the one
+  repair occurred between sequence one and sequence two; evidence and design
+  bytes were unchanged.
+- Raw Git committed and pushed the exact five-file record as
+  `bae8ff6b1e5d7e14a9002cd7fbba1ece101dc005` (`Record fourth prospective
+  RC.12 neutral validation`). Local, fetched, and public `main` matched that
+  commit exactly.
+- On the clean published controller, all 12 named
+  `agent-ext20-rc12-builder-revalidation-v4-review.sh --preflight-only`
+  diagnostics passed. The draft was not executed and no product test/build,
+  full mode, candidate identity, or continuation occurred.
+- Exact next command is
+  `./agent-ext20-rc12-builder-revalidation-v4-review.sh`. It authorizes only
+  one fresh read-only accept/reject report and cannot create continuation or
+  construction authority. RC.12 remains unconsumed and `EXT-20` unchecked.
+
 ## Fourth Persistent Prospective RC.12 Revalidation Passed (2026-07-30)
 
 - Task selected: exactly one bounded EXT-20 pass to independently author and

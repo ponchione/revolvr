@@ -61,11 +61,19 @@ Its named `--preflight-only` diagnostics all passed without executing the
 draft. It can later perform only a fresh read-only accept/reject review and
 cannot create continuation authority.
 
+Independent controller verification replayed the complete sealed manifest,
+root stream, draft syntax, both sequence records, historical constants,
+source/tool boundary, loss/residue boundary, role/collision design, and all
+RC.12 absences. It corrected only backlog wording to state accurately that the
+single repair occurred between sequences. Raw Git published the five-file
+record as `bae8ff6b1e5d7e14a9002cd7fbba1ece101dc005` (`Record fourth
+prospective RC.12 neutral validation`). Local, fetched, and public `main`
+matched, and every published `--preflight-only` review diagnostic passed
+without executing the draft.
+
 ### Next Gate
 
-First independently review and publish only this bounded tracked record with
-raw Git under separate operator authorization. Once the controller is clean
-and exact local, fetched, and public `main` agree, run exactly:
+From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
 ./agent-ext20-rc12-builder-revalidation-v4-review.sh

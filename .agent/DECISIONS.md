@@ -1,5 +1,21 @@
 # Agent Decisions
 
+## Fourth Persistent Validation Record Published For Review (2026-07-30)
+
+- Independent controller verification accepted the fourth sealed record after
+  replaying its identities, histories, loss boundary, sequence/repair record,
+  source/tool boundary, four corrected design concerns, and collision
+  absences. Raw Git published the exact five-file scope as
+  `bae8ff6b1e5d7e14a9002cd7fbba1ece101dc005`; exact local, fetched, and public
+  `main` plus all named published review preflight diagnostics passed.
+- The immediate gate is now the no-argument
+  `agent-ext20-rc12-builder-revalidation-v4-review.sh`. It may inspect only the
+  sealed persistent record and return a neutral accept/reject report. It must
+  not execute draft modes, change files, or create any continuation.
+- Favorable review alone still grants no builder publication, construction,
+  candidate, remote, suite, release, external-use, or `EXT-20` authority.
+  RC.12 remains unconsumed.
+
 ## Fourth Persistent Anonymous Design Accepted For Review (2026-07-30)
 
 - The fourth independently authored anonymous prospective builder design
