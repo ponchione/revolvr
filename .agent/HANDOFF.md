@@ -49,12 +49,21 @@ bytes, 146 lines, SHA-256
 `c0c187322fb4597b62666332ff8595296f81c59b8fb853a0ab24dc799a06f5e2`.
 It cannot execute any retained design mode and may start only a later fresh
 read-only review after this exact tracked record is independently inspected and
-published. It is not staged, committed, pushed, or executed in this pass.
+published. It was not staged, committed, pushed, or executed during the
+validation pass.
+
+Independent controller inspection accepted the complete manifest, sequence
+tuples, canonical EOF, v5 preservation, sealed identities, source boundary,
+remote collisions, and the review launcher's single Codex/zero-design-exec
+boundary. Raw Git published the five-file record as
+`bb68b8016646e571bff1711f66dd81ff5ede5e7d` (`Record accepted RC.13 v6
+validation`). Local, fetched, and public `main` matched exactly. The clean
+published review launcher's `--preflight-only` path passed without executing a
+design mode.
 
 ### Next Gate
 
-First independently inspect and raw-Git publish only the bounded tracked
-record. After exact local and public `main` match, run:
+From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
 ./agent-ext20-rc13-builder-revalidation-v6-review.sh

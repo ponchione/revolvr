@@ -28,10 +28,13 @@
 - Inert tracked-path review launcher
   `agent-ext20-rc13-builder-revalidation-v6-review.sh` is the sole proposed
   next gate after independent controller inspection and raw-Git publication.
-  It may only produce a read-only accept/reject recommendation and cannot
-  execute retained design modes or create continuation. A favorable review
-  still requires a new explicit operator decision before any builder
-  publication or construction authority. `EXT-20` remains unchecked.
+  Raw Git published the accepted record as
+  `bb68b8016646e571bff1711f66dd81ff5ede5e7d`; exact local, fetched, and public
+  `main` plus the launcher's non-executing preflight passed. It may only
+  produce a read-only accept/reject recommendation and cannot execute retained
+  design modes or create continuation. A favorable review still requires a
+  new explicit operator decision before any builder publication or
+  construction authority. `EXT-20` remains unchecked.
 
 ## Prospective RC.13 V5 Validation Is Rejected (2026-07-30)
 

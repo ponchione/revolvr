@@ -363,8 +363,10 @@
     `0cd5ef032c89cf7be7a6872df665deb8d28481ee3beb80203473909cbdefbf41`.
     No design full mode or product command ran. Inert
     `agent-ext20-rc13-builder-revalidation-v6-review.sh` is prepared solely
-    for later read-only review after controller publication. RC.12 remains
-    terminal and EXT-20 remains incomplete.
+    for later read-only review after controller publication. Independent
+    controller inspection accepted and raw Git published that record as
+    `bb68b8016646e571bff1711f66dd81ff5ede5e7d`; its clean non-executing
+    preflight passed. RC.12 remains terminal and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

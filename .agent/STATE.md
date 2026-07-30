@@ -59,8 +59,16 @@
   `0755`, 9,215 bytes, 146 lines, SHA-256
   `c0c187322fb4597b62666332ff8595296f81c59b8fb853a0ab24dc799a06f5e2`.
   It was syntax/static checked but not executed, staged, committed, pushed, or
-  published. It cannot execute a retained design mode and may later launch
-  only a read-only independent review.
+  published during the validation pass. It cannot execute a retained design
+  mode and may later launch only a read-only independent review.
+- Independent controller inspection replayed all 12 manifest entries, both
+  passing sequence tuples, canonical EOF identity, sealed root stream and
+  inventory, rejected-v5 preservation, source/product and remote collision
+  boundaries, and review-launcher control flow. Raw Git committed and pushed
+  the five-file record as `bb68b8016646e571bff1711f66dd81ff5ede5e7d`
+  (`Record accepted RC.13 v6 validation`). Local, fetched, and public `main`
+  matched. Its clean `--preflight-only` path exited `0` without executing a
+  design mode.
 - Files changed: the sole ignored sealed v6 root, the inert review launcher,
   `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`, and
   `.agent/DECISIONS.md`. No product source, dependency, builder, candidate,
@@ -74,11 +82,9 @@
   sealed-root stream/inventory verification; review-launcher syntax/static
   checks; and `git diff --check`. Product tests/builds and full construction
   were expressly forbidden and did not run.
-- Result: **PASS for later independent read-only review only**. What remains is
-  independent controller inspection and raw-Git publication of this bounded
-  record, followed by
-  `./agent-ext20-rc13-builder-revalidation-v6-review.sh`. No blocker exists
-  within this task. No builder/construction/candidate authority exists.
+- Result: **PASS for later independent read-only review only**. Exact next
+  command is `./agent-ext20-rc13-builder-revalidation-v6-review.sh`. No blocker
+  exists within this task. No builder/construction/candidate authority exists.
 
 ## Prospective RC.13 Builder Validation Rejected (2026-07-30)
 
