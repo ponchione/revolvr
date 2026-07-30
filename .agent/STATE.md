@@ -1,5 +1,80 @@
 # Agent State
 
+## Prospective RC.13 Builder Validation Rejected (2026-07-30)
+
+- Task selected: the first unchecked backlog item, `EXT-20`, narrowed to the
+  explicitly authorized one-pass prospective RC.13 construction-design
+  validation. `EXT-20` remains unchecked.
+- Created exactly one ignored design/evidence root,
+  `.revolvr/prospective-builder-validation-v5.tL50Wc`. The independently
+  authored draft describes two shallow source fetches, isolated exact Go
+  environments and both verification matrices, vet/module/vulnerability
+  evidence, reproducible Linux/Darwin/FreeBSD amd64 builds, embedded metadata,
+  empty build IDs, post-seal inventories, manifests, and terminal `mkdir` plus
+  `cp -a source/. destination/.` publication with distinct-inode and complete
+  comparisons. Full mode and all product tests/builds remained unexecuted.
+- Re-established source commit
+  `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`, tree
+  `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, empty product-source diff,
+  exact Go 1.26.5/1.22.12 and govulncheck 1.1.4 identities, aggregate identities
+  for every surviving release-candidate and tracked EXT-20 history entry,
+  RC.12 builder/launcher/failure-review/manifest/stream identities, all named
+  terminal lost-root absences, and complete local/remote RC.12/RC.13 output
+  absences.
+- Sequence one failed in semantic cleanup after syntax passed: an EXIT trap
+  referenced function-local variables after return, leaving exact neutral root
+  `/tmp/revolvr-rc13-neutral.GqSd8U`. The sole permitted repair verified and
+  removed that owned non-symlink root, bound publication and status-regression
+  cleanup to stable probe identities, and made no historical or construction
+  change.
+- The post-repair sequence passed Bash syntax, successful and induced-failure
+  semantic publication/cleanup, full-context role/collision audit, focused
+  static audit, expected status-64 exact-self refusal, and forbidden identity/
+  residue audit. It failed available-history preservation because
+  `available-history-baseline.tsv` has one extra final newline: fresh output
+  ended at byte 863 line 10 while the baseline continued to byte 864 line 11.
+  The exact stranded comparison file was safely removed. Per the one-repair
+  rule, no further repair or sequence was attempted.
+- Files changed: ignored root
+  `.revolvr/prospective-builder-validation-v5.tL50Wc` plus tracked durable
+  `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`, and
+  `.agent/DECISIONS.md`. No Go source, dependency, historical builder,
+  candidate, workflow, ref, tag, suite, or release output changed. No review
+  launcher was created.
+- Verification commands: published
+  `./agent-ext20-rc13-builder-validation.sh --preflight-only`; exact source,
+  tool, history, RC.12 terminal, remote-collision, and absence reads;
+  `bash -n` for the prospective scripts; focused static audit; validation
+  sequence one; the sole neutral repair and cleanup audit; validation sequence
+  two; final forbidden-path and `/tmp` residue audit; and `git diff --check`.
+  Product tests/builds were expressly forbidden and were not run.
+- Result: **FAIL / BLOCKED**. Both complete sequences did not pass, so the v5
+  root is unsealed rejected evidence with no self-verifying final manifest.
+  At the end of that v5 pass, no
+  `agent-ext20-rc13-builder-validation-review.sh` or next gate existed.
+- Independent controller verification reproduced both failures without running
+  a draft mode: all scripts pass `bash -n`; the history baseline is 864 bytes,
+  11 lines, and ends in two newline bytes; its first 10 lines exactly equal the
+  canonical authority prefix; and no neutral/history/construction residue
+  remains. Rejected root identity is mode `0700`, 11 mode-`0600` regular files,
+  44,298 bytes, content stream
+  `6931b60c434205e2ce3130c119aa82750c117f8c947dd7c39f62b5011ddcb7e0`,
+  and complete inventory
+  `3f7403726cf59e3d02533deeb0c0f975e773adc0423e1f9a470eb30e5cf88cb5`.
+- Added inert `agent-ext20-rc13-builder-revalidation-v6.sh`, mode `0755`,
+  11,954 bytes, 182 lines, SHA-256
+  `9eec038f65be8c9f22d7000854f1eea654e3d56a0166f8f6a5b34d4b9efd429d`.
+  It freezes v5, requires clean published controller/history and complete
+  RC.13 collision absence, then may start only one independently authored v6
+  neutral-validation pass. Its two sequences must completely reach explicit
+  trap-lifetime, canonical-EOF, status-propagation, v5-preservation, and
+  accepted-byte gates.
+- Updated result: **v5 remains FAIL / BLOCKED; PASS for a separately authorized
+  v6 neutral revalidation gate only**. After raw-Git publication, exact next
+  command is `./agent-ext20-rc13-builder-revalidation-v6.sh`. Do not repair,
+  rerun, seal, derive from, or reuse v5. RC.12 stays terminal and `EXT-20`
+  stays incomplete.
+
 ## RC.12 Failure Review Accepted And RC.13 Prospective Gate Prepared (2026-07-30)
 
 - Task selected: verify the completed read-only RC.12 construction-failure

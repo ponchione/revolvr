@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## Prospective RC.13 V5 Validation Is Rejected (2026-07-30)
+
+- The sole authorized v5 prospective design root is
+  `.revolvr/prospective-builder-validation-v5.tL50Wc`. It is unsealed rejected
+  evidence, not a builder, candidate, construction design accepted for later
+  publication, or review authority.
+- Sequence one failed neutral cleanup because an EXIT trap outlived local probe
+  variables. The one permitted repair removed the exact safely verified
+  neutral residue and corrected both neutral cleanup lifetimes. The
+  post-repair sequence then failed history preservation because the retained
+  baseline contained one surplus terminal newline. No later repair is allowed.
+- Passing syntax, semantic publication/cleanup, role/collision, focused static,
+  exact-self-refusal, and forbidden-residue checks in the second sequence do
+  not substitute for two complete passing sequences or for the unexecuted
+  status-propagation regression. The design therefore cannot be sealed or
+  reviewed.
+- No RC.13 builder, construction launcher, candidate, construction/output
+  path, ref, tag, workflow, Actions artifact, release asset, suite, dogfood,
+  external-use decision, manifest, or review launcher exists. Independent
+  controller verification accepts the v5 rejection and freezes its exact
+  11-file, 44,298-byte stream and inventory as failed evidence.
+- The operator's next-gate direction separately authorizes only a fresh v6
+  anonymous prospective validation. It must independently author new bytes in
+  a new persistent root, preserve v5 exactly, and make trap lifetime,
+  canonical history EOF, no-collision status propagation, and full sequence
+  completion explicit gates. `agent-ext20-rc13-builder-revalidation-v6.sh` is
+  the sole next gate after raw-Git publication. It cannot create a builder or
+  candidate or grant construction, remote, suite, release, external-use, or
+  `EXT-20` authority. V5 must not be repaired, rerun, derived from, or reused;
+  RC.12 remains terminal.
+
 ## RC.12 Failure Accepted; Prospective RC.13 Validation Authorized (2026-07-30)
 
 - The completed independent review changed nothing. Controller replay accepts

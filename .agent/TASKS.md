@@ -325,7 +325,24 @@
     and one inert later review launcher. It cannot create or execute an RC.13
     builder or candidate. Raw Git published it as
     `9e9e8740686efd17991da38b17fbda1d5eaaff0d`, and its clean non-creating
-    preflight passed. RC.12 remains terminal and EXT-20 remains incomplete.
+    preflight passed. The prospective pass created the sole ignored root
+    `.revolvr/prospective-builder-validation-v5.tL50Wc`, but sequence one
+    failed in neutral cleanup when an EXIT trap outlived function-local probe
+    variables. The sole permitted repair removed the exact stranded neutral
+    root and corrected that cleanup lifetime. The post-repair sequence passed
+    syntax, both semantic publication/cleanup probes, full-context collision
+    checks, focused static audit, status-64 exact-self refusal, and forbidden-
+    residue checks, then failed available-history preservation because its
+    baseline contained one extra final newline. The later failure permits no
+    further repair. The root is unsealed rejected evidence; no manifest or
+    review launcher was created. Independent controller verification accepted
+    the rejection and froze the exact 11-file, 44,298-byte v5 identity. The
+    operator's new next-gate direction separately authorizes only
+    `agent-ext20-rc13-builder-revalidation-v6.sh`: one independently authored
+    persistent v6 design with two complete neutral sequences and explicit
+    cleanup-lifetime, canonical-EOF, status-propagation, v5-preservation, and
+    accepted-byte gates. It cannot create or execute an RC.13 builder or
+    candidate. RC.12 remains terminal and EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

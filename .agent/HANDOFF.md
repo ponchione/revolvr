@@ -4,6 +4,72 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The one authorized prospective RC.13 builder-design validation is complete
+and rejected. It created exactly one persistent ignored root,
+`/home/gernsback/source/revolvr/.revolvr/prospective-builder-validation-v5.tL50Wc`,
+without creating or executing an RC.13 builder, construction launcher,
+candidate, product test/build, full mode, remote identity, suite, dogfood, or
+release action.
+
+Validation sequence one failed during the successful neutral publication
+probe because its EXIT trap referenced function-local variables after scope
+exit. The exact stranded `/tmp/revolvr-rc13-neutral.GqSd8U` root was verified
+as owned, non-symlinked neutral residue and removed during the sole permitted
+repair. That repair bound publication and status-regression cleanup to stable
+probe identities. No historical byte or output identity changed.
+
+The post-repair sequence passed syntax, successful and induced-failure
+publication/cleanup probes, complete local/remote role and collision checks,
+focused static audit, expected status-64 exact-self refusal, and forbidden-
+identity/residue audit. It then failed history preservation: fresh measurement
+was 863 bytes and 10 lines, while the retained baseline was 864 bytes and 11
+lines because it had one extra final newline. The exact temporary comparison
+file was safely removed. The status-propagation regression and terminal
+accepted-byte check were not reached.
+
+Because both complete sequences did not pass and the second failure occurred
+after the sole repair, no further repair, rerun, sealing, manifest, or review
+launcher is permitted for this root. It is unsealed rejected evidence only.
+`agent-ext20-rc13-builder-validation-review.sh` does not exist. RC.12 remains
+terminal and `EXT-20` remains unchecked.
+
+Independent controller verification accepted that rejection after proving the
+two recorded failure boundaries, syntax of all retained scripts, the surplus
+terminal newline, complete lack of neutral/construction residue, unchanged
+product source, and exact rejected-root identity: mode `0700`, 11 mode-`0600`
+regular files, 44,298 bytes, content stream
+`6931b60c434205e2ce3130c119aa82750c117f8c947dd7c39f62b5011ddcb7e0`,
+and inventory
+`3f7403726cf59e3d02533deeb0c0f975e773adc0423e1f9a470eb30e5cf88cb5`.
+Those bytes are now immutable failed evidence.
+
+The operator's next-gate direction authorizes only one fresh prospective v6
+validation. Added inert tracked launcher
+`agent-ext20-rc13-builder-revalidation-v6.sh`, mode `0755`, 11,954 bytes, 182
+lines, SHA-256
+`9eec038f65be8c9f22d7000854f1eea654e3d56a0166f8f6a5b34d4b9efd429d`.
+It preserves v5 exactly, rejects all RC.13 collisions, and starts one fresh
+Codex pass to independently author only a new persistent
+`.revolvr/prospective-builder-validation-v6.*` design. Both complete sequences
+must reach cleanup-lifetime, canonical-EOF, status-propagation, v5-preservation,
+and accepted-byte checks. It grants no builder or construction authority.
+
+### Next Gate
+
+After this rejection record and tracked v6 authorization are published on
+exact clean `main`, run from `/home/gernsback/source/revolvr`:
+
+```bash
+./agent-ext20-rc13-builder-revalidation-v6.sh
+```
+
+Do not rerun `agent-ext20-rc13-builder-validation.sh` or modify/reuse the v5
+root. The v6 command grants fresh neutral design validation only; it cannot
+create a builder, candidate, construction, remote, suite, dogfood, release,
+external-use, or `EXT-20` authority.
+
+## Previous Resume Point
+
 The operator completed the published no-argument
 `agent-ext20-rc12-construction-failure-review.sh` pass. As required, it left
 tracked and ignored state unchanged and created no RC.12 output. Independent
