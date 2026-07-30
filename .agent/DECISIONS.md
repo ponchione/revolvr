@@ -1,5 +1,52 @@
 # Agent Decisions
 
+## Fourth Persistent Anonymous Design Accepted For Review (2026-07-30)
+
+- The fourth independently authored anonymous prospective builder design
+  passed sequence one, used its one permitted neutral repair, and passed the
+  accepted sequence two with repaired bytes unchanged. Both accepted raw
+  status tuples were `0,0,0,0,64,0,0`.
+- Its sole reviewable authority is sealed persistent ignored root
+  `/home/gernsback/source/revolvr/.revolvr/prospective-builder-revalidation-v4.5pWwTx`,
+  mode `0500`, with 10 mode-`0444` files, 53,626 total bytes, verified
+  nine-entry manifest SHA-256
+  `f4cbe051d3b6cb13cb111b7374fb3d17c99e6f93979cb31853bbcd1db3da91c2`,
+  and complete content stream
+  `22e50f2dfc7ce0f0e935b080f567a0527b7e6a943234241161977c78fdaa9cd8`.
+  The 38,528-byte, 756-line draft SHA-256 is
+  `dfa46ae7c21cb238cf2191696de159aee19b4fe46c5a835b77a130acb583d90e`.
+- Former `/tmp` validation roots and other missing construction roots remain
+  terminal absences. Their durable summaries are requirements and historical
+  claims, never replacement bytes or authority. Recovery must not recreate,
+  reconstruct, or require those lost paths.
+- The accepted review design covers the four controller defects across its
+  initial design and sole neutral repair: post-seal inventory ordering, exact
+  and descendant runtime collision coverage, every applicable RC.6-RC.11
+  recorded absence, and all
+  candidate/verification/attestation Actions artifact names. Its role model
+  requires exact builder, tracked construction launcher, and sealed persistent
+  root only in full mode; validation/recovery launchers are permitted history,
+  while outputs and publication/runtime namespaces remain forbidden.
+- The sole repair preserved execute bits for retained build instructions and
+  binaries, made build-metadata tab matching exact, added still-applicable
+  RC.6/RC.7 absence guards, and verifies copied final manifests. No repair was
+  made after the accepted sequence two began.
+- Neutral copy publication and cleanup are accepted for later inspection:
+  writable construction, sealed two-level trees and mode-`0400` files, exact
+  destination `mkdir`, only `cp -a source/. destination/.`, complete identity
+  and distinct-inode checks, and exact depth-first cleanup after both success
+  and induced failure. No probe residue survives.
+- The full construction procedure is unexecuted design only. Its source,
+  verification, tool/environment, vulnerability, reproducibility, metadata,
+  manifest, post-seal inventory, and terminal `mkdir`/`cp -a` publication
+  requirements grant no construction authority.
+- Inert launcher `agent-ext20-rc12-builder-revalidation-v4-review.sh` is the
+  sole later review gate after separate controller review/publication. It may
+  return only a read-only accept/reject report, must not execute the draft, and
+  cannot create continuation authority. Even favorable review requires a new
+  explicit published builder/construction decision. RC.12 is unconsumed and
+  `EXT-20` remains unchecked.
+
 ## RC.12 Persistent Fourth-Validation Gate Published (2026-07-30)
 
 - Independent review and controller verification accepted the exact six-file

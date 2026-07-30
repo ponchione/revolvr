@@ -4,6 +4,79 @@ Updated: 2026-07-30
 
 ## Resume Point
 
+The fourth independently authored anonymous prospective RC.12 builder design
+passed sequence one, used its one permitted neutral repair, and passed the
+accepted sequence two with repaired bytes unchanged. Its sole retained
+evidence is persistent ignored root
+`/home/gernsback/source/revolvr/.revolvr/prospective-builder-revalidation-v4.5pWwTx`,
+mode `0500`. The root contains exactly 10 mode-`0444` regular files totaling
+53,626 bytes and no symlink or other entry.
+
+Draft `prospective-builder.sh` is 38,528 bytes, 756 lines, SHA-256
+`dfa46ae7c21cb238cf2191696de159aee19b4fe46c5a835b77a130acb583d90e`.
+Nine-entry manifest `evidence-manifest.tsv` is 902 bytes, SHA-256
+`f4cbe051d3b6cb13cb111b7374fb3d17c99e6f93979cb31853bbcd1db3da91c2`;
+every listed filename, mode, size, and SHA-256 passed. Complete root content-
+stream SHA-256 is
+`22e50f2dfc7ce0f0e935b080f567a0527b7e6a943234241161977c78fdaa9cd8`.
+
+Before sequence one, all embedded surviving RC.6-RC.11 counts, stream hashes,
+file identities, terminal/staged manifests, artifact hashes, exact tool
+identities, source commit/tree, product-source boundary, and applicable local/
+remote absence constants were remeasured. The former RC.8/RC.9 build roots,
+RC.11 anonymous draft, and all three former `/tmp` validation roots are absent
+and remain terminal lost evidence. They were neither recreated nor treated as
+authority.
+
+Both complete sequences returned raw statuses `0,0,0,0,64,0,0` for syntax,
+neutral admission, neutral full-context audit, focused static audit, expected
+no-argument exact-self refusal, forbidden identity/residue audit, and
+available-history preservation. After sequence one, the sole neutral repair
+preserved executable build instructions/binaries, corrected metadata matching,
+and completed applicable RC.6/RC.7 absence and final-manifest checks. Repaired
+draft bytes stayed unchanged throughout the accepted sequence two. Each
+neutral admission exercised both successful `mkdir`/`cp -a`
+publication and induced status-`73` pre-copy failure through two sealed nested
+levels with mode-`0400` files. Exact depth-first cleanup passed and left no
+`/tmp/revolvr-neutral-publication.*` residue.
+
+The unexecuted full design corrects all four controller concerns: inventories
+are captured only after final sealing; exact `.revolvr/ext20-rc12` and dotted/
+hyphen descendants are checked separately; every applicable RC.6-RC.11
+runtime/root/ref/tag/glob absence is retained; and candidate, verification,
+and attestation Actions artifact names are all checked. Full mode requires the
+exact read-only builder, tracked construction launcher, and this sealed root;
+it permits validation/recovery history and rejects output/collision roles.
+
+No builder, construction launcher, candidate, preflight/build/stage/diagnostic
+root, artifact, bundle, ref, workflow, tag, suite, launch record, product test/
+build, full mode, Revolvr/model operation, release, or external-use action was
+created or run. RC.12 remains unconsumed and `EXT-20` remains unchecked.
+
+Added inert review launcher
+`agent-ext20-rc12-builder-revalidation-v4-review.sh`, mode `0755`, 8,372 bytes,
+167 lines, SHA-256
+`b98e2b84c93d65beb805b96cb2b6b1bc28e69de145b1d7b51fe8fb072ae33a33`.
+Its named `--preflight-only` diagnostics all passed without executing the
+draft. It can later perform only a fresh read-only accept/reject review and
+cannot create continuation authority.
+
+### Next Gate
+
+First independently review and publish only this bounded tracked record with
+raw Git under separate operator authorization. Once the controller is clean
+and exact local, fetched, and public `main` agree, run exactly:
+
+```bash
+./agent-ext20-rc12-builder-revalidation-v4-review.sh
+```
+
+A favorable review remains non-authoritative. Any builder or construction
+launcher requires a separate published decision and new explicit operator
+authorization.
+
+## Previous Resume Point
+
 The published third-design review launcher was invoked on 2026-07-30. It
 fetched public `main` and then exited status `1` before `codex exec` because
 sealed root `/tmp/revolvr-builder-revalidation-v3.PKfbRl` no longer exists.

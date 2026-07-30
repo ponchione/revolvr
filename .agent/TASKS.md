@@ -288,16 +288,15 @@
 - [ ] EXT-20 — Execute the quantitative Level-1 real-Codex dogfood gate.
   - Current gate: RC.6 and RC.7 remain immutable failed live-attempt evidence;
     RC.8 through RC.11 remain immutable failed local-construction evidence and
-    no prior anonymous RC.12 draft may be reused. The third independently
-    authored design's sealed `/tmp` root disappeared before review; its
-    published launcher failed closed before `codex exec`, and its hashes and
-    summaries cannot replace the lost bytes. Recovery preparation authorizes
-    a fourth independent design with evidence retained under persistent
-    ignored `.revolvr/` state. Independent review accepted the preparation,
-    raw Git published it as `70aefe61ccdf6c6c6359558c483f6f1d9efac393`,
-    and its clean published preflight passed. The next gate is
-    `agent-ext20-rc12-builder-revalidation-v4.sh`. RC.12 remains unconsumed,
-    no construction authority exists, and EXT-20 remains incomplete.
+    every missing former `/tmp` root is terminal lost evidence. The fourth
+    independently authored anonymous design passed sequence one, used its one
+    neutral repair, then passed sequence two with repaired bytes unchanged. It
+    is retained solely in sealed persistent ignored root
+    `.revolvr/prospective-builder-revalidation-v4.5pWwTx` and grants only later
+    read-only review. After separate controller review/publication, the next
+    gate is `agent-ext20-rc12-builder-revalidation-v4-review.sh`. RC.12 remains
+    unconsumed, no builder or construction authority exists, and EXT-20
+    remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

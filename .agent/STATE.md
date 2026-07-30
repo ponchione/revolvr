@@ -1,5 +1,91 @@
 # Agent State
 
+## Fourth Persistent Prospective RC.12 Revalidation Passed (2026-07-30)
+
+- Task selected: exactly one bounded EXT-20 pass to independently author and
+  neutrally validate a fourth anonymous prospective builder design after the
+  third design's volatile evidence disappeared. No `gh`, commit, push,
+  builder, construction launcher, candidate, preflight/build/stage/diagnostic
+  root, artifact, bundle, ref, workflow, tag, suite, launch record, product
+  test/build, full mode, Revolvr/model operation, release, or external-use
+  action occurred. RC.12 remains unconsumed and `EXT-20` remains unchecked.
+- Created sole retained persistent ignored evidence root
+  `/home/gernsback/source/revolvr/.revolvr/prospective-builder-revalidation-v4.5pWwTx`,
+  sealed mode `0500`. It has exactly 10 mode-`0444` regular files totaling
+  53,626 bytes, with no symlink or special entry. Draft
+  `prospective-builder.sh` is 38,528 bytes, 756 lines, SHA-256
+  `dfa46ae7c21cb238cf2191696de159aee19b4fe46c5a835b77a130acb583d90e`.
+  Nine-entry, 902-byte `evidence-manifest.tsv` has SHA-256
+  `f4cbe051d3b6cb13cb111b7374fb3d17c99e6f93979cb31853bbcd1db3da91c2`;
+  every entry's exact mode, size, and hash passed. Complete root content-stream
+  SHA-256 is
+  `22e50f2dfc7ce0f0e935b080f567a0527b7e6a943234241161977c78fdaa9cd8`.
+- Before sequence one, read-only remeasurement matched all embedded surviving
+  RC.6/RC.7 suite, launch, and terminal counts/streams; both terminal manifest
+  pairs; RC.8/RC.9 builders and diagnostics; RC.9 preflight/stage/candidate/
+  verification counts, streams, manifests, and artifact hashes; RC.10/RC.11
+  builders; pinned tools; source commit/tree; empty product-source diff; and
+  applicable local/raw-Git remote absence constants. The missing RC.8/RC.9
+  build roots, RC.11 anonymous draft, and former validation roots
+  `/tmp/revolvr-builder-validation.maYqgv`,
+  `/tmp/revolvr-builder-revalidation.CSGs5E`, and
+  `/tmp/revolvr-builder-revalidation-v3.PKfbRl` were explicitly recorded as
+  terminal absences and were not recreated or reconstructed.
+- Both complete validation sequences returned raw status tuple
+  `0,0,0,0,64,0,0` for `bash -n`, `--neutral-admission`,
+  `--neutral-full-context-audit`, focused static audit, expected no-argument
+  exact-self refusal, forbidden-identity/residue audit, and available-history
+  preservation. Sequence one passed; the one allowed neutral repair preserved
+  executable build instructions/binaries, corrected tab-exact metadata
+  matching, and added applicable RC.6/RC.7 absence and final copied-manifest
+  checks. The accepted sequence two passed with repaired draft SHA-256
+  unchanged throughout.
+- Each semantic admission exercised successful `mkdir` plus `cp -a source/.
+  destination/.` and induced status-`73` pre-copy failure. Both paths used two
+  sealed nested levels containing mode-`0400` files. Cleanup accepted only its
+  active exact `/tmp/revolvr-neutral-publication.XXXXXX` root, rejected unsafe
+  entries, restored owner write permission to every directory depth-first,
+  deleted only that tree depth-first, proved absence, and never hid cleanup
+  status. Inventories, bytes, modes, single links, distinct inodes, no
+  symlinks, and zero residue all passed.
+- The unexecuted full-context design requires and hashes the exact read-only
+  builder, separately tracked construction launcher, and this sealed root;
+  permits tracked validation and recovery history; and rejects actual
+  candidate/verification, post-candidate review, local/remote publication,
+  construction, runtime, suite, and launch collisions. It captures inventories
+  after final sealing, checks exact `.revolvr/ext20-rc12` plus dotted/hyphen
+  descendants, preserves every applicable RC.6-RC.11 absence, and checks all
+  three candidate/verification/attestation Actions artifact names.
+- The unexecuted construction design retains two non-local shallow exact-
+  source fetches at commit `a24804bcf2a32ee5434d3686eabad5b72d9f39ba`
+  and tree `2c8ee9f6b4283410547a9f99972e25eac06c9e33`, excluding later controller
+  objects/launchers; executable build instructions; source/controller/tool/
+  environment identities; both Go ordinary/race/vet/module matrices; ordinary
+  and verbose vulnerability results; reproducibility; exact target/CGO/VCS/
+  build-ID metadata; and complete manifests/inventories/hashes. Final
+  publication is terminal `mkdir`, appeared-state assignment only after
+  success, `cp -a`, sealed-mode restoration, and complete post-seal stage/final
+  equality, link, distinct-inode, and extra-entry checks, with no final-path
+  cleanup or rename/link/symlink fallback after appearance.
+- Added inert
+  `agent-ext20-rc12-builder-revalidation-v4-review.sh`, mode `0755`, 8,372
+  bytes, 167 lines, SHA-256
+  `b98e2b84c93d65beb805b96cb2b6b1bc28e69de145b1d7b51fe8fb072ae33a33`.
+  Its explicit named `--preflight-only` diagnostics passed without executing
+  the draft or creating authority. It permits only a later read-only neutral
+  report after controller publication and cannot create continuation.
+- Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
+  `.agent/DECISIONS.md`, new tracked review launcher
+  `agent-ext20-rc12-builder-revalidation-v4-review.sh`, and ignored sealed
+  evidence root above. Verification commands: presequence syntax/static audit;
+  complete read-only historical remeasurement and manifest checks; two full
+  neutral sequences; final root manifest/mode/count/size/hash/stream checks;
+  review-launcher `bash -n` and `--preflight-only`; and `git diff --check`.
+  Product `go test ./...` was not run because the task expressly forbids
+  product tests/builds and changes no Go source. Result: **PASS for independent
+  review only**. No blocker exists in this gate. What remains is separately
+  authorized controller publication and then the inert read-only review.
+
 ## RC.12 Persistent Recovery Review And Publication (2026-07-30)
 
 - The operator completed the fresh recovery-review launcher. It left the exact
