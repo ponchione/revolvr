@@ -375,8 +375,10 @@
     publication is `agent-ext20-rc13-builder-revalidation-v7.sh`, authorizing
     only one independently authored persistent v7 neutral design with two
     complete sequences and explicit role, self-authority, root-sealing, and
-    post-final-retention probes. RC.13 remains unconsumed, RC.12 remains
-    terminal, and EXT-20 remains incomplete.
+    post-final-retention probes. Raw Git published it with the v6 rejection as
+    `4b90b5b511168034a890468a3336b71806c87300`, and its clean non-creating
+    preflight passed. RC.13 remains unconsumed, RC.12 remains terminal, and
+    EXT-20 remains incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

@@ -19,9 +19,11 @@
   terminal retention after final-path appearance. Two complete sequences are
   mandatory.
 - `agent-ext20-rc13-builder-revalidation-v7.sh` is the sole next gate after
-  raw-Git publication. It cannot create a builder or candidate or grant
-  construction, remote, suite, dogfood, release, external-use, or `EXT-20`
-  authority.
+  raw-Git publication. Raw Git published it with the v6 rejection as
+  `4b90b5b511168034a890468a3336b71806c87300`; exact local, fetched, and public
+  `main` plus its non-creating preflight passed. It cannot create a builder or
+  candidate or grant construction, remote, suite, dogfood, release,
+  external-use, or `EXT-20` authority.
 
 ## Prospective RC.13 V6 Design Is Accepted For Read-Only Review Only (2026-07-30)
 

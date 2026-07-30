@@ -37,10 +37,16 @@ sealing/copy comparison, and post-final terminal evidence retention. Both
 complete sequences must exercise those corrections without constructing an
 RC.13 identity.
 
+Raw Git published the five-file v6 rejection and v7 authorization as
+`4b90b5b511168034a890468a3336b71806c87300` (`Reject RC.13 v6 builder
+design`). Local, fetched, and public `main` matched exactly. The clean v7
+`--preflight-only` path replayed exact v6 preservation/rejection facts and all
+RC.13 absence guards, then stopped without creating a design, builder, or
+candidate.
+
 ### Next Gate
 
-After this rejection and v7 authorization are published on exact clean `main`,
-run from `/home/gernsback/source/revolvr`:
+From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
 ./agent-ext20-rc13-builder-revalidation-v7.sh

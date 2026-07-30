@@ -39,6 +39,11 @@
   root directories in sealing/inventory/copy equality; and retain all evidence
   after any final path appears. Neutral full-role and post-first-final probes
   plus two complete sequences are required.
+- Raw Git committed and pushed the five-file v6 rejection and v7 authorization
+  as `4b90b5b511168034a890468a3336b71806c87300` (`Reject RC.13 v6 builder
+  design`). Local, fetched, and public `main` matched exactly. The clean
+  published v7 `--preflight-only` path exited `0` without creating a design,
+  builder, or candidate.
 - Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
   `.agent/DECISIONS.md`, and the new inert v7 launcher. No product source,
   dependency, ignored evidence, builder, candidate, or remote state changed.
@@ -49,9 +54,9 @@
   and `git diff --check`. Product tests/builds and all design modes were not
   run.
 - Result: **V6 REJECTED for builder publication; PASS for fresh v7 neutral
-  revalidation authorization only**. After raw-Git publication, exact next
-  command is `./agent-ext20-rc13-builder-revalidation-v7.sh`. RC.13 remains
-  unconsumed and `EXT-20` remains unchecked.
+  revalidation authorization only**. Exact next command is
+  `./agent-ext20-rc13-builder-revalidation-v7.sh`. RC.13 remains unconsumed and
+  `EXT-20` remains unchecked.
 
 ## Prospective RC.13 V6 Builder Design Accepted For Read-Only Review (2026-07-30)
 
