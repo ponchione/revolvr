@@ -37,10 +37,15 @@ identity, then may start one fresh read-only independent review. Favorable
 review grants no construction or continuation authority. `EXT-20` remains
 unchecked.
 
+Raw Git published the five-file terminal failure record as
+`cfee541546da35ea60eac102996691f144279e4f` (`Record terminal RC.12
+construction failure`). Local, fetched, and public `main` matched exactly. The
+clean published launcher's `--preflight-only` path passed every guard without
+executing the builder or construction launcher.
+
 ### Next Gate
 
-After this failure record is published on exact clean `main`, run from
-`/home/gernsback/source/revolvr`:
+From `/home/gernsback/source/revolvr`, run exactly:
 
 ```bash
 ./agent-ext20-rc12-construction-failure-review.sh

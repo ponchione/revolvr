@@ -14,11 +14,13 @@
   absent. The failure is builder control flow, not product or environment
   evidence.
 - `agent-ext20-rc12-construction-failure-review.sh` is the sole next gate after
-  controller publication. It may verify and independently review only this
-  immutable terminal record; it cannot execute any RC.12 identity or create
-  continuation. A future candidate requires a fresh collision-free identity,
-  separate controller decision, and explicit operator authority. `EXT-20`
-  remains unchecked.
+  controller publication. Raw Git published the terminal record as
+  `cfee541546da35ea60eac102996691f144279e4f`; exact local, fetched, and public
+  `main` plus the launcher's non-executing preflight passed. The launcher may
+  verify and independently review only this immutable terminal record; it
+  cannot execute any RC.12 identity or create continuation. A future candidate
+  requires a fresh collision-free identity, separate controller decision, and
+  explicit operator authority. `EXT-20` remains unchecked.
 
 ## RC.12 Exact Builder And Construction Launcher Published (2026-07-30)
 

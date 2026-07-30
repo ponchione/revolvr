@@ -313,8 +313,10 @@
     construction outputs remain absent, but the one-shot rule consumes RC.12
     and forbids retry or repair. The sole next gate after controller
     publication is read-only independent failure review via
-    `agent-ext20-rc12-construction-failure-review.sh`. RC.12 is terminal and
-    EXT-20 remains incomplete.
+    `agent-ext20-rc12-construction-failure-review.sh`. Raw Git published that
+    record as `cfee541546da35ea60eac102996691f144279e4f`, and its clean
+    non-executing preflight passed. RC.12 is terminal and EXT-20 remains
+    incomplete.
   - Acceptance: The exact candidate completes at least 10 real-Codex task
     operations across at least two disposable external repositories, including
     at least five successful source changes and the production scenarios for

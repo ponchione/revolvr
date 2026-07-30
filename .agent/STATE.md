@@ -30,6 +30,11 @@
   collisions, and the status mechanism without executing the builder or
   construction launcher. Its no-argument path may start only one fresh
   read-only independent review and cannot create continuation.
+- Raw Git committed and pushed the five-file terminal failure record as
+  `cfee541546da35ea60eac102996691f144279e4f` (`Record terminal RC.12
+  construction failure`). Local, fetched, and public `main` matched. The clean
+  published review launcher's `--preflight-only` path exited `0` without
+  executing the builder or construction launcher.
 - Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, `.agent/STATE.md`,
   `.agent/DECISIONS.md`, and the new inert review launcher. No Go source,
   dependency, ignored builder, sealed evidence, or runtime output changed.
@@ -41,8 +46,7 @@
   `git diff --check`. Product tests/builds were not run because no product code
   changed and RC.12 construction may not be retried.
 - Result: **BLOCKED; RC.12 terminally failed before construction-root
-  creation**. `EXT-20` remains unchecked. After controller publication, the
-  exact next command is
+  creation**. `EXT-20` remains unchecked. The exact next command is
   `./agent-ext20-rc12-construction-failure-review.sh`; it grants read-only
   review only.
 
