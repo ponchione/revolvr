@@ -4,6 +4,63 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+RC.18 exact-source remote CI passed without preparing a quantitative suite or
+starting a model call. Clean local, fetched, raw-Git, and public `main` agree at
+published candidate-record commit
+`cbd54e2dac36a0ca7ba1254be036237118a7e27f`.
+
+Public push-triggered CI run `30641614557`, number `144`, attempt `1`, completed
+successfully for exact RC.18 source commit
+`0bed41ef930e7db3d0486bc9a82de2b5720fe49f`:
+
+```text
+https://github.com/ponchione/revolvr/actions/runs/30641614557
+```
+
+The run contained exactly all ten mandatory jobs. Every job completed
+successfully with the exact source SHA and one successful
+`Report exact source commit` step. The source's public and local tree is
+`cfb4852f07ba4e7759d94cc2890fbaa2c47bec0f`, and its candidate-workflow bytes
+still hash to
+`2a7ff48266b9bf3601b7f05ffef58fd36db0033a2afe2537c46043a3e69472e9`.
+
+Post-CI workflow `--verify`, suite `--static`, direct strict complete-manifest,
+topology, source/workflow, embedded-metadata, empty-build-ID, and RC.15/RC.16/
+RC.17 preservation checks all passed. The exact RC.18 authority remains:
+
+```text
+/home/gernsback/source/revolvr/.revolvr/release-candidates/level1-v0.1.0-rc.18-0bed41ef930e/candidate-authority.tsv
+06d8e10e6de5e0ce0774afebc0d49dc543af6334ddba0a175517329729e024ef
+```
+
+`EXT-20` remains unchecked.
+
+Follow-up operator review independently queried GitHub's public REST API,
+confirmed the sole exact-source run and all ten job identities with exactly one
+successful source-reporting step each, and replayed the read-only workflow,
+suite-static, strict manifest, reproducibility, embedded-metadata, empty-build-
+ID, topology, source/workflow identity, and RC.15/RC.16/RC.17 preservation
+checks. All passed, including `git diff --check`; no suite or model operation
+occurred. The operator explicitly authorized raw-Git commit and push of this
+exact three-file remote-CI record.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may prepare and execute only one fresh collision-free quantitative
+Level-1 real-Codex suite against the exact RC.18 candidate authority above. It
+must preserve RC.15, RC.16, RC.17, RC.18, and all failed historical evidence;
+validate every produced manifest and required scenario; and stop after this
+one remaining `EXT-20` stage. It must not construct another candidate, create
+a top-level wrapper, tag, release, external-use decision, queue, or daemon.
+
+## Previous Resume Point
+
 Exactly one new source-qualified candidate was constructed and independently
 verified from clean published audit-citation repair commit
 `0bed41ef930e7db3d0486bc9a82de2b5720fe49f`, tree

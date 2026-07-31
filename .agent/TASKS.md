@@ -420,9 +420,19 @@
     Its complete manifest, floor/current/race/module/vet/vulnerability matrix,
     supported builds, embedded metadata, empty build IDs, and two-clone byte
     comparisons pass. The suite's read-only static gate passed without fixture
-    preparation or a model call. What remains is exact push-triggered remote CI
-    for the RC.18 source before a separate fresh quantitative suite may start.
-    Follow-up operator review replayed both read-only gates, accepted the exact
+    preparation or a model call. Exact push-triggered CI run `30641614557` on
+    source commit `0bed41ef930e7db3d0486bc9a82de2b5720fe49f` then passed all
+    ten mandatory jobs, with every job's exact-source reporting step
+    successful. Post-CI candidate, suite-static, manifest, topology, source/
+    workflow identity, and RC.15/RC.16/RC.17-preservation checks also passed.
+    No fixture, quantitative suite, or model call occurred. Follow-up remote-CI
+    review independently confirmed the sole exact-source run, all ten jobs and
+    source-reporting steps, replayed all post-CI candidate and preservation
+    checks, and explicitly authorized raw-Git publication of the three-file
+    remote-CI record. What remains is a separate fresh collision-free
+    quantitative Level-1 real-Codex suite against only this exact RC.18
+    authority. Follow-up operator review of candidate construction replayed
+    both read-only gates, accepted the exact
     bundle and retained test/vulnerability evidence, confirmed RC.15/RC.16/
     RC.17 preservation, and explicitly authorized raw-Git publication of the
     three-file candidate record.
