@@ -1,5 +1,70 @@
 # Agent State
 
+## RC.16 Exact-Source Remote CI Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to the separately
+  authorized remote-CI evidence gate for exact RC.16 source commit
+  `2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9`. This was the sole task; no
+  quantitative suite was prepared and no model call occurred. `EXT-20`
+  remains unchecked.
+- Clean local `main`, refreshed `origin/main`, and raw-Git remote `main` agreed
+  at published candidate-record commit
+  `568b14b89c0358f3f80437ae0f77a07c63535aa0`. The public GitHub commit API
+  returned the exact RC.16 source SHA, its tree remained
+  `a97c9d21d9a6fbb5eab5a5b0c0c2313944123ab4`, and that source is an ancestor
+  of the published candidate record.
+- Public GitHub Actions REST returned exactly one push-triggered `CI` run for
+  the source SHA: run `30632362941`, number `138`, attempt `1`, branch `main`,
+  status `completed`, conclusion `success`, created
+  `2026-07-31T12:54:25Z`, and updated `2026-07-31T12:57:57Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30632362941`.
+- The run contained exactly the ten mandatory unique jobs. Every job had the
+  exact RC.16 source SHA, completed successfully, and had a successful
+  `Report exact source commit` step:
+  - `91161517081` — Go 1.22 source floor and tests
+  - `91161516903` — Production autonomous strict-fake suite
+  - `91161516993` — Race tests
+  - `91161516902` — Vet and module verification
+  - `91161516909` — Fake-Codex success smoke
+  - `91161517006` — Fake-Codex verification-failure smoke
+  - `91161517116` — Build linux/amd64
+  - `91161517030` — Build darwin/amd64
+  - `91161517084` — Build freebsd/amd64
+  - `91161517027` — Build Windows diagnostic stub
+- Post-CI verification replayed the reusable candidate workflow's read-only
+  `--verify` mode and the dogfood suite's read-only `--static` mode against
+  candidate-authority SHA-256
+  `a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf`.
+  Direct complete-manifest verification passed. The bundle remained exactly 48
+  regular single-link files and 137,821,064 bytes, with no symlink, hard link,
+  or residual `.work` root. The Linux candidate remained
+  `747d4580dbcdebf0c4bbed9e80734bc19b3df9b087b8bd751c47ee8eac8059bf`.
+  RC.15's candidate authority and failed-operation manifest also remained
+  exact and immutable.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/HANDOFF.md`. `.agent/DECISIONS.md` was unchanged because no
+  implementation or architecture decision changed. No product, dependency,
+  candidate, historical evidence, remote ref, tag, workflow, suite root,
+  release, or external-use decision changed.
+- Verification commands: required durable-state reads; clean worktree and
+  local/fetched/raw-Git/public commit and tree checks; exact GitHub Actions
+  run-count/run-identity/job-set/job-source-step assertions through the public
+  REST API; candidate workflow `--verify`; suite `--static`; direct
+  `sha256sum -c`; candidate authority, manifest, artifact, workflow, file,
+  byte, link, and work-root checks; RC.15 preservation checks; and
+  `git diff --check`.
+- Follow-up operator review independently repeated the public REST run and job
+  assertions, including all ten successful exact-source reporting steps;
+  replayed both read-only candidate gates, strict complete-manifest and bundle
+  topology checks, exact source/workflow identity, and RC.15 preservation; and
+  passed `git diff --check`. No model call or suite preparation occurred. The
+  operator explicitly authorized raw-Git commit and push of the exact
+  three-file durable record.
+- Result: **PASS for the RC.16 exact-source remote-CI sub-gate**. What remains
+  is a separate fresh pass preparing and executing a new collision-free
+  quantitative Level-1 real-Codex suite against only this exact RC.16
+  authority. There is no blocker for that next gate.
+
 ## RC.16 Candidate Constructed And Independently Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to construction

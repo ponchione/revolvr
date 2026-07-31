@@ -338,11 +338,19 @@
     supported builds, embedded metadata, empty build IDs, and two-clone byte
     comparisons pass. Independent review replayed the workflow and suite-static
     gates, accepted the exact bundle, and the operator explicitly authorized
-    raw-Git publication of its durable record. A separate later pass must
-    obtain exact remote evidence for RC.16 before starting a fresh quantitative
-    suite root. Retired wrappers remain recoverable from Git history only.
-    Ignored `.revolvr/` evidence is preserved and is not governed by wrapper-
-    retention policy.
+    raw-Git publication of its durable record. Exact push-triggered CI run
+    `30632362941` on source commit
+    `2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9` then passed all ten mandatory
+    jobs, with every job's exact-source reporting step successful. Post-CI
+    candidate, suite-static, manifest, topology, and RC.15-preservation checks
+    also passed. Independent operator review repeated those exact remote and
+    local assertions and explicitly authorized raw-Git publication of the
+    three-file durable record. A separate later pass must start the fresh
+    RC.16 quantitative suite root; this remote-only pass did not prepare a
+    suite or call Codex.
+    Retired wrappers remain recoverable from Git history only. Ignored
+    `.revolvr/` evidence is preserved and is not governed by wrapper-retention
+    policy.
   - Historical gate record (non-operative): RC.6 and RC.7 remain immutable
     failed live-attempt evidence;
     RC.8 through RC.12 remain immutable failed local-construction evidence and

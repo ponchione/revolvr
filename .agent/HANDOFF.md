@@ -4,6 +4,55 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+The RC.16 exact-source remote-CI gate passed without preparing a quantitative
+suite or calling Codex. Clean local, fetched, and raw-Git `main` agreed at
+published candidate-record commit
+`568b14b89c0358f3f80437ae0f77a07c63535aa0`. Public GitHub Actions run
+`30632362941` is the sole push-triggered `CI` run for exact candidate source
+`2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9`; it completed successfully with
+all ten mandatory unique jobs, and every job's exact-source reporting step
+passed:
+
+```text
+https://github.com/ponchione/revolvr/actions/runs/30632362941
+```
+
+Post-CI candidate workflow verification, suite-static verification, the
+complete manifest, bundle topology, exact Linux artifact, workflow identity,
+and RC.15 preservation all passed. The sole admitted candidate authority
+remains:
+
+```text
+/home/gernsback/source/revolvr/.revolvr/release-candidates/level1-v0.1.0-rc.16-2be1c7831d5d/candidate-authority.tsv
+a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf
+```
+
+`EXT-20` remains unchecked because its quantitative threshold has not run.
+
+Follow-up operator review independently confirmed the sole exact-source run,
+all ten job identities and successful source-reporting steps through GitHub's
+public REST API; replayed both read-only candidate gates, the complete bundle
+manifest and topology checks, exact source/workflow identity, and RC.15
+preservation; and passed `git diff --check`. The operator explicitly authorized
+raw-Git commit and push of the exact three-file durable record.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may create one fresh collision-free quantitative suite root and run
+the Level-1 real-Codex gate using only the exact RC.16 authority above. It must
+not reuse or modify the failed RC.15 suite, construct another candidate, or
+create a tag, release, or external-use decision. It may mark `EXT-20` complete
+only if every quantitative acceptance and manifest-verification threshold
+passes.
+
+## Previous Resume Point
+
 The planning-state repair is clean and published at exact local, fetched,
 raw-Git, and public-REST `main` commit
 `2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9`, tree
