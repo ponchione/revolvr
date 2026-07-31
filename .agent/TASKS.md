@@ -456,7 +456,20 @@
     authorized raw-Git publication of the six-file repair record. A later
     source-qualified candidate must repeat construction, independent
     verification, and exact remote CI before any new quantitative suite may
-    start.
+    start. One new source-qualified candidate,
+    `level1-v0.1.0-rc.19-1285fe1fcdb3`, was constructed and independently
+    verified from clean published planner-citation repair commit
+    `1285fe1fcdb3da15c28f5dbf45ab98f9167215e6`, with authority SHA-256
+    `5c6191a6276c91ba2b802c90c7fbb3270602d750a2c5dd44130a6749d0ef1ffb`.
+    Its complete manifest, floor/current/race/module/vet/vulnerability matrix,
+    supported builds, embedded metadata, empty build IDs, and two-clone byte
+    comparisons pass. The suite's read-only static gate passed without fixture
+    preparation or a model call. Follow-up operator review replayed both read-
+    only gates; confirmed the exact authority, complete topology, reproducible
+    builds, source metadata, retained test/vulnerability evidence, and RC.15–
+    RC.18 preservation; and explicitly authorized raw-Git publication of the
+    three-file candidate record. A separate fresh pass must obtain exact-source
+    remote CI before any new quantitative suite may start.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.

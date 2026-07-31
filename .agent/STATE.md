@@ -1,5 +1,80 @@
 # Agent State
 
+## RC.19 Candidate Constructed And Independently Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to construction
+  and independent verification of exactly one new source-qualified candidate
+  from the clean published planner-citation repair. This was the sole task; no
+  quantitative-suite preparation or live Codex started and `EXT-20` remains
+  unchecked.
+- Admission passed at clean local, `origin/main`, and remote `main` commit
+  `1285fe1fcdb3da15c28f5dbf45ab98f9167215e6`, tree
+  `ca363a63ce2491a7280a5b4d73a38241017b0340`. Workflow bytes at that commit
+  and in the worktree both hash to
+  `2a7ff48266b9bf3601b7f05ffef58fd36db0033a2afe2537c46043a3e69472e9`.
+  The exact admitted tools remained Go 1.22.12 SHA-256
+  `929407e69c08952cd944a7457ae4eb289078a35473dd5dad2179369db7c5a6ec`,
+  Go 1.26.5 SHA-256
+  `8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9`,
+  and `govulncheck@v1.1.4` SHA-256
+  `f66036976d8995fbed427315bb2d6b525e58ee5867e88f097709e62fe93b412f`.
+- The sole new output identity is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.19-1285fe1fcdb3`.
+  Construction and separate read-only workflow verification passed. Exact
+  candidate-authority SHA-256 is
+  `5c6191a6276c91ba2b802c90c7fbb3270602d750a2c5dd44130a6749d0ef1ffb`,
+  bundle-manifest SHA-256 is
+  `3c9b67673b9661f08250b8a6290300b13bba28203a71b06ebf9193eec3d976a7`,
+  and Linux candidate SHA-256 is
+  `029692ea14b28a0c3a20f58f744e2afe17b921c35382367acf43510d1defce2d`.
+- Linux, Darwin, and FreeBSD pass-one/pass-two SHA-256 values are respectively
+  `029692ea14b28a0c3a20f58f744e2afe17b921c35382367acf43510d1defce2d`,
+  `e4f303d4822794e4f152f1d2c2c963fe4832867284a95e620300220a794546ca`,
+  and `28bc1afc6c5d7a0792ef78cacfac6c482a5b4af22567944a88234d3cd61e2bef`;
+  every pair is byte-identical. The bundle has 48 regular single-link files,
+  137,829,370 bytes, no symbolic links, and no residual `.work` root.
+- Go 1.22/current ordinary tests, current race tests, module verification,
+  vet, ordinary and verbose vulnerability scans, supported builds, embedded
+  metadata checks, empty build IDs, strict complete-manifest verification,
+  and both independent build comparisons passed. Govulncheck retained the
+  uncalled Windows-only module finding `GO-2026-5024`; it found no reachable
+  or imported-package vulnerability. The dogfood suite's read-only static gate
+  also passed without fixture preparation or a model call.
+- RC.15, RC.16, RC.17, and RC.18 candidate authorities still hash to their
+  recorded `07172fbe...`, `a7ac0a73...`, `4909b90e...`, and `06d8e10e...`
+  identities, and their failed quantitative-operation manifests still hash to
+  their recorded `97804009...`, `e1f926a6...`, `93665a34...`, and
+  `6f217cbc...` identities.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/HANDOFF.md`, plus the ignored retained RC.19 candidate root.
+  `.agent/DECISIONS.md` is unchanged because no durable implementation or
+  architecture decision changed. No dependency, product source, commit, push,
+  tag, release, external-use decision, historical evidence, or remote ref was
+  changed.
+- Verification commands: required durable-state reads; clean worktree and
+  exact local/origin/remote source checks; source tree, workflow, tool,
+  version, disk, collision, and historical-preservation admission; the
+  reusable candidate workflow `--build` and separate `--verify` modes; the
+  dogfood suite `--static` mode; strict `sha256sum --check --strict`;
+  independent topology, artifact-pair, embedded-metadata, build-ID,
+  vulnerability, version-output, and historical-preservation checks; and
+  `git diff --check`.
+- Follow-up operator review replayed both read-only gates; independently
+  checked the exact authority and strict complete manifest, 48-file/
+  137,829,370-byte topology, all three byte-identical build pairs, empty build
+  IDs, embedded source metadata, version output, retained test/vulnerability
+  evidence, and RC.15/RC.16/RC.17/RC.18 preservation; and refreshed raw-Git
+  local/origin/remote source identity. All checks passed, including `git diff
+  --check`; no candidate, suite, model call, dependency, or historical evidence
+  changed. The operator explicitly authorized raw-Git commit and push of the
+  exact three-file candidate record.
+- Verification result: **PASS for the RC.19 candidate construction and
+  independent-verification sub-gate**. What remains is a separate fresh pass
+  obtaining and recording exact-source remote-CI evidence for source commit
+  `1285fe1f...`; only after that passes may another fresh pass prepare and
+  execute a collision-free quantitative Level-1 suite against this exact
+  RC.19 authority. There are no blockers for the remote-CI gate.
+
 ## RC.18 Quantitative Gate Failed; Planning-Citation Prompt Repair Passes (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining
