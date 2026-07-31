@@ -1,5 +1,32 @@
 # Agent Decisions
 
+## RC.20 Failed Level-1 Dogfood; Planning May Terminalize Pending Lifecycle (2026-07-31)
+
+- RC.20 remains a valid reproducibly constructed and remotely tested bundle,
+  but it failed the quantitative Level-1 gate and is permanently ineligible for
+  external-use approval. Its first live operation is immutable typed failure
+  evidence at `.revolvr/ext20-level1-rc20-quantitative-20260731`; it may not be
+  retried, removed, modified, relabeled, or combined with later candidate
+  evidence.
+- A planning revision may monotonically advance an existing pending or
+  in-progress plan step when the proposal preserves its exact ID and
+  description and supplies the lifecycle fields required by the proposed
+  status. It may terminally disposition an existing pending acceptance
+  criterion when it preserves the exact ID, requirement, and original source.
+  An earlier supervisor-decision source remains that criterion's durable origin
+  and is not replaced by the current planning decision.
+- Existing terminal plan steps and acceptance criteria remain immutable,
+  in-progress steps cannot regress to pending, new steps cannot begin terminal,
+  and newly introduced acceptance criteria still require an exact current task
+  or supervisor-decision origin. Revolvr does not infer lifecycle progress or
+  repair model output; the planner must return the complete exact successor and
+  the host validates it before persistence.
+- Because the repair changes prompt bytes and production validation behavior,
+  all later dogfood must use a new source-bound candidate that repeats
+  reproducible construction, independent verification, and exact remote CI.
+  RC.20 cannot be repaired in place and no later run may reuse its suite root
+  or operation identity.
+
 ## RC.19 Failed Level-1 Dogfood; Completion Requires Durable Plan Reconciliation (2026-07-31)
 
 - RC.19 remains a valid reproducibly constructed and remotely tested bundle,

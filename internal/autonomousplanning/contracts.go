@@ -286,11 +286,13 @@ func validatePlanRevision(previous, next autonomous.TaskPlan) error {
 		if prior.Description != step.Description {
 			return fmt.Errorf("step ID %q was reused for a materially different description", step.ID)
 		}
-		if !equalPlanStep(prior, step) {
-			return fmt.Errorf("existing step %q changed status, evidence, or rationale during planning", step.ID)
-		}
 		if terminalStep(prior.Status) {
+			if !equalPlanStep(prior, step) {
+				return fmt.Errorf("terminal step %q changed status, evidence, or rationale during planning", step.ID)
+			}
 			nextTerminalOrder = append(nextTerminalOrder, step.ID)
+		} else if prior.Status == autonomous.PlanStepStatusInProgress && step.Status == autonomous.PlanStepStatusPending {
+			return fmt.Errorf("existing step %q regressed from in_progress to pending during planning", step.ID)
 		}
 	}
 	if !slices.Equal(nextTerminalOrder, terminalOrder) {
@@ -308,11 +310,17 @@ func validateAcceptanceOrigins(previous, next []autonomous.AcceptanceCriterion, 
 		previousByID[criterion.ID] = criterion
 	}
 	for _, criterion := range next {
-		if prior, exists := previousByID[criterion.ID]; exists && !equalAcceptanceCriterion(prior, criterion) {
-			return fmt.Errorf("existing criterion %q changed requirement, origin, status, evidence, or rationale", criterion.ID)
-		}
 		if criterion.Source == nil {
 			return fmt.Errorf("criterion %q has no explicit origin", criterion.ID)
+		}
+		if prior, exists := previousByID[criterion.ID]; exists {
+			if prior.Requirement != criterion.Requirement || !equalEvidenceReferencePointers(prior.Source, criterion.Source) {
+				return fmt.Errorf("existing criterion %q changed requirement or origin", criterion.ID)
+			}
+			if prior.Status != autonomous.AcceptanceStatusPending && !equalAcceptanceCriterion(prior, criterion) {
+				return fmt.Errorf("terminal criterion %q changed status, evidence, or rationale", criterion.ID)
+			}
+			continue
 		}
 		switch {
 		case *criterion.Source == taskOrigin:
@@ -347,6 +355,13 @@ func equalAcceptanceCriterion(left, right autonomous.AcceptanceCriterion) bool {
 		return left.Source == right.Source
 	}
 	return *left.Source == *right.Source
+}
+
+func equalEvidenceReferencePointers(left, right *autonomous.EvidenceReference) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func MarshalPlanningOutput(output PlanningOutput) ([]byte, error) {

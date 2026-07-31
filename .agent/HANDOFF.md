@@ -4,6 +4,70 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+RC.20 terminally failed the quantitative Level-1 gate. Read-only admission,
+static verification, and preparation passed against authority SHA-256
+`6e722fcc7b28cab0af190c9febc5d13d9655adbf1883b954f55f737c5000b627`.
+The retained suite root is
+`.revolvr/ext20-level1-rc20-quantitative-20260731`, suite ID
+`ext20-791fbad09b76`.
+
+The first live operation, `ext20-791fbad09b76-01`, completed initial planning,
+implementation, configured verification, one run-owned source commit, and
+checkpoint advancement. The next supervisor correctly routed a planner to
+reconcile still-pending durable plan steps and acceptance criteria. The planner
+returned exact evidence-backed terminal dispositions, but planning application
+stopped `unsafe_or_ambiguous` because its revision validator prohibited every
+status/evidence change to an existing pending criterion. It would likewise have
+prohibited the pending plan-step transitions and rejected unchanged criteria
+whose durable source was an earlier supervisor decision.
+
+The exact verified manifest is
+`evidence/repo-a/01-successful-source-change-1/manifest.tsv`, SHA-256
+`a4b21d8bce1aae9d0491f5e7b125190e8cf95f784c0e72eb1a591e11ebeb02b4`.
+The terminal-operation SHA-256 is
+`107603722ffa30753a96aa31c150bb916f9b520e69ab72420c3ba15e40924385`.
+Control HEAD, outside sentinel, candidate, Codex, and approved configuration
+are unchanged; every ledger, replay, receipt, and manifest validation passes.
+No later operation started and no aggregate exists. RC.15 through RC.20 and all
+prior evidence remain exact. RC.20 cannot be retried or used for approval.
+
+The single repair allows only monotonic pending/in-progress plan-step progress
+and pending-criterion terminal disposition, while preserving exact stable
+identity/origin fields and keeping every terminal entry immutable. The planner
+prompt now states the same contract. Focused normal/race tests and the full Go
+suite pass. The retained operation also consumed 1,032,842 model tokens against
+the 1,000,000 bound before planning application failed; the repair does not
+change that bound, and a later candidate must prove bounded progress.
+
+Follow-up operator review replayed candidate `--verify`, suite `--static`,
+collector manifest verification, strict full-file hashes, exact terminal
+operation, containment, identity, ledger/receipt, token-bound, and
+RC.15-through-RC.20 preservation assertions. It inspected the pending durable
+state, exact evidence-backed proposed revision, failing validator boundary,
+and the repaired validator/prompt contract. Focused normal/race tests, the
+full Go suite, and `git diff --check` pass. The operator explicitly authorized
+raw-Git commit and push of this exact nine-file failure-and-repair record.
+
+`EXT-20` remains unchecked. No commit, push, tag, release, external-use
+decision, candidate, remote ref, or historical evidence changed.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may construct and independently verify exactly one new source-bound
+candidate from the clean published pending-lifecycle repair. It must not rerun
+or modify RC.20 evidence, prepare a quantitative suite, start a model call,
+create a top-level wrapper, tag, release, external-use decision, queue, daemon,
+or commit/push without explicit operator authorization. Later separate passes
+must obtain exact-source remote CI and run a fresh quantitative suite.
+
+## Previous Resume Point
+
 RC.20 exact-source remote CI passed without preparing a quantitative suite or
 starting a model call. Clean local, fetched, raw-Git, and public `main` agree
 at published candidate-record commit

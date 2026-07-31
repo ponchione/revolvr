@@ -312,6 +312,56 @@ func TestApplyPlanningResultPersistsDeliberateRevisionAndPreservesEvidence(t *te
 	}
 }
 
+func TestApplyPlanningResultReconcilesPendingLifecycle(t *testing.T) {
+	initial := newApplyFixture(t, nil, "reconcile-one")
+	refinementSource := initial.decisionReference.Artifact
+	initial.output.AcceptanceCriteria = append(initial.output.AcceptanceCriteria, autonomous.AcceptanceCriterion{
+		ID:          "criterion-refinement",
+		Requirement: initial.decision.SuccessCriteria[0],
+		Status:      autonomous.AcceptanceStatusPending,
+		Source:      &refinementSource,
+	})
+	initial.rewriteOutput(t)
+	first, err := ApplyPlanningResult(context.Background(), initial.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	revision := newApplyFixture(t, &applyFixtureSeed{repo: initial.repo, state: first.State, expected: first.Current.Expected()}, "reconcile-two")
+	revision.output.Plan.ID = "plan-two"
+	revision.output.Plan.Revision = 2
+	revision.output.Plan.SupersedesPlanID = "plan-one"
+	revision.output.Plan.Completed = true
+	revision.output.Plan.Steps = cloneApplySteps(first.State.Plan.Steps)
+	revision.output.Plan.Steps[0].Status = autonomous.PlanStepStatusCompleted
+	revision.output.Plan.Steps[0].Evidence = []autonomous.EvidenceReference{applyEvidence(autonomous.EvidenceKindVerification, "verification-current")}
+	revision.output.AcceptanceCriteria = cloneApplyCriteria(first.State.AcceptanceCriteria)
+	for i := range revision.output.AcceptanceCriteria {
+		revision.output.AcceptanceCriteria[i].Status = autonomous.AcceptanceStatusSatisfied
+		revision.output.AcceptanceCriteria[i].Evidence = []autonomous.EvidenceReference{applyEvidence(autonomous.EvidenceKindVerification, "verification-current")}
+	}
+	revision.rewriteOutput(t)
+
+	updated, err := ApplyPlanningResult(context.Background(), revision.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Disposition != DispositionUpdated || !updated.State.Plan.Completed || updated.State.Plan.Steps[0].Status != autonomous.PlanStepStatusCompleted {
+		t.Fatalf("reconciled plan = %+v", updated)
+	}
+	for _, criterion := range updated.State.AcceptanceCriteria {
+		if criterion.Status != autonomous.AcceptanceStatusSatisfied || len(criterion.Evidence) == 0 {
+			t.Fatalf("criterion was not terminally reconciled: %+v", criterion)
+		}
+	}
+	if updated.State.AcceptanceCriteria[1].Source == nil || *updated.State.AcceptanceCriteria[1].Source != refinementSource {
+		t.Fatalf("earlier decision origin was not preserved: %+v", updated.State.AcceptanceCriteria[1].Source)
+	}
+	if !reflect.DeepEqual(updated.History.Record.PreviousAcceptance, first.State.AcceptanceCriteria) || !reflect.DeepEqual(updated.History.Record.ResultingAcceptance, updated.State.AcceptanceCriteria) {
+		t.Fatal("planning history did not retain the exact lifecycle reconciliation")
+	}
+}
+
 func TestApplyPlanningResultRejectsInvalidCycleOrOutputWithoutStateMutation(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -654,6 +704,13 @@ func applyEvidence(kind autonomous.EvidenceKind, reference string) autonomous.Ev
 func cloneApplyCriteria(criteria []autonomous.AcceptanceCriterion) []autonomous.AcceptanceCriterion {
 	raw, _ := json.Marshal(criteria)
 	var result []autonomous.AcceptanceCriterion
+	_ = json.Unmarshal(raw, &result)
+	return result
+}
+
+func cloneApplySteps(steps []autonomous.PlanStep) []autonomous.PlanStep {
+	raw, _ := json.Marshal(steps)
+	var result []autonomous.PlanStep
 	_ = json.Unmarshal(raw, &result)
 	return result
 }

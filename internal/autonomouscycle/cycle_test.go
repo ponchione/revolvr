@@ -163,6 +163,9 @@ func TestRunEveryWorkerActionUsesExactProfileAndOneFreshWorker(t *testing.T) {
 					"Both top-level `inputs` and `plan.provenance` must contain both exact evidence objects below",
 					"without changing `kind`, `reference`, or `detail`",
 					"supervisor-decision artifact kind remains `file` and must not be relabeled as `plan`",
+					"copy every existing step ID and description exactly",
+					"only a pending criterion may receive a supported terminal status",
+					"including an earlier supervisor-decision source",
 				} {
 					if !strings.Contains(fixture.workerPrompt, want) {
 						t.Fatalf("planner prompt lacks lifecycle contract %q:\n%s", want, fixture.workerPrompt)

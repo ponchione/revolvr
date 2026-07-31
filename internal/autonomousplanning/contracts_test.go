@@ -309,10 +309,6 @@ func TestApplyProposalRevisionPreservesStableAndTerminalWork(t *testing.T) {
 			source := *initial.AcceptanceCriteria[0].Source
 			o.AcceptanceCriteria = []autonomous.AcceptanceCriterion{{ID: "criterion-new", Requirement: "Behavior is implemented.", Status: autonomous.AcceptanceStatusPending, Source: &source}}
 		}, want: "criterion \"criterion-one\" must not disappear"},
-		{name: "criterion evidence changes", mutate: func(o *PlanningOutput) {
-			o.AcceptanceCriteria[0].Status = autonomous.AcceptanceStatusSatisfied
-			o.AcceptanceCriteria[0].Evidence = []autonomous.EvidenceReference{planningEvidence(autonomous.EvidenceKindVerification, "new")}
-		}, want: "existing criterion"},
 		{name: "criterion requirement changes", mutate: func(o *PlanningOutput) { o.AcceptanceCriteria[0].Requirement = "Changed requirement." }, want: "existing criterion"},
 	}
 	for _, tt := range tests {
@@ -327,6 +323,66 @@ func TestApplyProposalRevisionPreservesStableAndTerminalWork(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestApplyProposalRevisionCanTerminalizePendingWork(t *testing.T) {
+	output, previous, decision, taskRaw := validPlanningFixture(t)
+	initialDecisionArtifact := output.Provenance.Decision.Artifact
+	refinementSource := initialDecisionArtifact
+	output.AcceptanceCriteria = append(output.AcceptanceCriteria, autonomous.AcceptanceCriterion{
+		ID:          "criterion-refinement",
+		Requirement: decision.SuccessCriteria[0],
+		Status:      autonomous.AcceptanceStatusPending,
+		Source:      &refinementSource,
+	})
+	initial, _, err := ApplyProposal(previous, output, decision, *output.AcceptanceCriteria[0].Source, taskRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	currentDecisionArtifact := planningEvidence(autonomous.EvidenceKindFile, ".revolvr/runs/supervisor-revision/supervisor-decision.json")
+	revision := output
+	revision.Plan.ID = "plan-two"
+	revision.Plan.Revision = 2
+	revision.Plan.SupersedesPlanID = "plan-one"
+	revision.Plan.Completed = true
+	revision.Plan.Provenance = []autonomous.EvidenceReference{*output.AcceptanceCriteria[0].Source, currentDecisionArtifact}
+	revision.Plan.Steps = cloneStepsForTest(initial.Plan.Steps)
+	revision.Plan.Steps[0].Status = autonomous.PlanStepStatusCompleted
+	revision.Plan.Steps[0].Evidence = []autonomous.EvidenceReference{planningEvidence(autonomous.EvidenceKindVerification, "verification-current")}
+	revision.AcceptanceCriteria = cloneAcceptanceForTest(initial.AcceptanceCriteria)
+	for i := range revision.AcceptanceCriteria {
+		revision.AcceptanceCriteria[i].Status = autonomous.AcceptanceStatusSatisfied
+		revision.AcceptanceCriteria[i].Evidence = []autonomous.EvidenceReference{planningEvidence(autonomous.EvidenceKindVerification, "verification-current")}
+	}
+	revision.Inputs = []autonomous.EvidenceReference{*output.AcceptanceCriteria[0].Source, currentDecisionArtifact}
+	revision.Provenance.Decision.DecisionID = "decision-revision"
+	revision.Provenance.Decision.RunID = "supervisor-revision"
+	revision.Provenance.Decision.Artifact = currentDecisionArtifact
+
+	next, kind, err := ApplyProposal(initial, revision, decision, *output.AcceptanceCriteria[0].Source, taskRaw)
+	if err != nil || kind != ChangeKindRevision || !next.Plan.Completed || next.Plan.Steps[0].Status != autonomous.PlanStepStatusCompleted {
+		t.Fatalf("terminal reconciliation = %+v, %q, %v", next, kind, err)
+	}
+	for _, criterion := range next.AcceptanceCriteria {
+		if criterion.Status != autonomous.AcceptanceStatusSatisfied || len(criterion.Evidence) == 0 {
+			t.Fatalf("criterion was not terminally reconciled: %+v", criterion)
+		}
+	}
+	if next.AcceptanceCriteria[1].Source == nil || *next.AcceptanceCriteria[1].Source != initialDecisionArtifact {
+		t.Fatalf("earlier supervisor criterion origin changed: %+v", next.AcceptanceCriteria[1].Source)
+	}
+
+	terminalRevision := revision
+	terminalRevision.Plan.ID = "plan-three"
+	terminalRevision.Plan.Revision = 3
+	terminalRevision.Plan.SupersedesPlanID = "plan-two"
+	terminalRevision.Plan.Steps = cloneStepsForTest(next.Plan.Steps)
+	terminalRevision.AcceptanceCriteria = cloneAcceptanceForTest(next.AcceptanceCriteria)
+	terminalRevision.AcceptanceCriteria[0].Evidence[0].Reference = "rewritten"
+	if _, _, err := ApplyProposal(next, terminalRevision, decision, *output.AcceptanceCriteria[0].Source, taskRaw); err == nil || !strings.Contains(err.Error(), "terminal criterion") {
+		t.Fatalf("terminal criterion rewrite error = %v", err)
 	}
 }
 

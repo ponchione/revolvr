@@ -1,5 +1,88 @@
 # Agent State
 
+## RC.20 Quantitative Gate Failed; Pending-Lifecycle Repair Passes (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to preparation
+  and execution of one collision-free quantitative Level-1 real-Codex suite
+  against exact RC.20 authority SHA-256
+  `6e722fcc7b28cab0af190c9febc5d13d9655adbf1883b954f55f737c5000b627`.
+  This was the sole task. `EXT-20` remains unchecked.
+- Read-only admission passed at clean synchronized local, `origin/main`, and
+  live remote `main` commit `5fbc82c5dbe61abcedf17dc79cdcf8062fbc599d`.
+  Candidate workflow `--verify`, suite `--static`, authority identity, source
+  ancestry, disk, collision absence, and RC.15-through-RC.19 root-preservation
+  checks passed before preparation. Preparation installed isolated exact Codex
+  `0.144.4` and created two clean disposable repositories without a model call
+  at `.revolvr/ext20-level1-rc20-quantitative-20260731`, suite ID
+  `ext20-791fbad09b76`.
+- Live operation `ext20-791fbad09b76-01` completed initial planning,
+  implementation, configured verification, one run-owned source commit, and
+  checkpoint advancement. The next supervisor correctly chose `plan` because
+  the durable plan and acceptance matrix were still pending. The planner
+  returned a completed successor plan with exact terminal evidence and kept
+  the task-origin criteria exact, but application stopped
+  `unsafe_or_ambiguous`: `existing criterion "exact-output-content" changed
+  requirement, origin, status, evidence, or rationale`.
+- The root cause was an internal planning-contract contradiction. The
+  supervisor and planner prompts required evidence-backed pending-to-terminal
+  reconciliation and the core state transition accepted it, while
+  `autonomousplanning.ApplyProposal` prohibited every change to an existing
+  pending plan step or acceptance criterion. Its origin check would also have
+  rejected an unchanged existing criterion sourced from an earlier supervisor
+  decision.
+- The single repair now allows existing pending/in-progress plan steps to
+  progress monotonically while preserving IDs/descriptions, and allows pending
+  acceptance criteria to receive supported terminal dispositions while
+  preserving IDs/requirements/origins. Existing terminal steps and criteria
+  must remain exactly unchanged, in-progress steps cannot regress, new entries
+  cannot begin terminal, and new criteria still require the exact current task
+  or supervisor origin. The worker prompt states these same boundaries.
+- The retained manifest SHA-256 is
+  `a4b21d8bce1aae9d0491f5e7b125190e8cf95f784c0e72eb1a591e11ebeb02b4`;
+  terminal-operation SHA-256 is
+  `107603722ffa30753a96aa31c150bb916f9b520e69ab72420c3ba15e40924385`.
+  Direct manifest verification, exact before/after sentinel and control-HEAD
+  checks, candidate/Codex/configuration checks, all collector ledger/receipt
+  validations, clean disposable control repositories, and RC.15-through-RC.19
+  root preservation pass. Exactly one operation and manifest exist; operations
+  2-11 and the aggregate do not exist. RC.20 and this suite are immutable and
+  cannot be retried, modified, relabeled, removed, or used for approval.
+- The terminal evidence also records 1,032,842 consumed model tokens against
+  the effective 1,000,000-token bound after the final planner call. Planning
+  application failed first, so this candidate does not prove how the next
+  admission would classify that overrun. The repair does not alter or evade
+  the recorded bound; a later fresh candidate gate must prove bounded progress.
+- Files changed: `internal/autonomousplanning/contracts.go`,
+  `internal/autonomousplanning/contracts_test.go`,
+  `internal/autonomousplanapply/apply_test.go`,
+  `internal/autonomouscycle/worker_prompt.go`,
+  `internal/autonomouscycle/cycle_test.go`, `.agent/TASKS.md`,
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`, plus the
+  ignored retained RC.20 suite root. No dependency, commit, push, tag, release,
+  external-use decision, remote ref, candidate, or historical evidence changed.
+- Follow-up operator review replayed candidate `--verify`, suite `--static`,
+  collector manifest verification, strict full-file hashes, exact terminal
+  operation, containment, identity, ledger/receipt, token-bound, and
+  RC.15-through-RC.20 preservation assertions. It inspected the pending durable
+  state, exact evidence-backed proposed revision, failing validator boundary,
+  and repaired validator/prompt contract. Focused normal/race tests, the full
+  Go suite, and `git diff --check` pass. The operator explicitly authorized
+  raw-Git commit and push of this exact nine-file failure-and-repair record.
+- Verification commands: required durable-state reads; clean/local/tracked-
+  remote/live-remote source checks; candidate `--verify`; suite `--static` and
+  `--prepare`; the explicitly confirmed suite `--live`; direct collector
+  `--verify-manifest`; exact operation-count, aggregate-absence, sentinel,
+  control-HEAD, disposable-repository, candidate/Codex/configuration, ledger-
+  export/replay, receipt, and historical-root checks; `gofmt`; focused normal
+  and race tests for `internal/autonomousplanning`,
+  `internal/autonomousplanapply`, and `internal/autonomouscycle`;
+  `go test -count=1 ./...`; and `git diff --check`.
+- Verification result: **RC.20 QUANTITATIVE GATE FAILED; SOURCE REPAIR
+  VERIFICATION AND INDEPENDENT REVIEW PASSED**. After publication, what remains
+  is a new source-bound candidate, exact remote CI, and a fresh quantitative
+  suite in separate passes. Release progression is blocked on those gates;
+  there is no implementation-test blocker.
+
 ## RC.20 Exact-Source Remote CI Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to the required
