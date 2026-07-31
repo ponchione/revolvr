@@ -138,6 +138,52 @@ func TestApplyPlanningResultAcceptsLegacyAndPlannerRoleDossiers(t *testing.T) {
 	}
 }
 
+func TestApplyPlanningResultAcceptsDossierStateBeforeAttemptAccounting(t *testing.T) {
+	fixture := newApplyFixture(t, nil, "attempt-accounting")
+	dossierState := fixture.state
+	currentState := dossierState
+	currentState.Attempts.TotalAttempts = 1
+	currentState.Attempts.RetryBudget.Consumed = 1
+	currentRaw, err := autonomousstate.MarshalState(currentState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statePath := filepath.Join(fixture.repo, ".revolvr", "autonomous", "tasks", "task-1", "state.json")
+	writeApplyFile(t, statePath, currentRaw)
+	fixture.cfg.InitialState = nil
+	fixture.cfg.Expected = autonomousstate.ExpectedState{Exists: true, SHA256: hashBytes(currentRaw), ByteSize: len(currentRaw)}
+	fixture.cfg.DossierState = &dossierState
+
+	result, err := ApplyPlanningResult(context.Background(), fixture.cfg)
+	if err != nil {
+		t.Fatalf("ApplyPlanningResult() error = %v; result=%+v", err, result)
+	}
+	if result.Disposition != DispositionUpdated || result.State.Attempts.TotalAttempts != 1 || result.State.Plan == nil {
+		t.Fatalf("ApplyPlanningResult() = %+v", result)
+	}
+
+	changedDossier := dossierState
+	changedDossier.Lifecycle = autonomous.LifecycleStateReady
+	fixture = newApplyFixture(t, nil, "non-accounting-change")
+	currentState = fixture.state
+	currentState.Attempts.TotalAttempts = 1
+	currentState.Attempts.RetryBudget.Consumed = 1
+	currentRaw, err = autonomousstate.MarshalState(currentState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statePath = filepath.Join(fixture.repo, ".revolvr", "autonomous", "tasks", "task-1", "state.json")
+	writeApplyFile(t, statePath, currentRaw)
+	fixture.cfg.InitialState = nil
+	fixture.cfg.Expected = autonomousstate.ExpectedState{Exists: true, SHA256: hashBytes(currentRaw), ByteSize: len(currentRaw)}
+	fixture.cfg.DossierState = &changedDossier
+
+	result, err = ApplyPlanningResult(context.Background(), fixture.cfg)
+	if err == nil || result.Failure == nil || result.Failure.Stage != "dossier_identity" || !strings.Contains(err.Error(), "outside append-only attempt accounting") {
+		t.Fatalf("ApplyPlanningResult() result=%+v error=%v, want non-accounting dossier rejection", result, err)
+	}
+}
+
 func TestApplyPlanningResultValidatesNormalizedPlannerProfile(t *testing.T) {
 	tests := []struct {
 		name        string

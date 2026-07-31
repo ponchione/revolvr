@@ -663,7 +663,8 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 		switch cycle.Outcome {
 		case autonomouscycle.OutcomeReadOnlyCompleted:
 			if cycle.Route.Action == autonomous.ActionPlan {
-				_, applyErr := autonomousplanapply.ApplyPlanningResult(context.WithoutCancel(ctx), autonomousplanapply.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-plan-" + p.idGenerator(), Expected: snapshot.Expected(), Cycle: cycle, CreatedAt: p.clock().UTC(), Store: p.stateStore})
+				dossierState := cycleCfg.State
+				_, applyErr := autonomousplanapply.ApplyPlanningResult(context.WithoutCancel(ctx), autonomousplanapply.Config{RepositoryRoot: p.root, TaskID: p.taskID, OperationID: p.operationID + "-plan-" + p.idGenerator(), Expected: snapshot.Expected(), DossierState: &dossierState, Cycle: cycle, CreatedAt: p.clock().UTC(), Store: p.stateStore})
 				if applyErr != nil {
 					return step, applyErr
 				}

@@ -1,5 +1,35 @@
 # Agent Decisions
 
+## RC.15 Failed Level-1 Dogfood; Planning Uses Exact Pre-Accounting State (2026-07-31)
+
+- RC.15 remains a valid reproducibly constructed bundle, but it failed the
+  quantitative Level-1 gate and is permanently ineligible for external-use
+  approval. Its first live operation is immutable typed failure evidence at
+  `.revolvr/ext20-level1-rc15-quantitative-20260731`; it may not be retried,
+  removed, relabeled, or combined with evidence from a later candidate.
+- The failure occurred after a successful read-only planner cycle and durable
+  attempt admission/completion, before any source mutation. The planner dossier
+  correctly bound the state that existed when the cycle began, while planning
+  application incorrectly required it to equal canonical state after attempt
+  accounting. This is a production coordination defect, not a model-output,
+  collector, containment, candidate-identity, or external-sentinel failure.
+- Planning application now follows the existing audit coordination rule: the
+  caller supplies the exact state used to construct the dossier. That state
+  must be a valid predecessor of current canonical state, and replacing current
+  attempt accounting with dossier attempt accounting must make the states
+  exactly equal. Thus only append-only attempt admission/completion can occur
+  between dossier construction and application; any plan, lifecycle,
+  workspace, decision, input, finding, terminal, or other difference remains a
+  hard `dossier_identity` refusal.
+- Because this changes product behavior, all later dogfood must use a new
+  source-bound candidate that repeats candidate construction/verification and
+  exact remote CI evidence. The verified RC.15 failure cannot be repaired in
+  place and no later run may reuse its suite root or operation identity.
+- Independent operator review reproduced the exact failed-live state boundary,
+  accepted the narrowly scoped planning repair, and explicitly authorized its
+  raw-Git publication. This acceptance grants no RC.15 retry, candidate,
+  dogfood, release, or external-use authority.
+
 ## Reusable Level-1 Candidate Authority (2026-07-30)
 
 - `scripts/build-level1-candidate.sh` is the reusable Level-1 candidate

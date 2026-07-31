@@ -34,6 +34,7 @@ type Config struct {
 	OperationID    string
 	Expected       autonomousstate.ExpectedState
 	InitialState   *autonomous.ExecutionState
+	DossierState   *autonomous.ExecutionState
 	Cycle          autonomouscycle.Result
 	CreatedAt      time.Time
 	Store          *autonomousstate.Store
@@ -190,7 +191,14 @@ func ApplyPlanningResult(ctx context.Context, cfg Config) (Result, error) {
 			return reject(result, "state_compare", err)
 		}
 	}
-	if err := validateDossierStateAndTask(task, previous, cfg.Cycle.DossierManifest); err != nil {
+	dossierState := previous
+	if cfg.DossierState != nil {
+		if err := validateDossierStatePredecessor(*cfg.DossierState, previous); err != nil {
+			return reject(result, "dossier_identity", err)
+		}
+		dossierState = *cfg.DossierState
+	}
+	if err := validateDossierStateAndTask(task, dossierState, cfg.Cycle.DossierManifest); err != nil {
 		return reject(result, "dossier_identity", err)
 	}
 	taskOrigin := autonomousplanning.CanonicalTaskOrigin(task.SourcePath, task.SourceSHA256())
@@ -400,6 +408,18 @@ func validateDossierStateAndTask(task taskfile.Task, state autonomous.ExecutionS
 	}
 	if !foundTask || !foundState {
 		return fmt.Errorf("dossier sources do not contain exact task/state identities (task=%t state=%t)", foundTask, foundState)
+	}
+	return nil
+}
+
+func validateDossierStatePredecessor(dossier, current autonomous.ExecutionState) error {
+	if err := autonomous.ValidateExecutionStateTransition(dossier, current); err != nil {
+		return fmt.Errorf("dossier state is not a valid predecessor: %w", err)
+	}
+	withoutAccounting := current
+	withoutAccounting.Attempts = dossier.Attempts
+	if !reflect.DeepEqual(dossier, withoutAccounting) {
+		return errors.New("dossier state differs from current state outside append-only attempt accounting")
 	}
 	return nil
 }

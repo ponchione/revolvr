@@ -314,10 +314,27 @@
     independently verified candidate
     `level1-v0.1.0-rc.15-5f340a8232a6`, authority SHA-256
     `07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd`.
-    The next bounded task is the quantitative Level-1 dogfood gate against
-    only that exact candidate. Retired wrappers remain recoverable from Git
-    history only. Ignored `.revolvr/` evidence is preserved and is not
-    governed by wrapper-retention policy.
+    Its quantitative gate started in retained root
+    `.revolvr/ext20-level1-rc15-quantitative-20260731`, but the first expected
+    successful operation stopped `unsafe_or_ambiguous` before source mutation.
+    Planning-result application compared the pre-attempt dossier state with
+    canonical state after append-only attempt admission/completion, producing
+    `dossier sources do not contain exact task/state identities (task=true
+    state=false)`. The exact manifest verifies and proves unchanged source
+    HEAD, candidate, Codex, configuration, and outside sentinel. RC.15 has
+    therefore failed the gate and cannot be retried, relabeled, or used for an
+    external-use decision. The single repair attempt passes the exact
+    pre-attempt dossier state into planning application, admits only a valid
+    predecessor differing by append-only attempt accounting, and rejects all
+    other state differences; focused and full Go tests pass. Independent
+    review reproduced the failure boundary, accepted the repair, and the
+    operator explicitly authorized raw-Git publication. The next bounded stage
+    is construction and independent verification of one new source-qualified
+    candidate from the clean repair commit. A separate later pass must obtain
+    exact remote evidence for that candidate before starting a fresh
+    quantitative suite root. Retired wrappers remain recoverable from Git
+    history only. Ignored `.revolvr/` evidence is preserved and is not governed
+    by wrapper-retention policy.
   - Historical gate record (non-operative): RC.6 and RC.7 remain immutable
     failed live-attempt evidence;
     RC.8 through RC.12 remain immutable failed local-construction evidence and

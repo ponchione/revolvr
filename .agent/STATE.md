@@ -1,5 +1,63 @@
 # Agent State
 
+## RC.15 Quantitative Gate Failed; Planning-State Repair Passes (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining
+  quantitative Level-1 real-Codex gate against exact RC.15 authority SHA-256
+  `07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd`.
+  This was the sole task; `EXT-20` remains unchecked.
+- Static authority verification passed. Preparation installed isolated exact
+  Codex `0.144.4` and created two disposable repositories without a model call
+  at `.revolvr/ext20-level1-rc15-quantitative-20260731`. The live suite then
+  started its first operation, `ext20-ad6fcc82272e-01`.
+- The operation expected `completed` but terminally stopped
+  `unsafe_or_ambiguous` before source mutation. Attempt admission/completion
+  advanced canonical attempt accounting after the planning dossier was built;
+  planning application then compared that pre-attempt dossier state with the
+  later canonical state and rejected it with `dossier sources do not contain
+  exact task/state identities (task=true state=false)`.
+- The retained manifest SHA-256 is
+  `97804009e36ae7010d3e913bc1b1c434e331196e232e12ce25b83c2e3b9e154c`;
+  the captured terminal operation SHA-256 is
+  `96ec31cdcf8a09e1cd13623cc1c161d68ac50410a5ff0eb64c99933705955e25`.
+  Independent manifest verification and exact before/after sentinel comparison
+  passed. Source HEAD remained `614df714536d13a6552859c6faad2ea65c64ab29`;
+  candidate, Codex, approved configuration, and outside sentinel were
+  unchanged; all receipt and ledger validations passed.
+- The one reasonable repair attempt changed production planning application to
+  carry the exact dossier state used before attempt accounting. It requires
+  that state to be a valid canonical predecessor and permits only append-only
+  attempt-accounting differences; unrelated state changes remain a typed
+  dossier-identity refusal. A focused regression covers both acceptance and
+  rejection, and the production runner now supplies the exact cycle state.
+- Files changed: `internal/app/autonomous_run.go`,
+  `internal/autonomousplanapply/apply.go`,
+  `internal/autonomousplanapply/apply_test.go`, `.agent/TASKS.md`,
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`, plus the
+  ignored retained suite root. No dependency, commit, push, tag, release, or
+  external-use decision changed.
+- Verification commands: suite `--static`; suite `--prepare`; the confirmed
+  suite `--live` invocation; direct collector `--verify-manifest`; exact
+  sentinel `cmp`; focused `go test -count=1 ./internal/autonomousplanapply
+  ./internal/app -run
+  'TestApplyPlanningResultAcceptsDossierStateBeforeAttemptAccounting|TestProductionAutonomousHappyPath|TestStrictFakeCodexContract'`;
+  `go test -count=1 ./...`; and `git diff --check`.
+- Follow-up operator review independently reproduced the dossier-era compact
+  state identity from terminal evidence by replacing only attempt accounting;
+  replayed direct manifest and outside-sentinel verification; inspected the
+  typed outcome, terminal operation, ledger export, and receipt validation;
+  confirmed the implementation matches the established audit predecessor
+  boundary; ran `gofmt` on all changed Go files; and passed the focused tests,
+  `go test -count=1 ./...`, and `git diff --check`. No RC.15 operation or live
+  model call was rerun. The operator explicitly authorized raw-Git commit and
+  push of the exact seven-file repair record.
+- Result: **RC.15 QUANTITATIVE GATE FAILED; SOURCE REPAIR VERIFICATION PASSED**.
+  RC.15 and its failed suite are immutable evidence and cannot be retried or
+  used for approval. What remains after publication is construction and remote
+  verification of a new exact candidate, followed by a new quantitative gate
+  from a fresh collision-free suite root. There is no implementation blocker;
+  release progression is blocked on those required new-candidate gates.
+
 ## Reusable Candidate Constructed And Independently Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to its current

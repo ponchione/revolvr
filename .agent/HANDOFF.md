@@ -4,6 +4,59 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+RC.15 terminally failed the quantitative Level-1 gate. Static verification and
+preparation passed against authority SHA-256
+`07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd`.
+The prepared retained root is
+`.revolvr/ext20-level1-rc15-quantitative-20260731`.
+
+The first live operation, `ext20-ad6fcc82272e-01`, expected `completed` but
+stopped `unsafe_or_ambiguous` before source mutation. Its verified manifest is
+`evidence/repo-a/01-successful-source-change-1/manifest.tsv`, SHA-256
+`97804009e36ae7010d3e913bc1b1c434e331196e232e12ce25b83c2e3b9e154c`.
+Source HEAD, candidate, Codex, approved configuration, and outside sentinel
+were unchanged, and all retained ledger/receipt inspections passed.
+
+The exact defect was deterministic: attempt admission/completion changed only
+canonical attempt accounting after the planner dossier captured its state;
+planning application compared that earlier state to the later canonical bytes
+and rejected `task=true state=false`. The single repair attempt changes
+`internal/autonomousplanapply` to accept an explicit exact dossier state only
+when it is a valid predecessor differing from current state solely by
+append-only attempt accounting. `internal/app` supplies the exact cycle state.
+The focused regression, production integration checks, full `go test -count=1
+./...`, direct manifest verification, sentinel comparison, and
+`git diff --check` pass.
+
+Follow-up operator review independently reproduced the exact pre-accounting
+dossier identity from the terminal state, replayed manifest and sentinel
+verification, inspected the typed outcome and retained ledger/receipt results,
+confirmed the repair matches the established audit coordination boundary,
+formatted all changed Go files, and reran the focused and full Go suites. All
+checks passed, and the operator explicitly authorized raw-Git commit and push
+of the exact seven-file repair record.
+
+RC.15 and its failed suite are immutable and cannot be retried, removed,
+relabeled, or used for external approval. `EXT-20` remains unchecked.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass must first prove local, fetched, and public `main` match the clean
+planning-state repair commit exactly. It may then construct and independently
+verify exactly one new source-qualified candidate with the reusable workflow.
+It must preserve RC.15 and its failed suite, must not start live Codex or a new
+quantitative suite, and must not create a top-level wrapper, tag, release, or
+external-use decision. A separate later pass must obtain exact remote evidence
+for the new candidate before another quantitative suite is prepared.
+
+## Previous Resume Point
+
 The reusable Level-1 candidate construction and independent-verification stage
 passed. Clean local, fetched, raw-Git public, and public-REST `main` all matched
 commit `5f340a8232a6d1bc9e8fff55fbe0f37ad0957085`, tree
