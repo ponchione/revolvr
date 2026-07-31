@@ -4,37 +4,45 @@ Updated: 2026-07-31
 
 ## Resume Point
 
-The RC.16 exact-source remote-CI gate passed without preparing a quantitative
-suite or calling Codex. Clean local, fetched, and raw-Git `main` agreed at
-published candidate-record commit
-`568b14b89c0358f3f80437ae0f77a07c63535aa0`. Public GitHub Actions run
-`30632362941` is the sole push-triggered `CI` run for exact candidate source
-`2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9`; it completed successfully with
-all ten mandatory unique jobs, and every job's exact-source reporting step
-passed:
+RC.16 terminally failed the quantitative Level-1 gate. Static verification and
+preparation passed against authority SHA-256
+`a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf`.
+The prepared retained root is
+`.revolvr/ext20-level1-rc16-quantitative-20260731`, suite ID
+`ext20-1212e8f1adba`.
 
-```text
-https://github.com/ponchione/revolvr/actions/runs/30632362941
-```
+The first live operation, `ext20-1212e8f1adba-01`, crossed the repaired RC.15
+planning boundary, completed its planning attempt, and admitted an implementer.
+The worker created the requested `results/a1.txt` and followed the prompt's
+relative `.revolvr/receipts/<run>.md` instruction. Because Codex works in the
+task workspace, that created an ignored workspace `.revolvr` directory; source
+capture correctly failed closed at `worker_source_after`, and the operation
+stopped `unsafe_or_ambiguous` before verification or commit. No later operation
+started.
 
-Post-CI candidate workflow verification, suite-static verification, the
-complete manifest, bundle topology, exact Linux artifact, workflow identity,
-and RC.15 preservation all passed. The sole admitted candidate authority
-remains:
+The exact verified manifest is
+`evidence/repo-a/01-successful-source-change-1/manifest.tsv`, SHA-256
+`e1f926a63a3ea07030281fe84ad0168f8c465072c28bf513161c25b1c681bb64`.
+The terminal operation SHA-256 is
+`a4a805ad7c3a805fe5a5f8816c04e94fb034be60582fa12f2a9fe00f9fb9c680`.
+Control HEAD, candidate, Codex, approved configuration, and outside sentinel
+are unchanged. RC.15 and all prior candidate/evidence roots remain exact.
 
-```text
-/home/gernsback/source/revolvr/.revolvr/release-candidates/level1-v0.1.0-rc.16-2be1c7831d5d/candidate-authority.tsv
-a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf
-```
+The single repair attempt changes the mutable-worker prompt to name the exact
+absolute control-root receipt target while durable evidence paths remain
+repository-relative. A workspace regression asserts this root separation.
+Focused autonomous-cycle and production checks, the focused race test, the
+full `go test -count=1 ./...`, and `git diff --check` pass. RC.16 and its suite
+are immutable and cannot be retried or used for external approval. `EXT-20`
+remains unchecked.
 
-`EXT-20` remains unchecked because its quantitative threshold has not run.
-
-Follow-up operator review independently confirmed the sole exact-source run,
-all ten job identities and successful source-reporting steps through GitHub's
-public REST API; replayed both read-only candidate gates, the complete bundle
-manifest and topology checks, exact source/workflow identity, and RC.15
-preservation; and passed `git diff --check`. The operator explicitly authorized
-raw-Git commit and push of the exact three-file durable record.
+Follow-up operator review independently replayed the retained manifest,
+terminal-operation, outside-sentinel, control/workspace HEAD, suite-preparation,
+candidate/Codex/config, and RC.15/RC.16 preservation checks; confirmed exactly
+one terminal operation and no aggregate report; reviewed the control/execution-
+root boundary; formatted the changed Go files; and reran focused, race, and full
+Go tests plus `git diff --check`. All passed. The operator explicitly authorized
+raw-Git commit and push of this exact six-file repair record.
 
 ### Next Gate
 
@@ -44,12 +52,12 @@ Start one fresh pass with:
 ./agent-one.sh
 ```
 
-That pass may create one fresh collision-free quantitative suite root and run
-the Level-1 real-Codex gate using only the exact RC.16 authority above. It must
-not reuse or modify the failed RC.15 suite, construct another candidate, or
-create a tag, release, or external-use decision. It may mark `EXT-20` complete
-only if every quantitative acceptance and manifest-verification threshold
-passes.
+That pass may construct and independently verify exactly one new source-bound
+candidate from the clean published control-root receipt repair. It must not
+rerun or modify RC.16 evidence, start a model operation or quantitative-suite
+preparation, or create a tag, release, or external-use decision. A separate
+later pass must obtain exact remote-CI evidence for the new candidate before
+another fresh collision-free quantitative suite may start.
 
 ## Previous Resume Point
 

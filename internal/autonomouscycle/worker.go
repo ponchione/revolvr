@@ -150,7 +150,7 @@ func runWorker(
 		Route:             route,
 		Profile:           profile,
 		RunID:             workerRunID,
-		ReceiptPath:       paths.receipt,
+		ReceiptPath:       filepath.Join(n.root, paths.receipt),
 		OutputPath:        paths.output,
 		SourceRevision:    result.Source.AdmissionRevision,
 		Verification:      n.Verification,

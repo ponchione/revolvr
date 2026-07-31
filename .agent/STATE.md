@@ -1,5 +1,80 @@
 # Agent State
 
+## RC.16 Quantitative Gate Failed; Receipt-Root Repair Passes (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining
+  quantitative Level-1 real-Codex gate against exact RC.16 authority SHA-256
+  `a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf`.
+  This was the sole task; `EXT-20` remains unchecked.
+- Static admission passed at clean local and `origin/main` commit
+  `950a588c3dfd7f313731e235e859d5ce180f9c07`. Preparation installed isolated
+  exact Codex `0.144.4` and created two disposable repositories without a
+  model call at `.revolvr/ext20-level1-rc16-quantitative-20260731`, suite ID
+  `ext20-1212e8f1adba`. Prepared authority SHA-256 is
+  `6c3619cf9ab1c532f9bf5c20227e2b3b1123aeafc8cf3b0fe94a2c538627114e`.
+- Live operation `ext20-1212e8f1adba-01` crossed the planning-state boundary
+  that failed RC.15, durably completed its planning attempt, and admitted an
+  implementer. The implementer created the exact requested `results/a1.txt`
+  and followed the supplied receipt instruction. The operation then stopped
+  `unsafe_or_ambiguous` before verification or commit with `worker_source_after`:
+  `policy-relevant ignored source or verification inputs are present:
+  ".revolvr" (directory, classification=policy_relevant)`. No later suite
+  operation started and no aggregate report exists.
+- The root cause is exact control/execution-root ambiguity in the worker
+  prompt. Worker evidence is stored under the control root, but the prompt
+  rendered the repository-relative `.revolvr/receipts/<run>.md` path while
+  Codex's working directory is the isolated task workspace. The real worker
+  therefore correctly wrote that relative path inside the workspace. The
+  source snapshot fail-closed rule correctly rejected the ignored runtime
+  directory; the harness then synthesized the control-root receipt without
+  observed changed files, so its independent changed-file validation also
+  failed.
+- The retained manifest SHA-256 is
+  `e1f926a63a3ea07030281fe84ad0168f8c465072c28bf513161c25b1c681bb64`;
+  terminal operation SHA-256 is
+  `a4a805ad7c3a805fe5a5f8816c04e94fb034be60582fa12f2a9fe00f9fb9c680`.
+  Direct manifest verification and exact outside-sentinel comparison passed.
+  Control HEAD remained `00e9d7741dd7f366881c9ac4b1bbb6abf971c1ef`; candidate,
+  Codex, approved configuration, and outside sentinel were unchanged. The
+  task workspace retains the authorized uncommitted `results/a1.txt` plus the
+  ignored worker-authored receipt as immutable failure evidence. RC.15's
+  authority and failed manifest also remain exact.
+- The one reasonable repair attempt changes the worker prompt to supply the
+  exact absolute control-root receipt path while all durable artifact and
+  ledger references remain repository-relative. The workspace regression now
+  asserts that Codex still runs in the execution root but receives only the
+  control-root receipt target. Focused autonomous-cycle and production tests,
+  focused race coverage, and the full Go suite pass.
+- Files changed: `internal/autonomouscycle/worker.go`,
+  `internal/autonomouscycle/cycle_test.go`, `.agent/TASKS.md`,
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`, plus the
+  ignored retained RC.16 suite root. No dependency, commit, push, tag, release,
+  external-use decision, candidate, or historical evidence changed.
+- Verification commands: required durable-state reads; clean Git and exact
+  candidate-authority checks; Bash syntax and suite `--static`; suite
+  `--prepare`; the explicitly confirmed suite `--live`; direct collector
+  `--verify-manifest`; exact sentinel comparison; RC.15/RC.16 preservation
+  hashes; `gofmt`; focused `go test -count=1 ./internal/autonomouscycle
+  ./internal/app -run
+  'Test(RunInWorkspaceUsesExecutionRootAndKeepsControlEvidenceAtControlRoot|ProductionAutonomousHappyPath|StrictFakeCodexContract)$'`;
+  focused `go test -race`; `go test -count=1 ./...`; and `git diff --check`.
+- Follow-up operator review independently replayed the exact retained manifest,
+  terminal-operation, outside-sentinel, control/workspace HEAD, suite-
+  preparation, candidate/Codex/config, and RC.15/RC.16 preservation checks;
+  confirmed exactly one terminal operation and no aggregate report; reviewed
+  the control/execution-root repair boundary; formatted both changed Go files;
+  and reran the focused autonomous-cycle/production tests, focused race test,
+  full Go suite, and `git diff --check`. All passed. The operator explicitly
+  authorized raw-Git commit and push of the exact six-file repair record.
+- Result: **RC.16 QUANTITATIVE GATE FAILED; SOURCE REPAIR VERIFICATION PASSED**.
+  Independent review passed and publication is authorized. What remains after
+  publication is construction/verification of a new source-bound candidate,
+  exact remote CI evidence, and a new collision-free quantitative suite in
+  separate fresh passes. RC.16 and its failed suite may not be retried,
+  removed, modified, relabeled, or combined with later evidence. There is no
+  implementation-test blocker; release progression is blocked on those new-
+  candidate gates.
+
 ## RC.16 Exact-Source Remote CI Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to the separately

@@ -718,6 +718,10 @@ func TestRunInWorkspaceUsesExecutionRootAndKeepsControlEvidenceAtControlRoot(t *
 		if cfg.WorkingDir != execution {
 			t.Fatalf("Codex working dir = %q", cfg.WorkingDir)
 		}
+		wantReceiptPath := filepath.Join(f.root, ".revolvr", "receipts", cfg.RunID+".md")
+		if !strings.Contains(cfg.Prompt, "Receipt path: "+wantReceiptPath+"\n") {
+			t.Fatalf("worker prompt does not bind the control-root receipt path %q:\n%s", wantReceiptPath, cfg.Prompt)
+		}
 		return originalCodex(ctx, cfg)
 	}
 	originalVerification := f.cfg.VerificationRunner

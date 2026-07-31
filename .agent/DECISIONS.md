@@ -1,5 +1,31 @@
 # Agent Decisions
 
+## RC.16 Failed Level-1 Dogfood; Worker Receipt Targets the Control Root (2026-07-31)
+
+- RC.16 remains a valid reproducibly constructed and remotely tested bundle,
+  but it failed the quantitative Level-1 gate and is permanently ineligible
+  for external-use approval. Its first live operation is immutable typed
+  failure evidence at `.revolvr/ext20-level1-rc16-quantitative-20260731`; it
+  may not be retried, removed, modified, relabeled, or combined with later
+  candidate evidence.
+- Autonomous Codex executes in the task workspace while run artifacts,
+  receipts, ledger data, and lifecycle authority remain under the control
+  root. A worker prompt must therefore render its one authorized receipt write
+  as the exact absolute control-root path. Durable artifact, receipt, ledger,
+  and provenance references remain repository-relative; only the executable
+  instruction is absolute so it cannot resolve against the workspace.
+- Ignored `.revolvr` content in a separate execution root remains policy-
+  relevant and fail-closed. The repair does not permit or hide workspace
+  runtime content, migrate untrusted files after model execution, or broaden
+  model authority over harness state. Structured planner, auditor, and
+  corrector roles continue to write no receipt; Revolvr synthesizes their
+  advisory receipt evidence.
+- Because the repair changes prompt bytes and production behavior, all later
+  dogfood must use a new source-bound candidate that repeats reproducible
+  construction, independent verification, and exact remote CI. RC.16 cannot
+  be repaired in place and no later run may reuse its suite root or operation
+  identity.
+
 ## RC.15 Failed Level-1 Dogfood; Planning Uses Exact Pre-Accounting State (2026-07-31)
 
 - RC.15 remains a valid reproducibly constructed bundle, but it failed the

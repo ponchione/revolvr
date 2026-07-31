@@ -345,9 +345,27 @@
     candidate, suite-static, manifest, topology, and RC.15-preservation checks
     also passed. Independent operator review repeated those exact remote and
     local assertions and explicitly authorized raw-Git publication of the
-    three-file durable record. A separate later pass must start the fresh
-    RC.16 quantitative suite root; this remote-only pass did not prepare a
-    suite or call Codex.
+    three-file durable record. The fresh RC.16 quantitative gate then started
+    in retained root
+    `.revolvr/ext20-level1-rc16-quantitative-20260731`. Its first operation
+    crossed the repaired planning boundary and admitted an implementer, but
+    terminally stopped `unsafe_or_ambiguous` after the implementer created the
+    requested source file and followed the prompt's relative receipt path.
+    Because Codex runs in the task workspace, that path created an ignored
+    workspace `.revolvr` directory; fail-closed source capture rejected it as
+    policy-relevant before verification or commit. The exact manifest verifies
+    and proves unchanged control HEAD, candidate, Codex, configuration, and
+    outside sentinel. No later operation started. RC.16 has therefore failed
+    the quantitative gate and cannot be retried, relabeled, or used for an
+    external-use decision. The single repair attempt now gives mutable workers
+    the exact absolute control-root receipt path while retaining repository-
+    relative receipt evidence, and a workspace root-separation regression plus
+    focused, race, and full Go tests pass. Follow-up operator review replayed
+    the immutable failure/containment evidence, inspected the repair boundary,
+    reran focused, race, and full Go tests, and explicitly authorized raw-Git
+    publication of the exact six-file repair record. A later source-qualified
+    candidate must repeat construction, independent verification, and exact
+    remote CI before any new quantitative suite may start.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.
