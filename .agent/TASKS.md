@@ -328,13 +328,21 @@
     predecessor differing by append-only attempt accounting, and rejects all
     other state differences; focused and full Go tests pass. Independent
     review reproduced the failure boundary, accepted the repair, and the
-    operator explicitly authorized raw-Git publication. The next bounded stage
-    is construction and independent verification of one new source-qualified
-    candidate from the clean repair commit. A separate later pass must obtain
-    exact remote evidence for that candidate before starting a fresh
-    quantitative suite root. Retired wrappers remain recoverable from Git
-    history only. Ignored `.revolvr/` evidence is preserved and is not governed
-    by wrapper-retention policy.
+    operator explicitly authorized raw-Git publication. Exact local, fetched,
+    raw-Git, and public-REST `main` then matched clean repair commit
+    `2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9`. One new source-qualified
+    candidate, `level1-v0.1.0-rc.16-2be1c7831d5d`, was constructed and
+    independently verified with authority SHA-256
+    `a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf`.
+    Its complete manifest, floor/current/race/module/vet/vulnerability matrix,
+    supported builds, embedded metadata, empty build IDs, and two-clone byte
+    comparisons pass. Independent review replayed the workflow and suite-static
+    gates, accepted the exact bundle, and the operator explicitly authorized
+    raw-Git publication of its durable record. A separate later pass must
+    obtain exact remote evidence for RC.16 before starting a fresh quantitative
+    suite root. Retired wrappers remain recoverable from Git history only.
+    Ignored `.revolvr/` evidence is preserved and is not governed by wrapper-
+    retention policy.
   - Historical gate record (non-operative): RC.6 and RC.7 remain immutable
     failed live-attempt evidence;
     RC.8 through RC.12 remain immutable failed local-construction evidence and

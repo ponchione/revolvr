@@ -4,6 +4,54 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+The planning-state repair is clean and published at exact local, fetched,
+raw-Git, and public-REST `main` commit
+`2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9`, tree
+`a97c9d21d9a6fbb5eab5a5b0c0c2313944123ab4`.
+
+Exactly one new source-qualified candidate was constructed and independently
+verified without starting live Codex or preparing a quantitative suite:
+
+```text
+/home/gernsback/source/revolvr/.revolvr/release-candidates/level1-v0.1.0-rc.16-2be1c7831d5d/candidate-authority.tsv
+a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf
+```
+
+The bundle-manifest SHA-256 is
+`1044231b5c2a096fa04f266f8d5403297d94ab4bd62c24f90c792fae18931af4`.
+The exact Linux candidate SHA-256 is
+`747d4580dbcdebf0c4bbed9e80734bc19b3df9b087b8bd751c47ee8eac8059bf`.
+Go 1.22/current ordinary tests, current race tests, module verification, vet,
+ordinary and verbose vulnerability scans, supported-platform builds, embedded
+metadata, empty build IDs, complete-manifest verification, and both independent
+build comparisons passed. The 48-file bundle contains no symlink, hard link,
+or residual work root. RC.15 and its failed quantitative evidence remain exact
+and immutable. `EXT-20` remains unchecked.
+
+Follow-up operator review replayed the reusable workflow verification and the
+dogfood suite's static gate; independently checked the strict manifest,
+complete inventory, file/link/work-root bounds, both build copies, embedded
+metadata, empty build IDs, retained test/vulnerability evidence, exact source
+and workflow identities, and RC.15 preservation; and passed `git diff --check`.
+No fixture or model operation occurred. The operator explicitly authorized
+raw-Git commit and push of this exact three-file candidate record.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may obtain and record only the exact required remote CI evidence for
+RC.16 and its source commit. It must not start live Codex, prepare a new
+quantitative suite, construct another candidate, modify RC.15/RC.16 evidence,
+or create a tag, release, or external-use decision. A separate later pass may
+start a fresh quantitative suite only after the RC.16 remote gate passes.
+
+## Previous Resume Point
+
 RC.15 terminally failed the quantitative Level-1 gate. Static verification and
 preparation passed against authority SHA-256
 `07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd`.

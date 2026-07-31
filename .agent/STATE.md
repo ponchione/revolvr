@@ -1,5 +1,70 @@
 # Agent State
 
+## RC.16 Candidate Constructed And Independently Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to construction
+  and independent verification of exactly one new source-qualified candidate
+  from the published planning-state repair. This was the sole task; no live
+  Codex or quantitative-suite preparation started and `EXT-20` remains
+  unchecked.
+- Admission passed at clean local `main`, refreshed `origin/main`, raw-Git
+  remote `main`, and public-REST `main` commit
+  `2be1c7831d5dd84d4871f8c9dca183ba2ec25dd9`, tree
+  `a97c9d21d9a6fbb5eab5a5b0c0c2313944123ab4`. Workflow bytes at the commit
+  and worktree were equal. Exact tools remained Go 1.22.12 SHA-256
+  `929407e69c08952cd944a7457ae4eb289078a35473dd5dad2179369db7c5a6ec`,
+  Go 1.26.5 SHA-256
+  `8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9`,
+  and `govulncheck@v1.1.4` SHA-256
+  `f66036976d8995fbed427315bb2d6b525e58ee5867e88f097709e62fe93b412f`.
+- The sole new output identity is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.16-2be1c7831d5d`.
+  Construction and a separate read-only workflow verification passed. Exact
+  candidate-authority SHA-256 is
+  `a7ac0a73e27e72c77177ae4661ff8f6eee6f587e29f230704972475cccab5ccf`,
+  bundle-manifest SHA-256 is
+  `1044231b5c2a096fa04f266f8d5403297d94ab4bd62c24f90c792fae18931af4`,
+  and Linux candidate SHA-256 is
+  `747d4580dbcdebf0c4bbed9e80734bc19b3df9b087b8bd751c47ee8eac8059bf`.
+- Linux, Darwin, and FreeBSD pass-one/pass-two SHA-256 values are respectively
+  `747d4580dbcdebf0c4bbed9e80734bc19b3df9b087b8bd751c47ee8eac8059bf`,
+  `dc874a3aa04a2c9e2469398642e9c649f7f31fbe712be5f984805c7d4158c325`,
+  and `b3b9ade1263d28f9a1f06d384ac29f5204d58836d5dea00b3b50d4c44dd90a8b`;
+  every pair is byte-identical. The bundle has 48 regular single-link files,
+  137,821,064 bytes, no symbolic links, and no residual `.work` root.
+- Go 1.22/current ordinary tests, current race tests, module verification,
+  vet, ordinary and verbose vulnerability scans, supported builds, embedded
+  metadata checks, empty build IDs, and all reproducibility comparisons
+  passed. Govulncheck retained the uncalled Windows-only module finding
+  `GO-2026-5024`; it found no reachable or imported-package vulnerability.
+  Direct `sha256sum -c SHA256SUMS` passed for all 48 manifest entries.
+- RC.15 remains immutable: its candidate authority still hashes to
+  `07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd`
+  and its failed quantitative-operation manifest still hashes to
+  `97804009e36ae7010d3e913bc1b1c434e331196e232e12ce25b83c2e3b9e154c`.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/HANDOFF.md`, plus the ignored retained RC.16 candidate root. No
+  product source, dependency, historical evidence, model operation, suite,
+  tag, release, or external-use decision changed.
+- Verification commands: required durable-state reads; clean local/fetched/
+  raw-Git/public-REST authority checks; exact workflow/tool/version/root/hash
+  checks; the full reusable candidate `--build`; a separate workflow
+  `--verify`; direct complete-manifest verification; status, reproducibility,
+  file/byte/link/work-root, RC.15 preservation, Git-cleanliness, and
+  `git diff --check` checks.
+- Follow-up operator review replayed the workflow `--verify` mode and suite
+  `--static` gate; independently checked strict complete-manifest verification,
+  inventory size, file/link/work-root bounds, cross-platform byte equality,
+  embedded metadata, empty build IDs, retained test and vulnerability output,
+  exact source/workflow identity, and RC.15 authority/failed-manifest
+  preservation; and passed `git diff --check`. No fixture or model operation
+  occurred. The operator explicitly authorized raw-Git commit and push of the
+  exact three-file durable record.
+- Result: **PASS for RC.16 construction and independent verification**. What
+  remains is a separate fresh pass obtaining exact remote evidence for RC.16,
+  followed only later by a fresh quantitative Level-1 real-Codex suite. There
+  is no blocker for the next bounded gate.
+
 ## RC.15 Quantitative Gate Failed; Planning-State Repair Passes (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining
