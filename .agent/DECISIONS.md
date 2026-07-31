@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## RC.18 Failed Level-1 Dogfood; Planning Requires Paired Exact Citations (2026-07-31)
+
+- RC.18 remains a valid reproducibly constructed and remotely tested bundle,
+  but it failed the quantitative Level-1 gate and is permanently ineligible for
+  external-use approval. Its first live operation is immutable typed failure
+  evidence at `.revolvr/ext20-level1-rc18-quantitative-20260731`; it may not be
+  retried, removed, modified, relabeled, or combined with later candidate
+  evidence.
+- A planning proposal's top-level `inputs` and `plan.provenance` must each
+  contain both the exact canonical task-origin evidence and the exact
+  supervisor-decision artifact, including `kind`, `reference`, and `detail`.
+  The prompt must present that required pair together and explicitly preserve
+  the decision artifact's `file` kind; a semantically suggestive relabel to
+  `plan` is not the same durable evidence identity.
+- The repair changes prompt clarity only. Host validation remains exact and
+  fail-closed, and Revolvr does not normalize, infer, or repair model-authored
+  evidence citations. Existing task-origin acceptance and complete planning-
+  provenance checks are unchanged.
+- Because prompt bytes and production behavior changed, all later dogfood must
+  use a new source-bound candidate that repeats reproducible construction,
+  independent verification, and exact remote CI. RC.18 cannot be repaired in
+  place and no later run may reuse its suite root or operation identity.
+
 ## RC.17 Failed Level-1 Dogfood; Audit Citations Use Durable Reference Identity (2026-07-31)
 
 - RC.17 remains a valid reproducibly constructed and remotely tested bundle,

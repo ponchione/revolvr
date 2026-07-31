@@ -1,5 +1,76 @@
 # Agent State
 
+## RC.18 Quantitative Gate Failed; Planning-Citation Prompt Repair Passes (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining
+  quantitative Level-1 real-Codex gate against exact RC.18 authority SHA-256
+  `06d8e10e6de5e0ce0774afebc0d49dc543af6334ddba0a175517329729e024ef`.
+  This was the sole task; `EXT-20` remains unchecked.
+- Admission passed at clean `main` commit
+  `b1f62297614ffcc53719c6a98fd000641c485009`. Static verification and
+  preparation installed isolated exact Codex `0.144.4` and created two clean
+  disposable repositories without a model call at
+  `.revolvr/ext20-level1-rc18-quantitative-20260731`, suite ID
+  `ext20-51c9684c419a`.
+- Live operation `ext20-51c9684c419a-01` completed supervisor routing and one
+  read-only planner attempt, then terminally stopped `unsafe_or_ambiguous`
+  before implementation, verification, audit, or commit. The planner copied
+  the exact canonical task origin and supervisor-decision artifact into
+  top-level `inputs`; in `plan.provenance` it copied the task origin and
+  decision reference exactly but changed the decision artifact kind from
+  `file` to `plan` and paraphrased its detail. Planning application correctly
+  rejected the non-exact citation with `plan provenance must contain the exact
+  task source and supervisor decision artifact`.
+- The retained manifest SHA-256 is
+  `6f217cbcb02ed9ae24d41a5adf348a2abd495201831e0ef2a9bce448760fe3d4`;
+  terminal-operation SHA-256 is
+  `b66695df34fcd4af95cf650705ad451ac54564df55068e4174f830d2c53b5ca2`.
+  Direct manifest verification, exact outside-sentinel comparison, all
+  collector ledger/receipt validations, and unchanged candidate, Codex,
+  approved configuration, control HEAD, and workspace HEAD checks pass.
+  Exactly one operation and one manifest exist; no later operation or aggregate
+  exists. RC.15, RC.16, RC.17, and RC.18 candidate/failure authorities remain
+  exact and immutable.
+- The one reasonable repair attempt changes only planner prompt construction.
+  It renders the exact canonical task-origin and supervisor-decision artifact
+  together, requires both evidence objects field-for-field in top-level
+  `inputs` and `plan.provenance`, and explicitly forbids relabeling the decision
+  artifact from `file` to `plan`. The host validator remains unchanged and
+  fail-closed; no model output is normalized or repaired by the harness. The
+  production-cycle regression asserts both the exact rendered pair and the
+  explicit identity rule.
+- Files changed: `internal/autonomouscycle/worker_prompt.go`,
+  `internal/autonomouscycle/cycle_test.go`, `.agent/TASKS.md`,
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`, plus the
+  ignored retained RC.18 suite root. No dependency, commit, push, tag, release,
+  external-use decision, candidate, remote ref, or historical evidence changed.
+- Verification commands: required durable-state reads; clean Git, collision,
+  disk, candidate, historical-preservation, Bash syntax, and suite `--static`
+  admission; suite `--prepare`; the explicitly confirmed suite `--live`;
+  direct collector `--verify-manifest`; exact sentinel, source/workspace,
+  candidate/Codex/config, operation-count, aggregate-absence, ledger-export,
+  replay, receipt, and RC.15/RC.16/RC.17 preservation checks; `gofmt`; focused
+  normal and race `TestRunEveryWorkerActionUsesExactProfileAndOneFreshWorker`;
+  `go test -count=1 ./...`; and `git diff --check`.
+- Follow-up operator review independently replayed the read-only static,
+  strict-manifest, prepared-suite, terminal-operation, sentinel, control/
+  workspace HEAD, candidate/Codex/configuration, operation-count, aggregate-
+  absence, collector, and RC.15/RC.16/RC.17 preservation checks. Inspection of
+  the raw planner output corrected the durable failure description: the plan-
+  provenance copy changed both kind and detail while preserving the reference.
+  The prompt-only repair already requires all three fields unchanged and leaves
+  exact host validation untouched. `gofmt`, focused normal/race tests, the
+  package and full Go suites, and `git diff --check` all pass. The operator
+  explicitly authorized raw-Git commit and push of the exact six-file record.
+- Result: **RC.18 QUANTITATIVE GATE FAILED; SOURCE REPAIR VERIFICATION PASSED**.
+  RC.18 and its suite are immutable and cannot be retried, removed, modified,
+  relabeled, or used for external approval. Independent review passed and
+  publication is authorized. What remains after publication is construction
+  and verification of a new source-bound candidate, exact remote CI, and a new
+  collision-free quantitative suite in separate fresh passes. Release
+  progression is blocked on those gates; there is no implementation-test
+  blocker.
+
 ## RC.18 Exact-Source Remote CI Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to the required

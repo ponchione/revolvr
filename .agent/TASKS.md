@@ -429,13 +429,34 @@
     review independently confirmed the sole exact-source run, all ten jobs and
     source-reporting steps, replayed all post-CI candidate and preservation
     checks, and explicitly authorized raw-Git publication of the three-file
-    remote-CI record. What remains is a separate fresh collision-free
-    quantitative Level-1 real-Codex suite against only this exact RC.18
-    authority. Follow-up operator review of candidate construction replayed
-    both read-only gates, accepted the exact
-    bundle and retained test/vulnerability evidence, confirmed RC.15/RC.16/
-    RC.17 preservation, and explicitly authorized raw-Git publication of the
-    three-file candidate record.
+    remote-CI record. Follow-up operator review of candidate construction
+    replayed both read-only gates, accepted the exact bundle and retained test/
+    vulnerability evidence, confirmed RC.15/RC.16/RC.17 preservation, and
+    explicitly authorized raw-Git publication of the three-file candidate
+    record. The fresh RC.18 quantitative gate then started in retained root
+    `.revolvr/ext20-level1-rc18-quantitative-20260731`, suite ID
+    `ext20-51c9684c419a`. Its first planner copied the exact task origin and
+    supervisor-decision artifact into top-level inputs. In plan provenance it
+    preserved the task origin and decision reference, but relabeled the
+    decision artifact from `file` to `plan` and paraphrased its detail.
+    Planning application correctly stopped `unsafe_or_ambiguous` before source
+    mutation because plan provenance lacked the exact artifact. The exact
+    manifest verifies and proves unchanged control/workspace HEAD, candidate,
+    Codex, configuration, and outside sentinel; every collector ledger/receipt
+    validation passes, no later operation started, and no aggregate exists.
+    RC.18 has therefore failed the quantitative gate and cannot be retried,
+    relabeled, or used for an external-use decision. The single repair attempt
+    now renders the exact task-origin and supervisor-artifact pair together and
+    explicitly requires both objects unchanged in top-level inputs and plan
+    provenance; validation remains fail-closed. The focused normal/race tests
+    and full Go suite pass. Follow-up operator review replayed the exact
+    immutable failure and containment evidence, corrected the durable
+    description of the changed kind and detail, inspected the prompt/validator
+    boundary, reran focused normal/race, package, and full tests, and explicitly
+    authorized raw-Git publication of the six-file repair record. A later
+    source-qualified candidate must repeat construction, independent
+    verification, and exact remote CI before any new quantitative suite may
+    start.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.

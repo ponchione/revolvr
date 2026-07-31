@@ -148,11 +148,21 @@ func TestRunEveryWorkerActionUsesExactProfileAndOneFreshWorker(t *testing.T) {
 					t.Fatalf("corrector prompt lacks cited finding scope:\n%s", fixture.workerPrompt)
 				}
 			} else if tt.action == autonomous.ActionPlan {
+				requiredOrigins, err := marshalPromptJSON([]autonomous.EvidenceReference{
+					autonomousplanning.CanonicalTaskOrigin(fixture.task.SourcePath, fixture.task.SourceSHA256()),
+					result.Supervisor.DecisionReference.Artifact,
+				})
+				if err != nil || !strings.Contains(fixture.workerPrompt, string(requiredOrigins)) {
+					t.Fatalf("planner prompt lacks exact required task/decision origins: %v\n%s", err, fixture.workerPrompt)
+				}
 				for _, want := range []string{
 					"pending and in_progress use `evidence: []` and `rationale: null`",
 					"never in nonterminal step evidence",
 					"Pending acceptance criteria likewise use `evidence: []` and `rationale: null`",
 					"Every step in a new initial plan must be pending",
+					"Both top-level `inputs` and `plan.provenance` must contain both exact evidence objects below",
+					"without changing `kind`, `reference`, or `detail`",
+					"supervisor-decision artifact kind remains `file` and must not be relabeled as `plan`",
 				} {
 					if !strings.Contains(fixture.workerPrompt, want) {
 						t.Fatalf("planner prompt lacks lifecycle contract %q:\n%s", want, fixture.workerPrompt)

@@ -4,6 +4,65 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+RC.18 terminally failed the quantitative Level-1 gate. Static verification and
+preparation passed against authority SHA-256
+`06d8e10e6de5e0ce0774afebc0d49dc543af6334ddba0a175517329729e024ef`.
+The prepared retained root is
+`.revolvr/ext20-level1-rc18-quantitative-20260731`, suite ID
+`ext20-51c9684c419a`.
+
+The first live operation, `ext20-51c9684c419a-01`, completed supervisor routing
+and one read-only planner attempt, then stopped `unsafe_or_ambiguous` before
+source mutation. The planner copied the exact task origin and supervisor-
+decision artifact into top-level inputs. In plan provenance it preserved the
+task origin and decision reference, but relabeled the artifact from `file` to
+`plan` and paraphrased its detail. Exact host validation correctly rejected the
+changed evidence identity.
+
+The exact verified manifest is
+`evidence/repo-a/01-successful-source-change-1/manifest.tsv`, SHA-256
+`6f217cbcb02ed9ae24d41a5adf348a2abd495201831e0ef2a9bce448760fe3d4`.
+The terminal-operation SHA-256 is
+`b66695df34fcd4af95cf650705ad451ac54564df55068e4174f830d2c53b5ca2`.
+Control/workspace HEAD, candidate, Codex, approved configuration, and outside
+sentinel are unchanged; ledger, receipt, and manifest checks pass. No later
+operation started and no aggregate exists. RC.15, RC.16, RC.17, RC.18, and all
+prior evidence remain exact.
+
+The single repair attempt makes the planner prompt render the exact task-origin
+and supervisor-artifact pair together, require both objects unchanged in
+top-level inputs and plan provenance, and explicitly prohibit relabeling the
+artifact from `file` to `plan`. Exact host validation is unchanged. Focused
+normal/race tests and the full Go suite pass. RC.18 and its suite are immutable
+and cannot be retried or used for external approval. `EXT-20` remains unchecked.
+
+Follow-up operator review independently replayed the static, strict-manifest,
+prepared-suite, terminal-operation, sentinel, control/workspace HEAD,
+candidate/Codex/configuration, operation-count, aggregate-absence, collector,
+and RC.15/RC.16/RC.17 preservation checks. It inspected the exact planner
+output, corrected the durable description of the changed kind and detail,
+confirmed the prompt-only repair covers both while leaving validation
+unchanged, formatted the changed Go files, and passed focused normal/race,
+package, full-suite, and diff checks. The operator explicitly authorized raw-
+Git commit and push of this exact six-file repair record.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may construct and independently verify exactly one new source-bound
+candidate from the clean published planner-citation prompt repair. It must not
+rerun or modify RC.18 evidence, prepare a quantitative suite, start a model
+call, create a tag/release/external-use decision, or commit/push without
+explicit operator authorization. Later separate passes must verify exact-source
+remote CI and then run a fresh collision-free quantitative suite.
+
+## Previous Resume Point
+
 RC.18 exact-source remote CI passed without preparing a quantitative suite or
 starting a model call. Clean local, fetched, raw-Git, and public `main` agree at
 published candidate-record commit
