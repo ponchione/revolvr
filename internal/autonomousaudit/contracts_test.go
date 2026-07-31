@@ -107,6 +107,32 @@ func TestParseAuditOutputRejectsMissingMalformedMultipleUnknownAndInvalid(t *tes
 	}
 }
 
+func TestAuditOutputVerificationCitationUsesReferenceIdentity(t *testing.T) {
+	output := auditOutput(autonomous.AuditDispositionClean)
+	output.Report.Inputs[0].Detail = "Independent description of the cited verification evidence."
+	if err := output.Validate(); err != nil {
+		t.Fatalf("Validate() rejected paraphrased citation detail: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*autonomous.EvidenceReference)
+	}{
+		{"kind", func(evidence *autonomous.EvidenceReference) { evidence.Kind = autonomous.EvidenceKindFile }},
+		{"reference", func(evidence *autonomous.EvidenceReference) { evidence.Reference = "different-verification" }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			candidate := auditOutput(autonomous.AuditDispositionClean)
+			tt.mutate(&candidate.Report.Inputs[0])
+			err := candidate.Validate()
+			if err == nil || !strings.Contains(err.Error(), "must cite every exact current verification evidence reference") {
+				t.Fatalf("Validate() error = %v, want citation identity rejection", err)
+			}
+		})
+	}
+}
+
 func TestApplyReportFindingIdentityAndCleanRules(t *testing.T) {
 	previous := readyState()
 	decision := auditDecision()

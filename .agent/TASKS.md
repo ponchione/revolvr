@@ -389,6 +389,28 @@
     confirmed the sole exact-source run, all ten jobs and source-reporting
     steps, replayed post-CI candidate and preservation checks, and explicitly
     authorized raw-Git publication of the three-file remote-CI record.
+    The fresh RC.17 quantitative gate then started in retained root
+    `.revolvr/ext20-level1-rc17-quantitative-20260731`, suite ID
+    `ext20-9c2b181a2a88`. Its first operation completed planning,
+    implementation, configured verification, and a clean independent audit,
+    but audit application terminally stopped `unsafe_or_ambiguous`: the audit
+    cited the sole exact current verification kind/reference while
+    independently paraphrasing its descriptive detail, and validation wrongly
+    required full-struct equality including that model-authored prose. The
+    exact manifest verifies and proves unchanged control HEAD, candidate,
+    Codex, configuration, and outside sentinel; all collector ledger/receipt
+    validations pass, no later operation started, and no aggregate exists.
+    RC.17 has therefore failed the quantitative gate and cannot be retried,
+    relabeled, or used for an external-use decision. The single repair attempt
+    makes only the audit-report citation check use durable evidence identity
+    `(kind, reference)` while exact provenance and resolution-evidence checks
+    remain unchanged; a focused regression, focused race test, and the full Go
+    suite pass. Follow-up operator review replayed the exact immutable failure
+    and containment evidence, inspected the citation/provenance boundary,
+    reran focused, package, race, and full Go tests, and explicitly authorized
+    raw-Git publication of the six-file repair record. A later source-qualified
+    candidate must repeat construction, independent verification, and exact
+    remote CI before any new quantitative suite may start.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.

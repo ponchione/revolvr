@@ -189,7 +189,7 @@ func (o AuditOutput) Validate() error {
 		return errors.New("validate audit output: provenance task identity does not match output task_id")
 	}
 	for _, evidence := range o.Provenance.Verification.Summary.Evidence {
-		if !containsEvidence(o.Report.Inputs, evidence) {
+		if !containsEvidenceReference(o.Report.Inputs, evidence) {
 			return errors.New("validate audit output: report inputs must cite every exact current verification evidence reference")
 		}
 	}
@@ -496,6 +496,14 @@ func normalizeMeaning(value string) string {
 func containsEvidence(values []autonomous.EvidenceReference, target autonomous.EvidenceReference) bool {
 	for _, value := range values {
 		if value == target {
+			return true
+		}
+	}
+	return false
+}
+func containsEvidenceReference(values []autonomous.EvidenceReference, target autonomous.EvidenceReference) bool {
+	for _, value := range values {
+		if value.Kind == target.Kind && value.Reference == target.Reference {
 			return true
 		}
 	}

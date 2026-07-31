@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## RC.17 Failed Level-1 Dogfood; Audit Citations Use Durable Reference Identity (2026-07-31)
+
+- RC.17 remains a valid reproducibly constructed and remotely tested bundle,
+  but it failed the quantitative Level-1 gate and is permanently ineligible
+  for external-use approval. Its first live operation is immutable typed
+  failure evidence at `.revolvr/ext20-level1-rc17-quantitative-20260731`; it
+  may not be retried, removed, modified, relabeled, or combined with later
+  candidate evidence.
+- An `EvidenceReference` has durable citation identity `(kind, reference)`;
+  `detail` is required explanatory prose, not authority. Audit reports may
+  independently describe the exact verification reference without copying its
+  description byte for byte. They must still preserve the exact kind and
+  reference, and audit-apply continues to compare the complete provenance
+  envelope against trusted host evidence.
+- This scope applies only to the audit report's requirement to cite current
+  verification references. Finding-resolution evidence still uses exact
+  complete evidence equality because that boundary explicitly retains
+  supplied host evidence.
+- Because the repair changes production behavior, all later dogfood must use a
+  new source-bound candidate that repeats reproducible construction,
+  independent verification, and exact remote CI. RC.17 cannot be repaired in
+  place and no later run may reuse its suite root or operation identity.
+
 ## RC.16 Failed Level-1 Dogfood; Worker Receipt Targets the Control Root (2026-07-31)
 
 - RC.16 remains a valid reproducibly constructed and remotely tested bundle,

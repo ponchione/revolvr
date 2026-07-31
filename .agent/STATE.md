@@ -1,5 +1,72 @@
 # Agent State
 
+## RC.17 Quantitative Gate Failed; Audit Citation Repair Passes (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining
+  quantitative Level-1 real-Codex gate against exact RC.17 authority SHA-256
+  `4909b90eb351fb1eebff7249ae5138ff4af246d92fc100d1d1b8bf807b8f5700`.
+  This was the sole task; `EXT-20` remains unchecked.
+- Admission passed at clean local and `origin/main` commit
+  `316697f01392d5e6d3b4cc347f2e22496e1dc3a6`. Static verification passed,
+  preparation installed isolated exact Codex `0.144.4`, and two disposable
+  repositories were created without a model call at
+  `.revolvr/ext20-level1-rc17-quantitative-20260731`, suite ID
+  `ext20-9c2b181a2a88`.
+- Live operation `ext20-9c2b181a2a88-01` completed exact planning,
+  implementation, configured verification, and a clean independent audit with
+  three admitted and three completed attempts. The auditor cited the sole
+  current verification evidence kind/reference exactly and independently
+  described its meaning, but audit application stopped
+  `unsafe_or_ambiguous`: `report inputs must cite every exact current
+  verification evidence reference`.
+- The root cause is an audit-contract mismatch. The prompt requires the report
+  to cite every exact verification **reference**, while `AuditOutput.Validate`
+  compared the complete `EvidenceReference`, including model-authored `detail`
+  prose. The exact provenance envelope was already copied and validated
+  separately. Thus an accurate paraphrase of a non-authoritative description
+  rejected an otherwise exact reference.
+- The retained manifest SHA-256 is
+  `93665a348d761f0a6c041ff16e67e68921a84bed071f7f3f945bda43181673a0`;
+  terminal-operation SHA-256 is
+  `e0112df81b9b9fef4b81136b9524bec31acb8c97995146f2eb1020c77a5189d8`.
+  Direct manifest verification, exact outside-sentinel comparison, all
+  collector ledger/receipt validations, and unchanged candidate, Codex,
+  configuration, and control HEAD checks pass. Exactly one operation manifest
+  exists and no aggregate report exists; no later operation started. RC.15,
+  RC.16, and RC.17 recorded authorities and failed manifests remain exact.
+- The one reasonable repair attempt changes only the audit-report verification
+  citation check to match durable identity `(kind, reference)`. It still
+  rejects a changed kind or reference. Exact model provenance is still checked
+  against host authority at audit apply, and correction-resolution evidence
+  retains full-struct equality.
+- Files changed: `internal/autonomousaudit/contracts.go`,
+  `internal/autonomousaudit/contracts_test.go`, `.agent/TASKS.md`,
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`, plus the
+  ignored retained RC.17 suite root. No dependency, commit, push, tag, release,
+  external-use decision, candidate, remote ref, or historical evidence changed.
+- Verification commands: required durable-state reads; clean Git/candidate and
+  preservation checks; suite `--static`; suite `--prepare`; the explicitly
+  confirmed suite `--live`; direct collector `--verify-manifest`; exact
+  sentinel comparison; collector ledger/receipt validation; operation and
+  aggregate counts; focused autonomous-audit tests; focused race test;
+  `gofmt`; `go test -count=1 ./...`; and `git diff --check`.
+- Follow-up operator review independently replayed the retained manifest,
+  terminal-operation, sentinel, prepared-suite, ledger/receipt, candidate/
+  Codex/config, operation-count, and RC.15/RC.16/RC.17 preservation checks;
+  confirmed the report/provenance citation shared exact `(kind, reference)`
+  and differed only in explanatory detail; reviewed the unchanged full-
+  provenance and resolution-evidence boundaries; formatted both changed Go
+  files; and reran focused, package, race, and full Go tests plus `git diff
+  --check`. All passed. The operator explicitly authorized raw-Git commit and
+  push of the exact six-file repair record.
+- Result: **RC.17 QUANTITATIVE GATE FAILED; SOURCE REPAIR VERIFICATION PASSED**.
+  RC.17 and its suite are immutable and cannot be retried, removed, relabeled,
+  or used for external approval. Independent review passed and publication is
+  authorized. What remains after publication is construction and verification
+  of a new source-bound candidate, exact remote CI, and a new collision-free
+  quantitative suite in separate fresh passes. There is no test blocker;
+  release progression is blocked on those gates.
+
 ## RC.17 Exact-Source Remote CI Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to the required

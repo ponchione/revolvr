@@ -4,6 +4,63 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+RC.17 terminally failed the quantitative Level-1 gate. Static verification and
+preparation passed against authority SHA-256
+`4909b90eb351fb1eebff7249ae5138ff4af246d92fc100d1d1b8bf807b8f5700`.
+The prepared retained root is
+`.revolvr/ext20-level1-rc17-quantitative-20260731`, suite ID
+`ext20-9c2b181a2a88`.
+
+The first live operation, `ext20-9c2b181a2a88-01`, completed planning,
+implementation, configured verification, and a clean independent audit with
+three admitted and three completed attempts. Audit application then stopped
+`unsafe_or_ambiguous` because the auditor cited the exact current verification
+kind/reference but paraphrased its descriptive detail, while validation
+incorrectly compared the complete evidence struct.
+
+The exact verified manifest is
+`evidence/repo-a/01-successful-source-change-1/manifest.tsv`, SHA-256
+`93665a348d761f0a6c041ff16e67e68921a84bed071f7f3f945bda43181673a0`.
+The terminal-operation SHA-256 is
+`e0112df81b9b9fef4b81136b9524bec31acb8c97995146f2eb1020c77a5189d8`.
+Control HEAD, candidate, Codex, approved configuration, and outside sentinel
+are unchanged; ledger, receipt, and manifest checks pass. No later operation
+started and no aggregate exists. RC.15, RC.16, and all prior evidence remain
+exact.
+
+The single repair attempt makes only the audit-report citation check compare
+durable evidence identity `(kind, reference)`, still rejects either identity
+change, and retains exact provenance and resolution-evidence checks. Focused,
+race, and full Go tests pass. RC.17 and its suite are immutable and cannot be
+retried or used for external approval. `EXT-20` remains unchecked.
+
+Follow-up operator review independently replayed the retained manifest,
+terminal-operation, sentinel, prepared-suite, ledger/receipt, candidate/Codex/
+config, operation-count, and RC.15/RC.16/RC.17 preservation checks; confirmed
+the report/provenance citation shared exact `(kind, reference)` and differed
+only in explanatory detail; reviewed the unchanged full-provenance and
+resolution-evidence boundaries; formatted the changed Go files; and reran
+focused, package, race, and full Go tests plus `git diff --check`. All passed.
+The operator explicitly authorized raw-Git commit and push of this exact six-
+file repair record.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may construct and independently verify exactly one new source-bound
+candidate from the clean published audit-citation repair. It must not rerun or
+modify RC.17 evidence, start a model operation or quantitative-suite
+preparation, or create a tag, release, or external-use decision. A separate
+later pass must obtain exact remote-CI evidence for the new candidate before
+another fresh collision-free quantitative suite may start.
+
+## Previous Resume Point
+
 RC.17 exact-source remote CI passed without preparing a quantitative suite or
 starting a model call. Clean local, fetched, raw-Git, and public `main` agree at
 published candidate-record commit
