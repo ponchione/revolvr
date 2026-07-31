@@ -516,9 +516,19 @@
     reproducibility, build-ID, metadata, version, vulnerability, source, and
     RC.15-through-RC.19 preservation assertions; and explicitly authorized raw-
     Git publication of the three-file candidate record. RC.20 is accepted by
-    independent verification without rebuild or modification. A separate fresh
-    pass must obtain exact-source remote CI before any quantitative suite may
-    start.
+    independent verification without rebuild or modification. Exact push-
+    triggered CI run `30653427308` on source commit
+    `7826c0fe97bd40508553702011475cea8b35e80f` then passed all ten mandatory
+    jobs, with every job's exact-source reporting step successful. Post-CI
+    candidate, suite-static, strict-manifest, topology, reproducibility,
+    build-ID, metadata, vulnerability, source/workflow identity, and RC.15-
+    through-RC.19 preservation checks also passed. No fixture, quantitative
+    suite, or model call occurred. Follow-up operator review independently
+    confirmed the sole exact-source run, all ten jobs and source-reporting
+    steps, replayed the raw-Git and post-CI candidate checks, and explicitly
+    authorized raw-Git publication of the three-file remote-CI record. A
+    separate fresh pass must prepare and run the collision-free quantitative
+    Level-1 suite against only this exact RC.20 authority.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.

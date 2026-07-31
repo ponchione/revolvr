@@ -1,5 +1,81 @@
 # Agent State
 
+## RC.20 Exact-Source Remote CI Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to the required
+  remote-CI evidence gate for exact RC.20 source commit
+  `7826c0fe97bd40508553702011475cea8b35e80f`. This was the sole task; no
+  quantitative suite was prepared and no model call occurred. `EXT-20`
+  remains unchecked.
+- Clean local `main`, refreshed `origin/main`, raw-Git remote `main`, and the
+  public GitHub commit API agreed at published candidate-record commit
+  `5c1c46572184e8106ba2c7e63ee6ef89dfb689d8`. The public source commit and
+  local object both resolve to tree
+  `8583930512aefa07fb281cb5daaea3af49061fda`; that source is an ancestor of
+  the published candidate record, and its candidate-workflow bytes equal the
+  current workflow and recorded SHA-256
+  `2a7ff48266b9bf3601b7f05ffef58fd36db0033a2afe2537c46043a3e69472e9`.
+- Public GitHub Actions REST returned exactly one push-triggered `CI` run for
+  the source SHA: run `30653427308`, number `150`, attempt `1`, branch `main`,
+  status `completed`, conclusion `success`, created
+  `2026-07-31T18:00:22Z`, and updated `2026-07-31T18:03:35Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30653427308`.
+- The run contained exactly the ten mandatory unique jobs. Every job had the
+  exact RC.20 source SHA, completed successfully, and had one successful
+  `Report exact source commit` step:
+  - `91231913549` — Go 1.22 source floor and tests
+  - `91231913444` — Production autonomous strict-fake suite
+  - `91231913220` — Race tests
+  - `91231913333` — Vet and module verification
+  - `91231913401` — Fake-Codex success smoke
+  - `91231913379` — Fake-Codex verification-failure smoke
+  - `91231913274` — Build linux/amd64
+  - `91231913377` — Build darwin/amd64
+  - `91231913376` — Build freebsd/amd64
+  - `91231913501` — Build Windows diagnostic stub
+- Post-CI verification replayed the reusable candidate workflow's read-only
+  `--verify` mode and the dogfood suite's read-only `--static` mode against
+  candidate-authority SHA-256
+  `6e722fcc7b28cab0af190c9febc5d13d9655adbf1883b954f55f737c5000b627`.
+  Direct strict complete-manifest verification passed. The bundle remained
+  exactly 48 regular single-link files and 137,838,214 bytes, with no symlink,
+  hard link, or residual `.work` root. All three build pairs remained byte-
+  identical, all six inspected build IDs remained empty, embedded source
+  metadata and `revolvr 0.1.0` output remained exact, retained vulnerability
+  evidence still reports zero affected vulnerabilities, and the Linux
+  candidate remained
+  `1b63c3735339a4f9aa775b06a2d84eaad7ff9031f1461259409734a8601232e2`.
+  RC.15 through RC.19 candidate authorities and failed-operation manifests
+  also remained exact and immutable.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/HANDOFF.md`. `.agent/DECISIONS.md` is unchanged because no durable
+  implementation or architecture decision changed. No product, dependency,
+  candidate, historical evidence, remote ref, tag, workflow, suite root,
+  release, or external-use decision changed.
+- Follow-up operator review independently confirmed the sole exact-source
+  public Actions run, all ten required job identities, and exactly one
+  successful source-reporting step per job; replayed raw-Git source identity,
+  candidate `--verify`, suite `--static`, strict manifest, topology,
+  reproducibility, metadata, empty build IDs, version, vulnerability, and
+  RC.15-through-RC.19 preservation assertions. Every assertion and
+  `git diff --check` passed without suite preparation or a model call. The
+  operator explicitly authorized raw-Git commit and push of this exact
+  three-file remote-CI record.
+- Verification commands: required durable-state reads; clean worktree and
+  local/fetched/raw-Git/public commit and tree checks; exact GitHub Actions
+  run-count, run-identity, job-set, job-source, and source-reporting-step
+  assertions through the public REST API; candidate workflow `--verify`;
+  suite `--static`; direct strict `sha256sum --check --strict`; candidate
+  authority, manifest, workflow, topology, artifact-pair, build-ID, embedded-
+  metadata, version, and vulnerability-evidence checks; RC.15/RC.16/RC.17/
+  RC.18/RC.19 preservation checks; and `git diff --check`. The unavailable
+  `gh` executable was replaced by the public REST API without changing scope
+  or evidence.
+- Verification result: **PASS for the RC.20 exact-source remote-CI gate**.
+  What remains is a separate fresh pass preparing and executing one new
+  collision-free quantitative Level-1 real-Codex suite against only this exact
+  RC.20 authority. There are no blockers for that next gate.
+
 ## RC.20 Constructed And Independently Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to construction
