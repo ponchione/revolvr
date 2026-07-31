@@ -477,9 +477,32 @@
     operator review independently confirmed the sole exact-source run, all ten
     jobs and source-reporting steps, replayed the raw-Git and post-CI candidate
     checks, and explicitly authorized raw-Git publication of the three-file
-    remote-CI record. What remains after publication is a separate fresh
-    collision-free quantitative Level-1 real-Codex suite against only this
-    RC.19 authority.
+    remote-CI record. The fresh RC.19 quantitative gate then started in
+    retained root `.revolvr/ext20-level1-rc19-quantitative-20260731`, suite ID
+    `ext20-56f74f29f1af`. Its first operation completed planning,
+    implementation, configured verification, one run-owned commit, checkpoint
+    advancement, and a clean independent audit. The audit supplied exact
+    evidence that all work was satisfied, but the durable plan steps and
+    acceptance criteria remained pending. The supervisor chose `complete`
+    instead of routing a planner to reconcile those lifecycle fields, and the
+    completion gate correctly stopped `unsafe_or_ambiguous` before
+    finalization. The exact manifest verifies and proves unchanged control
+    HEAD, candidate, Codex, configuration, and outside sentinel; every
+    collector ledger/receipt validation passes, no later operation started,
+    and no aggregate exists. RC.19 has therefore failed the quantitative gate
+    and cannot be retried, relabeled, or used for an external-use decision.
+    The single repair attempt adds an exact harness-level supervisor rule:
+    `complete` requires already-terminal durable plan and acceptance state;
+    evidence supporting pending lifecycle fields must first route `plan` for
+    exact reconciliation. The deterministic completion validator remains
+    unchanged and fail-closed. Focused normal/race tests and the full Go suite
+    pass. Follow-up operator review replayed the exact immutable failure and
+    containment evidence, inspected the final pending lifecycle state and
+    prompt/validator boundary, reran focused normal/race, package, and full
+    tests, and explicitly authorized raw-Git publication of the six-file
+    repair record. A later source-qualified candidate must repeat construction,
+    independent verification, and exact remote CI before any new quantitative
+    suite may start.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.

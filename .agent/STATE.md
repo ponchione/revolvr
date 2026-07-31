@@ -1,5 +1,74 @@
 # Agent State
 
+## RC.19 Quantitative Gate Failed; Plan-Reconciliation Prompt Repair Passes (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining
+  quantitative Level-1 real-Codex gate against exact RC.19 authority SHA-256
+  `5c6191a6276c91ba2b802c90c7fbb3270602d750a2c5dd44130a6749d0ef1ffb`.
+  This was the sole task; `EXT-20` remains unchecked.
+- Admission passed at clean synchronized `main` commit
+  `4f2a2276eaff5ae8f3799253af3082756561ed6f`, with exact RC.19 candidate
+  authority and RC.15/RC.16/RC.17/RC.18 candidate/failure identities
+  preserved. Static verification and preparation installed isolated exact
+  Codex `0.144.4` and created two disposable repositories without a model call
+  at `.revolvr/ext20-level1-rc19-quantitative-20260731`, suite ID
+  `ext20-56f74f29f1af`.
+- Live operation `ext20-56f74f29f1af-01` completed planning, implementation,
+  configured verification, one run-owned source commit, checkpoint
+  advancement, and a clean independent audit. The audit cited exact evidence
+  showing all three plan steps and all acceptance requirements were satisfied,
+  but their canonical durable statuses remained pending. The next supervisor
+  chose `complete`; the completion gate correctly stopped
+  `unsafe_or_ambiguous` because step `create-result-file` was still pending.
+- The retained manifest SHA-256 is
+  `1bb053862b869e564376c128538d199fea775b78a3793f5383226e481f4f4f13`;
+  terminal-operation SHA-256 is
+  `8013a58b306cf351b4299bb578953a9a524b490278c517590daf6ddb58a83d09`.
+  Direct manifest verification, exact outside-sentinel/control-HEAD checks,
+  candidate/Codex/configuration checks, every collector ledger/receipt
+  validation, and RC.15/RC.16/RC.17/RC.18 preservation checks pass. Exactly
+  one operation and manifest exist; no later operation or aggregate exists.
+- The one reasonable repair attempt changes only the harness-authored
+  supervisor prompt. It says `complete` is valid only when the current durable
+  state already marks the plan completed, every step terminal, and every
+  acceptance criterion terminally dispositioned; evidence supporting pending
+  lifecycle fields must route `plan` first for exact reconciliation. The
+  deterministic completion validator remains unchanged and fail-closed.
+- Files changed: `internal/supervisor/prompt.go`,
+  `internal/supervisor/prompt_schema_test.go`, `.agent/TASKS.md`,
+  `.agent/STATE.md`, `.agent/DECISIONS.md`, and `.agent/HANDOFF.md`, plus the
+  ignored retained RC.19 suite root. No dependency, commit, push, tag, release,
+  external-use decision, candidate, remote ref, or historical evidence changed.
+- Verification commands: required durable-state reads; clean Git, disk,
+  collision, candidate, historical-preservation, Bash syntax, candidate
+  `--verify`, and suite `--static` admission; suite `--prepare`; the explicitly
+  confirmed suite `--live`; direct collector `--verify-manifest`; exact
+  sentinel, source, candidate/Codex/configuration, operation-count,
+  aggregate-absence, ledger-export, replay, receipt, and historical-
+  preservation checks; `gofmt`; focused normal and race
+  `TestBuildPromptIsDeterministicAndIncludesExactInputs`; and
+  `go test -count=1 ./...`. Two initial read-only admission assertions used
+  abbreviated historical hashes and a superseded clean-head identity; the
+  corrected exact admission passed before preparation.
+- Follow-up operator review replayed candidate `--verify`, suite `--static`,
+  prepared-authority and strict-manifest verification; confirmed the terminal
+  operation, clean audit, passed verification, one source commit/checkpoint,
+  unchanged control HEAD/sentinel/candidate/Codex/configuration, operation
+  count, aggregate absence, collector checks, and RC.15/RC.16/RC.17/RC.18
+  preservation; and inspected the final dossier's zero terminal steps and six
+  pending criteria alongside the rejected `complete` decision. The prompt-only
+  repair directly requires a planner reconciliation before completion while
+  leaving the deterministic validator unchanged. `gofmt`, focused normal/race,
+  package, full-suite, and `git diff --check` all pass. The operator explicitly
+  authorized raw-Git commit and push of the exact six-file repair record.
+- Verification result: **RC.19 QUANTITATIVE GATE FAILED; SOURCE REPAIR
+  VERIFICATION PASSED**. RC.19 and its suite are immutable and cannot be
+  retried, removed, modified, relabeled, or used for external approval.
+  Independent review passed and publication is authorized. What remains after
+  publication is a new source-bound candidate, exact remote CI, and a fresh
+  collision-free quantitative suite in separate passes. Release progression
+  is blocked on those gates; there is no implementation-test blocker.
+
 ## RC.19 Exact-Source Remote CI Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to the required

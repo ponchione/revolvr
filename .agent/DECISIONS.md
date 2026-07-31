@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## RC.19 Failed Level-1 Dogfood; Completion Requires Durable Plan Reconciliation (2026-07-31)
+
+- RC.19 remains a valid reproducibly constructed and remotely tested bundle,
+  but it failed the quantitative Level-1 gate and is permanently ineligible
+  for external-use approval. Its first live operation is immutable typed
+  failure evidence at `.revolvr/ext20-level1-rc19-quantitative-20260731`; it
+  may not be retried, removed, modified, relabeled, or combined with later
+  candidate evidence.
+- Evidence that work satisfies a pending plan step or acceptance criterion
+  does not itself mutate that durable lifecycle field. Only a planning result
+  may propose those exact evidence-backed status transitions. A supervisor
+  must therefore choose `plan` when current evidence supports reconciling
+  pending plan/acceptance state, and may choose `complete` only after the
+  canonical plan is marked completed, every plan step is terminal, and every
+  acceptance criterion is terminally dispositioned.
+- The repair changes supervisor prompt clarity only. The deterministic
+  completion gate remains exact and fail-closed, and Revolvr does not infer or
+  synthesize lifecycle transitions from audit prose.
+- Because prompt bytes and production behavior changed, all later dogfood must
+  use a new source-bound candidate that repeats reproducible construction,
+  independent verification, and exact remote CI. RC.19 cannot be repaired in
+  place and no later run may reuse its suite root or operation identity.
+
 ## RC.18 Failed Level-1 Dogfood; Planning Requires Paired Exact Citations (2026-07-31)
 
 - RC.18 remains a valid reproducibly constructed and remotely tested bundle,

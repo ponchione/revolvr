@@ -4,6 +4,68 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+RC.19 terminally failed the quantitative Level-1 gate. Static verification and
+preparation passed against authority SHA-256
+`5c6191a6276c91ba2b802c90c7fbb3270602d750a2c5dd44130a6749d0ef1ffb`.
+The retained suite root is
+`.revolvr/ext20-level1-rc19-quantitative-20260731`, suite ID
+`ext20-56f74f29f1af`.
+
+The first live operation, `ext20-56f74f29f1af-01`, completed planning,
+implementation, configured verification, one run-owned commit, checkpoint
+advancement, and a clean independent audit. The audit supplied exact evidence
+that the work, plan steps, and acceptance requirements were satisfied, but the
+canonical plan steps and acceptance criteria still had pending durable
+statuses. The supervisor chose `complete` rather than `plan`, and the exact
+completion gate stopped `unsafe_or_ambiguous` before finalization.
+
+The exact verified manifest is
+`evidence/repo-a/01-successful-source-change-1/manifest.tsv`, SHA-256
+`1bb053862b869e564376c128538d199fea775b78a3793f5383226e481f4f4f13`.
+The terminal-operation SHA-256 is
+`8013a58b306cf351b4299bb578953a9a524b490278c517590daf6ddb58a83d09`.
+Control HEAD, candidate, Codex, approved configuration, and outside sentinel
+are unchanged; ledger, receipt, and manifest checks pass. No later operation
+started and no aggregate exists. RC.15 through RC.19 and all prior evidence
+remain exact.
+
+The single repair attempt adds a harness-level supervisor instruction:
+`complete` requires already-terminal durable plan and acceptance state;
+evidence supporting pending lifecycle fields must first route a planner for
+exact reconciliation. The deterministic completion validator is unchanged.
+Focused normal/race tests and the full Go suite pass. RC.19 and its suite are
+immutable and cannot be retried or used for external approval. `EXT-20`
+remains unchecked.
+
+Follow-up operator review replayed candidate `--verify`, suite `--static`,
+prepared-authority and strict-manifest checks; confirmed the exact terminal
+operation, clean audit, passed verification, one run-owned source commit,
+unchanged control HEAD/sentinel/candidate/Codex/configuration, empty aggregate,
+and RC.15/RC.16/RC.17/RC.18 preservation; and inspected the final dossier's
+`0/3` terminal steps and six pending criteria together with the rejected
+`complete` decision. The prompt-only repair leaves deterministic completion
+validation unchanged and directly requires planner reconciliation. Formatting,
+focused normal/race, package, full-suite, and diff checks pass. The operator
+explicitly authorized raw-Git commit and push of this exact six-file repair
+record.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may construct and independently verify exactly one new source-bound
+candidate from the clean published plan-reconciliation prompt repair. It must
+not rerun or modify RC.19 evidence, prepare a quantitative suite, start a model
+call, create a tag/release/external-use decision, queue, daemon, or commit/push
+without explicit operator authorization. Later separate passes must obtain
+exact-source remote CI and run a fresh quantitative suite.
+
+## Previous Resume Point
+
 RC.19 exact-source remote CI passed without preparing a quantitative suite or
 starting a model call. Clean local, fetched, raw-Git, and public `main` agree at
 published candidate-record commit
