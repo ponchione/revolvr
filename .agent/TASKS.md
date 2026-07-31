@@ -410,7 +410,22 @@
     reran focused, package, race, and full Go tests, and explicitly authorized
     raw-Git publication of the six-file repair record. A later source-qualified
     candidate must repeat construction, independent verification, and exact
-    remote CI before any new quantitative suite may start.
+    remote CI before any new quantitative suite may start. Exact local,
+    `origin/main`, raw-Git, and public GitHub `main` then matched the clean
+    published audit-citation repair commit
+    `0bed41ef930e7db3d0486bc9a82de2b5720fe49f`. One new source-qualified
+    candidate, `level1-v0.1.0-rc.18-0bed41ef930e`, was constructed and
+    independently verified with authority SHA-256
+    `06d8e10e6de5e0ce0774afebc0d49dc543af6334ddba0a175517329729e024ef`.
+    Its complete manifest, floor/current/race/module/vet/vulnerability matrix,
+    supported builds, embedded metadata, empty build IDs, and two-clone byte
+    comparisons pass. The suite's read-only static gate passed without fixture
+    preparation or a model call. What remains is exact push-triggered remote CI
+    for the RC.18 source before a separate fresh quantitative suite may start.
+    Follow-up operator review replayed both read-only gates, accepted the exact
+    bundle and retained test/vulnerability evidence, confirmed RC.15/RC.16/
+    RC.17 preservation, and explicitly authorized raw-Git publication of the
+    three-file candidate record.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.
