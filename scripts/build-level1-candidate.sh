@@ -201,6 +201,16 @@ record_command() {
 	fi
 }
 
+write_build_status() {
+	local output_root="$1" candidate_id="$2" source_commit="$3" result="$4"
+	{
+		printf 'schema_version\t%s\n' "$STATUS_SCHEMA"
+		printf 'candidate_id\t%s\n' "$candidate_id"
+		printf 'source_commit\t%s\n' "$source_commit"
+		printf 'result\t%s\n' "$result"
+	} >"$output_root/status.tsv"
+}
+
 build_candidate() {
 	local candidate_id="$1" release_version="$2" source_repository="$3"
 	local source_commit="$4" source_tree="$5" output_argument="$6"
@@ -246,16 +256,10 @@ build_candidate() {
 		"$output_root/pass-1/artifacts" "$output_root/pass-1/metadata" \
 		"$output_root/pass-2/artifacts" "$output_root/pass-2/metadata"
 
-	write_status() {
-		local result="$1"
-		{
-			printf 'schema_version\t%s\n' "$STATUS_SCHEMA"
-			printf 'candidate_id\t%s\n' "$candidate_id"
-			printf 'source_commit\t%s\n' "$source_commit"
-			printf 'result\t%s\n' "$result"
-		} >"$output_root/status.tsv"
-	}
-	trap 'write_status failed' EXIT
+	local status_trap
+	printf -v status_trap 'write_build_status %q %q %q failed' \
+		"$output_root" "$candidate_id" "$source_commit"
+	trap "$status_trap" EXIT
 
 	"$git_executable" --version >"$evidence_root/tools/git-version.txt"
 	env GOTOOLCHAIN=local "$floor_go" version >"$evidence_root/tools/floor-go-version.txt"
@@ -376,8 +380,9 @@ build_candidate() {
 	printf 'revolvr %s\n' "$release_version" >"$output_root/pass-1/metadata/linux-version-output.txt"
 	actual_hash="$(hash_file "$artifact")"
 
+	chmod -R u+w "$work_root"
 	find "$work_root" -depth -delete
-	write_status passed
+	write_build_status "$output_root" "$candidate_id" "$source_commit" passed
 	(
 		cd "$output_root"
 		find . -type f ! -name SHA256SUMS ! -name candidate-authority.tsv -print0 | sort -z | while IFS= read -r -d '' path; do

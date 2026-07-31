@@ -297,13 +297,21 @@
     and emits an externally hash-bound `candidate-authority.tsv`.
     `scripts/dogfood-external-level1-suite.sh` now requires that authority path
     and SHA-256 in every mode and records them in prepared suite authority. The
-    implementation was syntax/help/negative-boundary verified without building
-    a candidate or calling Codex. The next bounded task is to use the workflow
-    once against one clean exact source commit to build and verify one fresh
-    candidate; a later pass then runs the quantitative Level-1 dogfood gate
-    against only that candidate. Retired wrappers remain recoverable from Git
-    history only. Ignored `.revolvr/` evidence remains untouched and is not
-    governed by wrapper-retention policy.
+    implementation was syntax/help/negative-boundary verified without calling
+    Codex. Its first source-bound construction attempt used published commit
+    `463f13a7c54698493073f6a8feecdc76a55b2647` and completed the floor/current/
+    race/module/vet/vulnerability matrix plus byte-identical supported builds,
+    then failed while deleting read-only Go module-cache entries. The EXIT trap
+    also lost its function-local status authority, so the retained failed root
+    has no typed status. The single repair makes the status trap scope-stable
+    and makes only the owned work root writable before deletion; focused probes
+    and independent review pass, and the operator explicitly authorized its
+    raw-Git publication. The next bounded task is exact local/fetched/public
+    equality at that clean repair commit followed by one new source-qualified
+    candidate construction and verification. A later pass runs the
+    quantitative Level-1 dogfood gate against only that candidate. Retired
+    wrappers remain recoverable from Git history only. Ignored `.revolvr/`
+    evidence is preserved and is not governed by wrapper-retention policy.
   - Historical gate record (non-operative): RC.6 and RC.7 remain immutable
     failed live-attempt evidence;
     RC.8 through RC.12 remain immutable failed local-construction evidence and

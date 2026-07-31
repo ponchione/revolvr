@@ -1,8 +1,46 @@
 # Agent Handoff
 
-Updated: 2026-07-30
+Updated: 2026-07-31
 
 ## Resume Point
+
+The first reusable-workflow candidate construction attempt is retained failed
+evidence at
+`.revolvr/release-candidates/level1-v0.1.0-rc.13-463f13a7c546`. It used clean
+published commit `463f13a7c54698493073f6a8feecdc76a55b2647` and completed the
+floor/current/race/module/vet/vulnerability checks and byte-identical Linux,
+Darwin, and FreeBSD builds. It then failed at final cleanup because Go module
+cache entries are read-only. The partial cleanup removed its source clones and
+ordinary build caches before stopping on four module-cache trees. Its EXIT trap
+also lost function-local variables, so the retained root has neither typed
+`status.tsv` nor final manifest or candidate authority. The required test,
+vulnerability, reproducibility, metadata, and artifact evidence remains, but
+the root is not eligible for dogfood and must remain preserved.
+
+The one allowed repair in `scripts/build-level1-candidate.sh` has been
+independently reviewed, and the operator explicitly authorized its raw-Git
+commit and push. Final cleanup now grants owner write permission only to the
+workflow-owned `.work` root before deletion, and the EXIT status command
+captures its exact values instead of depending on expired function-local
+scope. Bash syntax/help, a real EXIT-after-scope status probe, a read-only cache
+cleanup probe, the retained-evidence audit, the full Go test suite, and
+`git diff --check` pass.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass must first prove local, fetched, and public `main` match the clean
+repair commit exactly. Only then may it use a new source-qualified candidate/
+output identity with `scripts/build-level1-candidate.sh`. Do not reuse, delete,
+complete, or relabel the failed RC.13 root; do not run live dogfood; and do not
+create another top-level wrapper. `EXT-20` remains unchecked.
+
+## Previous Resume Point
 
 The reusable EXT-20 candidate-workflow stage is complete.
 `scripts/build-level1-candidate.sh` now binds an explicit candidate ID/version,

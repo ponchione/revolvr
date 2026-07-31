@@ -1,5 +1,68 @@
 # Agent State
 
+## First Reusable Candidate Build Failed; Cleanup Repair Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its current
+  one-candidate construction and independent-verification stage. This was the
+  sole task; no live Codex dogfood was started and `EXT-20` remains unchecked.
+- Clean source admission passed at local `main`, `origin/main`, and public
+  `main` commit `463f13a7c54698493073f6a8feecdc76a55b2647`, tree
+  `875567cbfa4aea225514994cd22a4903a7a33d44`. Exact tools were Go 1.22.12
+  SHA-256 `929407e69c08952cd944a7457ae4eb289078a35473dd5dad2179369db7c5a6ec`,
+  Go 1.26.5 SHA-256
+  `8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9`,
+  and `govulncheck@v1.1.4` SHA-256
+  `f66036976d8995fbed427315bb2d6b525e58ee5867e88f097709e62fe93b412f`.
+- The first workflow use created retained ignored failed root
+  `.revolvr/release-candidates/level1-v0.1.0-rc.13-463f13a7c546` for candidate
+  ID `level1-v0.1.0-rc.13-463f13a7c546`. Go 1.22/current ordinary tests,
+  current race tests, module verification, vet, ordinary and verbose
+  vulnerability scans, supported builds, embedded metadata checks, and all
+  three two-pass byte comparisons completed. Linux, Darwin, and FreeBSD hashes
+  are respectively `b25ba2065a3b662054eff5679f387fd5ae146496512a60b80a1b3eab7ed6f2a2`,
+  `06c5972c912d9ddf2293910191b93463fe951de99ccce16ddcef138d273cc47d`,
+  and `6d5ab70c895bb2772fda4d6afb9680ffc1b4e34d92c926905c5c27b31a33021e`.
+  Govulncheck found zero reachable or imported-package vulnerabilities and
+  retained one uncalled Windows-only module finding, `GO-2026-5024`.
+- Construction failed at final work-root removal because downloaded Go module
+  cache directories are read-only and plain `find -delete` could not remove
+  their entries. The partial cleanup removed the source clones and ordinary
+  build caches before stopping on four module-cache trees. The EXIT handler
+  then referenced function-local variables after scope unwind. Consequently
+  the retained 1.5-GB failed root contains module-cache residue plus the
+  required test, vulnerability, reproducibility, metadata, and artifact
+  evidence, but no `status.tsv`, `SHA256SUMS`, or `candidate-authority.tsv`;
+  it is not a candidate authority and must not be used for dogfood.
+- The one reasonable repair attempt changed
+  `scripts/build-level1-candidate.sh`: status writing now accepts explicit
+  values captured safely into the EXIT trap, and final cleanup first grants
+  owner write permission only within the workflow-owned work root. Focused
+  EXIT-after-scope and read-only-cache cleanup probes passed, as did `bash -n`,
+  `--help`, and `git diff --check`.
+- Follow-up operator review independently reproduced both focused repair
+  probes; checked the retained evidence, artifact hashes, byte equality, empty
+  build IDs, source metadata, vulnerability result, and authority-file
+  absences; ran Bash syntax across all 10 tracked shell scripts; and passed
+  `go test -count=1 ./...` plus `git diff --check`. The operator explicitly
+  authorized raw-Git commit and push of this exact four-file repair record.
+- Files changed: `scripts/build-level1-candidate.sh`, `.agent/TASKS.md`,
+  `.agent/HANDOFF.md`, and `.agent/STATE.md`, plus the retained ignored failed
+  candidate root. `.agent/DECISIONS.md` was unchanged because no architecture
+  or authority policy changed. During the construction pass, no dependency,
+  commit, push, tag, release, model invocation, suite preparation, or dogfood
+  operation occurred.
+- Verification commands: clean/local/fetched/public Git identity checks; exact
+  tool version, GOROOT, and SHA-256 checks; the full candidate workflow build;
+  retained test/vulnerability/reproducibility evidence inspection; Bash syntax
+  and help; focused scope-stable EXIT-status and read-only-cache cleanup probes;
+  and `git diff --check`. Result: **candidate construction FAILED; repair
+  verification PASSED**.
+- What remains: a later fresh pass must prove the clean repair commit is
+  identical at local, fetched, and public `main`, then use a new source-
+  qualified output identity to construct and independently verify one
+  candidate. It must not reuse or modify the failed root and must not start
+  live dogfood.
+
 ## Reusable Level-1 Candidate Workflow (2026-07-30)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to its explicitly
