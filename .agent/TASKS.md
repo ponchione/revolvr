@@ -468,8 +468,18 @@
     only gates; confirmed the exact authority, complete topology, reproducible
     builds, source metadata, retained test/vulnerability evidence, and RC.15–
     RC.18 preservation; and explicitly authorized raw-Git publication of the
-    three-file candidate record. A separate fresh pass must obtain exact-source
-    remote CI before any new quantitative suite may start.
+    three-file candidate record. Exact push-triggered CI run `30647171845` on
+    source commit `1285fe1fcdb3da15c28f5dbf45ab98f9167215e6` then passed all
+    ten mandatory jobs, with every job's exact-source reporting step
+    successful. Post-CI candidate, suite-static, manifest, topology, source/
+    workflow identity, and RC.15/RC.16/RC.17/RC.18-preservation checks also
+    passed. No fixture, quantitative suite, or model call occurred. Follow-up
+    operator review independently confirmed the sole exact-source run, all ten
+    jobs and source-reporting steps, replayed the raw-Git and post-CI candidate
+    checks, and explicitly authorized raw-Git publication of the three-file
+    remote-CI record. What remains after publication is a separate fresh
+    collision-free quantitative Level-1 real-Codex suite against only this
+    RC.19 authority.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.
