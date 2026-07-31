@@ -1,5 +1,67 @@
 # Agent State
 
+## RC.20 Constructed And Independently Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to construction
+  and independent verification of exactly one new source-qualified candidate
+  from the clean published plan-reconciliation repair. This was the sole task;
+  `EXT-20` remains unchecked.
+- Admission passed at clean local, `origin/main`, and live remote `main` commit
+  `7826c0fe97bd40508553702011475cea8b35e80f`, tree
+  `8583930512aefa07fb281cb5daaea3af49061fda`. Workflow bytes at the commit and
+  in the worktree both hash to
+  `2a7ff48266b9bf3601b7f05ffef58fd36db0033a2afe2537c46043a3e69472e9`.
+  Exact Go 1.22.12, Go 1.26.5, and govulncheck 1.1.4 executable identities,
+  available disk, candidate-path collision absence, and RC.15 through RC.19
+  candidate/failure evidence all matched their recorded authority.
+- The sole new output root is
+  `.revolvr/release-candidates/level1-v0.1.0-rc.20-7826c0fe97bd`.
+  Construction passed and emitted candidate-authority SHA-256
+  `6e722fcc7b28cab0af190c9febc5d13d9655adbf1883b954f55f737c5000b627`,
+  bundle-manifest SHA-256
+  `134bab9aa2a7649bad7fd7362d382bfecf364b26cf02626f7a55e547dde42cf6`,
+  and Linux candidate SHA-256
+  `1b63c3735339a4f9aa775b06a2d84eaad7ff9031f1461259409734a8601232e2`.
+  The workflow's separate read-only `--verify` and the dogfood suite's
+  read-only `--static` gate also passed without fixture preparation or a model
+  call.
+- Direct strict manifest verification passed. The bundle has 48 regular
+  single-link files, 137,838,214 bytes, no symbolic links, no hard links, and
+  no residual `.work` root. Linux, Darwin, and FreeBSD pass-one/pass-two
+  artifacts are byte-identical at SHA-256 values `1b63c373...`, `2c6e6dd9...`,
+  and `790fc3fd...`; all inspected build IDs are empty. Embedded Linux metadata
+  records Go 1.26.5, exact source commit `7826c0fe...`, and an unmodified VCS
+  tree.
+- Verification commands: required durable-state reads; clean local/origin/live-
+  remote source, source tree, workflow, tool, version, disk, collision, and
+  historical-preservation admission; reusable workflow `--build` and separate
+  `--verify`; suite `--static`; strict manifest, topology, pair-equality,
+  build-ID, embedded-metadata, version, and vulnerability inspection. The
+  first independent command incorrectly looked for `bundle-manifest.sha256`;
+  the one reasonable repair used the actual `SHA256SUMS` file and passed
+  manifest/topology/pair/build-ID/metadata checks, but then incorrectly invoked
+  the candidate as `revolvr version`, which exited with `unknown command`.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/HANDOFF.md`, plus the ignored retained RC.20 candidate root. No
+  dependency, product source, commit, push, tag, release, external-use
+  decision, quantitative suite, model call, remote ref, or historical evidence
+  changed. `.agent/DECISIONS.md` is unchanged because no durable implementation
+  or architecture decision was made.
+- Follow-up read-only review used the authority's recorded `--version`
+  interface and the actual `SHA256SUMS`; replayed candidate `--verify` and
+  suite `--static`; and independently checked the exact authority/manifest,
+  48-file/137,838,214-byte topology, all three byte-identical artifact pairs,
+  empty build IDs, embedded metadata, `revolvr 0.1.0` output, zero affected
+  vulnerabilities, raw-Git source identity, and RC.15/RC.16/RC.17/RC.18/RC.19
+  preservation. All assertions and `git diff --check` passed without modifying
+  RC.20, preparing a suite, or starting a model call. The operator explicitly
+  authorized raw-Git commit and push of the exact three-file candidate record.
+- Verification result: **PASS for RC.20 candidate construction and independent
+  verification**. The prior command mistakes were review-harness mistakes, not
+  candidate failures. What remains after publication is exact-source remote CI
+  for source commit `7826c0fe...`; a fresh quantitative suite remains a later
+  separate gate. There are no blockers for remote CI.
+
 ## RC.19 Quantitative Gate Failed; Plan-Reconciliation Prompt Repair Passes (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to its remaining

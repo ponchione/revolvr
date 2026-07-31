@@ -4,6 +4,52 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+Exactly one new source-qualified candidate was constructed and independently
+verified from clean published plan-reconciliation repair commit
+`7826c0fe97bd40508553702011475cea8b35e80f`, tree
+`8583930512aefa07fb281cb5daaea3af49061fda`:
+
+```text
+/home/gernsback/source/revolvr/.revolvr/release-candidates/level1-v0.1.0-rc.20-7826c0fe97bd/candidate-authority.tsv
+6e722fcc7b28cab0af190c9febc5d13d9655adbf1883b954f55f737c5000b627
+```
+
+Construction, the workflow's read-only `--verify`, and the suite's read-only
+`--static` gate passed. The bundle-manifest SHA-256 is
+`134bab9aa2a7649bad7fd7362d382bfecf364b26cf02626f7a55e547dde42cf6`;
+the Linux candidate SHA-256 is
+`1b63c3735339a4f9aa775b06a2d84eaad7ff9031f1461259409734a8601232e2`.
+Strict manifest, topology, artifact-pair, empty-build-ID, and embedded-metadata
+checks passed for the 48-file, 137,838,214-byte bundle.
+
+The construction pass's independent inspection stopped after two operator-
+authored command mistakes: it first looked for nonexistent `bundle-
+manifest.sha256`, then invoked the candidate with the invalid `version`
+subcommand. A fresh read-only review used `SHA256SUMS` and the authority's
+recorded `--version` interface, replayed candidate `--verify` and suite
+`--static`, and passed exact authority/manifest, 48-file/137,838,214-byte
+topology, all three artifact pairs, empty build IDs, embedded metadata,
+`revolvr 0.1.0` output, vulnerability, raw-Git source, RC.15-through-RC.19
+preservation, and `git diff --check` assertions. RC.20 remained unchanged. The
+operator explicitly authorized raw-Git commit and push of this exact three-
+file candidate record. `EXT-20` remains unchecked.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may obtain and record only the exact required remote CI evidence for
+RC.20 and source commit `7826c0fe97bd40508553702011475cea8b35e80f`.
+It must not rebuild or modify RC.20, construct another candidate, prepare a
+quantitative suite, start a model call, or create a tag, release, or external-
+use decision. A fresh quantitative suite remains a later separate pass.
+
+## Previous Resume Point
+
 RC.19 terminally failed the quantitative Level-1 gate. Static verification and
 preparation passed against authority SHA-256
 `5c6191a6276c91ba2b802c90c7fbb3270602d750a2c5dd44130a6749d0ef1ffb`.

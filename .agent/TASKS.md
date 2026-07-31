@@ -502,7 +502,23 @@
     tests, and explicitly authorized raw-Git publication of the six-file
     repair record. A later source-qualified candidate must repeat construction,
     independent verification, and exact remote CI before any new quantitative
-    suite may start.
+    suite may start. The next construction pass created exactly one retained
+    candidate, `level1-v0.1.0-rc.20-7826c0fe97bd`, from clean published commit
+    `7826c0fe97bd40508553702011475cea8b35e80f`. Construction, the workflow's
+    read-only `--verify`, and the suite's read-only `--static` gate passed with
+    authority SHA-256
+    `6e722fcc7b28cab0af190c9febc5d13d9655adbf1883b954f55f737c5000b627`.
+    Independent inspection exhausted this pass's one-repair allowance on two
+    operator-authored command mistakes: it first named the manifest
+    incorrectly, then invoked the binary with `version` instead of the recorded
+    version interface. A fresh read-only review used the actual manifest and
+    `--version`; replayed both read-only gates; passed exact topology,
+    reproducibility, build-ID, metadata, version, vulnerability, source, and
+    RC.15-through-RC.19 preservation assertions; and explicitly authorized raw-
+    Git publication of the three-file candidate record. RC.20 is accepted by
+    independent verification without rebuild or modification. A separate fresh
+    pass must obtain exact-source remote CI before any quantitative suite may
+    start.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.
