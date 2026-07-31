@@ -375,11 +375,20 @@
     Its complete manifest, floor/current/race/module/vet/vulnerability matrix,
     supported builds, embedded metadata, empty build IDs, and two-clone byte
     comparisons pass. No model call or suite preparation occurred. Exact
-    remote CI evidence for this source commit is required in a separate fresh
-    pass before any new quantitative suite may start. Follow-up operator review
-    replayed both read-only gates, accepted the exact bundle and retained test/
-    vulnerability evidence, confirmed RC.15/RC.16 preservation, and explicitly
-    authorized raw-Git publication of the three-file candidate record.
+    push-triggered CI run `30635879807` on source commit
+    `4cdd716d3bdefd08066fd11e436d326deaf4242c` then passed all ten mandatory
+    jobs, with every job's exact-source reporting step successful. Post-CI
+    candidate, suite-static, manifest, topology, and RC.15/RC.16-preservation
+    checks also passed. No model call or suite preparation occurred. What
+    remains is a separate fresh collision-free quantitative Level-1 real-Codex
+    suite against only this exact RC.17 authority. Follow-up operator review
+    of candidate construction replayed both read-only gates, accepted the exact
+    bundle and retained test/vulnerability evidence, confirmed RC.15/RC.16
+    preservation, and explicitly authorized raw-Git publication of the
+    three-file candidate record. Follow-up remote-CI review independently
+    confirmed the sole exact-source run, all ten jobs and source-reporting
+    steps, replayed post-CI candidate and preservation checks, and explicitly
+    authorized raw-Git publication of the three-file remote-CI record.
     Retired wrappers remain recoverable from Git history only. Ignored
     `.revolvr/` evidence is preserved and is not governed by wrapper-retention
     policy.

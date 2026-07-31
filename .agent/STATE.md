@@ -1,5 +1,72 @@
 # Agent State
 
+## RC.17 Exact-Source Remote CI Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to the required
+  remote-CI evidence gate for exact RC.17 source commit
+  `4cdd716d3bdefd08066fd11e436d326deaf4242c`. This was the sole task; no
+  quantitative suite was prepared and no model call occurred. `EXT-20`
+  remains unchecked.
+- Clean local `main`, refreshed `origin/main`, raw-Git remote `main`, and the
+  public GitHub commit API agreed at published candidate-record commit
+  `7d4f652af96279597a2eb2717d151c724501326b`. The public source commit and
+  local object both resolve to tree
+  `3c688dafc1cbf57b59a9bf1e3beb13d327b65396`; that source is an ancestor of
+  the published candidate record, and its candidate-workflow bytes equal the
+  current workflow and recorded SHA-256
+  `2a7ff48266b9bf3601b7f05ffef58fd36db0033a2afe2537c46043a3e69472e9`.
+- Public GitHub Actions REST returned exactly one push-triggered `CI` run for
+  the source SHA: run `30635879807`, number `141`, attempt `1`, branch `main`,
+  status `completed`, conclusion `success`, created
+  `2026-07-31T13:47:28Z`, and updated `2026-07-31T13:53:03Z`:
+  `https://github.com/ponchione/revolvr/actions/runs/30635879807`.
+- The run contained exactly the ten mandatory unique jobs. Every job had the
+  exact RC.17 source SHA, completed successfully, and had one successful
+  `Report exact source commit` step:
+  - `91173232198` — Go 1.22 source floor and tests
+  - `91173232243` — Production autonomous strict-fake suite
+  - `91173232212` — Race tests
+  - `91173232207` — Vet and module verification
+  - `91173232313` — Fake-Codex success smoke
+  - `91173232239` — Fake-Codex verification-failure smoke
+  - `91173232261` — Build linux/amd64
+  - `91173232371` — Build darwin/amd64
+  - `91173232238` — Build freebsd/amd64
+  - `91173232254` — Build Windows diagnostic stub
+- Post-CI verification replayed the reusable candidate workflow's read-only
+  `--verify` mode and the dogfood suite's read-only `--static` mode against
+  candidate-authority SHA-256
+  `4909b90eb351fb1eebff7249ae5138ff4af246d92fc100d1d1b8bf807b8f5700`.
+  Direct complete-manifest verification passed. The bundle remained exactly
+  48 regular single-link files and 137,821,257 bytes, with no symlink, hard
+  link, or residual `.work` root. The Linux candidate remained
+  `40d374ff2842e9a695e801d30686fbda4fff55cd9b2f4fc3f7d74765b951cb2a`.
+  RC.15 and RC.16 candidate authorities and failed-operation manifests also
+  remained exact and immutable.
+- Files changed: `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/HANDOFF.md`. `.agent/DECISIONS.md` was unchanged because no durable
+  implementation or architecture decision changed. No product, dependency,
+  candidate, historical evidence, remote ref, tag, workflow, suite root,
+  release, or external-use decision changed.
+- Verification commands: required durable-state reads; clean worktree and
+  local/fetched/raw-Git/public commit and tree checks; exact GitHub Actions
+  run-count/run-identity/job-set/job-source-step assertions through the public
+  REST API; candidate workflow `--verify`; suite `--static`; direct strict
+  `sha256sum -c`; candidate authority, manifest, artifact, workflow, file,
+  byte, link, and work-root checks; RC.15/RC.16 preservation checks; and
+  `git diff --check`.
+- Follow-up operator review independently queried GitHub's public REST API,
+  confirmed the sole exact-source run and all ten job identities with exactly
+  one successful source-reporting step each, and replayed the read-only
+  workflow, suite-static, strict manifest, topology, source/workflow identity,
+  and RC.15/RC.16 preservation checks. All passed, including `git diff
+  --check`; no suite or model operation occurred. The operator explicitly
+  authorized raw-Git commit and push of the exact three-file remote-CI record.
+- Result: **PASS for the RC.17 exact-source remote-CI sub-gate**. What remains
+  is a separate fresh pass preparing and executing a new collision-free
+  quantitative Level-1 real-Codex suite against only this exact RC.17
+  authority. There is no blocker for that next gate.
+
 ## RC.17 Candidate Constructed And Independently Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to construction

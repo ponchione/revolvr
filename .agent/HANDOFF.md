@@ -4,6 +4,62 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+RC.17 exact-source remote CI passed without preparing a quantitative suite or
+starting a model call. Clean local, fetched, raw-Git, and public `main` agree at
+published candidate-record commit
+`7d4f652af96279597a2eb2717d151c724501326b`.
+
+Public push-triggered CI run `30635879807`, number `141`, attempt `1`, completed
+successfully for exact RC.17 source commit
+`4cdd716d3bdefd08066fd11e436d326deaf4242c`:
+
+```text
+https://github.com/ponchione/revolvr/actions/runs/30635879807
+```
+
+The run contained exactly all ten mandatory jobs. Every job completed
+successfully with the exact source SHA and one successful
+`Report exact source commit` step. The source's public and local tree is
+`3c688dafc1cbf57b59a9bf1e3beb13d327b65396`, and its candidate-workflow bytes
+still hash to
+`2a7ff48266b9bf3601b7f05ffef58fd36db0033a2afe2537c46043a3e69472e9`.
+
+Post-CI workflow `--verify`, suite `--static`, direct strict complete-manifest,
+topology, source/workflow, and RC.15/RC.16 preservation checks all passed. The
+exact RC.17 authority remains:
+
+```text
+/home/gernsback/source/revolvr/.revolvr/release-candidates/level1-v0.1.0-rc.17-4cdd716d3bde/candidate-authority.tsv
+4909b90eb351fb1eebff7249ae5138ff4af246d92fc100d1d1b8bf807b8f5700
+```
+
+`EXT-20` remains unchecked.
+
+Follow-up operator review independently queried GitHub's public REST API,
+confirmed the sole exact-source run and all ten job identities with exactly one
+successful source-reporting step each, and replayed the read-only workflow,
+suite-static, strict manifest, topology, source/workflow identity, and RC.15/
+RC.16 preservation checks. All passed, including `git diff --check`; no suite
+or model operation occurred. The operator explicitly authorized raw-Git commit
+and push of this exact three-file remote-CI record.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may prepare and execute only one fresh collision-free quantitative
+Level-1 real-Codex suite against the exact RC.17 candidate authority above. It
+must preserve RC.15, RC.16, RC.17, and all failed historical evidence; validate
+every produced manifest and required scenario; and stop after this one
+remaining `EXT-20` stage. It must not construct another candidate, create a
+top-level wrapper, tag, release, external-use decision, queue, or daemon.
+
+## Previous Resume Point
+
 The control-root receipt repair is clean and published at exact local,
 fetched, raw-Git, and public-REST `main` commit
 `4cdd716d3bdefd08066fd11e436d326deaf4242c`, tree
