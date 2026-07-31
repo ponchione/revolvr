@@ -1,5 +1,73 @@
 # Agent State
 
+## Reusable Candidate Constructed And Independently Verified (2026-07-31)
+
+- Task selected: the first unchecked task, `EXT-20`, narrowed to its current
+  one-candidate construction and independent-verification stage. This was the
+  sole task; no live Codex dogfood was started and `EXT-20` remains unchecked.
+- Admission passed at clean local `main`, fetched `origin/main`, raw-Git public
+  `main`, and public-REST `main` commit
+  `5f340a8232a6d1bc9e8fff55fbe0f37ad0957085`, tree
+  `d56ca3798c2fb2813c0a73193304bd88ba237b77`. Exact tools remained Go 1.22.12
+  SHA-256 `929407e69c08952cd944a7457ae4eb289078a35473dd5dad2179369db7c5a6ec`,
+  Go 1.26.5 SHA-256
+  `8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9`,
+  and `govulncheck@v1.1.4` SHA-256
+  `f66036976d8995fbed427315bb2d6b525e58ee5867e88f097709e62fe93b412f`.
+- The first new output identity,
+  `.revolvr/release-candidates/level1-v0.1.0-rc.14-5f340a8232a6`, stopped at
+  its Go 1.22 floor test and retained exact typed failed evidence. Ambient
+  `GOROOT=/usr/local/go` made the Go 1.22.12 driver select the Go 1.26.5 root
+  and tools, producing deterministic tool-version mismatch diagnostics before
+  any later check or artifact build. The failed root has no candidate
+  authority and was not reused, modified, removed, completed, or relabeled.
+- The single reasonable repair attempt changed no source or tool. A focused
+  check proved that unsetting only ambient `GOROOT` makes each exact Go
+  executable select its own root. A new output identity then constructed and
+  independently verified
+  `.revolvr/release-candidates/level1-v0.1.0-rc.15-5f340a8232a6`.
+  Its authority SHA-256 is
+  `07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd`,
+  bundle-manifest SHA-256 is
+  `8c24c9df94dd86dd1132079a1c8de76a0ff693fc4a307bc1061fc72bdf7a647e`,
+  and exact Linux candidate SHA-256 is
+  `c78ceffecb25361d2e3fa756b2955b2274426631ea8112562b59f83c0117f207`.
+- The bundle contains 48 regular, non-symlink, single-link files totaling
+  137,819,478 bytes and no residual `.work` root. Linux, Darwin, and FreeBSD
+  pass-one/pass-two SHA-256 values are respectively
+  `c78ceffecb25361d2e3fa756b2955b2274426631ea8112562b59f83c0117f207`,
+  `2681ac92f5d09d8671e2597292a6e0a13bc81507cfb5e91098ccec6c8a3aa9ef`,
+  and `b11a44c5bdb186f8aecb7b3947cac0a1b6ece96adbe7fa96bd321e3049c28a87`.
+  Every pair is byte-identical, has an empty build ID, and records the exact
+  clean source commit, target, architecture, and version.
+- Go 1.22/current ordinary tests, current race tests, module verification,
+  vet, ordinary and verbose vulnerability scans, supported builds, embedded
+  metadata checks, and all three reproducibility comparisons passed.
+  Govulncheck found no reachable or imported-package vulnerability and
+  retained the uncalled Windows-only module finding `GO-2026-5024` separately.
+- Files changed: `.agent/TASKS.md`, `.agent/HANDOFF.md`, and
+  `.agent/STATE.md`, plus the two ignored retained RC.14/RC.15 roots. No
+  product source, dependency, historical evidence, model operation, tag,
+  release, or external-use decision changed during the construction pass.
+- Verification commands: required durable-state reads; clean Git and exact
+  local/fetched/raw-Git/public-REST equality checks; exact tool version/root/
+  SHA-256 checks; the retained RC.14 floor-failure inspection; the focused
+  per-tool-root repair check; the full RC.15 candidate build; a separate
+  workflow `--verify`; strict complete-manifest verification; authority,
+  status, reproducibility, link, work-root, tool-root, vulnerability, file/
+  byte-count, Git-cleanliness, and `git diff --check` reads.
+- Follow-up operator review replayed the workflow `--verify` mode and suite
+  `--static` gate; independently checked strict manifest verification,
+  complete inventory, file/link/work-root bounds, RC.14 failure separation,
+  RC.15 evidence classes, exact workflow identity, and the distinct intrinsic
+  roots of both Go toolchains; and passed `git diff --check`. No fixture or
+  model operation occurred. The operator explicitly authorized raw-Git commit
+  and push of the exact three-file durable record.
+- Result: **PASS for candidate construction and verification**. What remains
+  is a later fresh pass running the quantitative Level-1 real-Codex dogfood
+  gate against only the exact RC.15 authority above. `EXT-20` remains
+  unchecked; there are no blockers for that next bounded stage.
+
 ## First Reusable Candidate Build Failed; Cleanup Repair Verified (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to its current

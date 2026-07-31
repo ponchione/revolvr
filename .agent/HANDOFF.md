@@ -4,6 +4,57 @@ Updated: 2026-07-31
 
 ## Resume Point
 
+The reusable Level-1 candidate construction and independent-verification stage
+passed. Clean local, fetched, raw-Git public, and public-REST `main` all matched
+commit `5f340a8232a6d1bc9e8fff55fbe0f37ad0957085`, tree
+`d56ca3798c2fb2813c0a73193304bd88ba237b77`.
+
+The first new source-qualified identity, RC.14, retained a typed failure at the
+Go 1.22 floor test because ambient `GOROOT=/usr/local/go` paired the exact Go
+1.22.12 driver with Go 1.26.5 tools. It has no candidate authority and must not
+be reused, modified, removed, completed, or relabeled. The one repair attempt
+unset only that ambient override and used a new RC.15 identity; no source or
+tool changed.
+
+The exact verified candidate authority is:
+
+```text
+/home/gernsback/source/revolvr/.revolvr/release-candidates/level1-v0.1.0-rc.15-5f340a8232a6/candidate-authority.tsv
+07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd
+```
+
+The complete manifest, separate workflow verification, all floor/current/
+race/module/vet/vulnerability evidence, supported builds, embedded metadata,
+empty build IDs, and two-pass byte comparisons passed. The Linux candidate
+SHA-256 is
+`c78ceffecb25361d2e3fa756b2955b2274426631ea8112562b59f83c0117f207`.
+No live Codex dogfood was started, and `EXT-20` remains unchecked.
+
+Follow-up operator review replayed the reusable workflow verification and the
+dogfood suite's static gate; independently checked the strict manifest,
+complete inventory, links, byte counts, status separation, test and
+vulnerability evidence, exact workflow bytes, and each toolchain's intrinsic
+root; and explicitly authorized raw-Git commit and push of this three-file
+candidate record. All checks passed without preparing fixtures or starting a
+model call.
+
+### Next Gate
+
+Start one fresh pass with:
+
+```bash
+./agent-one.sh
+```
+
+That pass may run only the quantitative Level-1 real-Codex dogfood gate against
+the exact RC.15 candidate authority and hash above. It must preserve both the
+RC.14 failure and RC.15 candidate, validate every produced manifest, and stop
+after this one remaining `EXT-20` stage. It must not create another candidate,
+top-level wrapper, tag, release, external-use decision, queue, or daemon
+authority.
+
+## Previous Resume Point
+
 The first reusable-workflow candidate construction attempt is retained failed
 evidence at
 `.revolvr/release-candidates/level1-v0.1.0-rc.13-463f13a7c546`. It used clean

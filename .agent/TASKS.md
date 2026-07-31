@@ -306,12 +306,18 @@
     has no typed status. The single repair makes the status trap scope-stable
     and makes only the owned work root writable before deletion; focused probes
     and independent review pass, and the operator explicitly authorized its
-    raw-Git publication. The next bounded task is exact local/fetched/public
-    equality at that clean repair commit followed by one new source-qualified
-    candidate construction and verification. A later pass runs the
-    quantitative Level-1 dogfood gate against only that candidate. Retired
-    wrappers remain recoverable from Git history only. Ignored `.revolvr/`
-    evidence is preserved and is not governed by wrapper-retention policy.
+    raw-Git publication. Exact local/fetched/public equality passed at clean
+    repair commit `5f340a8232a6d1bc9e8fff55fbe0f37ad0957085`. The first new
+    source-qualified attempt, RC.14, retained a typed floor-test failure after
+    ambient `GOROOT=/usr/local/go` paired its Go 1.22.12 driver with Go 1.26.5
+    tools. The single repair attempt unset that ambient override and produced
+    independently verified candidate
+    `level1-v0.1.0-rc.15-5f340a8232a6`, authority SHA-256
+    `07172fbe1f3cc2fd8930da84d71b6e66deadadab4d0cbfdd75cf3018ee7f87bd`.
+    The next bounded task is the quantitative Level-1 dogfood gate against
+    only that exact candidate. Retired wrappers remain recoverable from Git
+    history only. Ignored `.revolvr/` evidence is preserved and is not
+    governed by wrapper-retention policy.
   - Historical gate record (non-operative): RC.6 and RC.7 remain immutable
     failed live-attempt evidence;
     RC.8 through RC.12 remain immutable failed local-construction evidence and
