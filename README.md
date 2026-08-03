@@ -38,6 +38,36 @@ local runtime state and is ignored by Git. When initialized from a Git worktree,
 `init` adds `/.revolvr/` to
 `.git/info/exclude` so tracked ignore files do not need to change.
 
+### PostgreSQL development service
+
+Set a local-only development password, then validate and start PostgreSQL with
+pgvector. Set `REVOLVR_POSTGRES_PORT` first to use a host port other than 5432.
+
+```bash
+export REVOLVR_POSTGRES_PASSWORD='choose-a-development-password'
+docker compose -f compose/compose.yaml -f compose/compose.dev.yaml config --quiet
+docker compose -f compose/compose.yaml -f compose/compose.dev.yaml up -d --wait postgres
+```
+
+Check service health:
+
+```bash
+docker compose -f compose/compose.yaml -f compose/compose.dev.yaml ps postgres
+```
+
+Stop the service without deleting its database:
+
+```bash
+docker compose -f compose/compose.yaml -f compose/compose.dev.yaml down
+```
+
+To discard the development database and start fresh, explicitly delete the
+Compose project's volume:
+
+```bash
+docker compose -f compose/compose.yaml -f compose/compose.dev.yaml down --volumes
+```
+
 ## Documentation
 
 - This README is the operator guide for setup, task workflows, runtime modes,

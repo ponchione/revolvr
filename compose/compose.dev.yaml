@@ -1,0 +1,9 @@
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${REVOLVR_POSTGRES_PORT:-5432}:5432"
+    networks:
+      - development
+
+networks:
+  development:
