@@ -31,3 +31,24 @@ type CoreEvent struct {
 	Payload          []byte
 	CreatedAt        pgtype.Timestamptz
 }
+
+type CoreProject struct {
+	ID        pgtype.UUID
+	Name      string
+	Status    string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+type CoreProjectSource struct {
+	ID                    pgtype.UUID
+	ProjectID             pgtype.UUID
+	CanonicalSourcePath   string
+	ManagedRepositoryPath string
+	CurrentCommit         string
+	CurrentTree           string
+	CurrentBranch         pgtype.Text
+	DefaultBranch         pgtype.Text
+	DirtyState            []byte
+	Remotes               []byte
+}

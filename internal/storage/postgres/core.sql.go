@@ -111,6 +111,66 @@ func (q *Queries) GetEvent(ctx context.Context, id pgtype.UUID) (CoreEvent, erro
 	return i, err
 }
 
+const getProjectRegistrationByCanonicalSourcePath = `-- name: GetProjectRegistrationByCanonicalSourcePath :one
+SELECT
+    p.id AS project_id,
+    p.name,
+    p.status,
+    p.created_at,
+    p.updated_at,
+    ps.id AS project_source_id,
+    ps.canonical_source_path,
+    ps.managed_repository_path,
+    ps.current_commit,
+    ps.current_tree,
+    ps.current_branch,
+    ps.default_branch,
+    ps.dirty_state,
+    ps.remotes
+FROM core.projects AS p
+JOIN core.project_sources AS ps ON ps.project_id = p.id
+WHERE ps.canonical_source_path = $1
+`
+
+type GetProjectRegistrationByCanonicalSourcePathRow struct {
+	ProjectID             pgtype.UUID
+	Name                  string
+	Status                string
+	CreatedAt             pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+	ProjectSourceID       pgtype.UUID
+	CanonicalSourcePath   string
+	ManagedRepositoryPath string
+	CurrentCommit         string
+	CurrentTree           string
+	CurrentBranch         pgtype.Text
+	DefaultBranch         pgtype.Text
+	DirtyState            []byte
+	Remotes               []byte
+}
+
+func (q *Queries) GetProjectRegistrationByCanonicalSourcePath(ctx context.Context, canonicalSourcePath string) (GetProjectRegistrationByCanonicalSourcePathRow, error) {
+	row := q.db.QueryRow(ctx, getProjectRegistrationByCanonicalSourcePath, canonicalSourcePath)
+	var i GetProjectRegistrationByCanonicalSourcePathRow
+	err := row.Scan(
+		&i.ProjectID,
+		&i.Name,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProjectSourceID,
+		&i.CanonicalSourcePath,
+		&i.ManagedRepositoryPath,
+		&i.CurrentCommit,
+		&i.CurrentTree,
+		&i.CurrentBranch,
+		&i.DefaultBranch,
+		&i.DirtyState,
+		&i.Remotes,
+	)
+	return i, err
+}
+
 const insertArtifact = `-- name: InsertArtifact :one
 INSERT INTO core.artifacts (
     id, sha256, size_bytes, media_type, logical_kind, storage_path, compression, created_at
@@ -152,6 +212,97 @@ func (q *Queries) InsertArtifact(ctx context.Context, arg InsertArtifactParams) 
 		&i.StoragePath,
 		&i.Compression,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertProject = `-- name: InsertProject :one
+INSERT INTO core.projects (
+    id, name, status, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+RETURNING id, name, status, created_at, updated_at
+`
+
+type InsertProjectParams struct {
+	ID        pgtype.UUID
+	Name      string
+	Status    string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) (CoreProject, error) {
+	row := q.db.QueryRow(ctx, insertProject,
+		arg.ID,
+		arg.Name,
+		arg.Status,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i CoreProject
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertProjectSource = `-- name: InsertProjectSource :one
+INSERT INTO core.project_sources (
+    id, project_id, canonical_source_path, managed_repository_path,
+    current_commit, current_tree, current_branch, default_branch,
+    dirty_state, remotes
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+)
+RETURNING id, project_id, canonical_source_path, managed_repository_path,
+    current_commit, current_tree, current_branch, default_branch,
+    dirty_state, remotes
+`
+
+type InsertProjectSourceParams struct {
+	ID                    pgtype.UUID
+	ProjectID             pgtype.UUID
+	CanonicalSourcePath   string
+	ManagedRepositoryPath string
+	CurrentCommit         string
+	CurrentTree           string
+	CurrentBranch         pgtype.Text
+	DefaultBranch         pgtype.Text
+	DirtyState            []byte
+	Remotes               []byte
+}
+
+func (q *Queries) InsertProjectSource(ctx context.Context, arg InsertProjectSourceParams) (CoreProjectSource, error) {
+	row := q.db.QueryRow(ctx, insertProjectSource,
+		arg.ID,
+		arg.ProjectID,
+		arg.CanonicalSourcePath,
+		arg.ManagedRepositoryPath,
+		arg.CurrentCommit,
+		arg.CurrentTree,
+		arg.CurrentBranch,
+		arg.DefaultBranch,
+		arg.DirtyState,
+		arg.Remotes,
+	)
+	var i CoreProjectSource
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CanonicalSourcePath,
+		&i.ManagedRepositoryPath,
+		&i.CurrentCommit,
+		&i.CurrentTree,
+		&i.CurrentBranch,
+		&i.DefaultBranch,
+		&i.DirtyState,
+		&i.Remotes,
 	)
 	return i, err
 }
