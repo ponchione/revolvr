@@ -49,6 +49,23 @@ docker compose -f compose/compose.yaml -f compose/compose.dev.yaml config --quie
 docker compose -f compose/compose.yaml -f compose/compose.dev.yaml up -d --wait postgres
 ```
 
+Apply the SQL migrations and regenerate the checked-in query code with the
+pinned Go 1.22-compatible tools:
+
+```bash
+export PGPASSWORD="$REVOLVR_POSTGRES_PASSWORD"
+export REVOLVR_DATABASE_URL="postgres://revolvr@127.0.0.1:${REVOLVR_POSTGRES_PORT:-5432}/revolvr?sslmode=disable"
+go run github.com/pressly/goose/v3/cmd/goose@v3.23.1 -dir db/migrations postgres "$REVOLVR_DATABASE_URL" up
+go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0 generate -f db/sqlc.yaml
+REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test ./internal/storage/postgres
+```
+
+Roll back the latest migration when testing downgrade behavior:
+
+```bash
+go run github.com/pressly/goose/v3/cmd/goose@v3.23.1 -dir db/migrations postgres "$REVOLVR_DATABASE_URL" down
+```
+
 Check service health:
 
 ```bash
