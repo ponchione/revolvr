@@ -1,6 +1,6 @@
 module revolvr
 
-go 1.22
+go 1.26.5
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0

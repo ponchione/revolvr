@@ -12,7 +12,7 @@
 
 ## Project Shape
 
-- Stack: Go 1.22 CLI application.
+- Stack: Go 1.26.5 CLI application.
 - Entry point: `cmd/revolvr/main.go`.
 - Main packages: `internal/cli`, `internal/runonce`, `internal/ledger`, `internal/taskfile`, `internal/taskmodel`, `internal/codexexec`, `internal/receipt`, `internal/verification`, `internal/commit`, `internal/gitstate`, `internal/runner`.
 - Runtime state: `.revolvr/` after `revolvr init`; this directory is local and ignored by Git.

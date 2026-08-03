@@ -10,7 +10,7 @@ verifies the resulting work, records run history, and commits verified changes.
 Requirements:
 
 - Linux, macOS, or FreeBSD
-- Go 1.22 or newer
+- Go 1.26.5 or newer
 - Git
 - Codex CLI available as `codex`
 
@@ -50,7 +50,7 @@ docker compose -f compose/compose.yaml -f compose/compose.dev.yaml up -d --wait 
 ```
 
 Apply the SQL migrations and regenerate the checked-in query code with the
-pinned Go 1.22-compatible tools:
+pinned tools:
 
 ```bash
 export PGPASSWORD="$REVOLVR_POSTGRES_PASSWORD"

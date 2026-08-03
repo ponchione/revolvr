@@ -9,7 +9,7 @@ is a direction for that work, not a description of the repository today.
 ## Go and CLI
 
 - Module: `revolvr`
-- Go source floor: Go 1.22
+- Go version: Go 1.26.5
 - CLI entry point: `cmd/revolvr/main.go`
 
 The canonical repository-root commands are:
@@ -27,11 +27,11 @@ already implements it.
 
 ## Continuous Integration
 
-`.github/workflows/ci.yml` is the current CI authority. It verifies the Go
-1.22 source floor and full test suite, runs focused autonomous and race tests,
+`.github/workflows/ci.yml` is the current CI authority. It uses the Go version
+declared in `go.mod`, runs the full, focused autonomous, and race test suites,
 checks modules and `go vet`, exercises the fake-Codex smoke paths, and builds
-the supported Unix targets plus the unsupported-platform diagnostic stub.
-The workflow itself remains the source of truth for the exact job matrix.
+the supported Unix targets plus the unsupported-platform diagnostic stub. The
+workflow itself remains the source of truth for the exact job matrix.
 
 ## Repository Structure
 
