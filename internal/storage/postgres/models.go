@@ -3,3 +3,31 @@
 //   sqlc v1.27.0
 
 package postgres
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type CoreArtifact struct {
+	ID          pgtype.UUID
+	Sha256      string
+	SizeBytes   int64
+	MediaType   string
+	LogicalKind string
+	StoragePath string
+	Compression pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+}
+
+type CoreEvent struct {
+	ID               pgtype.UUID
+	ProjectID        pgtype.UUID
+	TaskID           pgtype.UUID
+	RunID            pgtype.UUID
+	EventType        string
+	AggregateType    string
+	AggregateID      pgtype.UUID
+	AggregateVersion int64
+	Payload          []byte
+	CreatedAt        pgtype.Timestamptz
+}
