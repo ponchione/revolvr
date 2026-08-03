@@ -42,6 +42,9 @@ local runtime state and is ignored by Git. When initialized from a Git worktree,
 
 - This README is the operator guide for setup, task workflows, runtime modes,
   safety, recovery, and maintenance commands.
+- [`docs/architecture/repository-build-baseline.md`](docs/architecture/repository-build-baseline.md)
+  records the canonical repository-history, build, test, CLI, CI, and
+  just-in-time structure baseline.
 - [`docs/attended-developer-alpha.md`](docs/attended-developer-alpha.md) is the
   bounded source-build path for attended evaluation in disposable or
   recoverable repositories; it is explicitly not a release or external-use
