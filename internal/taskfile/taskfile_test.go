@@ -121,8 +121,8 @@ func TestLoadAcceptsEveryPhase(t *testing.T) {
 workflow: mixed-pass-v1
 phase: %s
 ---
-# %s Phase
-`, phase, strings.Title(phase)))
+# Phase
+`, phase))
 
 			task, err := Load(repo, path)
 			if err != nil {

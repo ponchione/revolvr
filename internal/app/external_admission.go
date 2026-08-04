@@ -98,7 +98,7 @@ func recheckExternalExecutableIdentitiesWithManifest(cfg runonce.Config, require
 	if err := codexexec.VerifyExecutableIdentity(cfg.CodexIdentity.Executable, nil); err != nil {
 		return fmt.Errorf("external executable admission: Codex: %w", err)
 	}
-	manifest := codexexec.ReleaseManifest{}
+	var manifest codexexec.ReleaseManifest
 	var err error
 	if releaseManifest != nil {
 		manifest = *releaseManifest

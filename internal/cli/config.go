@@ -54,7 +54,7 @@ func writeConfigCheck(out io.Writer, result configCheckResult) error {
 		fmt.Sprintf("Source-writer lock: timeout=%s heartbeat_interval=%s", cfg.SourceWriterLockTimeout, cfg.SourceWriterLockHeartbeatInterval),
 		fmt.Sprintf("Autonomy safety schema: %s", cfg.SafetyDeclaration.SchemaVersion),
 		fmt.Sprintf("Autonomy mode: %s", cfg.SafetyDeclaration.Mode),
-		fmt.Sprintf("Worktree isolation: Git/source isolation only; not a security sandbox"),
+		"Worktree isolation: Git/source isolation only; not a security sandbox",
 		fmt.Sprintf("External isolation: expectation=%s enforcement=%s attestation=%t", cfg.SafetyDeclaration.ExternalIsolation.Expectation, cfg.SafetyDeclaration.ExternalIsolation.Enforcement, cfg.SafetyDeclaration.ExternalIsolation.Attestation != nil),
 		fmt.Sprintf("Network policy: access=%s enforcement=%s attestation=%t", cfg.SafetyDeclaration.Network.Access, cfg.SafetyDeclaration.Network.Enforcement, cfg.SafetyDeclaration.Network.Attestation != nil),
 		fmt.Sprintf("Git hooks policy: %s trusted=%d", cfg.SafetyDeclaration.Hooks.Policy, len(cfg.SafetyDeclaration.Hooks.Trusted)),

@@ -699,7 +699,7 @@ func TestDeliveryRestartRecoversRunningAttemptAndHistoryAhead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	journal, err = store.transition(journal, StageRunning, "attempt 1 running", nil, fixedTime.Add(time.Second))
+	_, err = store.transition(journal, StageRunning, "attempt 1 running", nil, fixedTime.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}

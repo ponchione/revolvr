@@ -149,7 +149,7 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		if err := VerifyExecutableIdentity(provenance.CodexIdentity.Executable, cfg.LookPath); err != nil {
 			return Result{}, fmt.Errorf("run codex exec: %w", err)
 		}
-		manifest := ReleaseManifest{}
+		var manifest ReleaseManifest
 		if cfg.ReleaseManifest != nil {
 			manifest = *cfg.ReleaseManifest
 		} else {
