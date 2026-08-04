@@ -266,3 +266,148 @@ SELECT
 FROM core.tasks AS t
 JOIN core.task_versions AS tv ON tv.id = t.accepted_version_id AND tv.task_id = t.id
 WHERE t.project_id = sqlc.arg(project_id) AND t.id = sqlc.arg(task_id);
+
+-- name: ListSchedulerTasks :many
+SELECT
+    t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
+    t.created_at, t.aggregate_version, p.status AS project_status,
+    tv.id AS task_version_id, tv.priority AS task_priority,
+    EXISTS (
+        SELECT 1
+        FROM core.task_acceptance_versions AS av
+        JOIN core.task_acceptance_criteria AS ac
+          ON ac.id = av.criterion_id AND ac.task_id = av.task_id
+        WHERE av.task_id = t.id
+          AND av.task_version_id = t.accepted_version_id
+          AND av.verification_method = 'operator_checkpoint'
+          AND ac.status = 'pending'
+    ) AS awaiting_operator_checkpoint
+FROM core.tasks AS t
+JOIN core.projects AS p ON p.id = t.project_id
+LEFT JOIN core.task_versions AS tv
+  ON tv.id = t.accepted_version_id AND tv.task_id = t.id
+ORDER BY t.created_at, t.id;
+
+-- name: ListSchedulerProjectSources :many
+SELECT id, project_id, current_commit, current_tree
+FROM core.project_sources
+ORDER BY project_id, id;
+
+-- name: GetSchedulerProjectSource :one
+SELECT id, project_id, current_commit, current_tree
+FROM core.project_sources
+WHERE id = sqlc.arg(project_source_id) AND project_id = sqlc.arg(project_id);
+
+-- name: ListSchedulerDependencies :many
+SELECT d.task_id, d.task_version_id, d.dependency_task_id
+FROM core.task_dependencies AS d
+JOIN core.tasks AS t
+  ON t.id = d.task_id AND t.accepted_version_id = d.task_version_id
+ORDER BY d.task_id, d.dependency_task_id;
+
+-- name: ListSchedulerConflicts :many
+SELECT c.task_id, c.task_version_id, c.conflicting_task_id
+FROM core.task_conflicts AS c
+JOIN core.tasks AS t
+  ON t.id = c.task_id AND t.accepted_version_id = c.task_version_id
+ORDER BY c.task_id, c.conflicting_task_id;
+
+-- name: GetGlobalExecutionLease :one
+SELECT lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
+FROM core.execution_leases
+WHERE lease_name = 'global-source-mutation-v1';
+
+-- name: GetGlobalExecutionLeaseForUpdate :one
+SELECT lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
+FROM core.execution_leases
+WHERE lease_name = 'global-source-mutation-v1'
+FOR UPDATE;
+
+-- name: InsertRun :one
+INSERT INTO core.runs (
+    id, project_id, task_id, task_version_id, project_source_id, status,
+    admitted_task_aggregate_version, source_commit, source_tree,
+    coordinator_identity, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, 'active', $6, $7, $8, $9, $10, $10
+)
+RETURNING id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at;
+
+-- name: GetRun :one
+SELECT id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at
+FROM core.runs
+WHERE id = $1;
+
+-- name: ListActiveRuns :many
+SELECT id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at
+FROM core.runs
+WHERE status = 'active'
+ORDER BY id;
+
+-- name: CountRunAdmissionEvents :one
+SELECT count(*)
+FROM core.events
+WHERE run_id = sqlc.arg(run_id)
+  AND (
+      (event_type = 'run.admitted' AND aggregate_type = 'run'
+       AND aggregate_id = sqlc.arg(run_id) AND aggregate_version = 1)
+      OR
+      (event_type = 'task.admitted' AND aggregate_type = 'task'
+       AND aggregate_id = sqlc.arg(task_id)
+       AND aggregate_version = sqlc.arg(task_aggregate_version))
+  );
+
+-- name: AcquireGlobalExecutionLease :one
+UPDATE core.execution_leases
+SET run_id = sqlc.arg(run_id),
+    coordinator_identity = sqlc.arg(coordinator_identity),
+    acquired_at = sqlc.arg(acquired_at),
+    aggregate_version = aggregate_version + 1
+WHERE lease_name = 'global-source-mutation-v1'
+  AND run_id IS NULL
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING lease_name, run_id, coordinator_identity, acquired_at, aggregate_version;
+
+-- name: AdmitSchedulerTask :one
+UPDATE core.tasks
+SET status = 'admitted',
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE project_id = sqlc.arg(project_id)
+  AND id = sqlc.arg(task_id)
+  AND status = 'pending'
+  AND accepted_version_id = sqlc.arg(task_version_id)
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING id, project_id, external_task_id, status, accepted_version_id,
+    created_at, updated_at, aggregate_version;
+
+-- name: ReleaseRun :one
+UPDATE core.runs
+SET status = 'released',
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(released_at),
+    released_at = sqlc.arg(released_at)
+WHERE id = sqlc.arg(run_id)
+  AND status = 'active'
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at;
+
+-- name: ReleaseGlobalExecutionLease :one
+UPDATE core.execution_leases
+SET run_id = NULL,
+    coordinator_identity = NULL,
+    acquired_at = NULL,
+    aggregate_version = aggregate_version + 1
+WHERE lease_name = 'global-source-mutation-v1'
+  AND run_id = sqlc.arg(run_id)
+  AND coordinator_identity = sqlc.arg(coordinator_identity)
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING lease_name, run_id, coordinator_identity, acquired_at, aggregate_version;

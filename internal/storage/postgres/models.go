@@ -32,6 +32,14 @@ type CoreEvent struct {
 	CreatedAt        pgtype.Timestamptz
 }
 
+type CoreExecutionLease struct {
+	LeaseName           string
+	RunID               pgtype.UUID
+	CoordinatorIdentity pgtype.Text
+	AcquiredAt          pgtype.Timestamptz
+	AggregateVersion    int64
+}
+
 type CoreProject struct {
 	ID        pgtype.UUID
 	Name      string
@@ -51,6 +59,23 @@ type CoreProjectSource struct {
 	DefaultBranch         pgtype.Text
 	DirtyState            []byte
 	Remotes               []byte
+}
+
+type CoreRun struct {
+	ID                           pgtype.UUID
+	ProjectID                    pgtype.UUID
+	TaskID                       pgtype.UUID
+	TaskVersionID                pgtype.UUID
+	ProjectSourceID              pgtype.UUID
+	Status                       string
+	AggregateVersion             int64
+	AdmittedTaskAggregateVersion int64
+	SourceCommit                 string
+	SourceTree                   string
+	CoordinatorIdentity          string
+	CreatedAt                    pgtype.Timestamptz
+	UpdatedAt                    pgtype.Timestamptz
+	ReleasedAt                   pgtype.Timestamptz
 }
 
 type CoreTask struct {

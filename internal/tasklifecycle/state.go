@@ -25,6 +25,8 @@ const (
 	TaskCancelled        TaskStatus = "cancelled"
 	TaskBudgetExhausted  TaskStatus = "budget_exhausted"
 	TaskUnsafe           TaskStatus = "unsafe"
+	TaskSuperseded       TaskStatus = "superseded"
+	TaskAbandoned        TaskStatus = "abandoned"
 	TaskRetrieval        TaskStatus = "retrieval"
 	TaskTelemetry        TaskStatus = "telemetry"
 )

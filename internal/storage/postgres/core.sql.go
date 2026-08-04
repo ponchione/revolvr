@@ -11,6 +11,87 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireGlobalExecutionLease = `-- name: AcquireGlobalExecutionLease :one
+UPDATE core.execution_leases
+SET run_id = $1,
+    coordinator_identity = $2,
+    acquired_at = $3,
+    aggregate_version = aggregate_version + 1
+WHERE lease_name = 'global-source-mutation-v1'
+  AND run_id IS NULL
+  AND aggregate_version = $4
+RETURNING lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
+`
+
+type AcquireGlobalExecutionLeaseParams struct {
+	RunID                    pgtype.UUID
+	CoordinatorIdentity      pgtype.Text
+	AcquiredAt               pgtype.Timestamptz
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) AcquireGlobalExecutionLease(ctx context.Context, arg AcquireGlobalExecutionLeaseParams) (CoreExecutionLease, error) {
+	row := q.db.QueryRow(ctx, acquireGlobalExecutionLease,
+		arg.RunID,
+		arg.CoordinatorIdentity,
+		arg.AcquiredAt,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreExecutionLease
+	err := row.Scan(
+		&i.LeaseName,
+		&i.RunID,
+		&i.CoordinatorIdentity,
+		&i.AcquiredAt,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const admitSchedulerTask = `-- name: AdmitSchedulerTask :one
+UPDATE core.tasks
+SET status = 'admitted',
+    aggregate_version = aggregate_version + 1,
+    updated_at = $1
+WHERE project_id = $2
+  AND id = $3
+  AND status = 'pending'
+  AND accepted_version_id = $4
+  AND aggregate_version = $5
+RETURNING id, project_id, external_task_id, status, accepted_version_id,
+    created_at, updated_at, aggregate_version
+`
+
+type AdmitSchedulerTaskParams struct {
+	UpdatedAt                pgtype.Timestamptz
+	ProjectID                pgtype.UUID
+	TaskID                   pgtype.UUID
+	TaskVersionID            pgtype.UUID
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) AdmitSchedulerTask(ctx context.Context, arg AdmitSchedulerTaskParams) (CoreTask, error) {
+	row := q.db.QueryRow(ctx, admitSchedulerTask,
+		arg.UpdatedAt,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreTask
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ExternalTaskID,
+		&i.Status,
+		&i.AcceptedVersionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
 const appendEvent = `-- name: AppendEvent :one
 INSERT INTO core.events (
     id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,
@@ -159,6 +240,33 @@ func (q *Queries) CompareAndUpdateTaskState(ctx context.Context, arg CompareAndU
 	return i, err
 }
 
+const countRunAdmissionEvents = `-- name: CountRunAdmissionEvents :one
+SELECT count(*)
+FROM core.events
+WHERE run_id = $1
+  AND (
+      (event_type = 'run.admitted' AND aggregate_type = 'run'
+       AND aggregate_id = $1 AND aggregate_version = 1)
+      OR
+      (event_type = 'task.admitted' AND aggregate_type = 'task'
+       AND aggregate_id = $2
+       AND aggregate_version = $3)
+  )
+`
+
+type CountRunAdmissionEventsParams struct {
+	RunID                pgtype.UUID
+	TaskID               pgtype.UUID
+	TaskAggregateVersion int64
+}
+
+func (q *Queries) CountRunAdmissionEvents(ctx context.Context, arg CountRunAdmissionEventsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRunAdmissionEvents, arg.RunID, arg.TaskID, arg.TaskAggregateVersion)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getApprovedTaskWithSelectedVersion = `-- name: GetApprovedTaskWithSelectedVersion :one
 SELECT
     t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
@@ -301,6 +409,45 @@ func (q *Queries) GetEvent(ctx context.Context, id pgtype.UUID) (CoreEvent, erro
 	return i, err
 }
 
+const getGlobalExecutionLease = `-- name: GetGlobalExecutionLease :one
+SELECT lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
+FROM core.execution_leases
+WHERE lease_name = 'global-source-mutation-v1'
+`
+
+func (q *Queries) GetGlobalExecutionLease(ctx context.Context) (CoreExecutionLease, error) {
+	row := q.db.QueryRow(ctx, getGlobalExecutionLease)
+	var i CoreExecutionLease
+	err := row.Scan(
+		&i.LeaseName,
+		&i.RunID,
+		&i.CoordinatorIdentity,
+		&i.AcquiredAt,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const getGlobalExecutionLeaseForUpdate = `-- name: GetGlobalExecutionLeaseForUpdate :one
+SELECT lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
+FROM core.execution_leases
+WHERE lease_name = 'global-source-mutation-v1'
+FOR UPDATE
+`
+
+func (q *Queries) GetGlobalExecutionLeaseForUpdate(ctx context.Context) (CoreExecutionLease, error) {
+	row := q.db.QueryRow(ctx, getGlobalExecutionLeaseForUpdate)
+	var i CoreExecutionLease
+	err := row.Scan(
+		&i.LeaseName,
+		&i.RunID,
+		&i.CoordinatorIdentity,
+		&i.AcquiredAt,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
 const getProjectByID = `-- name: GetProjectByID :one
 SELECT id, name, status, created_at, updated_at
 FROM core.projects
@@ -376,6 +523,66 @@ func (q *Queries) GetProjectRegistrationByCanonicalSourcePath(ctx context.Contex
 		&i.DefaultBranch,
 		&i.DirtyState,
 		&i.Remotes,
+	)
+	return i, err
+}
+
+const getRun = `-- name: GetRun :one
+SELECT id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at
+FROM core.runs
+WHERE id = $1
+`
+
+func (q *Queries) GetRun(ctx context.Context, id pgtype.UUID) (CoreRun, error) {
+	row := q.db.QueryRow(ctx, getRun, id)
+	var i CoreRun
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.ProjectSourceID,
+		&i.Status,
+		&i.AggregateVersion,
+		&i.AdmittedTaskAggregateVersion,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CoordinatorIdentity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ReleasedAt,
+	)
+	return i, err
+}
+
+const getSchedulerProjectSource = `-- name: GetSchedulerProjectSource :one
+SELECT id, project_id, current_commit, current_tree
+FROM core.project_sources
+WHERE id = $1 AND project_id = $2
+`
+
+type GetSchedulerProjectSourceParams struct {
+	ProjectSourceID pgtype.UUID
+	ProjectID       pgtype.UUID
+}
+
+type GetSchedulerProjectSourceRow struct {
+	ID            pgtype.UUID
+	ProjectID     pgtype.UUID
+	CurrentCommit string
+	CurrentTree   string
+}
+
+func (q *Queries) GetSchedulerProjectSource(ctx context.Context, arg GetSchedulerProjectSourceParams) (GetSchedulerProjectSourceRow, error) {
+	row := q.db.QueryRow(ctx, getSchedulerProjectSource, arg.ProjectSourceID, arg.ProjectID)
+	var i GetSchedulerProjectSourceRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CurrentCommit,
+		&i.CurrentTree,
 	)
 	return i, err
 }
@@ -785,6 +992,65 @@ func (q *Queries) InsertProjectSource(ctx context.Context, arg InsertProjectSour
 	return i, err
 }
 
+const insertRun = `-- name: InsertRun :one
+INSERT INTO core.runs (
+    id, project_id, task_id, task_version_id, project_source_id, status,
+    admitted_task_aggregate_version, source_commit, source_tree,
+    coordinator_identity, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, 'active', $6, $7, $8, $9, $10, $10
+)
+RETURNING id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at
+`
+
+type InsertRunParams struct {
+	ID                           pgtype.UUID
+	ProjectID                    pgtype.UUID
+	TaskID                       pgtype.UUID
+	TaskVersionID                pgtype.UUID
+	ProjectSourceID              pgtype.UUID
+	AdmittedTaskAggregateVersion int64
+	SourceCommit                 string
+	SourceTree                   string
+	CoordinatorIdentity          string
+	CreatedAt                    pgtype.Timestamptz
+}
+
+func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) (CoreRun, error) {
+	row := q.db.QueryRow(ctx, insertRun,
+		arg.ID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.ProjectSourceID,
+		arg.AdmittedTaskAggregateVersion,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.CoordinatorIdentity,
+		arg.CreatedAt,
+	)
+	var i CoreRun
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.ProjectSourceID,
+		&i.Status,
+		&i.AggregateVersion,
+		&i.AdmittedTaskAggregateVersion,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CoordinatorIdentity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ReleasedAt,
+	)
+	return i, err
+}
+
 const insertTask = `-- name: InsertTask :one
 INSERT INTO core.tasks (
     id, project_id, external_task_id, status, accepted_version_id, created_at, updated_at
@@ -1130,6 +1396,298 @@ func (q *Queries) InsertTaskVersion(ctx context.Context, arg InsertTaskVersionPa
 		&i.ExpectedPaths,
 		&i.OperatorCheckpoints,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listActiveRuns = `-- name: ListActiveRuns :many
+SELECT id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at
+FROM core.runs
+WHERE status = 'active'
+ORDER BY id
+`
+
+func (q *Queries) ListActiveRuns(ctx context.Context) ([]CoreRun, error) {
+	rows, err := q.db.Query(ctx, listActiveRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreRun
+	for rows.Next() {
+		var i CoreRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.TaskID,
+			&i.TaskVersionID,
+			&i.ProjectSourceID,
+			&i.Status,
+			&i.AggregateVersion,
+			&i.AdmittedTaskAggregateVersion,
+			&i.SourceCommit,
+			&i.SourceTree,
+			&i.CoordinatorIdentity,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ReleasedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulerConflicts = `-- name: ListSchedulerConflicts :many
+SELECT c.task_id, c.task_version_id, c.conflicting_task_id
+FROM core.task_conflicts AS c
+JOIN core.tasks AS t
+  ON t.id = c.task_id AND t.accepted_version_id = c.task_version_id
+ORDER BY c.task_id, c.conflicting_task_id
+`
+
+type ListSchedulerConflictsRow struct {
+	TaskID            pgtype.UUID
+	TaskVersionID     pgtype.UUID
+	ConflictingTaskID pgtype.UUID
+}
+
+func (q *Queries) ListSchedulerConflicts(ctx context.Context) ([]ListSchedulerConflictsRow, error) {
+	rows, err := q.db.Query(ctx, listSchedulerConflicts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSchedulerConflictsRow
+	for rows.Next() {
+		var i ListSchedulerConflictsRow
+		if err := rows.Scan(&i.TaskID, &i.TaskVersionID, &i.ConflictingTaskID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulerDependencies = `-- name: ListSchedulerDependencies :many
+SELECT d.task_id, d.task_version_id, d.dependency_task_id
+FROM core.task_dependencies AS d
+JOIN core.tasks AS t
+  ON t.id = d.task_id AND t.accepted_version_id = d.task_version_id
+ORDER BY d.task_id, d.dependency_task_id
+`
+
+type ListSchedulerDependenciesRow struct {
+	TaskID           pgtype.UUID
+	TaskVersionID    pgtype.UUID
+	DependencyTaskID pgtype.UUID
+}
+
+func (q *Queries) ListSchedulerDependencies(ctx context.Context) ([]ListSchedulerDependenciesRow, error) {
+	rows, err := q.db.Query(ctx, listSchedulerDependencies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSchedulerDependenciesRow
+	for rows.Next() {
+		var i ListSchedulerDependenciesRow
+		if err := rows.Scan(&i.TaskID, &i.TaskVersionID, &i.DependencyTaskID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulerProjectSources = `-- name: ListSchedulerProjectSources :many
+SELECT id, project_id, current_commit, current_tree
+FROM core.project_sources
+ORDER BY project_id, id
+`
+
+type ListSchedulerProjectSourcesRow struct {
+	ID            pgtype.UUID
+	ProjectID     pgtype.UUID
+	CurrentCommit string
+	CurrentTree   string
+}
+
+func (q *Queries) ListSchedulerProjectSources(ctx context.Context) ([]ListSchedulerProjectSourcesRow, error) {
+	rows, err := q.db.Query(ctx, listSchedulerProjectSources)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSchedulerProjectSourcesRow
+	for rows.Next() {
+		var i ListSchedulerProjectSourcesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CurrentCommit,
+			&i.CurrentTree,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulerTasks = `-- name: ListSchedulerTasks :many
+SELECT
+    t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
+    t.created_at, t.aggregate_version, p.status AS project_status,
+    tv.id AS task_version_id, tv.priority AS task_priority,
+    EXISTS (
+        SELECT 1
+        FROM core.task_acceptance_versions AS av
+        JOIN core.task_acceptance_criteria AS ac
+          ON ac.id = av.criterion_id AND ac.task_id = av.task_id
+        WHERE av.task_id = t.id
+          AND av.task_version_id = t.accepted_version_id
+          AND av.verification_method = 'operator_checkpoint'
+          AND ac.status = 'pending'
+    ) AS awaiting_operator_checkpoint
+FROM core.tasks AS t
+JOIN core.projects AS p ON p.id = t.project_id
+LEFT JOIN core.task_versions AS tv
+  ON tv.id = t.accepted_version_id AND tv.task_id = t.id
+ORDER BY t.created_at, t.id
+`
+
+type ListSchedulerTasksRow struct {
+	ID                         pgtype.UUID
+	ProjectID                  pgtype.UUID
+	ExternalTaskID             string
+	Status                     string
+	AcceptedVersionID          pgtype.UUID
+	CreatedAt                  pgtype.Timestamptz
+	AggregateVersion           int64
+	ProjectStatus              string
+	TaskVersionID              pgtype.UUID
+	TaskPriority               pgtype.Int4
+	AwaitingOperatorCheckpoint bool
+}
+
+func (q *Queries) ListSchedulerTasks(ctx context.Context) ([]ListSchedulerTasksRow, error) {
+	rows, err := q.db.Query(ctx, listSchedulerTasks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSchedulerTasksRow
+	for rows.Next() {
+		var i ListSchedulerTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.ExternalTaskID,
+			&i.Status,
+			&i.AcceptedVersionID,
+			&i.CreatedAt,
+			&i.AggregateVersion,
+			&i.ProjectStatus,
+			&i.TaskVersionID,
+			&i.TaskPriority,
+			&i.AwaitingOperatorCheckpoint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const releaseGlobalExecutionLease = `-- name: ReleaseGlobalExecutionLease :one
+UPDATE core.execution_leases
+SET run_id = NULL,
+    coordinator_identity = NULL,
+    acquired_at = NULL,
+    aggregate_version = aggregate_version + 1
+WHERE lease_name = 'global-source-mutation-v1'
+  AND run_id = $1
+  AND coordinator_identity = $2
+  AND aggregate_version = $3
+RETURNING lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
+`
+
+type ReleaseGlobalExecutionLeaseParams struct {
+	RunID                    pgtype.UUID
+	CoordinatorIdentity      pgtype.Text
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) ReleaseGlobalExecutionLease(ctx context.Context, arg ReleaseGlobalExecutionLeaseParams) (CoreExecutionLease, error) {
+	row := q.db.QueryRow(ctx, releaseGlobalExecutionLease, arg.RunID, arg.CoordinatorIdentity, arg.ExpectedAggregateVersion)
+	var i CoreExecutionLease
+	err := row.Scan(
+		&i.LeaseName,
+		&i.RunID,
+		&i.CoordinatorIdentity,
+		&i.AcquiredAt,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const releaseRun = `-- name: ReleaseRun :one
+UPDATE core.runs
+SET status = 'released',
+    aggregate_version = aggregate_version + 1,
+    updated_at = $1,
+    released_at = $1
+WHERE id = $2
+  AND status = 'active'
+  AND aggregate_version = $3
+RETURNING id, project_id, task_id, task_version_id, project_source_id, status,
+    aggregate_version, admitted_task_aggregate_version, source_commit,
+    source_tree, coordinator_identity, created_at, updated_at, released_at
+`
+
+type ReleaseRunParams struct {
+	ReleasedAt               pgtype.Timestamptz
+	RunID                    pgtype.UUID
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) ReleaseRun(ctx context.Context, arg ReleaseRunParams) (CoreRun, error) {
+	row := q.db.QueryRow(ctx, releaseRun, arg.ReleasedAt, arg.RunID, arg.ExpectedAggregateVersion)
+	var i CoreRun
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.ProjectSourceID,
+		&i.Status,
+		&i.AggregateVersion,
+		&i.AdmittedTaskAggregateVersion,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CoordinatorIdentity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ReleasedAt,
 	)
 	return i, err
 }
