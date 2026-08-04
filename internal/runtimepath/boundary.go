@@ -314,6 +314,15 @@ func (d *Directory) Close() error {
 	return d.file.Close()
 }
 
+// Identity returns the stable filesystem identity of the still-named
+// directory. Callers can bind validated paths into later runtime evidence.
+func (d *Directory) Identity() (device, inode uint64, err error) {
+	if err := d.Check(); err != nil {
+		return 0, 0, err
+	}
+	return d.identity.device, d.identity.inode, nil
+}
+
 // OpenDir opens one protected child relative to this stable directory. The
 // returned handle remains bound to the child inode even if an ancestor name is
 // replaced later.
@@ -596,6 +605,16 @@ func (f *File) Check() error {
 		return err
 	}
 	return checkRegularFileStat(f.directory.boundary.root, filepath.Join(f.directory.path, f.name), stat)
+}
+
+// Identity returns the stable filesystem identity of the still-named file.
+func (f *File) Identity() (device, inode uint64, err error) {
+	stat, err := f.checkIdentity()
+	if err != nil {
+		return 0, 0, err
+	}
+	identity := identityOf(stat)
+	return identity.device, identity.inode, nil
 }
 
 // checkIdentity proves the opened inode is still the same named, unaliased
