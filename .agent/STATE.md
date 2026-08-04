@@ -1,5 +1,51 @@
 # Agent State
 
+## Architecture 010 Sandbox Specification Validator Complete (2026-08-04)
+
+- Task selected:
+  `.agent/tasks/architecture-010-sandbox-specification-validator.md`, the sole
+  task named by the architecture handoff. Architecture tasks 001-009 were
+  preserved as completed foundations; sandboxd/task 011 was not started.
+- Implementation commit:
+  `c3e74e0278ef725318ba4919ba91cf90c58a416b` (`Add sandbox request validator`).
+- Added `revolvr-sandbox-request-v1` and a read-only `internal/sandbox`
+  validator. Trusted policy pins the exact project/task/run/role, approved
+  image reference and lowercase digest, permitted profiles/networks,
+  environment names, maximum resources, forbidden host paths, and symbolic
+  source registry. Requests contain no arbitrary host paths or OCI flags.
+- Normalized specification identity hashes compact canonical JSON containing
+  schema and scheduler identities, role, approved image, runtime profile,
+  direct argv, target-sorted resolved mounts with canonical managed root/path,
+  file type and device/inode identity, default-deny network, all resource
+  bounds, and name-sorted explicit environment values. Input maps/slices are
+  cloned and equivalent ordering/default forms hash identically.
+- Descriptor-bound `internal/runtimepath` identity accessors let mount
+  resolution reject path escapes, symlink components/substitution, unsafe
+  modes, wrong types, and hard-linked files while retaining the validated
+  device/inode evidence. Admission requires exactly one read-write
+  `/workspace`; context and cache mounts are approved and read-only, with
+  source/target overlap rejected.
+- Strict is the default policy profile, compatible requires explicit policy
+  authority, and diagnostic also requires attended authority. Network
+  defaults to `none`, open network requires attended diagnostic authority, and
+  verifier network is always `none`. Environment replacement accepts only
+  allowlisted names and rejects host home/runtime configuration, SSH agent,
+  PostgreSQL/OpenAI, cloud, and GitHub credential names.
+- Tests cover deterministic normalization/hash, valid JSON and attended
+  profiles, malformed/duplicate/unknown input, raw privilege/namespace/
+  capability/device/socket fields, unknown images and versions, identity
+  drift, command/environment bounds, every nonpositive and over-policy
+  resource, network escalation, traversal, symlinks, hard links, wrong types,
+  unsafe modes, source/target overlap, host-home/runtime-socket exposure, and
+  mutable input detachment.
+- Verification passed: formatting check, focused task-required sandbox tests,
+  `go test ./...`, and `git diff --check`.
+- Files changed: `internal/sandbox/validator.go`,
+  `internal/sandbox/validator_test.go`, the two descriptor identity accessors
+  in `internal/runtimepath/boundary.go`, and this task's durable state files.
+- Result: **PASS**. Architecture tasks 001-010 are complete; tasks 011-025 are
+  pending. There are no blockers. The next task is `architecture-011-sandboxd`.
+
 ## Architecture 009 PostgreSQL Scheduler And Leases Complete (2026-08-04)
 
 - Task selected: `.agent/tasks/architecture-009-scheduler-leases.md`, the sole

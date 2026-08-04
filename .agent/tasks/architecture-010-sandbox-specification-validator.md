@@ -1,8 +1,8 @@
 ---
 id: architecture-010-sandbox-specification-validator
-status: pending
+status: completed
 workflow: mixed-pass-v1
-phase: implement
+phase: simplify
 depends_on: architecture-009-scheduler-leases
 ---
 
@@ -11,7 +11,7 @@ depends_on: architecture-009-scheduler-leases
 ## Sequence and status
 
 - Sequence: `010` of `025`.
-- Status: pending.
+- Status: completed; this historical authority must not be scheduled again.
 - Prerequisite: `architecture-009-scheduler-leases`.
 - Phase gate: Phase 3 begins only after the host can admit and pin one task;
   no untrusted process may start before this validator exists.
@@ -90,6 +90,11 @@ go test ./internal/sandbox -run 'Test.*Valid|Test.*Reject|Test.*Path|Test.*Symli
 go test ./...
 git diff --check
 ```
+
+## Completed provenance
+
+- Implementation commit:
+  `c3e74e0278ef725318ba4919ba91cf90c58a416b` (`Add sandbox request validator`).
 
 ## Expected completion report
 

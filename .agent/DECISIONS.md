@@ -1,5 +1,33 @@
 # Agent Decisions
 
+## Sandbox Admission Is Symbolic, Pinned, And Fail-Closed (2026-08-04)
+
+- The control-plane contract is `revolvr-sandbox-request-v1`. A request names
+  symbolic mount source IDs only. Trusted host policy maps each ID to one
+  managed root, canonical relative path, source kind/type, and exact container
+  target while pinning the scheduler's project/task/run/role authority,
+  approved image digest, profiles, networks, environment names, and resource
+  maxima. Raw host paths and raw OCI options are not request fields.
+- A normalized sandbox identity hashes schema and admitted identities, role,
+  image reference/digest, selected profile, ordered direct argv, target-sorted
+  resolved mounts and their root/path/type/device/inode identity, network,
+  explicit CPU/memory/PID/timeout/tmpfs bounds, and name-sorted replacement
+  environment values. Equivalent request ordering and omitted `none` network
+  authority produce the same hash.
+- One `/workspace` directory is the only writable mount. Approved context and
+  cache sources are read-only and cannot overlap another source or target.
+  Descriptor-bound path checks reject traversal, symlinks, substitution,
+  hard-linked files, wrong types, unsafe modes, host-home/config trees, and
+  runtime socket exposure before runtime work.
+- Only implementer, corrector, and verifier command roles are admitted.
+  Strict is the default approved profile, compatible is explicit, diagnostic
+  requires attended authority, network defaults to `none`, open network
+  requires attended diagnostic authority, and verifier network is always
+  `none`. Ambient environment inheritance and credential names are forbidden.
+- Task 010 performs no process or container operation. Task 011 owns the one
+  rootless OCI backend and must accept only this already-normalized authority,
+  rechecking its recorded filesystem identities before creating a sandbox.
+
 ## PostgreSQL Scheduler Uses One Persistent Global Mutation Lease (2026-08-04)
 
 - v1 source mutation is serialized by the singleton PostgreSQL lease
