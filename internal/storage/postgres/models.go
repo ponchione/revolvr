@@ -52,3 +52,87 @@ type CoreProjectSource struct {
 	DirtyState            []byte
 	Remotes               []byte
 }
+
+type CoreTask struct {
+	ID                pgtype.UUID
+	ProjectID         pgtype.UUID
+	ExternalTaskID    string
+	Status            string
+	AcceptedVersionID pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
+type CoreTaskAcceptanceCriterium struct {
+	ID                  pgtype.UUID
+	TaskID              pgtype.UUID
+	ExternalCriterionID string
+	Status              string
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+}
+
+type CoreTaskAcceptanceVersion struct {
+	ID                    pgtype.UUID
+	CriterionID           pgtype.UUID
+	TaskID                pgtype.UUID
+	TaskVersionID         pgtype.UUID
+	VersionNumber         int32
+	Requirement           string
+	VerificationMethod    string
+	VerificationReference pgtype.Text
+	OperatorCheckpoint    []byte
+	CreatedAt             pgtype.Timestamptz
+}
+
+type CoreTaskConflict struct {
+	TaskVersionID     pgtype.UUID
+	TaskID            pgtype.UUID
+	ProjectID         pgtype.UUID
+	ConflictingTaskID pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+}
+
+type CoreTaskDependency struct {
+	TaskVersionID    pgtype.UUID
+	TaskID           pgtype.UUID
+	ProjectID        pgtype.UUID
+	DependencyTaskID pgtype.UUID
+	DependencyType   string
+	CreatedAt        pgtype.Timestamptz
+}
+
+type CoreTaskImport struct {
+	ID               pgtype.UUID
+	ProjectID        pgtype.UUID
+	SourceArtifactID pgtype.UUID
+	TaskID           pgtype.UUID
+	SourceName       string
+	SourceSha256     string
+	MediaType        string
+	Status           string
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+}
+
+type CoreTaskVersion struct {
+	ID                    pgtype.UUID
+	TaskID                pgtype.UUID
+	VersionNumber         int32
+	SourceArtifactID      pgtype.UUID
+	Title                 string
+	Goal                  string
+	RiskClass             string
+	MutationClass         string
+	NetworkProfile        string
+	Priority              int32
+	ReadOnlyInvestigation bool
+	Scope                 []byte
+	ExcludedScope         []byte
+	VerificationPlan      []byte
+	Budget                []byte
+	SecretRequirements    []byte
+	ExpectedPaths         []byte
+	OperatorCheckpoints   []byte
+	CreatedAt             pgtype.Timestamptz
+}

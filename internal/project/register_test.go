@@ -163,13 +163,13 @@ func TestRegisterRetryAdoptsMirrorAfterTransactionRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := registrationCounts(t, ctx, pool)
+	before := registrationCounts(t, ctx, pool, canonical)
 	enableRegistrationFailure(t, ctx, pool)
 
 	if _, err := Register(ctx, pool, repo, managedRoot); err == nil {
 		t.Fatal("Register() succeeded with forced event failure")
 	}
-	if after := registrationCounts(t, ctx, pool); after != before {
+	if after := registrationCounts(t, ctx, pool, canonical); after != before {
 		t.Fatalf("row counts after rollback = %#v, want %#v", after, before)
 	}
 	first, err := os.Stat(destination)
@@ -239,13 +239,15 @@ type rowCounts struct {
 	events   int64
 }
 
-func registrationCounts(t *testing.T, ctx context.Context, pool *pgxpool.Pool) rowCounts {
+func registrationCounts(t *testing.T, ctx context.Context, pool *pgxpool.Pool, canonicalPath string) rowCounts {
 	t.Helper()
 	var counts rowCounts
 	err := pool.QueryRow(ctx, `SELECT
-        (SELECT count(*) FROM core.projects),
-        (SELECT count(*) FROM core.project_sources),
-        (SELECT count(*) FROM core.events WHERE event_type = 'project.registered')`).Scan(&counts.projects, &counts.sources, &counts.events)
+		(SELECT count(*) FROM core.projects WHERE name = $2),
+		(SELECT count(*) FROM core.project_sources WHERE canonical_source_path = $1),
+		(SELECT count(*) FROM core.events
+		 WHERE event_type = 'project.registered' AND payload ->> 'canonical_source_path' = $1)`,
+		canonicalPath, filepath.Base(canonicalPath)).Scan(&counts.projects, &counts.sources, &counts.events)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +303,7 @@ func projectTestPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 
 func projectTestRepository(t *testing.T) string {
 	t.Helper()
-	repo := filepath.Join(t.TempDir(), "source")
+	repo := filepath.Join(t.TempDir(), "source-"+uuid.NewString())
 	runProjectGit(t, "", "init", "-q", "-b", "main", repo)
 	runProjectGit(t, repo, "config", "user.name", "Revolvr Test")
 	runProjectGit(t, repo, "config", "user.email", "revolvr@example.invalid")

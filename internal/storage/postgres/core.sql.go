@@ -111,6 +111,25 @@ func (q *Queries) GetEvent(ctx context.Context, id pgtype.UUID) (CoreEvent, erro
 	return i, err
 }
 
+const getProjectByID = `-- name: GetProjectByID :one
+SELECT id, name, status, created_at, updated_at
+FROM core.projects
+WHERE id = $1
+`
+
+func (q *Queries) GetProjectByID(ctx context.Context, id pgtype.UUID) (CoreProject, error) {
+	row := q.db.QueryRow(ctx, getProjectByID, id)
+	var i CoreProject
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getProjectRegistrationByCanonicalSourcePath = `-- name: GetProjectRegistrationByCanonicalSourcePath :one
 SELECT
     p.id AS project_id,
@@ -167,6 +186,175 @@ func (q *Queries) GetProjectRegistrationByCanonicalSourcePath(ctx context.Contex
 		&i.DefaultBranch,
 		&i.DirtyState,
 		&i.Remotes,
+	)
+	return i, err
+}
+
+const getTaskImport = `-- name: GetTaskImport :one
+SELECT id, project_id, source_artifact_id, task_id, source_name, source_sha256,
+    media_type, status, created_at, updated_at
+FROM core.task_imports
+WHERE id = $1
+`
+
+func (q *Queries) GetTaskImport(ctx context.Context, id pgtype.UUID) (CoreTaskImport, error) {
+	row := q.db.QueryRow(ctx, getTaskImport, id)
+	var i CoreTaskImport
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.SourceArtifactID,
+		&i.TaskID,
+		&i.SourceName,
+		&i.SourceSha256,
+		&i.MediaType,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTaskImportBySourceIdentity = `-- name: GetTaskImportBySourceIdentity :one
+SELECT
+    ti.id, ti.project_id, ti.source_artifact_id, ti.task_id, ti.source_name,
+    ti.source_sha256, ti.media_type, ti.status, ti.created_at, ti.updated_at,
+    a.size_bytes AS artifact_size_bytes,
+    a.storage_path AS artifact_storage_path
+FROM core.task_imports AS ti
+JOIN core.artifacts AS a ON a.id = ti.source_artifact_id
+WHERE ti.project_id = $1 AND ti.source_name = $2
+`
+
+type GetTaskImportBySourceIdentityParams struct {
+	ProjectID  pgtype.UUID
+	SourceName string
+}
+
+type GetTaskImportBySourceIdentityRow struct {
+	ID                  pgtype.UUID
+	ProjectID           pgtype.UUID
+	SourceArtifactID    pgtype.UUID
+	TaskID              pgtype.UUID
+	SourceName          string
+	SourceSha256        string
+	MediaType           string
+	Status              string
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+	ArtifactSizeBytes   int64
+	ArtifactStoragePath string
+}
+
+func (q *Queries) GetTaskImportBySourceIdentity(ctx context.Context, arg GetTaskImportBySourceIdentityParams) (GetTaskImportBySourceIdentityRow, error) {
+	row := q.db.QueryRow(ctx, getTaskImportBySourceIdentity, arg.ProjectID, arg.SourceName)
+	var i GetTaskImportBySourceIdentityRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.SourceArtifactID,
+		&i.TaskID,
+		&i.SourceName,
+		&i.SourceSha256,
+		&i.MediaType,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArtifactSizeBytes,
+		&i.ArtifactStoragePath,
+	)
+	return i, err
+}
+
+const getTaskWithSelectedVersionByExternalID = `-- name: GetTaskWithSelectedVersionByExternalID :one
+SELECT
+    t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
+    t.created_at, t.updated_at,
+    tv.id AS selected_version_id,
+    tv.version_number AS selected_version_number,
+    tv.source_artifact_id AS selected_source_artifact_id,
+    tv.title AS selected_title,
+    tv.goal AS selected_goal,
+    tv.risk_class AS selected_risk_class,
+    tv.mutation_class AS selected_mutation_class,
+    tv.network_profile AS selected_network_profile,
+    tv.priority AS selected_priority,
+    tv.read_only_investigation AS selected_read_only_investigation,
+    tv.scope AS selected_scope,
+    tv.excluded_scope AS selected_excluded_scope,
+    tv.verification_plan AS selected_verification_plan,
+    tv.budget AS selected_budget,
+    tv.secret_requirements AS selected_secret_requirements,
+    tv.expected_paths AS selected_expected_paths,
+    tv.operator_checkpoints AS selected_operator_checkpoints,
+    tv.created_at AS selected_created_at
+FROM core.tasks AS t
+LEFT JOIN core.task_versions AS tv ON tv.id = t.accepted_version_id
+WHERE t.project_id = $1 AND t.external_task_id = $2
+`
+
+type GetTaskWithSelectedVersionByExternalIDParams struct {
+	ProjectID      pgtype.UUID
+	ExternalTaskID string
+}
+
+type GetTaskWithSelectedVersionByExternalIDRow struct {
+	ID                            pgtype.UUID
+	ProjectID                     pgtype.UUID
+	ExternalTaskID                string
+	Status                        string
+	AcceptedVersionID             pgtype.UUID
+	CreatedAt                     pgtype.Timestamptz
+	UpdatedAt                     pgtype.Timestamptz
+	SelectedVersionID             pgtype.UUID
+	SelectedVersionNumber         pgtype.Int4
+	SelectedSourceArtifactID      pgtype.UUID
+	SelectedTitle                 pgtype.Text
+	SelectedGoal                  pgtype.Text
+	SelectedRiskClass             pgtype.Text
+	SelectedMutationClass         pgtype.Text
+	SelectedNetworkProfile        pgtype.Text
+	SelectedPriority              pgtype.Int4
+	SelectedReadOnlyInvestigation pgtype.Bool
+	SelectedScope                 []byte
+	SelectedExcludedScope         []byte
+	SelectedVerificationPlan      []byte
+	SelectedBudget                []byte
+	SelectedSecretRequirements    []byte
+	SelectedExpectedPaths         []byte
+	SelectedOperatorCheckpoints   []byte
+	SelectedCreatedAt             pgtype.Timestamptz
+}
+
+func (q *Queries) GetTaskWithSelectedVersionByExternalID(ctx context.Context, arg GetTaskWithSelectedVersionByExternalIDParams) (GetTaskWithSelectedVersionByExternalIDRow, error) {
+	row := q.db.QueryRow(ctx, getTaskWithSelectedVersionByExternalID, arg.ProjectID, arg.ExternalTaskID)
+	var i GetTaskWithSelectedVersionByExternalIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ExternalTaskID,
+		&i.Status,
+		&i.AcceptedVersionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SelectedVersionID,
+		&i.SelectedVersionNumber,
+		&i.SelectedSourceArtifactID,
+		&i.SelectedTitle,
+		&i.SelectedGoal,
+		&i.SelectedRiskClass,
+		&i.SelectedMutationClass,
+		&i.SelectedNetworkProfile,
+		&i.SelectedPriority,
+		&i.SelectedReadOnlyInvestigation,
+		&i.SelectedScope,
+		&i.SelectedExcludedScope,
+		&i.SelectedVerificationPlan,
+		&i.SelectedBudget,
+		&i.SelectedSecretRequirements,
+		&i.SelectedExpectedPaths,
+		&i.SelectedOperatorCheckpoints,
+		&i.SelectedCreatedAt,
 	)
 	return i, err
 }
@@ -303,6 +491,353 @@ func (q *Queries) InsertProjectSource(ctx context.Context, arg InsertProjectSour
 		&i.DefaultBranch,
 		&i.DirtyState,
 		&i.Remotes,
+	)
+	return i, err
+}
+
+const insertTask = `-- name: InsertTask :one
+INSERT INTO core.tasks (
+    id, project_id, external_task_id, status, accepted_version_id, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+)
+RETURNING id, project_id, external_task_id, status, accepted_version_id, created_at, updated_at
+`
+
+type InsertTaskParams struct {
+	ID                pgtype.UUID
+	ProjectID         pgtype.UUID
+	ExternalTaskID    string
+	Status            string
+	AcceptedVersionID pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) (CoreTask, error) {
+	row := q.db.QueryRow(ctx, insertTask,
+		arg.ID,
+		arg.ProjectID,
+		arg.ExternalTaskID,
+		arg.Status,
+		arg.AcceptedVersionID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i CoreTask
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ExternalTaskID,
+		&i.Status,
+		&i.AcceptedVersionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertTaskAcceptanceCriterion = `-- name: InsertTaskAcceptanceCriterion :one
+INSERT INTO core.task_acceptance_criteria (
+    id, task_id, external_criterion_id, status, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+RETURNING id, task_id, external_criterion_id, status, created_at, updated_at
+`
+
+type InsertTaskAcceptanceCriterionParams struct {
+	ID                  pgtype.UUID
+	TaskID              pgtype.UUID
+	ExternalCriterionID string
+	Status              string
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTaskAcceptanceCriterion(ctx context.Context, arg InsertTaskAcceptanceCriterionParams) (CoreTaskAcceptanceCriterium, error) {
+	row := q.db.QueryRow(ctx, insertTaskAcceptanceCriterion,
+		arg.ID,
+		arg.TaskID,
+		arg.ExternalCriterionID,
+		arg.Status,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i CoreTaskAcceptanceCriterium
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.ExternalCriterionID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertTaskAcceptanceVersion = `-- name: InsertTaskAcceptanceVersion :one
+INSERT INTO core.task_acceptance_versions (
+    id, criterion_id, task_id, task_version_id, version_number, requirement,
+    verification_method, verification_reference, operator_checkpoint, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+)
+RETURNING id, criterion_id, task_id, task_version_id, version_number, requirement,
+    verification_method, verification_reference, operator_checkpoint, created_at
+`
+
+type InsertTaskAcceptanceVersionParams struct {
+	ID                    pgtype.UUID
+	CriterionID           pgtype.UUID
+	TaskID                pgtype.UUID
+	TaskVersionID         pgtype.UUID
+	VersionNumber         int32
+	Requirement           string
+	VerificationMethod    string
+	VerificationReference pgtype.Text
+	OperatorCheckpoint    []byte
+	CreatedAt             pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTaskAcceptanceVersion(ctx context.Context, arg InsertTaskAcceptanceVersionParams) (CoreTaskAcceptanceVersion, error) {
+	row := q.db.QueryRow(ctx, insertTaskAcceptanceVersion,
+		arg.ID,
+		arg.CriterionID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.VersionNumber,
+		arg.Requirement,
+		arg.VerificationMethod,
+		arg.VerificationReference,
+		arg.OperatorCheckpoint,
+		arg.CreatedAt,
+	)
+	var i CoreTaskAcceptanceVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CriterionID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.VersionNumber,
+		&i.Requirement,
+		&i.VerificationMethod,
+		&i.VerificationReference,
+		&i.OperatorCheckpoint,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertTaskConflict = `-- name: InsertTaskConflict :one
+INSERT INTO core.task_conflicts (
+    task_version_id, task_id, project_id, conflicting_task_id, created_at
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+RETURNING task_version_id, task_id, project_id, conflicting_task_id, created_at
+`
+
+type InsertTaskConflictParams struct {
+	TaskVersionID     pgtype.UUID
+	TaskID            pgtype.UUID
+	ProjectID         pgtype.UUID
+	ConflictingTaskID pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTaskConflict(ctx context.Context, arg InsertTaskConflictParams) (CoreTaskConflict, error) {
+	row := q.db.QueryRow(ctx, insertTaskConflict,
+		arg.TaskVersionID,
+		arg.TaskID,
+		arg.ProjectID,
+		arg.ConflictingTaskID,
+		arg.CreatedAt,
+	)
+	var i CoreTaskConflict
+	err := row.Scan(
+		&i.TaskVersionID,
+		&i.TaskID,
+		&i.ProjectID,
+		&i.ConflictingTaskID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertTaskDependency = `-- name: InsertTaskDependency :one
+INSERT INTO core.task_dependencies (
+    task_version_id, task_id, project_id, dependency_task_id, dependency_type, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+RETURNING task_version_id, task_id, project_id, dependency_task_id, dependency_type, created_at
+`
+
+type InsertTaskDependencyParams struct {
+	TaskVersionID    pgtype.UUID
+	TaskID           pgtype.UUID
+	ProjectID        pgtype.UUID
+	DependencyTaskID pgtype.UUID
+	DependencyType   string
+	CreatedAt        pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTaskDependency(ctx context.Context, arg InsertTaskDependencyParams) (CoreTaskDependency, error) {
+	row := q.db.QueryRow(ctx, insertTaskDependency,
+		arg.TaskVersionID,
+		arg.TaskID,
+		arg.ProjectID,
+		arg.DependencyTaskID,
+		arg.DependencyType,
+		arg.CreatedAt,
+	)
+	var i CoreTaskDependency
+	err := row.Scan(
+		&i.TaskVersionID,
+		&i.TaskID,
+		&i.ProjectID,
+		&i.DependencyTaskID,
+		&i.DependencyType,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertTaskImport = `-- name: InsertTaskImport :one
+INSERT INTO core.task_imports (
+    id, project_id, source_artifact_id, task_id, source_name, source_sha256,
+    media_type, status, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+)
+RETURNING id, project_id, source_artifact_id, task_id, source_name, source_sha256,
+    media_type, status, created_at, updated_at
+`
+
+type InsertTaskImportParams struct {
+	ID               pgtype.UUID
+	ProjectID        pgtype.UUID
+	SourceArtifactID pgtype.UUID
+	TaskID           pgtype.UUID
+	SourceName       string
+	SourceSha256     string
+	MediaType        string
+	Status           string
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTaskImport(ctx context.Context, arg InsertTaskImportParams) (CoreTaskImport, error) {
+	row := q.db.QueryRow(ctx, insertTaskImport,
+		arg.ID,
+		arg.ProjectID,
+		arg.SourceArtifactID,
+		arg.TaskID,
+		arg.SourceName,
+		arg.SourceSha256,
+		arg.MediaType,
+		arg.Status,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i CoreTaskImport
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.SourceArtifactID,
+		&i.TaskID,
+		&i.SourceName,
+		&i.SourceSha256,
+		&i.MediaType,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertTaskVersion = `-- name: InsertTaskVersion :one
+INSERT INTO core.task_versions (
+    id, task_id, version_number, source_artifact_id, title, goal, risk_class,
+    mutation_class, network_profile, priority, read_only_investigation, scope,
+    excluded_scope, verification_plan, budget, secret_requirements,
+    expected_paths, operator_checkpoints, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19
+)
+RETURNING id, task_id, version_number, source_artifact_id, title, goal, risk_class,
+    mutation_class, network_profile, priority, read_only_investigation, scope,
+    excluded_scope, verification_plan, budget, secret_requirements,
+    expected_paths, operator_checkpoints, created_at
+`
+
+type InsertTaskVersionParams struct {
+	ID                    pgtype.UUID
+	TaskID                pgtype.UUID
+	VersionNumber         int32
+	SourceArtifactID      pgtype.UUID
+	Title                 string
+	Goal                  string
+	RiskClass             string
+	MutationClass         string
+	NetworkProfile        string
+	Priority              int32
+	ReadOnlyInvestigation bool
+	Scope                 []byte
+	ExcludedScope         []byte
+	VerificationPlan      []byte
+	Budget                []byte
+	SecretRequirements    []byte
+	ExpectedPaths         []byte
+	OperatorCheckpoints   []byte
+	CreatedAt             pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTaskVersion(ctx context.Context, arg InsertTaskVersionParams) (CoreTaskVersion, error) {
+	row := q.db.QueryRow(ctx, insertTaskVersion,
+		arg.ID,
+		arg.TaskID,
+		arg.VersionNumber,
+		arg.SourceArtifactID,
+		arg.Title,
+		arg.Goal,
+		arg.RiskClass,
+		arg.MutationClass,
+		arg.NetworkProfile,
+		arg.Priority,
+		arg.ReadOnlyInvestigation,
+		arg.Scope,
+		arg.ExcludedScope,
+		arg.VerificationPlan,
+		arg.Budget,
+		arg.SecretRequirements,
+		arg.ExpectedPaths,
+		arg.OperatorCheckpoints,
+		arg.CreatedAt,
+	)
+	var i CoreTaskVersion
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.VersionNumber,
+		&i.SourceArtifactID,
+		&i.Title,
+		&i.Goal,
+		&i.RiskClass,
+		&i.MutationClass,
+		&i.NetworkProfile,
+		&i.Priority,
+		&i.ReadOnlyInvestigation,
+		&i.Scope,
+		&i.ExcludedScope,
+		&i.VerificationPlan,
+		&i.Budget,
+		&i.SecretRequirements,
+		&i.ExpectedPaths,
+		&i.OperatorCheckpoints,
+		&i.CreatedAt,
 	)
 	return i, err
 }
