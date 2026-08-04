@@ -259,16 +259,6 @@ func addAutonomySafetyCheck(addCheck func(PreflightCheckStatus, string, string),
 	addCheck(PreflightOK, "autonomy safety", fmt.Sprintf("mode=%s; operator remains responsible for host, network, hooks, and credentials; worktree isolation is Git/source isolation only", declaration.Mode))
 }
 
-func addExecutableCheck(addCheck func(PreflightCheckStatus, string, string), lookPath ExecutableLookPath, name string, executable string) bool {
-	resolved, err := lookPath(executable)
-	if err != nil {
-		addCheck(PreflightFail, name, fmt.Sprintf("%q not found: %v", executable, err))
-		return false
-	}
-	addCheck(PreflightOK, name, resolved)
-	return true
-}
-
 func addGitIdentityCheck(ctx context.Context, addCheck func(PreflightCheckStatus, string, string), commandRunner PreflightCommandRunner, workDir string, gitExecutable string, timeout time.Duration, stdoutCap int, stderrCap int) {
 	nameResult := runPreflightGit(ctx, commandRunner, workDir, gitExecutable, []string{"config", "--get", "user.name"}, timeout, stdoutCap, stderrCap)
 	emailResult := runPreflightGit(ctx, commandRunner, workDir, gitExecutable, []string{"config", "--get", "user.email"}, timeout, stdoutCap, stderrCap)

@@ -291,12 +291,6 @@ func PlanGC(ctx context.Context, in PlanInput) (Plan, error) {
 	return plan, nil
 }
 
-func MarshalPlan(plan Plan) ([]byte, error) {
-	if err := ValidatePlan(plan); err != nil {
-		return nil, err
-	}
-	return canonicalJSON(plan)
-}
 func ValidatePlan(plan Plan) error {
 	if plan.SchemaVersion != PlanSchema || plan.PlanID == "" || plan.OperationID == "" || plan.FrozenAt.IsZero() {
 		return errors.New("invalid artifact GC plan")

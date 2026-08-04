@@ -40,10 +40,6 @@ type Input struct {
 	StopCondition   string
 }
 
-func Build(in Input) (string, error) {
-	return BuildContextPayload(in)
-}
-
 func BuildContextPayload(in Input) (string, error) {
 	normalized, err := normalize(in)
 	if err != nil {

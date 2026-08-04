@@ -188,10 +188,6 @@ func OpenLiveReadOnly(ctx context.Context, path string) (*Store, error) {
 	return &Store{db: db, liveReadOnly: true}, nil
 }
 
-func NewStore(ctx context.Context, db *sql.DB) (*Store, error) {
-	return StoreWithClock(ctx, db, nil)
-}
-
 func StoreWithClock(ctx context.Context, db *sql.DB, clk func() time.Time) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("new ledger store: db is nil")

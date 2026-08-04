@@ -723,14 +723,6 @@ func (s *archiveStorage) readState(rel, taskID string) (autonomous.ExecutionStat
 	return state, raw, err
 }
 
-func readState(root, rel, taskID string) (autonomous.ExecutionState, []byte, error) {
-	storage, err := bindArchiveStorage(root)
-	if err != nil {
-		return autonomous.ExecutionState{}, nil, err
-	}
-	return storage.readState(rel, taskID)
-}
-
 func (s *archiveStorage) readFrozen(identity Artifact) (autonomousfinalization.FrozenEvidence, []byte, error) {
 	raw, err := s.readArtifact(identity)
 	if err != nil {
@@ -741,14 +733,6 @@ func (s *archiveStorage) readFrozen(identity Artifact) (autonomousfinalization.F
 		return frozen, nil, err
 	}
 	return frozen, raw, nil
-}
-
-func readFrozen(root string, identity Artifact) (autonomousfinalization.FrozenEvidence, []byte, error) {
-	storage, err := bindArchiveStorage(root)
-	if err != nil {
-		return autonomousfinalization.FrozenEvidence{}, nil, err
-	}
-	return storage.readFrozen(identity)
 }
 
 func acquireFileLock(ctx context.Context, boundary runtimepath.Boundary, rel string) (*lock.Flock, error) {

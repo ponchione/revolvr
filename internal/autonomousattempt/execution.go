@@ -39,20 +39,6 @@ type ExecutionResult struct {
 	RunError    error
 }
 
-func CycleOperation(cfg autonomouscycle.Config) Runner {
-	return func(ctx context.Context) (Observation, error) {
-		result, err := autonomouscycle.Run(ctx, cfg)
-		return ObserveCycle(result, err), err
-	}
-}
-
-func CorrectionOperation(cfg autonomouscorrection.Config) Runner {
-	return func(ctx context.Context) (Observation, error) {
-		result, err := autonomouscorrection.Run(ctx, cfg)
-		return ObserveCorrection(result, err), err
-	}
-}
-
 // Execute admits, invokes, and accounts for exactly one operation. It is not a
 // retry loop and never calls the runner after a rejected admission.
 func Execute(ctx context.Context, cfg ExecuteConfig) (ExecutionResult, error) {

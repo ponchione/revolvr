@@ -325,18 +325,6 @@ func (l *SourceWriter) Path() string {
 	return l.path
 }
 
-func SourceWriterPath(workingDir string) (string, error) {
-	workingDir = strings.TrimSpace(workingDir)
-	if workingDir == "" {
-		return "", errors.New("source-writer lock: working directory is required")
-	}
-	root, err := runtimepath.CanonicalRoot(workingDir)
-	if err != nil {
-		return "", fmt.Errorf("resolve working directory: %w", err)
-	}
-	return filepath.Join(root, filepath.FromSlash(SourceWriterRelPath)), nil
-}
-
 func WorkspaceSourceWriterPath(controlRoot, workspaceID string) (string, error) {
 	controlRoot = strings.TrimSpace(controlRoot)
 	workspaceID = strings.TrimSpace(workspaceID)

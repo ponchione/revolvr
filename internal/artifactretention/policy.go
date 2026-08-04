@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -63,19 +62,4 @@ func (p Policy) Fingerprint() (string, []byte, error) {
 	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:]), raw, nil
-}
-
-func ParseClassList(values []string) (jsonl, stderr bool, err error) {
-	for _, value := range values {
-		switch strings.TrimSpace(value) {
-		case "codex_jsonl":
-			jsonl = true
-		case "codex_stderr":
-			stderr = true
-		case "":
-		default:
-			return false, false, fmt.Errorf("retention policy: unknown artifact class %q", value)
-		}
-	}
-	return jsonl, stderr, nil
 }

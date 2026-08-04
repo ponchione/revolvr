@@ -114,10 +114,6 @@ func recheckExternalExecutableIdentitiesWithManifest(cfg runonce.Config, require
 	return nil
 }
 
-func externalScopeChecks(ctx context.Context, input externalScopeInput) []PreflightCheck {
-	return inspectExternalScope(ctx, input).Checks
-}
-
 func inspectExternalScope(ctx context.Context, input externalScopeInput) externalScopeResult {
 	commandRunner := input.CommandRunner
 	if commandRunner == nil {

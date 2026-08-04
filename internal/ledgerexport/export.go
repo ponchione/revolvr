@@ -955,27 +955,3 @@ func rejectSecrets(blobs [][]byte, secrets []string) error {
 func artifactValues(a ledger.RunArtifacts) []string {
 	return []string{a.ContextPayloadPath, a.ContextManifestPath, a.DossierPath, a.DossierManifestPath, a.CodexStdoutJSONLPath, a.CodexStderrPath, a.LastMessagePath, a.ReceiptPath, a.SupervisorDossierPath, a.SupervisorDossierManifestPath, a.SupervisorPromptPath, a.SupervisorSchemaPath, a.SupervisorOutputPath, a.SupervisorDecisionPath, a.SupervisorProvenancePath, a.SupervisorSourcePath, a.SupervisorDiagnosticsPath, a.VerificationEvidencePath}
 }
-
-// List returns deterministic export identities for inspection surfaces.
-func List(repositoryRoot string) ([]string, error) {
-	root, err := canonicalRoot(repositoryRoot)
-	if err != nil {
-		return nil, err
-	}
-	dir := filepath.Join(root, ".revolvr", "retention", "exports")
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, entry := range entries {
-		if entry.IsDir() && safeID(entry.Name()) {
-			out = append(out, entry.Name())
-		}
-	}
-	sort.Strings(out)
-	return out, nil
-}
