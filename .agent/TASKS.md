@@ -4,8 +4,9 @@
 
 - The current implementation authority is the numbered sequence under
   `.agent/tasks/architecture-001` through `architecture-025`.
-- Architecture tasks 001-010 are completed. The next and only task is
-  `architecture-011-sandboxd`.
+- Architecture tasks 001-011 are completed. The next and only task is
+  `architecture-012-workspace-lifecycle`; it was not started during this
+  completion pass.
 - The legacy external-readiness backlog below is deferred while this canonical
   architecture sequence is active; its unchecked entries are not the current
   fresh-pass selector.

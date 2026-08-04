@@ -1,8 +1,8 @@
 ---
 id: architecture-011-sandboxd
-status: pending
+status: completed
 workflow: mixed-pass-v1
-phase: implement
+phase: simplify
 depends_on: architecture-010-sandbox-specification-validator
 ---
 
@@ -11,7 +11,7 @@ depends_on: architecture-010-sandbox-specification-validator
 ## Sequence and status
 
 - Sequence: `011` of `025`.
-- Status: pending.
+- Status: completed; this historical authority must not be scheduled again.
 - Prerequisite: `architecture-010-sandbox-specification-validator`.
 - Phase gate: no runtime command is accepted until the typed request validator
   and managed-path resolution boundary pass their abuse tests.
@@ -89,6 +89,11 @@ REVOLVR_SANDBOX_INTEGRATION=1 go test ./internal/sandbox -run TestRootlessRuntim
 go test ./...
 git diff --check
 ```
+
+## Completed provenance
+
+- Implementation commit:
+  `6d1c72edd34ccc7c9d1968a6390249fdec36fdac` (`Add rootless sandbox runtime`).
 
 ## Expected completion report
 

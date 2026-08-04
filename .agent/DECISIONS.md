@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## Sandboxd Selects Docker But Requires Proven Rootless Authority (2026-08-04)
+
+- Docker is the first OCI adapter because it is the only container engine
+  installed on the implementation workstation; Podman remains deferred.
+- Availability is not inferred from the Docker client binary or socket access.
+  The adapter requires `docker info` to report `name=rootless`; the accessible
+  rootful host daemon is a typed `ErrRuntimeUnavailable` and is never used as
+  a compatibility fallback.
+- Strict means exact `runsc` runtime selection. Missing `runsc` is typed
+  `ErrProfileUnavailable`; compatible mode never silently satisfies a strict
+  request. Non-`none` Docker networks require an explicit configured network.
+- Container creation uses the task-010 normalized specification only after
+  descriptor identity rechecks. It fixes the non-root UID, drops every
+  capability, enables no-new-privileges, makes the root filesystem read-only,
+  bounds CPU/memory/PIDs/tmpfs/time, disables network by default, uses only
+  approved bind mounts, and never passes ambient environment or runtime flags.
+- Startup reconciliation filters by both a Revolvr-managed label and the exact
+  state-root owner hash, then stops/removes only returned container IDs. This
+  boundary passed the real rootless Docker security gate with full container
+  identities; task 011 is complete.
+
 ## Sandbox Admission Is Symbolic, Pinned, And Fail-Closed (2026-08-04)
 
 - The control-plane contract is `revolvr-sandbox-request-v1`. A request names

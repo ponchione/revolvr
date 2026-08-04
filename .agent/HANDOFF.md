@@ -4,31 +4,34 @@ Updated: 2026-08-04
 
 ## Where We Stopped
 
-- Architecture task 010 is complete at implementation commit
-  `c3e74e0278ef725318ba4919ba91cf90c58a416b`.
-- `internal/sandbox` now defines `revolvr-sandbox-request-v1` and validates one
-  scheduler-pinned request against approved image digests, profiles, networks,
-  explicit resource/environment bounds, and symbolic descriptor-checked
-  managed mounts before any runtime work.
-- Focused malformed/abuse/path/hash tests, the complete Go suite, formatting,
-  and diff checks pass. No container, sandboxd process, workspace, model, or
-  runtime backend was created.
-- Tasks 001-010 are completed with Git provenance in their task files. Tasks
-  011-025 are pending.
+- Architecture task 011 is complete at implementation commit
+  `6d1c72edd34ccc7c9d1968a6390249fdec36fdac`.
+- `internal/sandbox` now provides the narrow `SandboxRuntime` lifecycle, a
+  fail-closed rootless Docker backend, descriptor identity rechecks, bounded
+  lifecycle evidence/artifacts, and the permission-restricted framed Unix
+  socket used by `cmd/revolvr-sandboxd`.
+- The opt-in gate passed against a disposable Docker 29.7.1 rootless daemon
+  and pinned `alpine:3.22` digest. It proved the required host-access, socket,
+  network, read-only-root, timeout, cancellation, leak, and orphan controls.
+  The daemon and its isolated temporary runtime/data root were removed.
+- Formatting, focused tests, the real rootless integration, sandbox race
+  tests, `go test ./...`, CLI help, and `git diff --check` pass.
+- Tasks 001-011 are completed with Git provenance in their task files. Task
+  012 was not started; tasks 012-025 remain pending.
 
 ## Continue Here
 
 The next and only task for the next fresh session is
-`.agent/tasks/architecture-011-sandboxd.md`.
+`.agent/tasks/architecture-012-workspace-lifecycle.md`.
 
 Read `AGENTS.md`, `README.md`, this handoff, the canonical specification
-sections named by task 011, and the completed foundations it identifies. Do
-not rerun tasks 001-010 or begin workspace/task 012 work.
+sections named by task 012, and the completed foundations it identifies. Do
+not rerun tasks 001-011 or begin task 013.
 
 Start one fresh pass from the repository root:
 
 ```bash
-codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, and .agent/tasks/architecture-011-sandboxd.md. Complete only architecture-011-sandboxd, run its verification, update durable state, and stop.'
+codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, and .agent/tasks/architecture-012-workspace-lifecycle.md. Complete only architecture-012-workspace-lifecycle, run its verification, update durable state, and stop.'
 ```
 
 Graphiti remains deferred: task 025 is a decision gate and requires successful

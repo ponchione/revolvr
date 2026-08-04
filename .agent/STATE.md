@@ -1,5 +1,45 @@
 # Agent State
 
+## Architecture 011 Sandboxd Complete (2026-08-04)
+
+- Task selected: `.agent/tasks/architecture-011-sandboxd.md`, the sole task
+  named by the architecture handoff. Architecture tasks 001-010 remain
+  completed; task 012 was not started.
+- Implementation commit:
+  `6d1c72edd34ccc7c9d1968a6390249fdec36fdac` (`Add rootless sandbox runtime`).
+- The implementation adds the specified `SandboxRuntime`
+  create/exec/stop/inspect/remove boundary, a Docker CLI adapter that requires
+  positive rootless-daemon evidence, typed strict-profile refusal without
+  `runsc`, hardened direct create arguments, exact-label orphan reconciliation,
+  descriptor identity rechecks, bounded lifecycle/output evidence, a framed
+  local Unix socket server, and `cmd/revolvr-sandboxd`.
+- Unit and fake-runtime coverage proves hardened argument translation,
+  rootful/strict refusal, exact-owner reconciliation, deterministic evidence,
+  timeout/cancellation cleanup, filesystem substitution refusal, malformed
+  protocol refusal, client-disconnect cleanup, and mode-0600 socket creation.
+- `dockerd-rootless-setuptool.sh check --force` passed. A disposable Docker
+  29.7.1 rootless daemon used an isolated runtime/data root and pinned
+  `alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce`.
+  The live gate proved non-root execution, no host-home or runtime-socket
+  access, no network under `none`, read-only-root enforcement, bounded tmpfs,
+  deterministic timeout/cancellation cleanup, exact orphan reconciliation,
+  and zero retained managed containers. The daemon and disposable root were
+  removed after verification.
+- The real daemon exposed two Docker CLI compatibility facts: Docker 29 emits
+  lowercase not-found diagnostics and `docker ps --quiet` abbreviates IDs.
+  The shared classifier now compares case-insensitively and reconciliation
+  requests `--no-trunc`, retaining full create/reconcile identity.
+- Passed verification: `test -z "$(gofmt -l cmd internal)"`, `go test
+  ./internal/sandbox ./cmd/revolvr-sandboxd`, the opt-in real rootless
+  `TestRootlessRuntimeSecurityProfile`, `go test -race ./internal/sandbox`,
+  `go test ./...`, `go run ./cmd/revolvr-sandboxd --help`, and
+  `git diff --check`.
+- Files changed: `cmd/revolvr-sandboxd/main.go`, the task-011 runtime/server/
+  test files under `internal/sandbox`, and this task's durable state files.
+- Result: **PASS**. Architecture tasks 001-011 are complete; tasks 012-025 are
+  pending. There are no blockers. The next task is
+  `architecture-012-workspace-lifecycle`, which was not started in this pass.
+
 ## Architecture 010 Sandbox Specification Validator Complete (2026-08-04)
 
 - Task selected:
