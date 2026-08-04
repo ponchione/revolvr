@@ -1,5 +1,25 @@
 # Agent State
 
+## Repository Audit Cleanup Complete (2026-08-04)
+
+- Task selected: execute every actionable item in `AUDIT-FINDINGS.md`; the
+  active architecture sequence was not advanced.
+- Removed seven inert release-candidate workflows and 18 unreachable internal
+  functions, applied only the Go 1.26 `slicescontains`, `minmax`, and
+  `mapsloop` fixes, cleared the five named analyzer findings, and restored
+  canonical Go module metadata.
+- Commits: `150de11` (`Remove obsolete release candidate workflows`),
+  `c6fa279` (`Remove unreachable internal helpers`), `80993e2` (`Use standard
+  library collection helpers`), `3c6995d` (`Clear static analysis leftovers`),
+  and `8756122` (`Tidy Go module metadata`).
+- Verification passed: `bash -n` for every tracked shell script, repeated
+  `go test ./...`, `go test -race -count=1 ./...` after the production
+  reductions, `deadcode@v0.48.0 -test ./...`, the exact requested `go fix`
+  diff check, the named Staticcheck diagnostic check, `go mod tidy -diff`,
+  `go mod verify`, and `git diff --check`.
+- Result: **PASS**. All five audit findings are complete. The next architecture
+  task remains `architecture-012-workspace-lifecycle`; there are no blockers.
+
 ## Architecture 011 Sandboxd Complete (2026-08-04)
 
 - Task selected: `.agent/tasks/architecture-011-sandboxd.md`, the sole task
