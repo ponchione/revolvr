@@ -61,6 +61,7 @@ type CoreTask struct {
 	AcceptedVersionID pgtype.UUID
 	CreatedAt         pgtype.Timestamptz
 	UpdatedAt         pgtype.Timestamptz
+	AggregateVersion  int64
 }
 
 type CoreTaskAcceptanceCriterium struct {

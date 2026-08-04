@@ -104,7 +104,8 @@ INSERT INTO core.tasks (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
 )
-RETURNING id, project_id, external_task_id, status, accepted_version_id, created_at, updated_at;
+RETURNING id, project_id, external_task_id, status, accepted_version_id, created_at, updated_at,
+    aggregate_version;
 
 -- name: InsertTaskVersion :one
 INSERT INTO core.task_versions (
@@ -158,7 +159,7 @@ RETURNING id, criterion_id, task_id, task_version_id, version_number, requiremen
 -- name: GetTaskWithSelectedVersionByExternalID :one
 SELECT
     t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
-    t.created_at, t.updated_at,
+    t.created_at, t.updated_at, t.aggregate_version,
     tv.id AS selected_version_id,
     tv.version_number AS selected_version_number,
     tv.source_artifact_id AS selected_source_artifact_id,
@@ -180,3 +181,88 @@ SELECT
 FROM core.tasks AS t
 LEFT JOIN core.task_versions AS tv ON tv.id = t.accepted_version_id
 WHERE t.project_id = $1 AND t.external_task_id = $2;
+
+-- name: GetTaskAndVersion :one
+SELECT
+    t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
+    t.created_at, t.updated_at, t.aggregate_version,
+    tv.id AS task_version_id,
+    tv.version_number AS task_version_number,
+    tv.source_artifact_id AS task_version_source_artifact_id,
+    tv.title AS task_version_title,
+    tv.goal AS task_version_goal,
+    tv.risk_class AS task_version_risk_class,
+    tv.mutation_class AS task_version_mutation_class,
+    tv.network_profile AS task_version_network_profile,
+    tv.priority AS task_version_priority,
+    tv.read_only_investigation AS task_version_read_only_investigation,
+    tv.scope AS task_version_scope,
+    tv.excluded_scope AS task_version_excluded_scope,
+    tv.verification_plan AS task_version_verification_plan,
+    tv.budget AS task_version_budget,
+    tv.secret_requirements AS task_version_secret_requirements,
+    tv.expected_paths AS task_version_expected_paths,
+    tv.operator_checkpoints AS task_version_operator_checkpoints,
+    tv.created_at AS task_version_created_at
+FROM core.tasks AS t
+JOIN core.task_versions AS tv ON tv.task_id = t.id
+WHERE t.project_id = sqlc.arg(project_id)
+  AND t.id = sqlc.arg(task_id)
+  AND tv.id = sqlc.arg(task_version_id);
+
+-- name: CompareAndUpdateTaskState :one
+UPDATE core.tasks
+SET status = sqlc.arg(new_status),
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE project_id = sqlc.arg(project_id)
+  AND id = sqlc.arg(task_id)
+  AND status = sqlc.arg(expected_status)
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING id, project_id, external_task_id, status, accepted_version_id,
+    created_at, updated_at, aggregate_version;
+
+-- name: ApproveTaskVersion :one
+UPDATE core.tasks AS t
+SET accepted_version_id = sqlc.arg(task_version_id),
+    status = 'pending',
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE t.project_id = sqlc.arg(project_id)
+  AND t.id = sqlc.arg(task_id)
+  AND t.status = 'awaiting_approval'
+  AND t.aggregate_version = sqlc.arg(expected_aggregate_version)
+  AND t.accepted_version_id IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM core.task_versions AS tv
+      WHERE tv.id = sqlc.arg(task_version_id) AND tv.task_id = t.id
+  )
+RETURNING t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
+    t.created_at, t.updated_at, t.aggregate_version;
+
+-- name: GetApprovedTaskWithSelectedVersion :one
+SELECT
+    t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
+    t.created_at, t.updated_at, t.aggregate_version,
+    tv.id AS selected_version_id,
+    tv.version_number AS selected_version_number,
+    tv.source_artifact_id AS selected_source_artifact_id,
+    tv.title AS selected_title,
+    tv.goal AS selected_goal,
+    tv.risk_class AS selected_risk_class,
+    tv.mutation_class AS selected_mutation_class,
+    tv.network_profile AS selected_network_profile,
+    tv.priority AS selected_priority,
+    tv.read_only_investigation AS selected_read_only_investigation,
+    tv.scope AS selected_scope,
+    tv.excluded_scope AS selected_excluded_scope,
+    tv.verification_plan AS selected_verification_plan,
+    tv.budget AS selected_budget,
+    tv.secret_requirements AS selected_secret_requirements,
+    tv.expected_paths AS selected_expected_paths,
+    tv.operator_checkpoints AS selected_operator_checkpoints,
+    tv.created_at AS selected_created_at
+FROM core.tasks AS t
+JOIN core.task_versions AS tv ON tv.id = t.accepted_version_id AND tv.task_id = t.id
+WHERE t.project_id = sqlc.arg(project_id) AND t.id = sqlc.arg(task_id);
