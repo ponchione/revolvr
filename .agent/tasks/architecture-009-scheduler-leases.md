@@ -1,8 +1,8 @@
 ---
 id: architecture-009-scheduler-leases
-status: pending
+status: completed
 workflow: mixed-pass-v1
-phase: implement
+phase: simplify
 depends_on: architecture-008-lifecycle-state-machine
 ---
 
@@ -11,7 +11,7 @@ depends_on: architecture-008-lifecycle-state-machine
 ## Sequence and status
 
 - Sequence: `009` of `025`.
-- Status: pending; this is the next implementation task.
+- Status: completed; this historical authority must not be scheduled again.
 - Prerequisite: `architecture-008-lifecycle-state-machine`.
 - Phase gate: Phase 2 scheduling starts only after accepted task versions and
   lifecycle transitions are canonical and concurrency-tested.
@@ -99,6 +99,11 @@ git diff --check
 Exercise fixtures for deterministic ties, each invalid graph shape, pending
 and terminal-unsatisfied dependencies, concurrent admission, forced
 transaction rollback, release, and crash reconciliation.
+
+## Completed provenance
+
+- Implementation commit:
+  `d190de9916a6b70df100c345f1165337f8097bd9` (`Add PostgreSQL scheduler leases`).
 
 ## Expected completion report
 

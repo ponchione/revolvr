@@ -1,5 +1,48 @@
 # Agent State
 
+## Architecture 009 PostgreSQL Scheduler And Leases Complete (2026-08-04)
+
+- Task selected: `.agent/tasks/architecture-009-scheduler-leases.md`, the sole
+  task named by the architecture handoff. Architecture tasks 001-008 were
+  preserved as completed foundations; task 010 was not started.
+- Implementation commit:
+  `d190de9916a6b70df100c345f1165337f8097bd9` (`Add PostgreSQL scheduler leases`).
+- Added reversible migration `00006_scheduler_leases.sql`, named sqlc queries,
+  regenerated PostgreSQL code, and `internal/scheduler`. The canonical v1
+  lease is the persistent singleton `global-source-mutation-v1`; a caller-
+  supplied UUIDv7 run ID, exact accepted task version/aggregate, project source
+  commit/tree, and coordinator identity are pinned atomically with the task's
+  `pending` to `admitted` transition and both append-only events.
+- Selection is priority ascending, task creation time, then stable task UUID.
+  The projection rejects duplicate or ambiguous task identities, missing,
+  duplicate, self, stale, cyclic, or dependency/conflict-overlap edges,
+  unsupported lifecycle state, ambiguous project source authority, and an
+  active task without matching run/lease authority. Waiting dependencies,
+  terminal-unsatisfied dependencies, unresolved conflicts, operator
+  checkpoints, and unhealthy/missing project source state never select.
+- Admission reprojects under the locked lease row and compares every selected
+  identity before writing. Equal concurrent admissions produced exactly one
+  run/lease/task/event winner and one typed lease-busy loser. A forced failure
+  on the final admission event rolled back run, lease, task, and both events;
+  an exact retry then succeeded once. Exact admission replay is idempotent.
+- Release requires the pinned task, source, admission events, lease owner, and
+  resolved task state to agree. Restart reconciliation reports consistent
+  active authority without mutation, releases exact resolved authority once,
+  returns idle idempotently, and refuses foreign or unresolved ownership.
+- Verification passed: `gofmt`, repeatable sqlc v1.27.0 generation, Goose
+  migration up/down/up against isolated PostgreSQL 18/pgvector, focused
+  scheduler/lifecycle/storage integration tests, scheduler `-race`,
+  `go test -count=1 ./...` with PostgreSQL integration enabled, and
+  `git diff --check`. The isolated Compose project and its disposable volume
+  were removed after verification.
+- Files changed: `db/migrations/00006_scheduler_leases.sql`,
+  `db/queries/core.sql`, generated files under `internal/storage/postgres`,
+  `internal/scheduler`, and the two new terminal-status constants in
+  `internal/tasklifecycle/state.go`, plus this task's durable state files.
+- Result: **PASS**. Architecture tasks 001-009 are complete; tasks 010-025 are
+  pending. There are no blockers. The next task is
+  `architecture-010-sandbox-specification-validator`.
+
 ## RC.20 Quantitative Gate Failed; Pending-Lifecycle Repair Passes (2026-07-31)
 
 - Task selected: the first unchecked task, `EXT-20`, narrowed to preparation

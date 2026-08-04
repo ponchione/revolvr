@@ -1,5 +1,23 @@
 # Agent Decisions
 
+## PostgreSQL Scheduler Uses One Persistent Global Mutation Lease (2026-08-04)
+
+- v1 source mutation is serialized by the singleton PostgreSQL lease
+  `global-source-mutation-v1` and a database-enforced single-active-run index.
+  The lease does not expire on wall-clock time: restart reconciliation must
+  inspect the exact run, task/version/aggregate, project source commit/tree,
+  coordinator identity, and admission events before changing it. Unresolved
+  or foreign authority is never stolen.
+- A stable caller-supplied UUIDv7 run ID is the admission replay identity.
+  Selection order is priority ascending, canonical task creation time, then
+  stable task UUID. Admission locks the lease row, reprojects canonical state,
+  verifies the selected snapshot is unchanged, and atomically writes the run,
+  lease, task transition, and events.
+- Release is permitted only after canonical task state is resolved or yielded
+  (`needs_input`, `blocked`, or terminal). Current state remains directly
+  queryable relational authority; append-only events provide history without
+  event replay becoming the state model.
+
 ## RC.20 Failed Level-1 Dogfood; Planning May Terminalize Pending Lifecycle (2026-07-31)
 
 - RC.20 remains a valid reproducibly constructed and remotely tested bundle,
