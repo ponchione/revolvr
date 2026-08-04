@@ -3,6 +3,7 @@ package sandbox
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -406,9 +407,7 @@ func cloneRequest(request Request) Request {
 	request.Command = append([]string(nil), request.Command...)
 	request.Mounts = append([]Mount(nil), request.Mounts...)
 	request.Environment = make(map[string]string, len(request.Environment))
-	for name, value := range map[string]string{"TASK_ID": request.TaskID, "RUN_ID": request.RunID, "ROLE": string(request.Role)} {
-		request.Environment[name] = value
-	}
+	maps.Copy(request.Environment, map[string]string{"TASK_ID": request.TaskID, "RUN_ID": request.RunID, "ROLE": string(request.Role)})
 	return request
 }
 

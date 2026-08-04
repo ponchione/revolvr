@@ -135,10 +135,7 @@ func TestSnapshotQueriesStayConstantBeyondSQLiteVariableLimit(t *testing.T) {
 		if got := counter.queries.Load(); got != 2 {
 			t.Fatalf("limit %d query count = %d, want 2", limit, got)
 		}
-		want := limit
-		if want > 1105 {
-			want = 1105
-		}
+		want := min(limit, 1105)
 		if len(history) != want {
 			t.Fatalf("limit %d returned %d runs, want %d", limit, len(history), want)
 		}

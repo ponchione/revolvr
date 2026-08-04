@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -346,12 +347,7 @@ func validSHA256(value string) bool {
 }
 
 func oneOf(value string, values ...string) bool {
-	for _, candidate := range values {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, value)
 }
 
 func Marshal(v View) ([]byte, error) {

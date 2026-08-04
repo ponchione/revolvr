@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -521,10 +522,8 @@ func validateAuditCycle(role, audit autonomouscycle.Result, verification autonom
 		return errors.New("optional-role and audit supervisor/worker identities are not independent")
 	}
 	for _, auditID := range []string{audit.Supervisor.RunID, audit.Worker.RunID} {
-		for _, priorID := range []string{role.Supervisor.RunID, role.Worker.RunID, verification.Summary.RunID} {
-			if auditID == priorID {
-				return errors.New("optional-role auditor identities are not independent from role and verification runs")
-			}
+		if slices.Contains([]string{role.Supervisor.RunID, role.Worker.RunID, verification.Summary.RunID}, auditID) {
+			return errors.New("optional-role auditor identities are not independent from role and verification runs")
 		}
 	}
 	return nil

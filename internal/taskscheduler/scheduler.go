@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -781,19 +782,9 @@ func activeDependencies(task Task, byID map[string]Task) []string {
 }
 
 func oneOfState(value State, allowed ...State) bool {
-	for _, candidate := range allowed {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, value)
 }
 
 func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }

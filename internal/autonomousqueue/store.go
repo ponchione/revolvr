@@ -344,10 +344,7 @@ func validateSelectionTransition(previous, next Operation) error {
 	if previous.SchemaVersion != OperationSchemaVersion || next.Statistics.Batches != previous.Statistics.Batches+1 || len(next.Slots) == 0 {
 		return errors.New("autonomous queue: selection transition has invalid batch evidence")
 	}
-	wantPeak := previous.Statistics.PeakActiveWorkers
-	if len(next.Slots) > wantPeak {
-		wantPeak = len(next.Slots)
-	}
+	wantPeak := max(len(next.Slots), previous.Statistics.PeakActiveWorkers)
 	wantFallbacks := previous.Statistics.SequentialFallbacks
 	if next.SequentialFallback != "" {
 		wantFallbacks++

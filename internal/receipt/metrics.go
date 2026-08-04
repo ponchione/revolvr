@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -449,12 +450,7 @@ var (
 )
 
 func isUsageKey(key string) bool {
-	for _, usageKey := range usageKeys {
-		if key == usageKey {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(usageKeys, key)
 }
 
 func metricsFromMap(values map[string]any) (Metrics, bool, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -849,15 +850,9 @@ func TestRunRefusesRealPreExistingDirtyWorktreeWithoutStaging(t *testing.T) {
 				t.Fatalf("staged paths after refusal = %q", staged)
 			}
 			expectedWorktree := make(map[string]string, len(tt.baseline))
-			for path, content := range tt.baseline {
-				expectedWorktree[path] = content
-			}
-			for path, content := range tt.operatorEdits {
-				expectedWorktree[path] = content
-			}
-			for path, content := range tt.runEdits {
-				expectedWorktree[path] = content
-			}
+			maps.Copy(expectedWorktree, tt.baseline)
+			maps.Copy(expectedWorktree, tt.operatorEdits)
+			maps.Copy(expectedWorktree, tt.runEdits)
 			for path, content := range expectedWorktree {
 				raw, readErr := os.ReadFile(filepath.Join(workDir, path))
 				if readErr != nil || string(raw) != content {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -239,10 +240,7 @@ func projectAttempts(v *View, state autonomous.ExecutionState) {
 func countBudget(name string, b autonomous.CountBudget, unit string) Budget {
 	result := Budget{Name: name, Mode: string(b.Mode), Limit: b.Limit, Consumed: b.Consumed, Unit: unit}
 	if b.Mode == autonomous.BudgetModeLimited {
-		result.Remaining = b.Limit - b.Consumed
-		if result.Remaining < 0 {
-			result.Remaining = 0
-		}
+		result.Remaining = max(b.Limit-b.Consumed, 0)
 		result.Exhausted = b.Consumed >= b.Limit
 	}
 	return result
@@ -397,10 +395,8 @@ func appendUnique(values []string, value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return values
 	}
-	for _, item := range values {
-		if item == value {
-			return values
-		}
+	if slices.Contains(values, value) {
+		return values
 	}
 	return append(values, value)
 }

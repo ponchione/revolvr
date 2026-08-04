@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -849,12 +850,7 @@ func capturePaths(capture gitstate.Capture) []string {
 
 func captureHasPaths(capture gitstate.Capture) bool { return len(capturePaths(capture)) > 0 }
 func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 func boolPointer(value bool) *bool { return &value }

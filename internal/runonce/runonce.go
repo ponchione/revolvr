@@ -854,10 +854,7 @@ func EffectiveConfig(cfg Config) (Config, error) {
 }
 
 func defaultHeartbeatInterval(timeout time.Duration) time.Duration {
-	interval := timeout / 3
-	if interval < time.Second {
-		interval = time.Second
-	}
+	interval := max(timeout/3, time.Second)
 	if interval >= timeout {
 		interval = timeout / 2
 	}

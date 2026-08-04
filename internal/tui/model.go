@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -1795,10 +1796,7 @@ func (m *StatusModel) resizeViewport() {
 		height = defaultViewportHeight
 	}
 	chromeHeight := len(m.headerDisplayLines()) + len(m.footerLines()) + 2
-	contentHeight := height - chromeHeight
-	if contentHeight < 1 {
-		contentHeight = 1
-	}
+	contentHeight := max(height-chromeHeight, 1)
 	m.viewport.Width = width
 	m.viewport.Height = contentHeight
 }
@@ -3504,10 +3502,8 @@ func lineStatusIn(line string, statuses ...string) bool {
 			continue
 		}
 		value := strings.TrimSpace(strings.TrimPrefix(line, prefix))
-		for _, status := range statuses {
-			if value == status {
-				return true
-			}
+		if slices.Contains(statuses, value) {
+			return true
 		}
 	}
 	return false

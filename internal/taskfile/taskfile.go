@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -920,10 +921,8 @@ func parse(raw []byte, sourcePath string, repositoryRoot string) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
-	for _, dependency := range dependsOn {
-		if dependency == taskID {
-			return Task{}, fmt.Errorf("depends_on contains self dependency %q", taskID)
-		}
+	if slices.Contains(dependsOn, taskID) {
+		return Task{}, fmt.Errorf("depends_on contains self dependency %q", taskID)
 	}
 	tags, err := parseIdentityList("tags", meta["tags"], validSchedulingToken)
 	if err != nil {
@@ -1142,12 +1141,7 @@ func validEvidenceToken(value string) bool {
 }
 
 func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, want)
 }
 
 func updateMetadataBytes(raw []byte, update MetadataUpdate) ([]byte, error) {

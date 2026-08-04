@@ -475,10 +475,7 @@ func TestParallelWorkersRespectBoundAndPublishSelectionOrder(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			wantPeak := workers
-			if wantPeak > len(tasks) {
-				wantPeak = len(tasks)
-			}
+			wantPeak := min(workers, len(tasks))
 			if peak != wantPeak || result.Statistics.PeakActiveWorkers != wantPeak || result.MaximumWorkers != workers {
 				t.Fatalf("peak=%d statistics=%+v workers=%d", peak, result.Statistics, result.MaximumWorkers)
 			}

@@ -3,6 +3,7 @@ package autonomouscycle_test
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -435,12 +436,7 @@ func supportedSchemaType(value string) bool {
 }
 
 func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 func sortedKeys(values map[string]any) []string {

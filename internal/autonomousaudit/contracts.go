@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -494,12 +495,7 @@ func normalizeMeaning(value string) string {
 	return strings.ToLower(strings.Join(strings.Fields(value), " "))
 }
 func containsEvidence(values []autonomous.EvidenceReference, target autonomous.EvidenceReference) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 func containsEvidenceReference(values []autonomous.EvidenceReference, target autonomous.EvidenceReference) bool {
 	for _, value := range values {
@@ -510,12 +506,7 @@ func containsEvidenceReference(values []autonomous.EvidenceReference, target aut
 	return false
 }
 func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 func resolutionStatus(state autonomous.ExecutionState, id string) (autonomous.FindingResolutionStatus, bool) {
 	for _, value := range state.FindingResolutions {

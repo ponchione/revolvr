@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -385,10 +386,5 @@ func optionalEvidenceRelevant(role WorkerProfile, kind OptionalRoleEvidenceKind)
 }
 
 func containsEvidenceReference(values []EvidenceReference, target EvidenceReference) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }

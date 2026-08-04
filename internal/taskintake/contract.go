@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -604,12 +605,7 @@ func hasNonblank(lines []string) bool {
 }
 
 func oneOf(value string, allowed ...string) bool {
-	for _, candidate := range allowed {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, value)
 }
 
 func (contract Contract) verificationPlan() []verificationPlanEntry {

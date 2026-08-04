@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -826,12 +827,7 @@ func argAfter(args []string, flag string) string {
 }
 
 func containsArg(args []string, value string) bool {
-	for _, arg := range args {
-		if arg == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, value)
 }
 
 func countArg(args []string, value string) int {
@@ -845,12 +841,7 @@ func countArg(args []string, value string) int {
 }
 
 func containsProgress(events []ProgressEvent, want ProgressEvent) bool {
-	for _, event := range events {
-		if event == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(events, want)
 }
 
 func boolPointer(value bool) *bool {

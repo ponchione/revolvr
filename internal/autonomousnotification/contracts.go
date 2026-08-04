@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -47,12 +48,7 @@ var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var safeIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func (e Event) Valid() bool {
-	for _, candidate := range eventOrder {
-		if e == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(eventOrder, e)
 }
 
 type Policy struct {
@@ -152,12 +148,7 @@ func (p Policy) Allows(event Event) bool {
 	if !p.Enabled {
 		return false
 	}
-	for _, candidate := range p.Events {
-		if event == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(p.Events, event)
 }
 
 func (p Policy) Identity(redactionNames []string) (string, error) {

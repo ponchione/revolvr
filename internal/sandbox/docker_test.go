@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -131,12 +132,7 @@ func fakeDockerRuntime(run func(runner.Command) runner.Result) *DockerRuntime {
 }
 
 func containsArgument(arguments []string, want string) bool {
-	for _, argument := range arguments {
-		if argument == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(arguments, want)
 }
 
 func containsSubstring(arguments []string, want string) bool {

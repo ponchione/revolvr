@@ -278,10 +278,7 @@ func (s *Store) CompleteRun(ctx context.Context, runID string, completion RunCom
 		completedAt = s.clock()
 	}
 	completedAt = completedAt.UTC()
-	durationSeconds := int(completedAt.Sub(existing.StartedAt).Seconds())
-	if durationSeconds < 0 {
-		durationSeconds = 0
-	}
+	durationSeconds := max(int(completedAt.Sub(existing.StartedAt).Seconds()), 0)
 
 	result, err := s.db.ExecContext(ctx, `
 UPDATE runs
@@ -774,10 +771,7 @@ func retryLiveRead[T any](ctx context.Context, enabled bool, operation func() (T
 		if remaining <= 0 {
 			return value, lastBusy
 		}
-		pause := liveBusySlice
-		if remaining < pause {
-			pause = remaining
-		}
+		pause := min(remaining, liveBusySlice)
 		timer := time.NewTimer(pause)
 		select {
 		case <-ctx.Done():

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -3472,12 +3473,7 @@ func argAfter(args []string, flag string) string {
 }
 
 func containsArg(args []string, value string) bool {
-	for _, arg := range args {
-		if arg == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, value)
 }
 
 func manifestSourceByLabel(t *testing.T, manifest prompt.ContextManifest, label string) prompt.ContextSource {

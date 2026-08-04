@@ -52,10 +52,7 @@ func deterministicGzip(ctx context.Context, raw []byte) ([]byte, error) {
 			zw.Close()
 			return nil, err
 		}
-		end := start + chunk
-		if end > len(raw) {
-			end = len(raw)
-		}
+		end := min(start+chunk, len(raw))
 		if _, err := zw.Write(raw[start:end]); err != nil {
 			return nil, err
 		}

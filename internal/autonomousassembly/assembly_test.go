@@ -1002,12 +1002,7 @@ func assertAssemblyError(t *testing.T, err error, want string) {
 }
 
 func containsArg(args []string, target string) bool {
-	for _, arg := range args {
-		if arg == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, target)
 }
 
 func cloneHistory(input []ledger.RunWithEvents) []ledger.RunWithEvents {

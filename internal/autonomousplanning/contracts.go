@@ -459,21 +459,11 @@ func validSHA256(value string) bool {
 }
 
 func containsEvidence(values []autonomous.EvidenceReference, target autonomous.EvidenceReference) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 func terminalStep(status autonomous.PlanStepStatus) bool {

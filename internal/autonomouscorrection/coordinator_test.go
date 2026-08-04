@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -304,12 +305,7 @@ func write(t *testing.T, path string, raw []byte) {
 	}
 }
 func contains(v []string, w string) bool {
-	for _, s := range v {
-		if s == w {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(v, w)
 }
 
 type testLedger struct {

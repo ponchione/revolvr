@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -2911,12 +2912,7 @@ func keyRunes(value string) tea.KeyMsg {
 }
 
 func containsLine(lines []string, want string) bool {
-	for _, line := range lines {
-		if line == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(lines, want)
 }
 
 func requireLines(t *testing.T, lines []string, wants ...string) {

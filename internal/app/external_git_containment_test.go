@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -478,9 +479,7 @@ func assertExternalGitPublishedDelta(t *testing.T, fixture externalGitContainmen
 
 func cloneExternalGitRefs(input map[string]string) map[string]string {
 	result := make(map[string]string, len(input)+1)
-	for ref, oid := range input {
-		result[ref] = oid
-	}
+	maps.Copy(result, input)
 	return result
 }
 

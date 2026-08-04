@@ -281,10 +281,7 @@ func validateAndNormalizeDossierInput(in TaskDossierInput) (normalizedDossierInp
 		return normalizedDossierInput{}, err
 	}
 
-	includedCount := in.RecentRunLimit
-	if includedCount > len(runs) {
-		includedCount = len(runs)
-	}
+	includedCount := min(in.RecentRunLimit, len(runs))
 	included := append([]RecentRunSummary(nil), runs[:includedCount]...)
 	facts := dossierProjectionFacts(in, len(runs), includedCount)
 	return normalizedDossierInput{

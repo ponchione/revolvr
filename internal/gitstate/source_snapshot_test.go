@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -580,12 +581,7 @@ func matchSourceSymlinkMetadata(t *testing.T, source, target string) {
 }
 
 func containsSourceTestString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, want)
 }
 
 func runGitTest(t *testing.T, root string, args ...string) {
