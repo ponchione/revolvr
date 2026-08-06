@@ -1,37 +1,41 @@
 # Agent Handoff
 
-Updated: 2026-08-04
+Updated: 2026-08-06
 
 ## Where We Stopped
 
-- Architecture task 011 is complete at implementation commit
-  `6d1c72edd34ccc7c9d1968a6390249fdec36fdac`.
-- `internal/sandbox` now provides the narrow `SandboxRuntime` lifecycle, a
-  fail-closed rootless Docker backend, descriptor identity rechecks, bounded
-  lifecycle evidence/artifacts, and the permission-restricted framed Unix
-  socket used by `cmd/revolvr-sandboxd`.
-- The opt-in gate passed against a disposable Docker 29.7.1 rootless daemon
-  and pinned `alpine:3.22` digest. It proved the required host-access, socket,
-  network, read-only-root, timeout, cancellation, leak, and orphan controls.
-  The daemon and its isolated temporary runtime/data root were removed.
-- Formatting, focused tests, the real rootless integration, sandbox race
-  tests, `go test ./...`, CLI help, and `git diff --check` pass.
-- Tasks 001-011 are completed with Git provenance in their task files. Task
-  012 was not started; tasks 012-025 remain pending.
+- Architecture task 012 is complete at implementation commit
+  `2db60eeb54cc8971015e59053652755d793012af`.
+- Migration `00007_workspaces.sql`, generated sqlc storage code, and
+  `internal/workspace` now provide PostgreSQL-backed lifecycle state and
+  operation reconciliation for scheduler-pinned managed Git worktrees.
+- Trusted host code creates a UUID-specific branch/worktree from the exact
+  admitted commit/tree, disables hooks and inherited user Git configuration,
+  exposes only the symbolic `/workspace` sandbox mount, captures status,
+  manifest, diff, and candidate identities, and removes only the exact
+  admitted worktree while retaining evidence.
+- Focused fixtures prove checkout identity preservation, collisions, wrong
+  source, symlink substitution, hook refusal, cancellation, timeout, durable
+  cleanup failure/retry, and crash recovery after branch, worktree, and
+  candidate commit creation.
+- Goose migration up/down/up, repeatable sqlc generation, formatting, focused
+  PostgreSQL tests, workspace race tests, `go test ./...`, and
+  `git diff --check` pass. There are no blockers.
+- Tasks 001-012 are complete. Tasks 013-025 remain pending.
 
 ## Continue Here
 
 The next and only task for the next fresh session is
-`.agent/tasks/architecture-012-workspace-lifecycle.md`.
+`.agent/tasks/architecture-013-openai-structured-output-client.md`.
 
 Read `AGENTS.md`, `README.md`, this handoff, the canonical specification
-sections named by task 012, and the completed foundations it identifies. Do
-not rerun tasks 001-011 or begin task 013.
+sections named by task 013, and the completed foundations it identifies. Do
+not rerun tasks 001-012 or begin task 014.
 
 Start one fresh pass from the repository root:
 
 ```bash
-codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, and .agent/tasks/architecture-012-workspace-lifecycle.md. Complete only architecture-012-workspace-lifecycle, run its verification, update durable state, and stop.'
+codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, and .agent/tasks/architecture-013-openai-structured-output-client.md. Complete only architecture-013-openai-structured-output-client, run its verification, update durable state, and stop.'
 ```
 
 Graphiti remains deferred: task 025 is a decision gate and requires successful

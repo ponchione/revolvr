@@ -1,6 +1,6 @@
 ---
 id: architecture-012-workspace-lifecycle
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-011-sandboxd
@@ -11,7 +11,7 @@ depends_on: architecture-011-sandboxd
 ## Sequence and status
 
 - Sequence: `012` of `025`.
-- Status: pending.
+- Status: completed; this historical authority must not be scheduled again.
 - Prerequisite: `architecture-011-sandboxd`.
 - Phase gate: workspace paths may be mounted only through the validated
   sandbox boundary and managed project repository from tasks 006 and 010-011.
@@ -91,6 +91,11 @@ REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test ./internal/workspace .
 go test ./...
 git diff --check
 ```
+
+## Completed provenance
+
+- Implementation commit:
+  `2db60eeb54cc8971015e59053652755d793012af` (`Add managed workspace lifecycle`).
 
 ## Expected completion report
 

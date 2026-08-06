@@ -1,5 +1,64 @@
 # Agent State
 
+## Architecture 012 Managed Workspace Lifecycle Complete (2026-08-06)
+
+- Task selected: `.agent/tasks/architecture-012-workspace-lifecycle.md`, the
+  sole task named by the architecture handoff. Architecture tasks 001-011
+  remain completed; task 013 was not started.
+- Implementation commit:
+  `2db60eeb54cc8971015e59053652755d793012af` (`Add managed workspace lifecycle`).
+- Added reversible migration `db/migrations/00007_workspaces.sql`, named sqlc
+  queries, regenerated `internal/storage/postgres/core.sql.go` and
+  `models.go`, and added `internal/workspace` manager, Git, lifecycle,
+  candidate, cleanup, persistence, types, and focused test files.
+- PostgreSQL is canonical for the explicit `planned`, `creating`, `ready`,
+  `active`, `frozen`, `reconciling`, terminal, and `cleaned` states. A separate
+  planned/applied operation journal binds branch creation, worktree creation,
+  capture/artifact creation, candidate commit, and worktree cleanup to stable
+  operation and material hashes before external effects are accepted.
+- Creation pins the scheduler's exact run/task/project-source commit and tree
+  to `refs/heads/revolvr/workspaces/<workspace-uuid>` and
+  `<managed-workspace-root>/<workspace-uuid>`. Exact retries adopt matching
+  Git/filesystem effects; pre-existing paths/refs, reused identities,
+  divergent heads/trees, missing registrations, symlinks, or changed
+  device/inode identities return typed conflicts without broad deletion.
+- Trusted Git execution uses a replacement environment, disables system and
+  global configuration, fixes `HOME` to a nonexistent path, disables hooks,
+  prompting, credentials, file transport, and GPG signing, and uses fixed
+  Revolvr commit identity. The sandbox binding contains only the symbolic
+  managed source mounted read-write at `/workspace`; the original checkout
+  and managed bare repository are forbidden host paths and no runtime socket
+  is exposed.
+- Host capture persists actual porcelain status, an ordered path manifest, a
+  content-addressed binary/full-index diff artifact and SHA-256, and a
+  single-parent candidate commit/tree whose message binds run, task,
+  workspace, and operation. Completion, cancellation, and failure retain
+  events, operations, branch/commit, and diff evidence while removing only
+  the exact registered worktree.
+- Focused PostgreSQL/Git fixtures cover the happy path, path and branch
+  collisions, scheduler source drift, operation identity reuse, symlink
+  substitution, repository and inherited-global hook attempts, cancellation,
+  command timeout, durable cleanup failure plus exact retry, divergent cleanup
+  replay, and injected crashes after branch, worktree, and candidate commit
+  creation. Original checkout commit/tree, status, source snapshot, index,
+  worktree bytes, canonical path, and root device/inode are identical before
+  and after; crash recovery produces exactly one candidate commit.
+- PostgreSQL verification used isolated Compose project
+  `revolvr-architecture012` on loopback port `55432`. Migrations 1-7 applied;
+  migration 00007 also passed down/up. Only architecture-012 fixture rows in
+  that isolated database were cleared during diagnosis; unrelated data was
+  not touched. The Compose containers and networks were stopped and removed
+  after verification; the related PostgreSQL volume was retained.
+- Verification passed: `test -z "$(gofmt -l cmd internal)"`, repeatable
+  `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0 generate -f
+  db/sqlc.yaml`, `REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test
+  ./internal/workspace ./internal/project` against the isolated PostgreSQL
+  service, `go test -race -count=1 ./internal/workspace`, `go test ./...`, and
+  `git diff --check`.
+- Result: **PASS**. Architecture tasks 001-012 are complete; tasks 013-025 are
+  pending. There are no blockers. The next task is
+  `architecture-013-openai-structured-output-client`.
+
 ## Repository Audit Cleanup Complete (2026-08-04)
 
 - Task selected: execute every actionable item in `AUDIT-FINDINGS.md`; the

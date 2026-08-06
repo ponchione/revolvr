@@ -1,5 +1,24 @@
 # Agent Decisions
 
+## Managed Workspaces Reconcile External Effects Through PostgreSQL (2026-08-06)
+
+- `core.workspaces` is the current relational authority and append-only
+  workspace events are history. Every Git/filesystem mutation is preceded by
+  a stable planned operation whose workspace, kind, and canonical material
+  hash must match before an exact existing effect can be adopted; an applied
+  operation also records the verified effect identity.
+- Task work occurs only on a UUID-specific branch and linked worktree in the
+  managed project repository at the scheduler-pinned commit/tree. The
+  operator checkout is observed before and after but is never mounted or used
+  for Git administration. Trusted Git commands replace the environment and
+  disable user/system configuration, hooks, prompting, credentials, file
+  transport, and commit signing.
+- The sandbox receives a symbolic managed source resolving only to the exact
+  admitted worktree at `/workspace`. Completion, cancellation, and failure
+  remove only that registered device/inode-checked worktree. Branches,
+  candidate commits, content-addressed diffs, status/manifests, operations,
+  events, and original-checkout identity proof remain durable evidence.
+
 ## Sandboxd Selects Docker But Requires Proven Rootless Authority (2026-08-04)
 
 - Docker is the first OCI adapter because it is the only container engine
