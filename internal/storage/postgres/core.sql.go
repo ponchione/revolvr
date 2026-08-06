@@ -11,6 +11,65 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acceptPlanVersion = `-- name: AcceptPlanVersion :one
+UPDATE core.plans AS p
+SET accepted_version_id = $1,
+    accepted_operation_id = $2,
+    accepted_by = $3,
+    accepted_at = $4,
+    aggregate_version = aggregate_version + 1,
+    updated_at = $4
+WHERE p.id = $5
+  AND p.aggregate_version = $6
+  AND (p.accepted_version_id IS NULL
+       OR p.accepted_version_id <> $1)
+  AND EXISTS (
+      SELECT 1 FROM core.plan_versions AS pv
+      WHERE pv.id = $1 AND pv.plan_id = p.id
+  )
+RETURNING p.id, p.project_id, p.task_id, p.task_version_id, p.run_id, p.project_source_id, p.source_revision, p.source_commit, p.source_tree, p.accepted_version_id, p.accepted_operation_id, p.accepted_by, p.accepted_at, p.aggregate_version, p.created_at, p.updated_at
+`
+
+type AcceptPlanVersionParams struct {
+	PlanVersionID            pgtype.UUID
+	OperationID              pgtype.Text
+	AcceptedBy               pgtype.Text
+	AcceptedAt               pgtype.Timestamptz
+	PlanID                   pgtype.UUID
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) AcceptPlanVersion(ctx context.Context, arg AcceptPlanVersionParams) (CorePlan, error) {
+	row := q.db.QueryRow(ctx, acceptPlanVersion,
+		arg.PlanVersionID,
+		arg.OperationID,
+		arg.AcceptedBy,
+		arg.AcceptedAt,
+		arg.PlanID,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CorePlan
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.SourceRevision,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.AcceptedVersionID,
+		&i.AcceptedOperationID,
+		&i.AcceptedBy,
+		&i.AcceptedAt,
+		&i.AggregateVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const acquireGlobalExecutionLease = `-- name: AcquireGlobalExecutionLease :one
 UPDATE core.execution_leases
 SET run_id = $1,
@@ -88,6 +147,45 @@ func (q *Queries) AdmitSchedulerTask(ctx context.Context, arg AdmitSchedulerTask
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const advancePlanCandidate = `-- name: AdvancePlanCandidate :one
+UPDATE core.plans
+SET aggregate_version = aggregate_version + 1,
+    updated_at = $1
+WHERE id = $2
+  AND aggregate_version = $3
+RETURNING id, project_id, task_id, task_version_id, run_id, project_source_id, source_revision, source_commit, source_tree, accepted_version_id, accepted_operation_id, accepted_by, accepted_at, aggregate_version, created_at, updated_at
+`
+
+type AdvancePlanCandidateParams struct {
+	UpdatedAt                pgtype.Timestamptz
+	PlanID                   pgtype.UUID
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) AdvancePlanCandidate(ctx context.Context, arg AdvancePlanCandidateParams) (CorePlan, error) {
+	row := q.db.QueryRow(ctx, advancePlanCandidate, arg.UpdatedAt, arg.PlanID, arg.ExpectedAggregateVersion)
+	var i CorePlan
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.SourceRevision,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.AcceptedVersionID,
+		&i.AcceptedOperationID,
+		&i.AcceptedBy,
+		&i.AcceptedAt,
+		&i.AggregateVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -551,6 +649,239 @@ func (q *Queries) GetGlobalExecutionLeaseForUpdate(ctx context.Context) (CoreExe
 		&i.CoordinatorIdentity,
 		&i.AcquiredAt,
 		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const getPlan = `-- name: GetPlan :one
+SELECT id, project_id, task_id, task_version_id, run_id, project_source_id, source_revision, source_commit, source_tree, accepted_version_id, accepted_operation_id, accepted_by, accepted_at, aggregate_version, created_at, updated_at FROM core.plans WHERE id = $1
+`
+
+func (q *Queries) GetPlan(ctx context.Context, id pgtype.UUID) (CorePlan, error) {
+	row := q.db.QueryRow(ctx, getPlan, id)
+	var i CorePlan
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.SourceRevision,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.AcceptedVersionID,
+		&i.AcceptedOperationID,
+		&i.AcceptedBy,
+		&i.AcceptedAt,
+		&i.AggregateVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPlanByRunID = `-- name: GetPlanByRunID :one
+SELECT id, project_id, task_id, task_version_id, run_id, project_source_id, source_revision, source_commit, source_tree, accepted_version_id, accepted_operation_id, accepted_by, accepted_at, aggregate_version, created_at, updated_at FROM core.plans WHERE run_id = $1
+`
+
+func (q *Queries) GetPlanByRunID(ctx context.Context, runID pgtype.UUID) (CorePlan, error) {
+	row := q.db.QueryRow(ctx, getPlanByRunID, runID)
+	var i CorePlan
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.SourceRevision,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.AcceptedVersionID,
+		&i.AcceptedOperationID,
+		&i.AcceptedBy,
+		&i.AcceptedAt,
+		&i.AggregateVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPlanForUpdate = `-- name: GetPlanForUpdate :one
+SELECT id, project_id, task_id, task_version_id, run_id, project_source_id, source_revision, source_commit, source_tree, accepted_version_id, accepted_operation_id, accepted_by, accepted_at, aggregate_version, created_at, updated_at FROM core.plans WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetPlanForUpdate(ctx context.Context, id pgtype.UUID) (CorePlan, error) {
+	row := q.db.QueryRow(ctx, getPlanForUpdate, id)
+	var i CorePlan
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.SourceRevision,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.AcceptedVersionID,
+		&i.AcceptedOperationID,
+		&i.AcceptedBy,
+		&i.AcceptedAt,
+		&i.AggregateVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPlanVersion = `-- name: GetPlanVersion :one
+SELECT id, plan_id, task_id, task_version_id, run_id, project_source_id, revision_number, supersedes_version_id, candidate_sha256, content_sha256, change_explanation, source_revision, supervisor_decision_id, supervisor_decision_sha256, dossier_version, dossier_sha256, dossier_content, prompt_version, prompt_sha256, prompt_content, response_schema_version, response_schema_sha256, response_schema, model_policy_version, model_policy_sha256, model_policy, host_policy_version, host_policy_sha256, host_policy, expected_request, model_result, raw_output, canonical_output, created_at FROM core.plan_versions WHERE id = $1
+`
+
+func (q *Queries) GetPlanVersion(ctx context.Context, id pgtype.UUID) (CorePlanVersion, error) {
+	row := q.db.QueryRow(ctx, getPlanVersion, id)
+	var i CorePlanVersion
+	err := row.Scan(
+		&i.ID,
+		&i.PlanID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.RevisionNumber,
+		&i.SupersedesVersionID,
+		&i.CandidateSha256,
+		&i.ContentSha256,
+		&i.ChangeExplanation,
+		&i.SourceRevision,
+		&i.SupervisorDecisionID,
+		&i.SupervisorDecisionSha256,
+		&i.DossierVersion,
+		&i.DossierSha256,
+		&i.DossierContent,
+		&i.PromptVersion,
+		&i.PromptSha256,
+		&i.PromptContent,
+		&i.ResponseSchemaVersion,
+		&i.ResponseSchemaSha256,
+		&i.ResponseSchema,
+		&i.ModelPolicyVersion,
+		&i.ModelPolicySha256,
+		&i.ModelPolicy,
+		&i.HostPolicyVersion,
+		&i.HostPolicySha256,
+		&i.HostPolicy,
+		&i.ExpectedRequest,
+		&i.ModelResult,
+		&i.RawOutput,
+		&i.CanonicalOutput,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPlanVersionByRevision = `-- name: GetPlanVersionByRevision :one
+SELECT id, plan_id, task_id, task_version_id, run_id, project_source_id, revision_number, supersedes_version_id, candidate_sha256, content_sha256, change_explanation, source_revision, supervisor_decision_id, supervisor_decision_sha256, dossier_version, dossier_sha256, dossier_content, prompt_version, prompt_sha256, prompt_content, response_schema_version, response_schema_sha256, response_schema, model_policy_version, model_policy_sha256, model_policy, host_policy_version, host_policy_sha256, host_policy, expected_request, model_result, raw_output, canonical_output, created_at FROM core.plan_versions
+WHERE plan_id = $1 AND revision_number = $2
+`
+
+type GetPlanVersionByRevisionParams struct {
+	PlanID         pgtype.UUID
+	RevisionNumber int32
+}
+
+func (q *Queries) GetPlanVersionByRevision(ctx context.Context, arg GetPlanVersionByRevisionParams) (CorePlanVersion, error) {
+	row := q.db.QueryRow(ctx, getPlanVersionByRevision, arg.PlanID, arg.RevisionNumber)
+	var i CorePlanVersion
+	err := row.Scan(
+		&i.ID,
+		&i.PlanID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.RevisionNumber,
+		&i.SupersedesVersionID,
+		&i.CandidateSha256,
+		&i.ContentSha256,
+		&i.ChangeExplanation,
+		&i.SourceRevision,
+		&i.SupervisorDecisionID,
+		&i.SupervisorDecisionSha256,
+		&i.DossierVersion,
+		&i.DossierSha256,
+		&i.DossierContent,
+		&i.PromptVersion,
+		&i.PromptSha256,
+		&i.PromptContent,
+		&i.ResponseSchemaVersion,
+		&i.ResponseSchemaSha256,
+		&i.ResponseSchema,
+		&i.ModelPolicyVersion,
+		&i.ModelPolicySha256,
+		&i.ModelPolicy,
+		&i.HostPolicyVersion,
+		&i.HostPolicySha256,
+		&i.HostPolicy,
+		&i.ExpectedRequest,
+		&i.ModelResult,
+		&i.RawOutput,
+		&i.CanonicalOutput,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPlannerRunAuthority = `-- name: GetPlannerRunAuthority :one
+SELECT
+    r.id AS run_id, r.project_id, r.task_id, r.task_version_id,
+    r.project_source_id, r.status AS run_status, r.source_commit, r.source_tree,
+    t.status AS task_status, t.accepted_version_id, t.aggregate_version AS task_aggregate_version,
+    ps.current_commit, ps.current_tree
+FROM core.runs AS r
+JOIN core.tasks AS t ON t.id = r.task_id AND t.project_id = r.project_id
+JOIN core.project_sources AS ps
+  ON ps.id = r.project_source_id AND ps.project_id = r.project_id
+WHERE r.id = $1
+FOR UPDATE OF r, t, ps
+`
+
+type GetPlannerRunAuthorityRow struct {
+	RunID                pgtype.UUID
+	ProjectID            pgtype.UUID
+	TaskID               pgtype.UUID
+	TaskVersionID        pgtype.UUID
+	ProjectSourceID      pgtype.UUID
+	RunStatus            string
+	SourceCommit         string
+	SourceTree           string
+	TaskStatus           string
+	AcceptedVersionID    pgtype.UUID
+	TaskAggregateVersion int64
+	CurrentCommit        string
+	CurrentTree          string
+}
+
+func (q *Queries) GetPlannerRunAuthority(ctx context.Context, id pgtype.UUID) (GetPlannerRunAuthorityRow, error) {
+	row := q.db.QueryRow(ctx, getPlannerRunAuthority, id)
+	var i GetPlannerRunAuthorityRow
+	err := row.Scan(
+		&i.RunID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.ProjectSourceID,
+		&i.RunStatus,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.TaskStatus,
+		&i.AcceptedVersionID,
+		&i.TaskAggregateVersion,
+		&i.CurrentCommit,
+		&i.CurrentTree,
 	)
 	return i, err
 }
@@ -1205,6 +1536,262 @@ func (q *Queries) InsertArtifact(ctx context.Context, arg InsertArtifactParams) 
 		&i.LogicalKind,
 		&i.StoragePath,
 		&i.Compression,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertPlan = `-- name: InsertPlan :one
+INSERT INTO core.plans (
+    id, project_id, task_id, task_version_id, run_id, project_source_id,
+    source_revision, source_commit, source_tree, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+RETURNING id, project_id, task_id, task_version_id, run_id, project_source_id, source_revision, source_commit, source_tree, accepted_version_id, accepted_operation_id, accepted_by, accepted_at, aggregate_version, created_at, updated_at
+`
+
+type InsertPlanParams struct {
+	ID              pgtype.UUID
+	ProjectID       pgtype.UUID
+	TaskID          pgtype.UUID
+	TaskVersionID   pgtype.UUID
+	RunID           pgtype.UUID
+	ProjectSourceID pgtype.UUID
+	SourceRevision  string
+	SourceCommit    string
+	SourceTree      string
+	CreatedAt       pgtype.Timestamptz
+}
+
+func (q *Queries) InsertPlan(ctx context.Context, arg InsertPlanParams) (CorePlan, error) {
+	row := q.db.QueryRow(ctx, insertPlan,
+		arg.ID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.ProjectSourceID,
+		arg.SourceRevision,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.CreatedAt,
+	)
+	var i CorePlan
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.SourceRevision,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.AcceptedVersionID,
+		&i.AcceptedOperationID,
+		&i.AcceptedBy,
+		&i.AcceptedAt,
+		&i.AggregateVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertPlanStep = `-- name: InsertPlanStep :one
+INSERT INTO core.plan_steps (
+    plan_version_id, plan_id, step_id, ordinal, status, description,
+    criterion_ids, depends_on_step_ids, expected_paths, components,
+    test_strategy, risks, assumptions, evidence_refs, lineage
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING plan_version_id, plan_id, step_id, ordinal, status, description, criterion_ids, depends_on_step_ids, expected_paths, components, test_strategy, risks, assumptions, evidence_refs, lineage
+`
+
+type InsertPlanStepParams struct {
+	PlanVersionID    pgtype.UUID
+	PlanID           pgtype.UUID
+	StepID           string
+	Ordinal          int32
+	Status           string
+	Description      string
+	CriterionIds     []byte
+	DependsOnStepIds []byte
+	ExpectedPaths    []byte
+	Components       []byte
+	TestStrategy     []byte
+	Risks            []byte
+	Assumptions      []byte
+	EvidenceRefs     []byte
+	Lineage          []byte
+}
+
+func (q *Queries) InsertPlanStep(ctx context.Context, arg InsertPlanStepParams) (CorePlanStep, error) {
+	row := q.db.QueryRow(ctx, insertPlanStep,
+		arg.PlanVersionID,
+		arg.PlanID,
+		arg.StepID,
+		arg.Ordinal,
+		arg.Status,
+		arg.Description,
+		arg.CriterionIds,
+		arg.DependsOnStepIds,
+		arg.ExpectedPaths,
+		arg.Components,
+		arg.TestStrategy,
+		arg.Risks,
+		arg.Assumptions,
+		arg.EvidenceRefs,
+		arg.Lineage,
+	)
+	var i CorePlanStep
+	err := row.Scan(
+		&i.PlanVersionID,
+		&i.PlanID,
+		&i.StepID,
+		&i.Ordinal,
+		&i.Status,
+		&i.Description,
+		&i.CriterionIds,
+		&i.DependsOnStepIds,
+		&i.ExpectedPaths,
+		&i.Components,
+		&i.TestStrategy,
+		&i.Risks,
+		&i.Assumptions,
+		&i.EvidenceRefs,
+		&i.Lineage,
+	)
+	return i, err
+}
+
+const insertPlanVersion = `-- name: InsertPlanVersion :one
+INSERT INTO core.plan_versions (
+    id, plan_id, task_id, task_version_id, run_id, project_source_id,
+    revision_number, supersedes_version_id, candidate_sha256, content_sha256,
+    change_explanation, source_revision,
+    supervisor_decision_id, supervisor_decision_sha256,
+    dossier_version, dossier_sha256, dossier_content,
+    prompt_version, prompt_sha256, prompt_content,
+    response_schema_version, response_schema_sha256, response_schema,
+    model_policy_version, model_policy_sha256, model_policy,
+    host_policy_version, host_policy_sha256, host_policy,
+    expected_request, model_result, raw_output, canonical_output, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+    $27, $28, $29, $30, $31, $32, $33, $34
+)
+RETURNING id, plan_id, task_id, task_version_id, run_id, project_source_id, revision_number, supersedes_version_id, candidate_sha256, content_sha256, change_explanation, source_revision, supervisor_decision_id, supervisor_decision_sha256, dossier_version, dossier_sha256, dossier_content, prompt_version, prompt_sha256, prompt_content, response_schema_version, response_schema_sha256, response_schema, model_policy_version, model_policy_sha256, model_policy, host_policy_version, host_policy_sha256, host_policy, expected_request, model_result, raw_output, canonical_output, created_at
+`
+
+type InsertPlanVersionParams struct {
+	ID                       pgtype.UUID
+	PlanID                   pgtype.UUID
+	TaskID                   pgtype.UUID
+	TaskVersionID            pgtype.UUID
+	RunID                    pgtype.UUID
+	ProjectSourceID          pgtype.UUID
+	RevisionNumber           int32
+	SupersedesVersionID      pgtype.UUID
+	CandidateSha256          string
+	ContentSha256            string
+	ChangeExplanation        string
+	SourceRevision           string
+	SupervisorDecisionID     string
+	SupervisorDecisionSha256 string
+	DossierVersion           string
+	DossierSha256            string
+	DossierContent           []byte
+	PromptVersion            string
+	PromptSha256             string
+	PromptContent            []byte
+	ResponseSchemaVersion    string
+	ResponseSchemaSha256     string
+	ResponseSchema           []byte
+	ModelPolicyVersion       string
+	ModelPolicySha256        string
+	ModelPolicy              []byte
+	HostPolicyVersion        string
+	HostPolicySha256         string
+	HostPolicy               []byte
+	ExpectedRequest          []byte
+	ModelResult              []byte
+	RawOutput                []byte
+	CanonicalOutput          []byte
+	CreatedAt                pgtype.Timestamptz
+}
+
+func (q *Queries) InsertPlanVersion(ctx context.Context, arg InsertPlanVersionParams) (CorePlanVersion, error) {
+	row := q.db.QueryRow(ctx, insertPlanVersion,
+		arg.ID,
+		arg.PlanID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.ProjectSourceID,
+		arg.RevisionNumber,
+		arg.SupersedesVersionID,
+		arg.CandidateSha256,
+		arg.ContentSha256,
+		arg.ChangeExplanation,
+		arg.SourceRevision,
+		arg.SupervisorDecisionID,
+		arg.SupervisorDecisionSha256,
+		arg.DossierVersion,
+		arg.DossierSha256,
+		arg.DossierContent,
+		arg.PromptVersion,
+		arg.PromptSha256,
+		arg.PromptContent,
+		arg.ResponseSchemaVersion,
+		arg.ResponseSchemaSha256,
+		arg.ResponseSchema,
+		arg.ModelPolicyVersion,
+		arg.ModelPolicySha256,
+		arg.ModelPolicy,
+		arg.HostPolicyVersion,
+		arg.HostPolicySha256,
+		arg.HostPolicy,
+		arg.ExpectedRequest,
+		arg.ModelResult,
+		arg.RawOutput,
+		arg.CanonicalOutput,
+		arg.CreatedAt,
+	)
+	var i CorePlanVersion
+	err := row.Scan(
+		&i.ID,
+		&i.PlanID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.ProjectSourceID,
+		&i.RevisionNumber,
+		&i.SupersedesVersionID,
+		&i.CandidateSha256,
+		&i.ContentSha256,
+		&i.ChangeExplanation,
+		&i.SourceRevision,
+		&i.SupervisorDecisionID,
+		&i.SupervisorDecisionSha256,
+		&i.DossierVersion,
+		&i.DossierSha256,
+		&i.DossierContent,
+		&i.PromptVersion,
+		&i.PromptSha256,
+		&i.PromptContent,
+		&i.ResponseSchemaVersion,
+		&i.ResponseSchemaSha256,
+		&i.ResponseSchema,
+		&i.ModelPolicyVersion,
+		&i.ModelPolicySha256,
+		&i.ModelPolicy,
+		&i.HostPolicyVersion,
+		&i.HostPolicySha256,
+		&i.HostPolicy,
+		&i.ExpectedRequest,
+		&i.ModelResult,
+		&i.RawOutput,
+		&i.CanonicalOutput,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -1868,6 +2455,85 @@ func (q *Queries) ListActiveRuns(ctx context.Context) ([]CoreRun, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ReleasedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlanEvents = `-- name: ListPlanEvents :many
+SELECT id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,
+    aggregate_version, payload, created_at
+FROM core.events
+WHERE aggregate_type = 'plan' AND aggregate_id = $1
+ORDER BY aggregate_version
+`
+
+func (q *Queries) ListPlanEvents(ctx context.Context, aggregateID pgtype.UUID) ([]CoreEvent, error) {
+	rows, err := q.db.Query(ctx, listPlanEvents, aggregateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreEvent
+	for rows.Next() {
+		var i CoreEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.TaskID,
+			&i.RunID,
+			&i.EventType,
+			&i.AggregateType,
+			&i.AggregateID,
+			&i.AggregateVersion,
+			&i.Payload,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlanSteps = `-- name: ListPlanSteps :many
+SELECT plan_version_id, plan_id, step_id, ordinal, status, description, criterion_ids, depends_on_step_ids, expected_paths, components, test_strategy, risks, assumptions, evidence_refs, lineage FROM core.plan_steps WHERE plan_version_id = $1 ORDER BY ordinal
+`
+
+func (q *Queries) ListPlanSteps(ctx context.Context, planVersionID pgtype.UUID) ([]CorePlanStep, error) {
+	rows, err := q.db.Query(ctx, listPlanSteps, planVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CorePlanStep
+	for rows.Next() {
+		var i CorePlanStep
+		if err := rows.Scan(
+			&i.PlanVersionID,
+			&i.PlanID,
+			&i.StepID,
+			&i.Ordinal,
+			&i.Status,
+			&i.Description,
+			&i.CriterionIds,
+			&i.DependsOnStepIds,
+			&i.ExpectedPaths,
+			&i.Components,
+			&i.TestStrategy,
+			&i.Risks,
+			&i.Assumptions,
+			&i.EvidenceRefs,
+			&i.Lineage,
 		); err != nil {
 			return nil, err
 		}

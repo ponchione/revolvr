@@ -1,5 +1,84 @@
 # Agent State
 
+## Architecture 015 Versioned Planner Complete (2026-08-06)
+
+- Task selected: `.agent/tasks/architecture-015-planner.md`, the sole task
+  named by the architecture handoff. Architecture tasks 001-014 remain
+  complete; task 016 was not started. No commit was created in this pass.
+- Added reversible migration `db/migrations/00008_plans.sql`, named sqlc
+  queries, and regenerated PostgreSQL code for `core.plans`, immutable
+  `core.plan_versions`, ordered `core.plan_steps`, accepted-plan pointers,
+  optimistic aggregate versions, and append-only candidate/acceptance events.
+  Database triggers keep plan-version content immutable and prevent completed,
+  skipped, or in-progress step state from regressing.
+- Added `internal/planner` as the versioned planning boundary. It requires the
+  exact scheduler-pinned task/version, run, project source, accepted task-014
+  supervisor `plan` decision, and trusted host-policy route. It builds and
+  hashes the bounded `revolvr-planner-dossier-v1` Section 13.2 projection from
+  the task contract, architecture constraints, project map, module
+  relationships, conventions, prior decisions, acceptance requirements,
+  baseline verification, and prior plan, with explicit semantic-retrieval,
+  conversation-history, broad-source, and absent-section omissions.
+- The closed `revolvr-planner-output-v1` schema and prompt bind the exact task,
+  task version, run, source, supervisor decision, dossier, prompt, response
+  schema, model policy, host policy, plan, plan version, revision, and parent
+  revision identities. The task-013 model boundary is invoked exactly once as
+  a fresh, stateless, tool-free structured-output call. The planner package
+  has no ambient credential, transport, tool, source-write, or task-intake
+  capability.
+- Host validation accepts 1-64 stably ordered steps only. Every canonical
+  criterion is mapped exactly once in canonical order; step dependencies must
+  name earlier steps; expected paths must remain beneath canonical task paths;
+  test strategies must exactly match task-owned verification; and all evidence
+  references must exist in the frozen dossier. Unknown fields, malformed or
+  refused output, duplicates, reordering, invented criteria/dependencies,
+  placeholders, unsupported tests, scope expansion, and stale identities fail
+  before any candidate can be accepted.
+- Plan revisions preserve the complete existing step prefix and its content.
+  Existing steps require exact prior-plan/step/status lineage; status changes
+  require dossier-backed transition evidence; new steps are appended pending;
+  completed/skipped steps never regress. Material revisions carry a bounded
+  explanation.
+- Candidate insertion, ordered step insertion, plan-pointer acceptance, and
+  both append-only events run in one PostgreSQL transaction when a host accepts
+  a fresh candidate. Acceptance is an explicit `trusted_host` operation absent
+  from model output. Optimistic concurrency gives concurrent acceptors one
+  winner; an exact operation replay is idempotent. Candidate rows retain exact
+  dossier, prompt, schema, model/host policies, request, completed model
+  evidence, raw output, and canonical output.
+- Focused fake-model tests prove valid exact identity/mapping, malformed,
+  refusal, duplicate/unknown fields, duplicate/reordered steps, missing
+  criteria, invented dependencies, placeholders, unsupported verification,
+  scope expansion, model-output identity staleness, task/source/supervisor/
+  dossier drift, monotonic revision lineage, and absence of API-key, external
+  network, tools, hidden session, source mutation, or task recompilation.
+- PostgreSQL tests used isolated Compose project `revolvr-architecture015` on
+  loopback port `55433`. Migrations 1-8 applied, and migration 00008 passed
+  down/up twice (including its immutable/monotonic triggers). Fixtures used
+  fresh UUIDs and cleaned only exact planner-test rows. Tests proved stable
+  ordered rows and complete provenance, one concurrent acceptance winner,
+  forced final-event failure rolling back the plan pointer, plan, version,
+  steps, and events, successful retry, exact replay, and database-level
+  completed-step non-regression. The exact Compose containers, networks, and
+  disposable PostgreSQL volume were removed after verification.
+- Dependency decision: the standard library plus existing `pgx`, `sqlc`, UUID,
+  task-013 model, task-014 supervisor/policy, and JSON Schema foundations were
+  sufficient. No dependency was added; `go.mod` and `go.sum` are unchanged.
+- Files changed: `db/migrations/00008_plans.sql`, `db/queries/core.sql`,
+  generated `internal/storage/postgres/core.sql.go` and `models.go`, the new
+  `internal/planner` package and tests, the task-015 status file,
+  `.agent/STATE.md`, and `.agent/HANDOFF.md`. `.agent/DECISIONS.md` was not
+  changed because the implementation follows ADR-023 and the canonical task
+  015 boundary without a new durable architecture choice.
+- Required verification passed: `test -z "$(gofmt -l cmd internal)"`,
+  `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0 generate -f db/sqlc.yaml`,
+  `env -u OPENAI_API_KEY REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go
+  test ./internal/planner` with the isolated URL, `go test ./...`, and
+  `git diff --check`. No live model or external network call was made.
+- Result: **PASS**. Architecture tasks 001-015 are complete; tasks 016-025
+  remain. There are no blockers. The next task is
+  `architecture-016-tool-broker-implementer`.
+
 ## Architecture 014 Decision-Only Supervisor Complete (2026-08-06)
 
 - Task selected: `.agent/tasks/architecture-014-supervisor.md`, the sole task

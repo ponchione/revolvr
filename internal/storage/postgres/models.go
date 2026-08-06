@@ -40,6 +40,80 @@ type CoreExecutionLease struct {
 	AggregateVersion    int64
 }
 
+type CorePlan struct {
+	ID                  pgtype.UUID
+	ProjectID           pgtype.UUID
+	TaskID              pgtype.UUID
+	TaskVersionID       pgtype.UUID
+	RunID               pgtype.UUID
+	ProjectSourceID     pgtype.UUID
+	SourceRevision      string
+	SourceCommit        string
+	SourceTree          string
+	AcceptedVersionID   pgtype.UUID
+	AcceptedOperationID pgtype.Text
+	AcceptedBy          pgtype.Text
+	AcceptedAt          pgtype.Timestamptz
+	AggregateVersion    int64
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+}
+
+type CorePlanStep struct {
+	PlanVersionID    pgtype.UUID
+	PlanID           pgtype.UUID
+	StepID           string
+	Ordinal          int32
+	Status           string
+	Description      string
+	CriterionIds     []byte
+	DependsOnStepIds []byte
+	ExpectedPaths    []byte
+	Components       []byte
+	TestStrategy     []byte
+	Risks            []byte
+	Assumptions      []byte
+	EvidenceRefs     []byte
+	Lineage          []byte
+}
+
+type CorePlanVersion struct {
+	ID                       pgtype.UUID
+	PlanID                   pgtype.UUID
+	TaskID                   pgtype.UUID
+	TaskVersionID            pgtype.UUID
+	RunID                    pgtype.UUID
+	ProjectSourceID          pgtype.UUID
+	RevisionNumber           int32
+	SupersedesVersionID      pgtype.UUID
+	CandidateSha256          string
+	ContentSha256            string
+	ChangeExplanation        string
+	SourceRevision           string
+	SupervisorDecisionID     string
+	SupervisorDecisionSha256 string
+	DossierVersion           string
+	DossierSha256            string
+	DossierContent           []byte
+	PromptVersion            string
+	PromptSha256             string
+	PromptContent            []byte
+	ResponseSchemaVersion    string
+	ResponseSchemaSha256     string
+	ResponseSchema           []byte
+	ModelPolicyVersion       string
+	ModelPolicySha256        string
+	ModelPolicy              []byte
+	HostPolicyVersion        string
+	HostPolicySha256         string
+	HostPolicy               []byte
+	ExpectedRequest          []byte
+	ModelResult              []byte
+	RawOutput                []byte
+	CanonicalOutput          []byte
+	CreatedAt                pgtype.Timestamptz
+}
+
 type CoreProject struct {
 	ID        pgtype.UUID
 	Name      string

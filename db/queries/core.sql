@@ -547,3 +547,102 @@ SELECT id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id
 FROM core.events
 WHERE aggregate_type = 'workspace' AND aggregate_id = $1
 ORDER BY aggregate_version;
+
+-- name: GetPlannerRunAuthority :one
+SELECT
+    r.id AS run_id, r.project_id, r.task_id, r.task_version_id,
+    r.project_source_id, r.status AS run_status, r.source_commit, r.source_tree,
+    t.status AS task_status, t.accepted_version_id, t.aggregate_version AS task_aggregate_version,
+    ps.current_commit, ps.current_tree
+FROM core.runs AS r
+JOIN core.tasks AS t ON t.id = r.task_id AND t.project_id = r.project_id
+JOIN core.project_sources AS ps
+  ON ps.id = r.project_source_id AND ps.project_id = r.project_id
+WHERE r.id = $1
+FOR UPDATE OF r, t, ps;
+
+-- name: InsertPlan :one
+INSERT INTO core.plans (
+    id, project_id, task_id, task_version_id, run_id, project_source_id,
+    source_revision, source_commit, source_tree, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+RETURNING *;
+
+-- name: GetPlan :one
+SELECT * FROM core.plans WHERE id = $1;
+
+-- name: GetPlanForUpdate :one
+SELECT * FROM core.plans WHERE id = $1 FOR UPDATE;
+
+-- name: GetPlanByRunID :one
+SELECT * FROM core.plans WHERE run_id = $1;
+
+-- name: AdvancePlanCandidate :one
+UPDATE core.plans
+SET aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(plan_id)
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING *;
+
+-- name: InsertPlanVersion :one
+INSERT INTO core.plan_versions (
+    id, plan_id, task_id, task_version_id, run_id, project_source_id,
+    revision_number, supersedes_version_id, candidate_sha256, content_sha256,
+    change_explanation, source_revision,
+    supervisor_decision_id, supervisor_decision_sha256,
+    dossier_version, dossier_sha256, dossier_content,
+    prompt_version, prompt_sha256, prompt_content,
+    response_schema_version, response_schema_sha256, response_schema,
+    model_policy_version, model_policy_sha256, model_policy,
+    host_policy_version, host_policy_sha256, host_policy,
+    expected_request, model_result, raw_output, canonical_output, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+    $27, $28, $29, $30, $31, $32, $33, $34
+)
+RETURNING *;
+
+-- name: GetPlanVersion :one
+SELECT * FROM core.plan_versions WHERE id = $1;
+
+-- name: GetPlanVersionByRevision :one
+SELECT * FROM core.plan_versions
+WHERE plan_id = sqlc.arg(plan_id) AND revision_number = sqlc.arg(revision_number);
+
+-- name: InsertPlanStep :one
+INSERT INTO core.plan_steps (
+    plan_version_id, plan_id, step_id, ordinal, status, description,
+    criterion_ids, depends_on_step_ids, expected_paths, components,
+    test_strategy, risks, assumptions, evidence_refs, lineage
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING *;
+
+-- name: ListPlanSteps :many
+SELECT * FROM core.plan_steps WHERE plan_version_id = $1 ORDER BY ordinal;
+
+-- name: AcceptPlanVersion :one
+UPDATE core.plans AS p
+SET accepted_version_id = sqlc.arg(plan_version_id),
+    accepted_operation_id = sqlc.arg(operation_id),
+    accepted_by = sqlc.arg(accepted_by),
+    accepted_at = sqlc.arg(accepted_at),
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(accepted_at)
+WHERE p.id = sqlc.arg(plan_id)
+  AND p.aggregate_version = sqlc.arg(expected_aggregate_version)
+  AND (p.accepted_version_id IS NULL
+       OR p.accepted_version_id <> sqlc.arg(plan_version_id))
+  AND EXISTS (
+      SELECT 1 FROM core.plan_versions AS pv
+      WHERE pv.id = sqlc.arg(plan_version_id) AND pv.plan_id = p.id
+  )
+RETURNING p.*;
+
+-- name: ListPlanEvents :many
+SELECT id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,
+    aggregate_version, payload, created_at
+FROM core.events
+WHERE aggregate_type = 'plan' AND aggregate_id = $1
+ORDER BY aggregate_version;

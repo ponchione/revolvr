@@ -1,6 +1,6 @@
 ---
 id: architecture-015-planner
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-014-supervisor
