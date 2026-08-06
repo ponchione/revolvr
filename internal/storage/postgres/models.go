@@ -162,3 +162,48 @@ type CoreTaskVersion struct {
 	OperatorCheckpoints   []byte
 	CreatedAt             pgtype.Timestamptz
 }
+
+type CoreWorkspace struct {
+	ID                     pgtype.UUID
+	RunID                  pgtype.UUID
+	ProjectID              pgtype.UUID
+	ProjectSourceID        pgtype.UUID
+	TaskID                 pgtype.UUID
+	CreationOperationID    string
+	SymbolicSourceID       string
+	Status                 string
+	TerminalStatus         pgtype.Text
+	AggregateVersion       int64
+	OriginalCheckoutPath   string
+	ManagedRepositoryPath  string
+	WorkspaceRoot          string
+	WorkspacePath          string
+	BranchRef              string
+	SourceCommit           string
+	SourceTree             string
+	WorkspaceDevice        pgtype.Int8
+	WorkspaceInode         pgtype.Int8
+	OriginalIdentityBefore []byte
+	OriginalIdentityAfter  []byte
+	GitStatus              []byte
+	ChangedManifest        []byte
+	DiffArtifactID         pgtype.UUID
+	DiffSha256             pgtype.Text
+	CandidateCommit        pgtype.Text
+	CandidateTree          pgtype.Text
+	TerminalReason         pgtype.Text
+	CleanupCompletedAt     pgtype.Timestamptz
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+}
+
+type CoreWorkspaceOperation struct {
+	OperationID    string
+	WorkspaceID    pgtype.UUID
+	OperationKind  string
+	MaterialSha256 string
+	Status         string
+	Effect         []byte
+	CreatedAt      pgtype.Timestamptz
+	AppliedAt      pgtype.Timestamptz
+}

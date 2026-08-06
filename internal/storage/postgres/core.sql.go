@@ -92,6 +92,70 @@ func (q *Queries) AdmitSchedulerTask(ctx context.Context, arg AdmitSchedulerTask
 	return i, err
 }
 
+const advanceWorkspaceStatus = `-- name: AdvanceWorkspaceStatus :one
+UPDATE core.workspaces
+SET status = $1,
+    aggregate_version = aggregate_version + 1,
+    updated_at = $2
+WHERE id = $3
+  AND status = $4
+  AND aggregate_version = $5
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type AdvanceWorkspaceStatusParams struct {
+	NewStatus                string
+	UpdatedAt                pgtype.Timestamptz
+	WorkspaceID              pgtype.UUID
+	ExpectedStatus           string
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) AdvanceWorkspaceStatus(ctx context.Context, arg AdvanceWorkspaceStatusParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, advanceWorkspaceStatus,
+		arg.NewStatus,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ExpectedStatus,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const appendEvent = `-- name: AppendEvent :one
 INSERT INTO core.events (
     id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,
@@ -236,6 +300,49 @@ func (q *Queries) CompareAndUpdateTaskState(ctx context.Context, arg CompareAndU
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const completeWorkspaceOperation = `-- name: CompleteWorkspaceOperation :one
+UPDATE core.workspace_operations
+SET status = 'applied', effect = $1, applied_at = $2
+WHERE operation_id = $3
+  AND workspace_id = $4
+  AND operation_kind = $5
+  AND material_sha256 = $6
+  AND status = 'planned'
+RETURNING operation_id, workspace_id, operation_kind, material_sha256, status, effect, created_at, applied_at
+`
+
+type CompleteWorkspaceOperationParams struct {
+	Effect         []byte
+	AppliedAt      pgtype.Timestamptz
+	OperationID    string
+	WorkspaceID    pgtype.UUID
+	OperationKind  string
+	MaterialSha256 string
+}
+
+func (q *Queries) CompleteWorkspaceOperation(ctx context.Context, arg CompleteWorkspaceOperationParams) (CoreWorkspaceOperation, error) {
+	row := q.db.QueryRow(ctx, completeWorkspaceOperation,
+		arg.Effect,
+		arg.AppliedAt,
+		arg.OperationID,
+		arg.WorkspaceID,
+		arg.OperationKind,
+		arg.MaterialSha256,
+	)
+	var i CoreWorkspaceOperation
+	err := row.Scan(
+		&i.OperationID,
+		&i.WorkspaceID,
+		&i.OperationKind,
+		&i.MaterialSha256,
+		&i.Status,
+		&i.Effect,
+		&i.CreatedAt,
+		&i.AppliedAt,
 	)
 	return i, err
 }
@@ -856,6 +963,208 @@ func (q *Queries) GetTaskWithSelectedVersionByExternalID(ctx context.Context, ar
 	return i, err
 }
 
+const getWorkspace = `-- name: GetWorkspace :one
+SELECT id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at FROM core.workspaces WHERE id = $1
+`
+
+func (q *Queries) GetWorkspace(ctx context.Context, id pgtype.UUID) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspace, id)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceByRunID = `-- name: GetWorkspaceByRunID :one
+SELECT id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at FROM core.workspaces WHERE run_id = $1
+`
+
+func (q *Queries) GetWorkspaceByRunID(ctx context.Context, runID pgtype.UUID) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceByRunID, runID)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceForUpdate = `-- name: GetWorkspaceForUpdate :one
+SELECT id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at FROM core.workspaces WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetWorkspaceForUpdate(ctx context.Context, id pgtype.UUID) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceForUpdate, id)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceOperation = `-- name: GetWorkspaceOperation :one
+SELECT operation_id, workspace_id, operation_kind, material_sha256, status, effect, created_at, applied_at FROM core.workspace_operations WHERE operation_id = $1
+`
+
+func (q *Queries) GetWorkspaceOperation(ctx context.Context, operationID string) (CoreWorkspaceOperation, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceOperation, operationID)
+	var i CoreWorkspaceOperation
+	err := row.Scan(
+		&i.OperationID,
+		&i.WorkspaceID,
+		&i.OperationKind,
+		&i.MaterialSha256,
+		&i.Status,
+		&i.Effect,
+		&i.CreatedAt,
+		&i.AppliedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceRunAuthority = `-- name: GetWorkspaceRunAuthority :one
+SELECT
+    r.id AS run_id, r.project_id, r.task_id, r.task_version_id,
+    r.project_source_id, r.status AS run_status, r.source_commit, r.source_tree,
+    r.coordinator_identity, t.status AS task_status,
+    ps.canonical_source_path, ps.managed_repository_path,
+    ps.current_commit, ps.current_tree
+FROM core.runs AS r
+JOIN core.tasks AS t ON t.id = r.task_id AND t.project_id = r.project_id
+JOIN core.project_sources AS ps
+  ON ps.id = r.project_source_id AND ps.project_id = r.project_id
+WHERE r.id = $1
+`
+
+type GetWorkspaceRunAuthorityRow struct {
+	RunID                 pgtype.UUID
+	ProjectID             pgtype.UUID
+	TaskID                pgtype.UUID
+	TaskVersionID         pgtype.UUID
+	ProjectSourceID       pgtype.UUID
+	RunStatus             string
+	SourceCommit          string
+	SourceTree            string
+	CoordinatorIdentity   string
+	TaskStatus            string
+	CanonicalSourcePath   string
+	ManagedRepositoryPath string
+	CurrentCommit         string
+	CurrentTree           string
+}
+
+func (q *Queries) GetWorkspaceRunAuthority(ctx context.Context, id pgtype.UUID) (GetWorkspaceRunAuthorityRow, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceRunAuthority, id)
+	var i GetWorkspaceRunAuthorityRow
+	err := row.Scan(
+		&i.RunID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.ProjectSourceID,
+		&i.RunStatus,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CoordinatorIdentity,
+		&i.TaskStatus,
+		&i.CanonicalSourcePath,
+		&i.ManagedRepositoryPath,
+		&i.CurrentCommit,
+		&i.CurrentTree,
+	)
+	return i, err
+}
+
 const insertArtifact = `-- name: InsertArtifact :one
 INSERT INTO core.artifacts (
     id, sha256, size_bytes, media_type, logical_kind, storage_path, compression, created_at
@@ -1400,6 +1709,132 @@ func (q *Queries) InsertTaskVersion(ctx context.Context, arg InsertTaskVersionPa
 	return i, err
 }
 
+const insertWorkspace = `-- name: InsertWorkspace :one
+INSERT INTO core.workspaces (
+    id, run_id, project_id, project_source_id, task_id,
+    creation_operation_id, symbolic_source_id, status,
+    original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref,
+    source_commit, source_tree, original_identity_before, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, 'planned', $8, $9, $10, $11, $12,
+    $13, $14, $15, $16, $16
+)
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type InsertWorkspaceParams struct {
+	ID                     pgtype.UUID
+	RunID                  pgtype.UUID
+	ProjectID              pgtype.UUID
+	ProjectSourceID        pgtype.UUID
+	TaskID                 pgtype.UUID
+	CreationOperationID    string
+	SymbolicSourceID       string
+	OriginalCheckoutPath   string
+	ManagedRepositoryPath  string
+	WorkspaceRoot          string
+	WorkspacePath          string
+	BranchRef              string
+	SourceCommit           string
+	SourceTree             string
+	OriginalIdentityBefore []byte
+	CreatedAt              pgtype.Timestamptz
+}
+
+func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, insertWorkspace,
+		arg.ID,
+		arg.RunID,
+		arg.ProjectID,
+		arg.ProjectSourceID,
+		arg.TaskID,
+		arg.CreationOperationID,
+		arg.SymbolicSourceID,
+		arg.OriginalCheckoutPath,
+		arg.ManagedRepositoryPath,
+		arg.WorkspaceRoot,
+		arg.WorkspacePath,
+		arg.BranchRef,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.OriginalIdentityBefore,
+		arg.CreatedAt,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertWorkspaceOperation = `-- name: InsertWorkspaceOperation :one
+INSERT INTO core.workspace_operations (
+    operation_id, workspace_id, operation_kind, material_sha256,
+    status, created_at
+) VALUES ($1, $2, $3, $4, 'planned', $5)
+RETURNING operation_id, workspace_id, operation_kind, material_sha256, status, effect, created_at, applied_at
+`
+
+type InsertWorkspaceOperationParams struct {
+	OperationID    string
+	WorkspaceID    pgtype.UUID
+	OperationKind  string
+	MaterialSha256 string
+	CreatedAt      pgtype.Timestamptz
+}
+
+func (q *Queries) InsertWorkspaceOperation(ctx context.Context, arg InsertWorkspaceOperationParams) (CoreWorkspaceOperation, error) {
+	row := q.db.QueryRow(ctx, insertWorkspaceOperation,
+		arg.OperationID,
+		arg.WorkspaceID,
+		arg.OperationKind,
+		arg.MaterialSha256,
+		arg.CreatedAt,
+	)
+	var i CoreWorkspaceOperation
+	err := row.Scan(
+		&i.OperationID,
+		&i.WorkspaceID,
+		&i.OperationKind,
+		&i.MaterialSha256,
+		&i.Status,
+		&i.Effect,
+		&i.CreatedAt,
+		&i.AppliedAt,
+	)
+	return i, err
+}
+
 const listActiveRuns = `-- name: ListActiveRuns :many
 SELECT id, project_id, task_id, task_version_id, project_source_id, status,
     aggregate_version, admitted_task_aggregate_version, source_commit,
@@ -1616,6 +2051,386 @@ func (q *Queries) ListSchedulerTasks(ctx context.Context) ([]ListSchedulerTasksR
 		return nil, err
 	}
 	return items, nil
+}
+
+const listWorkspaceEvents = `-- name: ListWorkspaceEvents :many
+SELECT id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,
+    aggregate_version, payload, created_at
+FROM core.events
+WHERE aggregate_type = 'workspace' AND aggregate_id = $1
+ORDER BY aggregate_version
+`
+
+func (q *Queries) ListWorkspaceEvents(ctx context.Context, aggregateID pgtype.UUID) ([]CoreEvent, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceEvents, aggregateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreEvent
+	for rows.Next() {
+		var i CoreEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.TaskID,
+			&i.RunID,
+			&i.EventType,
+			&i.AggregateType,
+			&i.AggregateID,
+			&i.AggregateVersion,
+			&i.Payload,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markWorkspaceCleaned = `-- name: MarkWorkspaceCleaned :one
+UPDATE core.workspaces
+SET status = 'cleaned',
+    aggregate_version = aggregate_version + 1,
+    cleanup_completed_at = $1,
+    updated_at = $1
+WHERE id = $2
+  AND status = $3
+  AND terminal_status = $3
+  AND aggregate_version = $4
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type MarkWorkspaceCleanedParams struct {
+	CleanupCompletedAt       pgtype.Timestamptz
+	WorkspaceID              pgtype.UUID
+	ExpectedTerminalStatus   string
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) MarkWorkspaceCleaned(ctx context.Context, arg MarkWorkspaceCleanedParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, markWorkspaceCleaned,
+		arg.CleanupCompletedAt,
+		arg.WorkspaceID,
+		arg.ExpectedTerminalStatus,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markWorkspaceReady = `-- name: MarkWorkspaceReady :one
+UPDATE core.workspaces
+SET status = 'ready',
+    workspace_device = $1,
+    workspace_inode = $2,
+    original_identity_after = $3,
+    aggregate_version = aggregate_version + 1,
+    updated_at = $4
+WHERE id = $5
+  AND status = 'creating'
+  AND aggregate_version = $6
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type MarkWorkspaceReadyParams struct {
+	WorkspaceDevice          pgtype.Int8
+	WorkspaceInode           pgtype.Int8
+	OriginalIdentityAfter    []byte
+	UpdatedAt                pgtype.Timestamptz
+	WorkspaceID              pgtype.UUID
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) MarkWorkspaceReady(ctx context.Context, arg MarkWorkspaceReadyParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, markWorkspaceReady,
+		arg.WorkspaceDevice,
+		arg.WorkspaceInode,
+		arg.OriginalIdentityAfter,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markWorkspaceTerminal = `-- name: MarkWorkspaceTerminal :one
+UPDATE core.workspaces
+SET status = $1,
+    terminal_status = $1,
+    terminal_reason = $2,
+    aggregate_version = aggregate_version + 1,
+    updated_at = $3
+WHERE id = $4
+  AND status = $5
+  AND aggregate_version = $6
+  AND $1::text IN ('cancelled', 'failed')
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type MarkWorkspaceTerminalParams struct {
+	TerminalStatus           string
+	TerminalReason           pgtype.Text
+	UpdatedAt                pgtype.Timestamptz
+	WorkspaceID              pgtype.UUID
+	ExpectedStatus           string
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) MarkWorkspaceTerminal(ctx context.Context, arg MarkWorkspaceTerminalParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, markWorkspaceTerminal,
+		arg.TerminalStatus,
+		arg.TerminalReason,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ExpectedStatus,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const recordWorkspaceCandidate = `-- name: RecordWorkspaceCandidate :one
+UPDATE core.workspaces
+SET status = 'completed',
+    terminal_status = 'completed',
+    candidate_commit = $1,
+    candidate_tree = $2,
+    aggregate_version = aggregate_version + 1,
+    updated_at = $3
+WHERE id = $4
+  AND status = 'reconciling'
+  AND aggregate_version = $5
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type RecordWorkspaceCandidateParams struct {
+	CandidateCommit          pgtype.Text
+	CandidateTree            pgtype.Text
+	UpdatedAt                pgtype.Timestamptz
+	WorkspaceID              pgtype.UUID
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) RecordWorkspaceCandidate(ctx context.Context, arg RecordWorkspaceCandidateParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, recordWorkspaceCandidate,
+		arg.CandidateCommit,
+		arg.CandidateTree,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const recordWorkspaceCapture = `-- name: RecordWorkspaceCapture :one
+UPDATE core.workspaces
+SET status = 'reconciling',
+    git_status = $1,
+    changed_manifest = $2,
+    diff_artifact_id = $3,
+    diff_sha256 = $4,
+    aggregate_version = aggregate_version + 1,
+    updated_at = $5
+WHERE id = $6
+  AND status = 'frozen'
+  AND aggregate_version = $7
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type RecordWorkspaceCaptureParams struct {
+	GitStatus                []byte
+	ChangedManifest          []byte
+	DiffArtifactID           pgtype.UUID
+	DiffSha256               pgtype.Text
+	UpdatedAt                pgtype.Timestamptz
+	WorkspaceID              pgtype.UUID
+	ExpectedAggregateVersion int64
+}
+
+func (q *Queries) RecordWorkspaceCapture(ctx context.Context, arg RecordWorkspaceCaptureParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, recordWorkspaceCapture,
+		arg.GitStatus,
+		arg.ChangedManifest,
+		arg.DiffArtifactID,
+		arg.DiffSha256,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ExpectedAggregateVersion,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const releaseGlobalExecutionLease = `-- name: ReleaseGlobalExecutionLease :one

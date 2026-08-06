@@ -411,3 +411,139 @@ WHERE lease_name = 'global-source-mutation-v1'
   AND coordinator_identity = sqlc.arg(coordinator_identity)
   AND aggregate_version = sqlc.arg(expected_aggregate_version)
 RETURNING lease_name, run_id, coordinator_identity, acquired_at, aggregate_version;
+
+-- name: GetWorkspaceRunAuthority :one
+SELECT
+    r.id AS run_id, r.project_id, r.task_id, r.task_version_id,
+    r.project_source_id, r.status AS run_status, r.source_commit, r.source_tree,
+    r.coordinator_identity, t.status AS task_status,
+    ps.canonical_source_path, ps.managed_repository_path,
+    ps.current_commit, ps.current_tree
+FROM core.runs AS r
+JOIN core.tasks AS t ON t.id = r.task_id AND t.project_id = r.project_id
+JOIN core.project_sources AS ps
+  ON ps.id = r.project_source_id AND ps.project_id = r.project_id
+WHERE r.id = $1;
+
+-- name: InsertWorkspace :one
+INSERT INTO core.workspaces (
+    id, run_id, project_id, project_source_id, task_id,
+    creation_operation_id, symbolic_source_id, status,
+    original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref,
+    source_commit, source_tree, original_identity_before, created_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, 'planned', $8, $9, $10, $11, $12,
+    $13, $14, $15, $16, $16
+)
+RETURNING *;
+
+-- name: GetWorkspace :one
+SELECT * FROM core.workspaces WHERE id = $1;
+
+-- name: GetWorkspaceForUpdate :one
+SELECT * FROM core.workspaces WHERE id = $1 FOR UPDATE;
+
+-- name: GetWorkspaceByRunID :one
+SELECT * FROM core.workspaces WHERE run_id = $1;
+
+-- name: AdvanceWorkspaceStatus :one
+UPDATE core.workspaces
+SET status = sqlc.arg(new_status),
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(workspace_id)
+  AND status = sqlc.arg(expected_status)
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING *;
+
+-- name: MarkWorkspaceReady :one
+UPDATE core.workspaces
+SET status = 'ready',
+    workspace_device = sqlc.arg(workspace_device),
+    workspace_inode = sqlc.arg(workspace_inode),
+    original_identity_after = sqlc.arg(original_identity_after),
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(workspace_id)
+  AND status = 'creating'
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING *;
+
+-- name: RecordWorkspaceCapture :one
+UPDATE core.workspaces
+SET status = 'reconciling',
+    git_status = sqlc.arg(git_status),
+    changed_manifest = sqlc.arg(changed_manifest),
+    diff_artifact_id = sqlc.arg(diff_artifact_id),
+    diff_sha256 = sqlc.arg(diff_sha256),
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(workspace_id)
+  AND status = 'frozen'
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING *;
+
+-- name: RecordWorkspaceCandidate :one
+UPDATE core.workspaces
+SET status = 'completed',
+    terminal_status = 'completed',
+    candidate_commit = sqlc.arg(candidate_commit),
+    candidate_tree = sqlc.arg(candidate_tree),
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(workspace_id)
+  AND status = 'reconciling'
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING *;
+
+-- name: MarkWorkspaceTerminal :one
+UPDATE core.workspaces
+SET status = sqlc.arg(terminal_status),
+    terminal_status = sqlc.arg(terminal_status),
+    terminal_reason = sqlc.arg(terminal_reason),
+    aggregate_version = aggregate_version + 1,
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(workspace_id)
+  AND status = sqlc.arg(expected_status)
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+  AND sqlc.arg(terminal_status)::text IN ('cancelled', 'failed')
+RETURNING *;
+
+-- name: MarkWorkspaceCleaned :one
+UPDATE core.workspaces
+SET status = 'cleaned',
+    aggregate_version = aggregate_version + 1,
+    cleanup_completed_at = sqlc.arg(cleanup_completed_at),
+    updated_at = sqlc.arg(cleanup_completed_at)
+WHERE id = sqlc.arg(workspace_id)
+  AND status = sqlc.arg(expected_terminal_status)
+  AND terminal_status = sqlc.arg(expected_terminal_status)
+  AND aggregate_version = sqlc.arg(expected_aggregate_version)
+RETURNING *;
+
+-- name: InsertWorkspaceOperation :one
+INSERT INTO core.workspace_operations (
+    operation_id, workspace_id, operation_kind, material_sha256,
+    status, created_at
+) VALUES ($1, $2, $3, $4, 'planned', $5)
+RETURNING *;
+
+-- name: GetWorkspaceOperation :one
+SELECT * FROM core.workspace_operations WHERE operation_id = $1;
+
+-- name: CompleteWorkspaceOperation :one
+UPDATE core.workspace_operations
+SET status = 'applied', effect = sqlc.arg(effect), applied_at = sqlc.arg(applied_at)
+WHERE operation_id = sqlc.arg(operation_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND operation_kind = sqlc.arg(operation_kind)
+  AND material_sha256 = sqlc.arg(material_sha256)
+  AND status = 'planned'
+RETURNING *;
+
+-- name: ListWorkspaceEvents :many
+SELECT id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,
+    aggregate_version, payload, created_at
+FROM core.events
+WHERE aggregate_type = 'workspace' AND aggregate_id = $1
+ORDER BY aggregate_version;
