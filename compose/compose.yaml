@@ -1,4 +1,33 @@
 services:
+  embedding-service:
+    profiles: ["embeddings"]
+    image: ${REVOLVR_EMBEDDING_IMAGE:-local/revolvr-embedding-service:operator-must-supply}
+    user: "65532:65532"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    gpus: all
+    environment:
+      REVOLVR_EMBEDDING_MODEL_PATH: /models/embedding
+      REVOLVR_EMBEDDING_MODEL_NAME: ${REVOLVR_EMBEDDING_MODEL_NAME:-selected-by-evaluation}
+      REVOLVR_EMBEDDING_MODEL_REVISION: ${REVOLVR_EMBEDDING_MODEL_REVISION:-operator-must-supply}
+      REVOLVR_EMBEDDING_DIMENSIONS: ${REVOLVR_EMBEDDING_DIMENSIONS:-0}
+      REVOLVR_EMBEDDING_POOLING: ${REVOLVR_EMBEDDING_POOLING:-operator-must-supply}
+      REVOLVR_EMBEDDING_NORMALIZATION: ${REVOLVR_EMBEDDING_NORMALIZATION:-operator-must-supply}
+      REVOLVR_EMBEDDING_QUANTIZATION: ${REVOLVR_EMBEDDING_QUANTIZATION:-operator-must-supply}
+      REVOLVR_EMBEDDING_ARTIFACT_SHA256: ${REVOLVR_EMBEDDING_ARTIFACT_SHA256:-operator-must-supply}
+    volumes:
+      - type: bind
+        source: ${REVOLVR_EMBEDDING_MODEL_PATH:-/var/lib/revolvr/models/embedding}
+        target: /models/embedding
+        read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=1g
+    networks:
+      - control
+
   postgres:
     image: pgvector/pgvector:0.8.6-pg18-trixie
     environment:

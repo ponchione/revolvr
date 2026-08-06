@@ -1,5 +1,39 @@
 # Agent Decisions
 
+## Local Embedding Space Is Exact, Local, And Degradable (2026-08-06)
+
+- The adapter pins one complete embedding-space identity: model name,
+  revision, dimensions, pooling, normalization, quantization, and model
+  artifact SHA-256 under a versioned schema. The canonical hash covers every
+  field. A changed revision, dimension, policy, quantization, or artifact is a
+  different space, never a compatible response within the active space.
+- The local service contract is health plus exact metadata and an
+  OpenAI-compatible embedding-list response extended with document/query input
+  type and complete response metadata. Metadata is checked before vector work,
+  carried by the response, and checked again afterward; vectors are released
+  only after the whole batch and final space identity validate.
+- Locality is enforced by endpoint admission and Compose isolation rather than
+  by provider fallback. Default HTTP behavior does not follow redirects, the
+  service receives no remote credential, and unavailable or invalid local
+  service output returns a typed degraded status. No zero, fabricated, partial,
+  stale, mixed-space, or remotely generated vector substitutes for failure.
+- Batch count, individual and aggregate UTF-8 bytes, response bytes, and the
+  complete operation deadline are trusted-host bounds. Count/index,
+  dimensions, JSON shape, duplicate keys, finite float32 conversion, timeout,
+  and cancellation are validated deterministically before a caller can retain
+  output.
+- The optional Compose profile grants GPU access only to the dedicated
+  embedding service. Its sole bind mount is the read-only evaluated model; the
+  internal control network carries service traffic, and development may expose
+  only a loopback smoke port. Project source, PostgreSQL/OpenAI credentials,
+  host/runtime sockets, and canonical Revolvr state are outside the service.
+- Architecture 020 deliberately selects no permanent model. The explicit
+  operator smoke consumes an evaluated image/artifact and exact metadata; the
+  architecture-021 retrieval evaluation owns measured model selection and
+  controlled active-space/index switching. Embeddings remain derived and gain
+  no architecture-017 verification, architecture-018 completion, or
+  architecture-019 audit/correction authority.
+
 ## Audit And Correction Authority Is Independent, Exact, And Bounded (2026-08-06)
 
 - An accepted audit is a new tool-free model invocation whose complete request

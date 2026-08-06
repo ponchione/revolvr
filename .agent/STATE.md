@@ -1,5 +1,66 @@
 # Agent State
 
+## Architecture 020 Local Embedding Adapter Complete (2026-08-06)
+
+- Task selected: `architecture-020-local-embedding-adapter`, confirmed as the
+  sole dependency-satisfied pending architecture task after completed
+  architecture 019. Architecture-017 verification occurrences remain
+  immutable/read-only, architecture-018 retains exclusive completion and
+  finalization authority, and architecture-019 retains exclusive independent
+  audit/finding/correction authority. Architecture 021 was not begun.
+- Added `internal/embedding` with the versioned `EmbedDocuments`, `EmbedQuery`,
+  `ModelInfo`/`Metadata`, and `Health` boundary. The client accepts only local,
+  loopback, private, or Compose-local endpoints, disables redirects by default,
+  applies one operation deadline, and bounds input count, per-input bytes,
+  aggregate bytes, and response bytes without adding a dependency.
+- Exact `revolvr-embedding-model-info-v1` metadata covers model name, revision,
+  dimensions, pooling, normalization, quantization, and lowercase artifact
+  SHA-256. `revolvr-embedding-space-v1` hashes the complete canonical metadata;
+  the deterministic fixture uses `fixture/code-embed`, revision
+  `fixture-revision-1`, 3 dimensions, mean pooling, L2 normalization, FP16,
+  artifact SHA-256 `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
+  and space SHA-256
+  `4512c844ad325360777aecbfe38a23d22638cd2a5344a5418597ead7c3242707`.
+- The OpenAI-compatible local wire contract uses `/v1/health`, `/v1/metadata`,
+  and `/v1/embeddings`, with an exact `documents`/`query` input type and
+  response metadata. The adapter verifies health and metadata before work,
+  checks vector count/index order/dimensions/finite float32 values, and
+  rechecks metadata after generation. No vector escapes on any partial,
+  malformed, non-finite, wrong-space, or post-generation drift result.
+- Typed statuses distinguish invalid input, unhealthy, unavailable, malformed
+  response, wrong count, wrong dimension, non-finite vector, model metadata
+  drift, timeout, and cancellation. Service-origin failures are explicitly
+  `degraded`; invalid caller input and cancellation are `failed`. There is no
+  fabricated-vector or remote-provider fallback, so architecture 021 can omit
+  the vector lane while retaining exact-file and lexical retrieval.
+- Added the opt-in `cmd/revolvr-embedding-smoke` command. It consumes the exact
+  operator-supplied metadata, performs health and query calls, verifies the
+  returned dimension, and prints metadata/space identity without vector
+  values. Unit tests exercise the command against a fake local endpoint. The
+  live GPU smoke was intentionally omitted because no evaluated service image
+  or model artifact was supplied; no permanent model was selected by inertia.
+- Added the optional Compose `embeddings` profile with all-GPU access, a
+  read-only root, non-root user, dropped capabilities, no-new-privileges,
+  bounded tmpfs, one dedicated read-only model mount, and only the internal
+  control network. The development override exposes only
+  `127.0.0.1:${REVOLVR_EMBEDDING_PORT:-8080}` for the smoke command. Static and
+  rendered checks prove there is no project/database/OpenAI-secret/runtime-
+  socket mount or host-public port.
+- Updated `README.md` with the exact local service contract, operator-supplied
+  image/model metadata variables, Compose start command, smoke command, bounds,
+  and degraded-mode contract.
+- Verification passed: `test -z "$(gofmt -l cmd internal)"`; `go test
+  ./internal/embedding`; `REVOLVR_POSTGRES_PASSWORD=test-only docker compose -f
+  compose/compose.yaml -f compose/compose.dev.yaml config --quiet`; `go test
+  ./...`; and `git diff --check`. Additional `go test -race -count=1
+  ./internal/embedding` and focused `go test -count=1 ./internal/verification
+  ./internal/completion ./internal/audit ./internal/correction` checks passed.
+  `go.mod`, `go.sum`, database migrations, and architecture-017/018/019 code are
+  unchanged.
+- Result: **PASS**. Architecture tasks 001-020 and PTC-001 are complete.
+  `architecture-021-code-indexing-context-assembly` is next and solely
+  selectable; architectures 022-025 and all post-core PTC tasks remain gated.
+
 ## Architecture 019 Auditor And Bounded Corrector Complete (2026-08-06)
 
 - Task selected: `architecture-019-auditor-corrector`, confirmed as the sole

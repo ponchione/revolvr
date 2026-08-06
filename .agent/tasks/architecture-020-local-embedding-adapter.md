@@ -1,6 +1,6 @@
 ---
 id: architecture-020-local-embedding-adapter
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-019-auditor-corrector
@@ -11,7 +11,7 @@ depends_on: architecture-019-auditor-corrector
 ## Sequence and status
 
 - Sequence: `020` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-019-auditor-corrector`.
 - Phase gate: Phase 7 retrieval work starts after the complete core
   implement/verify/audit/correct loop is enforceable without embeddings.

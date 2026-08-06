@@ -85,6 +85,59 @@ Compose project's volume:
 docker compose -f compose/compose.yaml -f compose/compose.dev.yaml down --volumes
 ```
 
+### Local embedding service
+
+The optional `embeddings` Compose profile runs an operator-supplied local
+embedding image. Revolvr does not select a permanent model until the Phase 7
+retrieval evaluation has measured it. The service receives GPU access and one
+read-only model mount on the internal control network; it receives no project,
+database, OpenAI credential, or container-runtime socket mount. The development
+override publishes only a loopback port for the opt-in smoke command.
+
+The image must implement the versioned adapter contract below under `/v1`:
+
+- `GET /health` returns `{"status":"ok"}`.
+- `GET /metadata` returns exact `revolvr-embedding-model-info-v1` metadata:
+  model name, revision, dimensions, pooling, normalization, quantization, and
+  the lowercase SHA-256 of the evaluated model artifact.
+- `POST /embeddings` accepts OpenAI-compatible `model`, `input`, and
+  `encoding_format` fields plus `input_type` (`documents` or `query`), and
+  returns indexed vectors plus the same exact `model_info` object.
+
+Supply one evaluated image and exact metadata, then start only that profile:
+
+```bash
+export REVOLVR_POSTGRES_PASSWORD='choose-a-development-password'
+export REVOLVR_EMBEDDING_IMAGE='your-local-embedding-service@sha256:<image-digest>'
+export REVOLVR_EMBEDDING_MODEL_PATH='/absolute/read-only/model/path'
+export REVOLVR_EMBEDDING_MODEL_NAME='evaluated-model-name'
+export REVOLVR_EMBEDDING_MODEL_REVISION='exact-model-revision'
+export REVOLVR_EMBEDDING_DIMENSIONS='exact-positive-dimension'
+export REVOLVR_EMBEDDING_POOLING='exact-pooling-policy'
+export REVOLVR_EMBEDDING_NORMALIZATION='exact-normalization-policy'
+export REVOLVR_EMBEDDING_QUANTIZATION='exact-quantization-policy'
+export REVOLVR_EMBEDDING_ARTIFACT_SHA256='lowercase-model-artifact-sha256'
+docker compose -f compose/compose.yaml -f compose/compose.dev.yaml \
+  --profile embeddings up -d embedding-service
+```
+
+Run the explicit host-side health, metadata, and dimension smoke. The command
+prints metadata and the embedding-space SHA-256 but never prints vector values:
+
+```bash
+export REVOLVR_EMBEDDING_ENDPOINT="http://127.0.0.1:${REVOLVR_EMBEDDING_PORT:-8080}/v1"
+go run ./cmd/revolvr-embedding-smoke \
+  -text 'where is task scheduling implemented?'
+```
+
+The adapter bounds input count, per-input and aggregate bytes, response bytes,
+and elapsed time. It validates vector count, ordering, dimensions, finite
+float32 values, and metadata both before and after generation. Unhealthy,
+unavailable, malformed, drifted, timed-out, and cancelled calls return typed
+status and no vectors. Callers must continue exact-file and lexical retrieval
+in the reported degraded mode; there is no fabricated-vector or remote-provider
+fallback.
+
 ## Documentation
 
 - This README is the operator guide for setup, task workflows, runtime modes,
