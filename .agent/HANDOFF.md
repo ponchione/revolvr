@@ -4,41 +4,47 @@ Updated: 2026-08-06
 
 ## Where We Stopped
 
-- Architecture task 013 is complete in the current uncommitted working tree;
+- Architecture task 014 is complete in the current uncommitted working tree;
   no commit was created in this pass.
-- `internal/model` now provides the trusted-process, fresh-call OpenAI
-  Responses API boundary with pinned request/task/run/source, model/reasoning,
-  prompt/schema, timeout/output, and retry identities.
-- Requests use strict `text.format` JSON Schema Structured Outputs, typed SSE,
-  `store: false`, and no conversation/resume fields. Only the exact
-  `response.completed` object is canonical; partial text is bounded redacted
-  diagnostic evidence.
-- Host validation enforces the strict schema and exact `revolvr_identity`.
-  Typed outcomes separate refusal and semantic failures from transient
-  transport/service retries, quota failures, timeout/cancellation, oversized
-  streams, nonretryable failures, and exhausted retries.
-- Fake loopback tests prove request identity, completed-response authority,
-  usage/cache/latency/service evidence, fresh-call isolation, every required
-  failure class, unique retry request IDs, and secret-sentinel absence without
-  reading `OPENAI_API_KEY` or making an external call.
-- Formatting, no-key focused tests, model race tests, full repository tests,
-  focused vet, module verification/tidiness, and `git diff --check` pass. There
-  are no blockers.
-- Tasks 001-013 are complete. Tasks 014-025 remain pending.
+- `internal/supervisor` now builds a bounded, frozen Section 13.1 dossier with
+  explicit omission evidence and submits exactly one fresh, tool-free request
+  through the task-013 model client boundary.
+- The closed `revolvr-supervisor-decision-v1` output binds the exact task
+  version, run, source, dossier, prompt, response schema, model policy, host
+  policy, and decision identities. Strict host validation admits only `plan`,
+  `implement`, `correct`, `document`, `simplify`, `complete`, `block`, or
+  `needs_input`.
+- `internal/policy` owns deterministic lifecycle, scope, budget, correction,
+  and completion-preflight admission. Accepted routes are advisory host
+  requests only; they do not mutate lifecycle or PostgreSQL state. `complete`
+  is only a preflight proposal, and block/input results remain typed advisory
+  data.
+- The injected decision recorder receives accepted and rejected records with
+  complete dossier, prompt, schema, policy, request, invocation, raw output,
+  parsed decision, observed-state, and route provenance. Malformed model bytes
+  remain exact and do not prevent record serialization.
+- Fake-model tests cover every admitted action, exact identities, accepted and
+  rejected persistence, host routing without state mutation, malformed,
+  refusal, duplicate/unknown action and fields, stale identities, lifecycle,
+  budget, scope, and every required completion gate. They use no tools,
+  PostgreSQL, API key, hidden session state, or network.
+- The required formatting, no-key focused tests, full repository tests, and
+  `git diff --check` pass. No dependency was added and there are no blockers.
+- Tasks 001-014 are complete. Tasks 015-025 remain pending.
 
 ## Continue Here
 
 The next and only task for the next fresh session is
-`.agent/tasks/architecture-014-supervisor.md`.
+`.agent/tasks/architecture-015-planner.md`.
 
 Read `AGENTS.md`, `README.md`, this handoff, the canonical specification
-sections named by task 014, and the completed foundations it identifies. Do
-not rerun tasks 001-013 or begin task 015.
+sections named by task 015, and the completed foundations it identifies. Do
+not rerun tasks 001-014 or begin task 016.
 
 Start one fresh pass from the repository root:
 
 ```bash
-codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, and .agent/tasks/architecture-014-supervisor.md. Complete only architecture-014-supervisor, run its verification, update durable state, and stop.'
+codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, and .agent/tasks/architecture-015-planner.md. Complete only architecture-015-planner, run its verification, update durable state, and stop.'
 ```
 
 Graphiti remains deferred: task 025 is a decision gate and requires successful

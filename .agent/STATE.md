@@ -1,5 +1,71 @@
 # Agent State
 
+## Architecture 014 Decision-Only Supervisor Complete (2026-08-06)
+
+- Task selected: `.agent/tasks/architecture-014-supervisor.md`, the sole task
+  named by the architecture handoff. Architecture tasks 001-013 remain
+  completed; task 015 was not started. No commit was created in this pass.
+- Added `internal/supervisor` v1 contracts that build and hash a bounded,
+  frozen Section 13.1 dossier from the pinned task/version, run, source,
+  lifecycle, plan, criteria, latest verification and audit, findings,
+  attempts, strategies, budget, high-authority decisions, workspace
+  reconciliation, and artifact manifest. The dossier always records explicit
+  omissions for broad raw source, unrelated code, and conversation history,
+  plus absence evidence for optional canonical sections.
+- Added the closed `revolvr-supervisor-decision-v1` schema and strict parser.
+  The decision binds the exact task version, run, source, dossier, prompt,
+  response schema, model policy, host policy, and decision identities and
+  admits exactly `plan`, `implement`, `correct`, `document`, `simplify`,
+  `complete`, `block`, or `needs_input`. Duplicate JSON keys, unknown fields or
+  actions, malformed output, refusal, stale identity, invalid evidence, and
+  action-specific required/forbidden field violations fail closed.
+- The runtime reads canonical state before and after the one fresh task-013
+  invocation, requires the frozen identity and dossier to remain exact, and
+  invokes the model boundary once with a one-attempt retry policy, strict
+  structured output, no tools, and no prior conversation state. It never reads
+  `OPENAI_API_KEY` or creates a transport itself.
+- Added `internal/policy` as the deterministic trusted host-routing boundary.
+  It validates lifecycle legality, remaining supervisor and downstream worker
+  budgets, allowed/excluded path scope, plan/correction authority, and exact
+  verification, independent audit, criteria, finding, workspace, and artifact
+  evidence for completion. Worker actions become typed worker requests;
+  `complete` becomes only a completion-preflight proposal; and `block` and
+  `needs_input` remain typed advisory routes. This package performs no I/O and
+  cannot transition lifecycle or mutate PostgreSQL.
+- Accepted and rejected decisions are passed to an injected recorder with full
+  task/run/source, dossier, prompt, schema, model-policy, host-policy, expected
+  request, actual invocation, raw output, parsed decision, observed dossier,
+  and route provenance. Model-controlled response bytes are persisted as
+  opaque bytes so malformed rejected output remains exact and the complete
+  record remains serializable. The supervisor package contains no PostgreSQL
+  write adapter by design; task 014 defines the persistence contract without
+  expanding into task 015's schema or lifecycle work.
+- Focused fake-model tests prove one valid fixture for every admitted action;
+  exact schema/dossier/prompt/model/policy/decision identity; accepted and
+  rejected record persistence; host routing without direct state mutation;
+  rejection of duplicate/unknown actions and fields, malformed output,
+  refusal, stale task/source/dossier identity, illegal lifecycle, exhausted
+  budget, scope broadening, and incomplete completion evidence; and absence of
+  tools, PostgreSQL mutation, hidden session state, API-key use, and network.
+- Dependency decision: existing standard-library facilities, task-013 model
+  contracts, lifecycle contracts, and the existing JSON Schema dependency are
+  sufficient. No dependency was added and `go.mod`/`go.sum` were unchanged.
+- Files changed: `internal/policy/supervisor.go`,
+  `internal/policy/supervisor_test.go`,
+  `internal/supervisor/dossier_v1.go`,
+  `internal/supervisor/decision_v1.go`,
+  `internal/supervisor/decision_runtime_v1.go`,
+  `internal/supervisor/decision_v1_test.go`, the task-014 status file,
+  `.agent/STATE.md`, and `.agent/HANDOFF.md`. `.agent/DECISIONS.md` was not
+  changed because implementation follows the accepted ADR/specification
+  boundary without introducing a new durable architecture choice.
+- Required verification passed: `test -z "$(gofmt -l cmd internal)"`,
+  `env -u OPENAI_API_KEY go test ./internal/supervisor ./internal/policy`,
+  `go test ./...`, and `git diff --check`.
+- Result: **PASS**. Architecture tasks 001-014 are complete; tasks 015-025
+  remain. There are no blockers. The next task is
+  `architecture-015-planner`.
+
 ## Architecture 013 OpenAI Structured-Output Client Complete (2026-08-06)
 
 - Task selected:

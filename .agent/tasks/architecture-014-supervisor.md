@@ -1,6 +1,6 @@
 ---
 id: architecture-014-supervisor
-status: pending
+status: complete
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-013-openai-structured-output-client
@@ -11,7 +11,7 @@ depends_on: architecture-013-openai-structured-output-client
 ## Sequence and status
 
 - Sequence: `014` of `025`.
-- Status: pending.
+- Status: complete.
 - Prerequisite: `architecture-013-openai-structured-output-client`.
 - Phase gate: supervisor output is not admitted until fresh model invocations,
   structured-output validation, and lifecycle authority already fail closed.
