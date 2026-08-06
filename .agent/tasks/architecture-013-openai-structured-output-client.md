@@ -1,6 +1,6 @@
 ---
 id: architecture-013-openai-structured-output-client
-status: pending
+status: complete
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-012-workspace-lifecycle
@@ -11,7 +11,7 @@ depends_on: architecture-012-workspace-lifecycle
 ## Sequence and status
 
 - Sequence: `013` of `025`.
-- Status: pending.
+- Status: complete.
 - Prerequisite: `architecture-012-workspace-lifecycle`.
 - Phase gate: Phase 4 model work begins only after admission, sandbox, and
   workspace identities can be pinned independently of model output.

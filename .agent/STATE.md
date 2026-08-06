@@ -1,5 +1,78 @@
 # Agent State
 
+## Architecture 013 OpenAI Structured-Output Client Complete (2026-08-06)
+
+- Task selected:
+  `.agent/tasks/architecture-013-openai-structured-output-client.md`, the sole
+  task named by the architecture handoff. Architecture tasks 001-012 remain
+  completed; task 014 was not started. No commit was created in this pass.
+- Added `internal/model` as the trusted-process OpenAI Responses API boundary.
+  `Prepare` validates and immutably pins the logical request, task, run, and
+  source identities; model, reasoning effort, and maximum output; exact prompt
+  version/hash; canonical response-schema version/hash/name; timeout and byte
+  bounds; and normalized retry policy/hash before any transport begins.
+- Current official OpenAI documentation and the `/v1/responses` OpenAPI 3.1
+  document (specification version `2.3.0`) were checked before implementation.
+  Requests use `POST /v1/responses`, `stream: true`, `store: false`,
+  `reasoning.effort`, `max_output_tokens`, and strict Structured Outputs at
+  `text.format = {type: json_schema, name, schema, strict: true}`. No
+  `conversation` or `previous_response_id` is sent. Each transport attempt has
+  a unique deterministic `X-Client-Request-Id` derived from the pinned logical
+  request ID.
+- Typed SSE processing enforces an increasing event sequence and bounded total
+  stream and diagnostic bytes. Deltas and refusal fragments are redacted,
+  bounded diagnostics only; the exact nested response from
+  `response.completed` is canonical. The host requires a completed, non-stored,
+  stateless response with matching metadata, validates the final JSON against
+  the pinned strict schema, and then compares its exact `revolvr_identity`
+  envelope to the pinned request/task/run/source/prompt/schema identity.
+- Results distinguish success, safety refusal, malformed final JSON,
+  schema-invalid output, stale identity, oversized stream, timeout,
+  cancellation, retryable transport failure, retryable service failure,
+  nonretryable failure, and exhausted retries. Only pinned transient statuses,
+  admitted typed service codes, and admitted transport failures are retried;
+  semantic failures, refusals, quota/spend failures, and incomplete responses
+  are never reclassified as transient transport failures.
+- The exact completed response is returned for semantic evidence unless it
+  contains a configured secret, in which case it is withheld. Returned usage
+  records input/output/total, cached, cache-write, and reasoning tokens;
+  latency records local total and available server timestamps; service evidence
+  records OpenAI request/response IDs, resolved model, and tier. Cost is
+  explicitly unavailable because the Responses API does not report it.
+- The API credential is accepted only into private client memory, is never a
+  request/result field, and the credential-bearing client refuses JSON
+  serialization. Request bodies/evidence are secret-scanned before transport;
+  errors, typed diagnostics, refusal text, request IDs, service evidence, and
+  string rendering are redacted. Secret-bearing completed responses are not
+  returned.
+- Added focused loopback `httptest` coverage for exact request and strict-schema
+  transmission, completed-response authority over partial deltas, usage/cache/
+  latency/service evidence, fresh-call isolation, refusal, malformed JSON,
+  schema mismatch, stale identity, oversized streams, timeout, cancellation,
+  transient HTTP/typed-stream/transport retries, nonretryable and quota errors,
+  retry exhaustion, unique retry request IDs, and secret-sentinel absence from
+  every recorded or returned diagnostic surface. Tests use a fake credential,
+  never read `OPENAI_API_KEY`, and make no live or external network call.
+- Dependency decision: added `github.com/santhosh-tekuri/jsonschema/v6 v6.0.3`
+  because strict validation of caller-supplied versioned Draft 2020-12 JSON
+  Schemas is security-critical and is not safely reproducible with a small
+  handwritten validator. Its use is bounded to schema compilation and final
+  value validation; format assertions are enabled and external schema loading
+  is rejected. `github.com/dlclark/regexp2 v1.11.0` is its checksum-recorded
+  transitive dependency. No other dependency was added.
+- Files changed: `go.mod`, `go.sum`, `internal/model/contracts.go`,
+  `internal/model/client.go`, `internal/model/stream.go`,
+  `internal/model/client_test.go`, the task-013 status file, and
+  `.agent/STATE.md`, `.agent/HANDOFF.md`, and `.agent/DECISIONS.md`.
+- Required verification passed: `test -z "$(gofmt -l cmd internal)"`,
+  `env -u OPENAI_API_KEY go test ./internal/model`, `go test ./...`, and
+  `git diff --check`. Additional checks passed:
+  `env -u OPENAI_API_KEY go test -race -count=1 ./internal/model`,
+  `go vet ./internal/model`, `go mod verify`, and `go mod tidy -diff`.
+- Result: **PASS**. Architecture tasks 001-013 are complete; tasks 014-025
+  remain. There are no blockers. The next task is
+  `architecture-014-supervisor`.
+
 ## Architecture 012 Managed Workspace Lifecycle Complete (2026-08-06)
 
 - Task selected: `.agent/tasks/architecture-012-workspace-lifecycle.md`, the

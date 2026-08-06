@@ -1,5 +1,34 @@
 # Agent Decisions
 
+## OpenAI Calls Are Fresh, Pinned, And Completed-Response Authoritative (2026-08-06)
+
+- A model invocation is prepared entirely in the trusted process before
+  transport. The immutable authority includes logical request/task/run/source
+  identities, model and reasoning settings, exact prompt and strict response
+  schema versions/hashes, timeout/output bounds, and retry-policy hash. Calls
+  use `store: false` and never send a conversation or previous response ID;
+  durable Revolvr records, not provider session state, carry context.
+- Strict Structured Outputs include a required `revolvr_identity` value. The
+  host accepts only the exact response nested in the typed
+  `response.completed` event, verifies matching response metadata, validates
+  the final JSON against the pinned schema, and compares that output identity
+  exactly. Streaming deltas remain bounded, redacted diagnostics and cannot
+  become canonical output.
+- Retries are limited to a pinned set of transient HTTP statuses, explicitly
+  admitted typed service codes, and admitted transport failures. Refusals,
+  malformed/schema-invalid values, stale identity, incomplete responses,
+  quota/spend failures, and other semantic or policy failures are final typed
+  outcomes rather than retryable transport failures.
+- Credentials remain private, nonserializable client state. Configured secrets
+  are rejected before transport if present in request material, redacted from
+  diagnostics and errors, and cause completed evidence to be withheld if the
+  provider returns them.
+- `github.com/santhosh-tekuri/jsonschema/v6` is the one bounded task-013
+  dependency. It compiles caller-pinned Draft 2020-12 schemas with format
+  assertions and no external resource loading, then validates only the final
+  structured value; Revolvr does not maintain a partial JSON Schema
+  implementation at this trust boundary.
+
 ## Managed Workspaces Reconcile External Effects Through PostgreSQL (2026-08-06)
 
 - `core.workspaces` is the current relational authority and append-only
