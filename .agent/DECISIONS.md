@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## Completion Authority Is Hashed, Immutable, And Transactional (2026-08-06)
+
+- Completion is a trusted-host decision over one normalized, read-only
+  preflight snapshot. It consumes architecture-017 verification occurrences
+  without modifying them and requires a newly executed passing Tier 4 check;
+  reused-only final evidence is insufficient.
+- Capsule JSON, readable Markdown, and their manifest are content-addressed
+  and secret-scanned before terminal persistence. The terminal PostgreSQL
+  transaction revalidates aggregate/source/plan/lease/verification authority,
+  attaches immutable provenance and claims, performs lifecycle transitions,
+  releases the lease, and appends terminal events as one all-or-nothing effect.
+- Until architecture 019 supplies canonical independent audit records, the
+  audit/finding layer is an explicit read-only deterministic fixture source.
+  Missing, stale, non-independent, or non-clean audit evidence still rejects
+  completion; the fixture source cannot mutate the repeatable-read transaction.
+- `direct_tools_v1` records, rather than omits or fabricates, an explicit
+  inactive trajectory envelope and exact empty/inactive harness-asset-set
+  manifest. Any future used trajectory or harness input must carry exact
+  version, hash, coverage, artifact, and resolution authority through both
+  preflight reads and terminal revalidation.
+
 ## Programmatic Workspace Adoption Is Staged Before Skills (2026-08-06)
 
 - The supplemental programmatic-workspace specification remains subordinate to

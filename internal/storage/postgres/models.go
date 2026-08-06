@@ -19,6 +19,89 @@ type CoreArtifact struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type CoreArtifactProvenance struct {
+	ID                   pgtype.UUID
+	ArtifactID           pgtype.UUID
+	ProjectID            pgtype.UUID
+	TaskID               pgtype.UUID
+	TaskVersionID        pgtype.UUID
+	RunID                pgtype.UUID
+	WorkspaceID          pgtype.UUID
+	ProducerRole         string
+	ProducingOperationID string
+	SourceCommit         string
+	SourceTree           string
+	CreatedAt            pgtype.Timestamptz
+}
+
+type CoreClaim struct {
+	ID              pgtype.UUID
+	ProjectID       pgtype.UUID
+	TaskID          pgtype.UUID
+	TaskVersionID   pgtype.UUID
+	RunID           pgtype.UUID
+	CriterionID     pgtype.UUID
+	ClaimKey        string
+	Statement       string
+	StatementSha256 string
+	CreatedAt       pgtype.Timestamptz
+}
+
+type CoreClaimEvidence struct {
+	ClaimID             pgtype.UUID
+	ProjectID           pgtype.UUID
+	TaskID              pgtype.UUID
+	TaskVersionID       pgtype.UUID
+	RunID               pgtype.UUID
+	Ordinal             int32
+	EvidenceKind        string
+	ArtifactID          pgtype.UUID
+	VerificationCheckID pgtype.UUID
+	EvidenceSha256      string
+	CreatedAt           pgtype.Timestamptz
+}
+
+type CoreCompletion struct {
+	ID                      pgtype.UUID
+	OperationID             string
+	ProjectID               pgtype.UUID
+	TaskID                  pgtype.UUID
+	TaskVersionID           pgtype.UUID
+	RunID                   pgtype.UUID
+	WorkspaceID             pgtype.UUID
+	VerificationRunID       pgtype.UUID
+	PreflightSha256         string
+	EvidenceArtifactID      pgtype.UUID
+	EvidenceSha256          string
+	MarkdownArtifactID      pgtype.UUID
+	MarkdownSha256          string
+	ManifestArtifactID      pgtype.UUID
+	ManifestSha256          string
+	TrajectoryEnvelope      []byte
+	TrajectorySha256        string
+	HarnessAssetSetManifest []byte
+	HarnessAssetSetSha256   string
+	CompletedAt             pgtype.Timestamptz
+	CreatedAt               pgtype.Timestamptz
+}
+
+type CoreCompletionArtifact struct {
+	CompletionID   pgtype.UUID
+	Ordinal        int32
+	ArtifactID     pgtype.UUID
+	ArtifactSha256 string
+	ArtifactRole   string
+}
+
+type CoreCompletionClaim struct {
+	CompletionID  pgtype.UUID
+	ProjectID     pgtype.UUID
+	TaskID        pgtype.UUID
+	TaskVersionID pgtype.UUID
+	RunID         pgtype.UUID
+	ClaimID       pgtype.UUID
+}
+
 type CoreEvent struct {
 	ID               pgtype.UUID
 	ProjectID        pgtype.UUID

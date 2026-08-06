@@ -1,5 +1,76 @@
 # Agent State
 
+## Architecture 018 Evidence Model And Completion Gates Complete (2026-08-06)
+
+- Task selected: `architecture-018-evidence-model-completion-gates`, confirmed
+  as the sole legally selectable pending task after completed architecture
+  017. Architecture-017 verification runs/checks remain immutable, read-only
+  completion evidence; architecture 019 was not begun and no commit was
+  created.
+- Added reversible migration `00010_evidence_completion.sql`, named sqlc
+  queries, and regenerated PostgreSQL code. Immutable artifact-provenance,
+  claims, claim-evidence, completions, completion-artifact, and
+  completion-claim records use exact task/version/run/workspace ownership,
+  SHA-256 constraints, composite foreign keys, update-rejection triggers, and
+  content-compared operation identities. Completion adds no authority to edit
+  an architecture-017 verification occurrence.
+- Added `internal/evidence` with versioned artifact/claim/provenance contracts,
+  exact content-addressed filesystem materialization, byte/hash readback and
+  collision refusal, secret-sentinel scanning, active trajectory coverage and
+  referenced-artifact validation, and exact harness-asset-set manifests. The
+  current `direct_tools_v1` fixture records an explicit
+  `inactive_not_applicable` trajectory and an exact `inactive_empty`, non-null
+  harness asset set; used trajectory/harness inputs fail closed on missing,
+  unresolved, stale, divergent, or changed provenance.
+- Added `internal/completion`. Read-only repeatable-read preflight binds the
+  accepted task/version, all aggregate versions, source commit/tree/diff and
+  freeze, accepted plan and terminal steps/criteria, architecture-017 final
+  verification with one freshly executed passing Tier 4 check, independent
+  clean audit fixture, findings, budget, frozen/reconciled workspace, global
+  lease, prompt/model/image/profile authority, artifacts, operator inputs,
+  trajectory, harness assets, and criterion-backed claims into one normalized
+  SHA-256.
+- Stable tested rejection reasons are `task_authority_changed`, `plan_missing`,
+  `plan_step_nonterminal`, `criterion_nonterminal`, `criterion_unsatisfied`,
+  `verification_stale`, `verification_failed`, `audit_missing`, `audit_stale`,
+  `audit_changes_required`, `blocking_finding_open`,
+  `source_revision_changed`, `budget_invalid`, `workspace_unreconciled`,
+  `artifact_manifest_incomplete`, `commit_invalid`, `lease_unreconciled`,
+  `prompt_model_authority_missing`, `trajectory_provenance_invalid`,
+  `harness_asset_provenance_invalid`, `operator_input_invalid`, and
+  `claim_evidence_invalid`. Parameterized fixtures cover missing and
+  nonterminal criteria as well as reused-only Tier 4 evidence.
+- Completion materializes deterministic machine-readable JSON, readable
+  Markdown, and an exact supporting-artifact manifest before terminal
+  persistence. It scans all three byte sets for configured secrets before any
+  write, reuses exact content-addressed bytes after interruption, and rejects
+  divergent bytes. The stable fixture hashes are preflight
+  `1c7080374dd7d29b5712bf33d7d2ff07d155bf8b4c6c257e5c256354a47ceb66`,
+  JSON `df699513d852e8b0df2f04a312c69c1a6315718780f7a83e2235a4122b2c538a`,
+  Markdown `65a8aba5b8376e6e069465bb8534201be11839b90f2d74c458b5df862ed7405d`,
+  and manifest
+  `5890c055f329284003b0d7550fbb45d4eebff57457f0c53031dea2f2e14f0db1`.
+- The coordinator recomputes the complete snapshot after materialization and
+  rejects aggregate, trajectory, harness, or artifact-manifest drift before
+  terminal authority. One PostgreSQL transaction locks and revalidates the
+  task/run/workspace/plan/lease and immutable final verification, attaches
+  artifacts/provenance/claims, completes task/run/workspace, releases the
+  lease, and appends exactly four terminal events. Forced failure before
+  terminal events rolls back every row/state/event; exact retry completes once,
+  replay is non-effecting, and divergent replay fails.
+- Verification passed: migration 00010 Down and Up against temporary
+  `pgvector/pgvector:0.8.6-pg18-trixie` PostgreSQL 18; `test -z
+  "$(gofmt -l cmd internal)"`; pinned sqlc v1.27.0 generation; database-backed
+  `REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test -count=1
+  ./internal/evidence ./internal/completion`; `go test -count=1 ./...`; and
+  `git diff --check`. PostgreSQL tests prove atomic rollback/retry/replay,
+  immutable completion evidence, divergent hash rejection, and direct
+  rejection of a completion-side update to architecture-017 verification
+  authority. `go.mod` and `go.sum` are unchanged; no dependency was added.
+- Result: **PASS**. Architecture tasks 001-018 and PTC-001 are complete.
+  `architecture-019-auditor-corrector` is the next and only selectable task;
+  architectures 020-025 and all post-core PTC tasks remain gated.
+
 ## Architecture 017 Host-Owned Verification Engine Complete (2026-08-06)
 
 - Task selected: `architecture-017-verification-engine`, confirmed as the sole

@@ -1,6 +1,6 @@
 ---
 id: architecture-018-evidence-model-completion-gates
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-017-verification-engine
@@ -11,7 +11,7 @@ depends_on: architecture-017-verification-engine
 ## Sequence and status
 
 - Sequence: `018` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-017-verification-engine`.
 - Phase gate: completion machinery begins only after source-bound final
   verification evidence exists; successful live completion still waits for

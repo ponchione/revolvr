@@ -746,3 +746,194 @@ SELECT id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id
 FROM core.events
 WHERE aggregate_type = 'plan' AND aggregate_id = $1
 ORDER BY aggregate_version;
+
+-- name: GetCompletionPersistenceAuthority :one
+SELECT
+    t.project_id,
+    t.id AS task_id,
+    t.accepted_version_id,
+    t.status AS task_status,
+    t.aggregate_version AS task_aggregate_version,
+    r.id AS run_id,
+    r.task_version_id,
+    r.status AS run_status,
+    r.aggregate_version AS run_aggregate_version,
+    w.id AS workspace_id,
+    w.status AS workspace_status,
+    w.aggregate_version AS workspace_aggregate_version,
+    w.candidate_commit,
+    w.candidate_tree,
+    w.diff_artifact_id,
+    w.diff_sha256,
+    p.id AS plan_id,
+    p.accepted_version_id AS accepted_plan_version_id,
+    pv.content_sha256 AS accepted_plan_content_sha256,
+    p.aggregate_version AS plan_aggregate_version,
+    l.lease_name,
+    l.run_id AS lease_run_id,
+    l.aggregate_version AS lease_aggregate_version
+FROM core.tasks t
+JOIN core.runs r ON r.task_id = t.id AND r.project_id = t.project_id
+JOIN core.workspaces w ON w.run_id = r.id
+JOIN core.plans p ON p.run_id = r.id
+JOIN core.plan_versions pv ON pv.id = p.accepted_version_id AND pv.plan_id = p.id
+JOIN core.execution_leases l ON l.lease_name = 'global-source-mutation-v1'
+WHERE t.id = $1 AND r.id = $2 AND w.id = $3
+FOR UPDATE OF t, r, w, p, l;
+
+-- name: GetCompletionReadAuthority :one
+SELECT
+    t.project_id,
+    t.id AS task_id,
+    t.accepted_version_id,
+    t.status AS task_status,
+    t.aggregate_version AS task_aggregate_version,
+    r.id AS run_id,
+    r.task_version_id,
+    r.status AS run_status,
+    r.aggregate_version AS run_aggregate_version,
+    r.source_commit AS before_commit,
+    r.source_tree AS before_tree,
+    w.id AS workspace_id,
+    w.status AS workspace_status,
+    w.aggregate_version AS workspace_aggregate_version,
+    w.candidate_commit,
+    w.candidate_tree,
+    w.diff_artifact_id,
+    w.diff_sha256,
+    w.updated_at AS workspace_updated_at,
+    p.id AS plan_id,
+    p.accepted_version_id AS accepted_plan_version_id,
+    pv.content_sha256 AS accepted_plan_content_sha256,
+    p.aggregate_version AS plan_aggregate_version,
+    l.lease_name,
+    l.run_id AS lease_run_id,
+    l.aggregate_version AS lease_aggregate_version
+FROM core.tasks t
+JOIN core.runs r ON r.task_id = t.id AND r.project_id = t.project_id
+JOIN core.workspaces w ON w.run_id = r.id
+JOIN core.plans p ON p.run_id = r.id
+JOIN core.plan_versions pv ON pv.id = p.accepted_version_id AND pv.plan_id = p.id
+JOIN core.execution_leases l ON l.lease_name = 'global-source-mutation-v1'
+WHERE t.id = $1 AND r.id = $2 AND w.id = $3;
+
+-- name: GetCompletionVerificationAuthority :one
+SELECT
+    v.id,
+    v.project_id,
+    v.task_id,
+    v.task_version_id,
+    v.run_id,
+    v.workspace_id,
+    v.purpose,
+    v.status,
+    v.candidate_commit,
+    v.candidate_tree,
+    v.completed_at,
+    count(c.id)::bigint AS check_count,
+    count(c.id) FILTER (
+        WHERE c.tier = 4
+          AND c.outcome = 'passed'
+          AND c.reused_from_check_id IS NULL
+    )::bigint AS fresh_final_check_count,
+    count(c.id) FILTER (
+        WHERE c.outcome NOT IN ('passed', 'passed_reused')
+           OR (c.tier = 4 AND (c.outcome <> 'passed' OR c.reused_from_check_id IS NOT NULL))
+    )::bigint AS nonfresh_or_nonpassing_check_count
+FROM core.verification_runs v
+JOIN core.verification_checks c ON c.verification_run_id = v.id
+WHERE v.id = $1
+GROUP BY v.id;
+
+-- name: CountCompletionNonterminalPlanSteps :one
+SELECT count(*)
+FROM core.plan_steps
+WHERE plan_version_id = $1 AND status NOT IN ('completed', 'skipped');
+
+-- name: CountCompletionUnsatisfiedCriteria :one
+SELECT count(*)
+FROM core.task_acceptance_criteria
+WHERE task_id = $1 AND status NOT IN ('passed', 'waived', 'not_applicable');
+
+-- name: ListCompletionCriteria :many
+SELECT id, external_criterion_id, status
+FROM core.task_acceptance_criteria
+WHERE task_id = $1
+ORDER BY external_criterion_id, id;
+
+-- name: InsertArtifactProvenance :one
+INSERT INTO core.artifact_provenance (
+    id, artifact_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    producer_role, producing_operation_id, source_commit, source_tree, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+)
+RETURNING *;
+
+-- name: InsertClaim :one
+INSERT INTO core.claims (
+    id, project_id, task_id, task_version_id, run_id, criterion_id, claim_key,
+    statement, statement_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+RETURNING *;
+
+-- name: InsertClaimEvidence :one
+INSERT INTO core.claim_evidence (
+    claim_id, project_id, task_id, task_version_id, run_id, ordinal,
+    evidence_kind, artifact_id, verification_check_id, evidence_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+RETURNING *;
+
+-- name: InsertCompletion :one
+INSERT INTO core.completions (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    verification_run_id, preflight_sha256, evidence_artifact_id, evidence_sha256,
+    markdown_artifact_id, markdown_sha256, manifest_artifact_id, manifest_sha256,
+    trajectory_envelope, trajectory_sha256, harness_asset_set_manifest,
+    harness_asset_set_sha256, completed_at, created_at
+) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+)
+RETURNING *;
+
+-- name: GetCompletionByOperationID :one
+SELECT * FROM core.completions WHERE operation_id = $1;
+
+-- name: InsertCompletionArtifact :one
+INSERT INTO core.completion_artifacts (
+    completion_id, ordinal, artifact_id, artifact_sha256, artifact_role
+) VALUES ($1,$2,$3,$4,$5)
+RETURNING *;
+
+-- name: InsertCompletionClaim :exec
+INSERT INTO core.completion_claims (
+    completion_id, project_id, task_id, task_version_id, run_id, claim_id
+) VALUES ($1,$2,$3,$4,$5,$6);
+
+-- name: CompleteTask :one
+UPDATE core.tasks
+SET status = 'completed', aggregate_version = aggregate_version + 1, updated_at = $3
+WHERE id = $1 AND status = 'finalizing' AND aggregate_version = $2
+RETURNING *;
+
+-- name: CompleteRun :one
+UPDATE core.runs
+SET status = 'released', aggregate_version = aggregate_version + 1,
+    released_at = $3, updated_at = $3
+WHERE id = $1 AND status = 'active' AND aggregate_version = $2
+RETURNING *;
+
+-- name: CompleteWorkspace :one
+UPDATE core.workspaces
+SET status = 'completed', terminal_status = 'completed', terminal_reason = $3,
+    aggregate_version = aggregate_version + 1, updated_at = $4
+WHERE id = $1 AND status = 'frozen' AND aggregate_version = $2
+RETURNING *;
+
+-- name: ReleaseCompletionLease :one
+UPDATE core.execution_leases
+SET run_id = NULL, coordinator_identity = NULL, acquired_at = NULL,
+    aggregate_version = aggregate_version + 1
+WHERE lease_name = 'global-source-mutation-v1'
+  AND run_id = $1 AND aggregate_version = $2
+RETURNING *;

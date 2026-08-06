@@ -402,6 +402,130 @@ func (q *Queries) CompareAndUpdateTaskState(ctx context.Context, arg CompareAndU
 	return i, err
 }
 
+const completeRun = `-- name: CompleteRun :one
+UPDATE core.runs
+SET status = 'released', aggregate_version = aggregate_version + 1,
+    released_at = $3, updated_at = $3
+WHERE id = $1 AND status = 'active' AND aggregate_version = $2
+RETURNING id, project_id, task_id, task_version_id, project_source_id, status, aggregate_version, admitted_task_aggregate_version, source_commit, source_tree, coordinator_identity, created_at, updated_at, released_at
+`
+
+type CompleteRunParams struct {
+	ID               pgtype.UUID
+	AggregateVersion int64
+	ReleasedAt       pgtype.Timestamptz
+}
+
+func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (CoreRun, error) {
+	row := q.db.QueryRow(ctx, completeRun, arg.ID, arg.AggregateVersion, arg.ReleasedAt)
+	var i CoreRun
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.ProjectSourceID,
+		&i.Status,
+		&i.AggregateVersion,
+		&i.AdmittedTaskAggregateVersion,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CoordinatorIdentity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ReleasedAt,
+	)
+	return i, err
+}
+
+const completeTask = `-- name: CompleteTask :one
+UPDATE core.tasks
+SET status = 'completed', aggregate_version = aggregate_version + 1, updated_at = $3
+WHERE id = $1 AND status = 'finalizing' AND aggregate_version = $2
+RETURNING id, project_id, external_task_id, status, accepted_version_id, created_at, updated_at, aggregate_version
+`
+
+type CompleteTaskParams struct {
+	ID               pgtype.UUID
+	AggregateVersion int64
+	UpdatedAt        pgtype.Timestamptz
+}
+
+func (q *Queries) CompleteTask(ctx context.Context, arg CompleteTaskParams) (CoreTask, error) {
+	row := q.db.QueryRow(ctx, completeTask, arg.ID, arg.AggregateVersion, arg.UpdatedAt)
+	var i CoreTask
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.ExternalTaskID,
+		&i.Status,
+		&i.AcceptedVersionID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const completeWorkspace = `-- name: CompleteWorkspace :one
+UPDATE core.workspaces
+SET status = 'completed', terminal_status = 'completed', terminal_reason = $3,
+    aggregate_version = aggregate_version + 1, updated_at = $4
+WHERE id = $1 AND status = 'frozen' AND aggregate_version = $2
+RETURNING id, run_id, project_id, project_source_id, task_id, creation_operation_id, symbolic_source_id, status, terminal_status, aggregate_version, original_checkout_path, managed_repository_path, workspace_root, workspace_path, branch_ref, source_commit, source_tree, workspace_device, workspace_inode, original_identity_before, original_identity_after, git_status, changed_manifest, diff_artifact_id, diff_sha256, candidate_commit, candidate_tree, terminal_reason, cleanup_completed_at, created_at, updated_at
+`
+
+type CompleteWorkspaceParams struct {
+	ID               pgtype.UUID
+	AggregateVersion int64
+	TerminalReason   pgtype.Text
+	UpdatedAt        pgtype.Timestamptz
+}
+
+func (q *Queries) CompleteWorkspace(ctx context.Context, arg CompleteWorkspaceParams) (CoreWorkspace, error) {
+	row := q.db.QueryRow(ctx, completeWorkspace,
+		arg.ID,
+		arg.AggregateVersion,
+		arg.TerminalReason,
+		arg.UpdatedAt,
+	)
+	var i CoreWorkspace
+	err := row.Scan(
+		&i.ID,
+		&i.RunID,
+		&i.ProjectID,
+		&i.ProjectSourceID,
+		&i.TaskID,
+		&i.CreationOperationID,
+		&i.SymbolicSourceID,
+		&i.Status,
+		&i.TerminalStatus,
+		&i.AggregateVersion,
+		&i.OriginalCheckoutPath,
+		&i.ManagedRepositoryPath,
+		&i.WorkspaceRoot,
+		&i.WorkspacePath,
+		&i.BranchRef,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.WorkspaceDevice,
+		&i.WorkspaceInode,
+		&i.OriginalIdentityBefore,
+		&i.OriginalIdentityAfter,
+		&i.GitStatus,
+		&i.ChangedManifest,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.TerminalReason,
+		&i.CleanupCompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const completeWorkspaceOperation = `-- name: CompleteWorkspaceOperation :one
 UPDATE core.workspace_operations
 SET status = 'applied', effect = $1, applied_at = $2
@@ -443,6 +567,32 @@ func (q *Queries) CompleteWorkspaceOperation(ctx context.Context, arg CompleteWo
 		&i.AppliedAt,
 	)
 	return i, err
+}
+
+const countCompletionNonterminalPlanSteps = `-- name: CountCompletionNonterminalPlanSteps :one
+SELECT count(*)
+FROM core.plan_steps
+WHERE plan_version_id = $1 AND status NOT IN ('completed', 'skipped')
+`
+
+func (q *Queries) CountCompletionNonterminalPlanSteps(ctx context.Context, planVersionID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCompletionNonterminalPlanSteps, planVersionID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countCompletionUnsatisfiedCriteria = `-- name: CountCompletionUnsatisfiedCriteria :one
+SELECT count(*)
+FROM core.task_acceptance_criteria
+WHERE task_id = $1 AND status NOT IN ('passed', 'waived', 'not_applicable')
+`
+
+func (q *Queries) CountCompletionUnsatisfiedCriteria(ctx context.Context, taskID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCompletionUnsatisfiedCriteria, taskID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countRunAdmissionEvents = `-- name: CountRunAdmissionEvents :one
@@ -671,6 +821,311 @@ func (q *Queries) GetArtifactBySHA256(ctx context.Context, sha256 string) (CoreA
 		&i.StoragePath,
 		&i.Compression,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getCompletionByOperationID = `-- name: GetCompletionByOperationID :one
+SELECT id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, verification_run_id, preflight_sha256, evidence_artifact_id, evidence_sha256, markdown_artifact_id, markdown_sha256, manifest_artifact_id, manifest_sha256, trajectory_envelope, trajectory_sha256, harness_asset_set_manifest, harness_asset_set_sha256, completed_at, created_at FROM core.completions WHERE operation_id = $1
+`
+
+func (q *Queries) GetCompletionByOperationID(ctx context.Context, operationID string) (CoreCompletion, error) {
+	row := q.db.QueryRow(ctx, getCompletionByOperationID, operationID)
+	var i CoreCompletion
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.VerificationRunID,
+		&i.PreflightSha256,
+		&i.EvidenceArtifactID,
+		&i.EvidenceSha256,
+		&i.MarkdownArtifactID,
+		&i.MarkdownSha256,
+		&i.ManifestArtifactID,
+		&i.ManifestSha256,
+		&i.TrajectoryEnvelope,
+		&i.TrajectorySha256,
+		&i.HarnessAssetSetManifest,
+		&i.HarnessAssetSetSha256,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getCompletionPersistenceAuthority = `-- name: GetCompletionPersistenceAuthority :one
+SELECT
+    t.project_id,
+    t.id AS task_id,
+    t.accepted_version_id,
+    t.status AS task_status,
+    t.aggregate_version AS task_aggregate_version,
+    r.id AS run_id,
+    r.task_version_id,
+    r.status AS run_status,
+    r.aggregate_version AS run_aggregate_version,
+    w.id AS workspace_id,
+    w.status AS workspace_status,
+    w.aggregate_version AS workspace_aggregate_version,
+    w.candidate_commit,
+    w.candidate_tree,
+    w.diff_artifact_id,
+    w.diff_sha256,
+    p.id AS plan_id,
+    p.accepted_version_id AS accepted_plan_version_id,
+    pv.content_sha256 AS accepted_plan_content_sha256,
+    p.aggregate_version AS plan_aggregate_version,
+    l.lease_name,
+    l.run_id AS lease_run_id,
+    l.aggregate_version AS lease_aggregate_version
+FROM core.tasks t
+JOIN core.runs r ON r.task_id = t.id AND r.project_id = t.project_id
+JOIN core.workspaces w ON w.run_id = r.id
+JOIN core.plans p ON p.run_id = r.id
+JOIN core.plan_versions pv ON pv.id = p.accepted_version_id AND pv.plan_id = p.id
+JOIN core.execution_leases l ON l.lease_name = 'global-source-mutation-v1'
+WHERE t.id = $1 AND r.id = $2 AND w.id = $3
+FOR UPDATE OF t, r, w, p, l
+`
+
+type GetCompletionPersistenceAuthorityParams struct {
+	ID   pgtype.UUID
+	ID_2 pgtype.UUID
+	ID_3 pgtype.UUID
+}
+
+type GetCompletionPersistenceAuthorityRow struct {
+	ProjectID                 pgtype.UUID
+	TaskID                    pgtype.UUID
+	AcceptedVersionID         pgtype.UUID
+	TaskStatus                string
+	TaskAggregateVersion      int64
+	RunID                     pgtype.UUID
+	TaskVersionID             pgtype.UUID
+	RunStatus                 string
+	RunAggregateVersion       int64
+	WorkspaceID               pgtype.UUID
+	WorkspaceStatus           string
+	WorkspaceAggregateVersion int64
+	CandidateCommit           pgtype.Text
+	CandidateTree             pgtype.Text
+	DiffArtifactID            pgtype.UUID
+	DiffSha256                pgtype.Text
+	PlanID                    pgtype.UUID
+	AcceptedPlanVersionID     pgtype.UUID
+	AcceptedPlanContentSha256 string
+	PlanAggregateVersion      int64
+	LeaseName                 string
+	LeaseRunID                pgtype.UUID
+	LeaseAggregateVersion     int64
+}
+
+func (q *Queries) GetCompletionPersistenceAuthority(ctx context.Context, arg GetCompletionPersistenceAuthorityParams) (GetCompletionPersistenceAuthorityRow, error) {
+	row := q.db.QueryRow(ctx, getCompletionPersistenceAuthority, arg.ID, arg.ID_2, arg.ID_3)
+	var i GetCompletionPersistenceAuthorityRow
+	err := row.Scan(
+		&i.ProjectID,
+		&i.TaskID,
+		&i.AcceptedVersionID,
+		&i.TaskStatus,
+		&i.TaskAggregateVersion,
+		&i.RunID,
+		&i.TaskVersionID,
+		&i.RunStatus,
+		&i.RunAggregateVersion,
+		&i.WorkspaceID,
+		&i.WorkspaceStatus,
+		&i.WorkspaceAggregateVersion,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.PlanID,
+		&i.AcceptedPlanVersionID,
+		&i.AcceptedPlanContentSha256,
+		&i.PlanAggregateVersion,
+		&i.LeaseName,
+		&i.LeaseRunID,
+		&i.LeaseAggregateVersion,
+	)
+	return i, err
+}
+
+const getCompletionReadAuthority = `-- name: GetCompletionReadAuthority :one
+SELECT
+    t.project_id,
+    t.id AS task_id,
+    t.accepted_version_id,
+    t.status AS task_status,
+    t.aggregate_version AS task_aggregate_version,
+    r.id AS run_id,
+    r.task_version_id,
+    r.status AS run_status,
+    r.aggregate_version AS run_aggregate_version,
+    r.source_commit AS before_commit,
+    r.source_tree AS before_tree,
+    w.id AS workspace_id,
+    w.status AS workspace_status,
+    w.aggregate_version AS workspace_aggregate_version,
+    w.candidate_commit,
+    w.candidate_tree,
+    w.diff_artifact_id,
+    w.diff_sha256,
+    w.updated_at AS workspace_updated_at,
+    p.id AS plan_id,
+    p.accepted_version_id AS accepted_plan_version_id,
+    pv.content_sha256 AS accepted_plan_content_sha256,
+    p.aggregate_version AS plan_aggregate_version,
+    l.lease_name,
+    l.run_id AS lease_run_id,
+    l.aggregate_version AS lease_aggregate_version
+FROM core.tasks t
+JOIN core.runs r ON r.task_id = t.id AND r.project_id = t.project_id
+JOIN core.workspaces w ON w.run_id = r.id
+JOIN core.plans p ON p.run_id = r.id
+JOIN core.plan_versions pv ON pv.id = p.accepted_version_id AND pv.plan_id = p.id
+JOIN core.execution_leases l ON l.lease_name = 'global-source-mutation-v1'
+WHERE t.id = $1 AND r.id = $2 AND w.id = $3
+`
+
+type GetCompletionReadAuthorityParams struct {
+	ID   pgtype.UUID
+	ID_2 pgtype.UUID
+	ID_3 pgtype.UUID
+}
+
+type GetCompletionReadAuthorityRow struct {
+	ProjectID                 pgtype.UUID
+	TaskID                    pgtype.UUID
+	AcceptedVersionID         pgtype.UUID
+	TaskStatus                string
+	TaskAggregateVersion      int64
+	RunID                     pgtype.UUID
+	TaskVersionID             pgtype.UUID
+	RunStatus                 string
+	RunAggregateVersion       int64
+	BeforeCommit              string
+	BeforeTree                string
+	WorkspaceID               pgtype.UUID
+	WorkspaceStatus           string
+	WorkspaceAggregateVersion int64
+	CandidateCommit           pgtype.Text
+	CandidateTree             pgtype.Text
+	DiffArtifactID            pgtype.UUID
+	DiffSha256                pgtype.Text
+	WorkspaceUpdatedAt        pgtype.Timestamptz
+	PlanID                    pgtype.UUID
+	AcceptedPlanVersionID     pgtype.UUID
+	AcceptedPlanContentSha256 string
+	PlanAggregateVersion      int64
+	LeaseName                 string
+	LeaseRunID                pgtype.UUID
+	LeaseAggregateVersion     int64
+}
+
+func (q *Queries) GetCompletionReadAuthority(ctx context.Context, arg GetCompletionReadAuthorityParams) (GetCompletionReadAuthorityRow, error) {
+	row := q.db.QueryRow(ctx, getCompletionReadAuthority, arg.ID, arg.ID_2, arg.ID_3)
+	var i GetCompletionReadAuthorityRow
+	err := row.Scan(
+		&i.ProjectID,
+		&i.TaskID,
+		&i.AcceptedVersionID,
+		&i.TaskStatus,
+		&i.TaskAggregateVersion,
+		&i.RunID,
+		&i.TaskVersionID,
+		&i.RunStatus,
+		&i.RunAggregateVersion,
+		&i.BeforeCommit,
+		&i.BeforeTree,
+		&i.WorkspaceID,
+		&i.WorkspaceStatus,
+		&i.WorkspaceAggregateVersion,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.DiffArtifactID,
+		&i.DiffSha256,
+		&i.WorkspaceUpdatedAt,
+		&i.PlanID,
+		&i.AcceptedPlanVersionID,
+		&i.AcceptedPlanContentSha256,
+		&i.PlanAggregateVersion,
+		&i.LeaseName,
+		&i.LeaseRunID,
+		&i.LeaseAggregateVersion,
+	)
+	return i, err
+}
+
+const getCompletionVerificationAuthority = `-- name: GetCompletionVerificationAuthority :one
+SELECT
+    v.id,
+    v.project_id,
+    v.task_id,
+    v.task_version_id,
+    v.run_id,
+    v.workspace_id,
+    v.purpose,
+    v.status,
+    v.candidate_commit,
+    v.candidate_tree,
+    v.completed_at,
+    count(c.id)::bigint AS check_count,
+    count(c.id) FILTER (
+        WHERE c.tier = 4
+          AND c.outcome = 'passed'
+          AND c.reused_from_check_id IS NULL
+    )::bigint AS fresh_final_check_count,
+    count(c.id) FILTER (
+        WHERE c.outcome NOT IN ('passed', 'passed_reused')
+           OR (c.tier = 4 AND (c.outcome <> 'passed' OR c.reused_from_check_id IS NOT NULL))
+    )::bigint AS nonfresh_or_nonpassing_check_count
+FROM core.verification_runs v
+JOIN core.verification_checks c ON c.verification_run_id = v.id
+WHERE v.id = $1
+GROUP BY v.id
+`
+
+type GetCompletionVerificationAuthorityRow struct {
+	ID                             pgtype.UUID
+	ProjectID                      pgtype.UUID
+	TaskID                         pgtype.UUID
+	TaskVersionID                  pgtype.UUID
+	RunID                          pgtype.UUID
+	WorkspaceID                    pgtype.UUID
+	Purpose                        string
+	Status                         string
+	CandidateCommit                string
+	CandidateTree                  string
+	CompletedAt                    pgtype.Timestamptz
+	CheckCount                     int64
+	FreshFinalCheckCount           int64
+	NonfreshOrNonpassingCheckCount int64
+}
+
+func (q *Queries) GetCompletionVerificationAuthority(ctx context.Context, id pgtype.UUID) (GetCompletionVerificationAuthorityRow, error) {
+	row := q.db.QueryRow(ctx, getCompletionVerificationAuthority, id)
+	var i GetCompletionVerificationAuthorityRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.Purpose,
+		&i.Status,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.CompletedAt,
+		&i.CheckCount,
+		&i.FreshFinalCheckCount,
+		&i.NonfreshOrNonpassingCheckCount,
 	)
 	return i, err
 }
@@ -1722,6 +2177,316 @@ func (q *Queries) InsertArtifact(ctx context.Context, arg InsertArtifactParams) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const insertArtifactProvenance = `-- name: InsertArtifactProvenance :one
+INSERT INTO core.artifact_provenance (
+    id, artifact_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    producer_role, producing_operation_id, source_commit, source_tree, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+)
+RETURNING id, artifact_id, project_id, task_id, task_version_id, run_id, workspace_id, producer_role, producing_operation_id, source_commit, source_tree, created_at
+`
+
+type InsertArtifactProvenanceParams struct {
+	ID                   pgtype.UUID
+	ArtifactID           pgtype.UUID
+	ProjectID            pgtype.UUID
+	TaskID               pgtype.UUID
+	TaskVersionID        pgtype.UUID
+	RunID                pgtype.UUID
+	WorkspaceID          pgtype.UUID
+	ProducerRole         string
+	ProducingOperationID string
+	SourceCommit         string
+	SourceTree           string
+	CreatedAt            pgtype.Timestamptz
+}
+
+func (q *Queries) InsertArtifactProvenance(ctx context.Context, arg InsertArtifactProvenanceParams) (CoreArtifactProvenance, error) {
+	row := q.db.QueryRow(ctx, insertArtifactProvenance,
+		arg.ID,
+		arg.ArtifactID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.ProducerRole,
+		arg.ProducingOperationID,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.CreatedAt,
+	)
+	var i CoreArtifactProvenance
+	err := row.Scan(
+		&i.ID,
+		&i.ArtifactID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.ProducerRole,
+		&i.ProducingOperationID,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertClaim = `-- name: InsertClaim :one
+INSERT INTO core.claims (
+    id, project_id, task_id, task_version_id, run_id, criterion_id, claim_key,
+    statement, statement_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+RETURNING id, project_id, task_id, task_version_id, run_id, criterion_id, claim_key, statement, statement_sha256, created_at
+`
+
+type InsertClaimParams struct {
+	ID              pgtype.UUID
+	ProjectID       pgtype.UUID
+	TaskID          pgtype.UUID
+	TaskVersionID   pgtype.UUID
+	RunID           pgtype.UUID
+	CriterionID     pgtype.UUID
+	ClaimKey        string
+	Statement       string
+	StatementSha256 string
+	CreatedAt       pgtype.Timestamptz
+}
+
+func (q *Queries) InsertClaim(ctx context.Context, arg InsertClaimParams) (CoreClaim, error) {
+	row := q.db.QueryRow(ctx, insertClaim,
+		arg.ID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.CriterionID,
+		arg.ClaimKey,
+		arg.Statement,
+		arg.StatementSha256,
+		arg.CreatedAt,
+	)
+	var i CoreClaim
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.CriterionID,
+		&i.ClaimKey,
+		&i.Statement,
+		&i.StatementSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertClaimEvidence = `-- name: InsertClaimEvidence :one
+INSERT INTO core.claim_evidence (
+    claim_id, project_id, task_id, task_version_id, run_id, ordinal,
+    evidence_kind, artifact_id, verification_check_id, evidence_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+RETURNING claim_id, project_id, task_id, task_version_id, run_id, ordinal, evidence_kind, artifact_id, verification_check_id, evidence_sha256, created_at
+`
+
+type InsertClaimEvidenceParams struct {
+	ClaimID             pgtype.UUID
+	ProjectID           pgtype.UUID
+	TaskID              pgtype.UUID
+	TaskVersionID       pgtype.UUID
+	RunID               pgtype.UUID
+	Ordinal             int32
+	EvidenceKind        string
+	ArtifactID          pgtype.UUID
+	VerificationCheckID pgtype.UUID
+	EvidenceSha256      string
+	CreatedAt           pgtype.Timestamptz
+}
+
+func (q *Queries) InsertClaimEvidence(ctx context.Context, arg InsertClaimEvidenceParams) (CoreClaimEvidence, error) {
+	row := q.db.QueryRow(ctx, insertClaimEvidence,
+		arg.ClaimID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.Ordinal,
+		arg.EvidenceKind,
+		arg.ArtifactID,
+		arg.VerificationCheckID,
+		arg.EvidenceSha256,
+		arg.CreatedAt,
+	)
+	var i CoreClaimEvidence
+	err := row.Scan(
+		&i.ClaimID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.Ordinal,
+		&i.EvidenceKind,
+		&i.ArtifactID,
+		&i.VerificationCheckID,
+		&i.EvidenceSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertCompletion = `-- name: InsertCompletion :one
+INSERT INTO core.completions (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    verification_run_id, preflight_sha256, evidence_artifact_id, evidence_sha256,
+    markdown_artifact_id, markdown_sha256, manifest_artifact_id, manifest_sha256,
+    trajectory_envelope, trajectory_sha256, harness_asset_set_manifest,
+    harness_asset_set_sha256, completed_at, created_at
+) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+)
+RETURNING id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, verification_run_id, preflight_sha256, evidence_artifact_id, evidence_sha256, markdown_artifact_id, markdown_sha256, manifest_artifact_id, manifest_sha256, trajectory_envelope, trajectory_sha256, harness_asset_set_manifest, harness_asset_set_sha256, completed_at, created_at
+`
+
+type InsertCompletionParams struct {
+	ID                      pgtype.UUID
+	OperationID             string
+	ProjectID               pgtype.UUID
+	TaskID                  pgtype.UUID
+	TaskVersionID           pgtype.UUID
+	RunID                   pgtype.UUID
+	WorkspaceID             pgtype.UUID
+	VerificationRunID       pgtype.UUID
+	PreflightSha256         string
+	EvidenceArtifactID      pgtype.UUID
+	EvidenceSha256          string
+	MarkdownArtifactID      pgtype.UUID
+	MarkdownSha256          string
+	ManifestArtifactID      pgtype.UUID
+	ManifestSha256          string
+	TrajectoryEnvelope      []byte
+	TrajectorySha256        string
+	HarnessAssetSetManifest []byte
+	HarnessAssetSetSha256   string
+	CompletedAt             pgtype.Timestamptz
+	CreatedAt               pgtype.Timestamptz
+}
+
+func (q *Queries) InsertCompletion(ctx context.Context, arg InsertCompletionParams) (CoreCompletion, error) {
+	row := q.db.QueryRow(ctx, insertCompletion,
+		arg.ID,
+		arg.OperationID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.VerificationRunID,
+		arg.PreflightSha256,
+		arg.EvidenceArtifactID,
+		arg.EvidenceSha256,
+		arg.MarkdownArtifactID,
+		arg.MarkdownSha256,
+		arg.ManifestArtifactID,
+		arg.ManifestSha256,
+		arg.TrajectoryEnvelope,
+		arg.TrajectorySha256,
+		arg.HarnessAssetSetManifest,
+		arg.HarnessAssetSetSha256,
+		arg.CompletedAt,
+		arg.CreatedAt,
+	)
+	var i CoreCompletion
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.VerificationRunID,
+		&i.PreflightSha256,
+		&i.EvidenceArtifactID,
+		&i.EvidenceSha256,
+		&i.MarkdownArtifactID,
+		&i.MarkdownSha256,
+		&i.ManifestArtifactID,
+		&i.ManifestSha256,
+		&i.TrajectoryEnvelope,
+		&i.TrajectorySha256,
+		&i.HarnessAssetSetManifest,
+		&i.HarnessAssetSetSha256,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertCompletionArtifact = `-- name: InsertCompletionArtifact :one
+INSERT INTO core.completion_artifacts (
+    completion_id, ordinal, artifact_id, artifact_sha256, artifact_role
+) VALUES ($1,$2,$3,$4,$5)
+RETURNING completion_id, ordinal, artifact_id, artifact_sha256, artifact_role
+`
+
+type InsertCompletionArtifactParams struct {
+	CompletionID   pgtype.UUID
+	Ordinal        int32
+	ArtifactID     pgtype.UUID
+	ArtifactSha256 string
+	ArtifactRole   string
+}
+
+func (q *Queries) InsertCompletionArtifact(ctx context.Context, arg InsertCompletionArtifactParams) (CoreCompletionArtifact, error) {
+	row := q.db.QueryRow(ctx, insertCompletionArtifact,
+		arg.CompletionID,
+		arg.Ordinal,
+		arg.ArtifactID,
+		arg.ArtifactSha256,
+		arg.ArtifactRole,
+	)
+	var i CoreCompletionArtifact
+	err := row.Scan(
+		&i.CompletionID,
+		&i.Ordinal,
+		&i.ArtifactID,
+		&i.ArtifactSha256,
+		&i.ArtifactRole,
+	)
+	return i, err
+}
+
+const insertCompletionClaim = `-- name: InsertCompletionClaim :exec
+INSERT INTO core.completion_claims (
+    completion_id, project_id, task_id, task_version_id, run_id, claim_id
+) VALUES ($1,$2,$3,$4,$5,$6)
+`
+
+type InsertCompletionClaimParams struct {
+	CompletionID  pgtype.UUID
+	ProjectID     pgtype.UUID
+	TaskID        pgtype.UUID
+	TaskVersionID pgtype.UUID
+	RunID         pgtype.UUID
+	ClaimID       pgtype.UUID
+}
+
+func (q *Queries) InsertCompletionClaim(ctx context.Context, arg InsertCompletionClaimParams) error {
+	_, err := q.db.Exec(ctx, insertCompletionClaim,
+		arg.CompletionID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.ClaimID,
+	)
+	return err
 }
 
 const insertPlan = `-- name: InsertPlan :one
@@ -2890,6 +3655,39 @@ func (q *Queries) ListActiveRuns(ctx context.Context) ([]CoreRun, error) {
 	return items, nil
 }
 
+const listCompletionCriteria = `-- name: ListCompletionCriteria :many
+SELECT id, external_criterion_id, status
+FROM core.task_acceptance_criteria
+WHERE task_id = $1
+ORDER BY external_criterion_id, id
+`
+
+type ListCompletionCriteriaRow struct {
+	ID                  pgtype.UUID
+	ExternalCriterionID string
+	Status              string
+}
+
+func (q *Queries) ListCompletionCriteria(ctx context.Context, taskID pgtype.UUID) ([]ListCompletionCriteriaRow, error) {
+	rows, err := q.db.Query(ctx, listCompletionCriteria, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCompletionCriteriaRow
+	for rows.Next() {
+		var i ListCompletionCriteriaRow
+		if err := rows.Scan(&i.ID, &i.ExternalCriterionID, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlanEvents = `-- name: ListPlanEvents :many
 SELECT id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,
     aggregate_version, payload, created_at
@@ -3593,6 +4391,33 @@ func (q *Queries) RecordWorkspaceCapture(ctx context.Context, arg RecordWorkspac
 		&i.CleanupCompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const releaseCompletionLease = `-- name: ReleaseCompletionLease :one
+UPDATE core.execution_leases
+SET run_id = NULL, coordinator_identity = NULL, acquired_at = NULL,
+    aggregate_version = aggregate_version + 1
+WHERE lease_name = 'global-source-mutation-v1'
+  AND run_id = $1 AND aggregate_version = $2
+RETURNING lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
+`
+
+type ReleaseCompletionLeaseParams struct {
+	RunID            pgtype.UUID
+	AggregateVersion int64
+}
+
+func (q *Queries) ReleaseCompletionLease(ctx context.Context, arg ReleaseCompletionLeaseParams) (CoreExecutionLease, error) {
+	row := q.db.QueryRow(ctx, releaseCompletionLease, arg.RunID, arg.AggregateVersion)
+	var i CoreExecutionLease
+	err := row.Scan(
+		&i.LeaseName,
+		&i.RunID,
+		&i.CoordinatorIdentity,
+		&i.AcquiredAt,
+		&i.AggregateVersion,
 	)
 	return i, err
 }

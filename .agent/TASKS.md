@@ -5,11 +5,11 @@
 - The current implementation authority is the numbered sequence under
   `.agent/tasks/architecture-001` through `architecture-025`, with the approved
   compatibility task `architecture-016a` inserted between 016 and 017.
-- Architecture tasks 001-017 and planning task PTC-001 are completed.
+- Architecture tasks 001-018 and planning task PTC-001 are completed.
 - The next and only task is
-  `architecture-018-evidence-model-completion-gates`; its architecture-017
+  `architecture-019-auditor-corrector`; its architecture-018
   prerequisite is complete.
-- Architectures 018-025 remain ordered by their existing dependency chain.
+- Architectures 019-025 remain ordered by their existing dependency chain.
   Architectures 019, 020, 023, 024, and 025 are substantively unchanged.
 - The legacy external-readiness backlog below is deferred while this canonical
   architecture sequence is active; its unchecked entries are not the current
@@ -35,9 +35,11 @@
 - [x] Architecture 016a — add programmatic-runtime compatibility seams to the
   completed direct-tool broker.
 - [x] Architecture 017 — implement the host-owned verification engine.
-- [ ] Architecture 018 — implement the evidence model and completion rejection
-  gates. **Next and only selectable task.**
-- Architecture 019-025 — pending behind architecture 018 and then ordered by
+- [x] Architecture 018 — implement the evidence model and completion rejection
+  gates.
+- [ ] Architecture 019 — implement the auditor and bounded corrector loop.
+  **Next and only selectable task.**
+- Architecture 020-025 — pending behind architecture 019 and then ordered by
   their recorded dependencies; do not select a successor in the same pass.
 
 ## Deferred Programmatic Workspace And Continual Harness Sequence
