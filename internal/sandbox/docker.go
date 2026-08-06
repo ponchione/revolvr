@@ -238,7 +238,7 @@ func (r *DockerRuntime) createArguments(specification Specification, name, ident
 		"--cpus=" + strconv.FormatInt(specification.Resources.CPUs, 10),
 		"--memory=" + strconv.FormatInt(specification.Resources.MemoryBytes, 10),
 		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=" + strconv.FormatInt(specification.Resources.TmpfsBytes, 10),
-		"--workdir", "/workspace", "--stop-timeout=1",
+		"--workdir", specification.WorkingDirectory, "--stop-timeout=1",
 	}
 	if specification.RuntimeProfile == ProfileStrict {
 		arguments = append(arguments, "--runtime=runsc")

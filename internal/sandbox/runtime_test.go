@@ -113,6 +113,29 @@ func TestManagerRecordsLifecycleEvidenceAndArtifacts(t *testing.T) {
 	}
 }
 
+func TestManagerReadArtifactRejectsTampering(t *testing.T) {
+	manager, err := NewManager(&fakeSandboxRuntime{}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := manager.Run(context.Background(), validatedSandboxSpecification(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw, err := manager.ReadArtifact(evidence.Stdout, 1<<20); err != nil || string(raw) != "stdout\n" {
+		t.Fatalf("ReadArtifact = %q, %v", raw, err)
+	}
+	if err := os.Chmod(evidence.Stdout.Path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(evidence.Stdout.Path, []byte("tampered"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.ReadArtifact(evidence.Stdout, 1<<20); err == nil || !strings.Contains(err.Error(), "size") {
+		t.Fatalf("tampered ReadArtifact error = %v", err)
+	}
+}
+
 func TestManagerTimeoutAndCancellationForceExactCleanup(t *testing.T) {
 	tests := []struct {
 		name string

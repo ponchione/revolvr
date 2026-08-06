@@ -41,6 +41,7 @@ func TestDockerRuntimeTranslatesOnlyHardenedArguments(t *testing.T) {
 		"--pull=never", "--user", "65532:65532", "--cap-drop=ALL",
 		"--security-opt=no-new-privileges=true", "--read-only", "--network=none",
 		"--runtime=runsc", "--pids-limit=1024", "--cpus=8", "--memory=25769803776",
+		"--workdir", specification.WorkingDirectory,
 	} {
 		if !containsArgument(create, required) {
 			t.Errorf("create arguments lack %q: %v", required, create)

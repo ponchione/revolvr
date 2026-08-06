@@ -11,6 +11,106 @@ SELECT id, sha256, size_bytes, media_type, logical_kind, storage_path, compressi
 FROM core.artifacts
 WHERE sha256 = $1;
 
+-- name: GetArtifactByID :one
+SELECT id, sha256, size_bytes, media_type, logical_kind, storage_path, compression, created_at
+FROM core.artifacts
+WHERE id = $1;
+
+-- name: InsertVerificationRun :one
+INSERT INTO core.verification_runs (
+    id, project_id, task_id, task_version_id, run_id, workspace_id, purpose,
+    status, plan_schema_version, plan_version, plan_sha256, pinned_plan,
+    candidate_commit, candidate_tree, project_environment_sha256,
+    project_environment, differential, started_at, completed_at, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20
+)
+RETURNING id, project_id, task_id, task_version_id, run_id, workspace_id,
+    purpose, status, plan_schema_version, plan_version, plan_sha256,
+    pinned_plan, candidate_commit, candidate_tree, project_environment_sha256,
+    project_environment, differential, started_at, completed_at, created_at;
+
+-- name: InsertVerificationCheck :one
+INSERT INTO core.verification_checks (
+    id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
+    $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38
+)
+RETURNING id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at;
+
+-- name: GetVerificationRun :one
+SELECT id, project_id, task_id, task_version_id, run_id, workspace_id,
+    purpose, status, plan_schema_version, plan_version, plan_sha256,
+    pinned_plan, candidate_commit, candidate_tree, project_environment_sha256,
+    project_environment, differential, started_at, completed_at, created_at
+FROM core.verification_runs
+WHERE id = $1;
+
+-- name: ListVerificationChecks :many
+SELECT id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at
+FROM core.verification_checks
+WHERE verification_run_id = $1
+ORDER BY ordinal;
+
+-- name: FindReusableVerificationCheck :one
+SELECT id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at
+FROM core.verification_checks
+WHERE execution_fingerprint = $1
+  AND reused_from_check_id IS NULL
+  AND outcome IN ('passed', 'failed')
+ORDER BY completed_at DESC, id DESC
+LIMIT 1;
+
+-- name: GetVerificationPersistenceAuthority :one
+SELECT
+    r.project_id, r.task_id, r.task_version_id, r.status AS run_status,
+    t.accepted_version_id, t.status AS task_status,
+    tv.verification_plan AS accepted_verification_plan,
+    w.id AS workspace_id, w.run_id AS workspace_run_id,
+    w.project_id AS workspace_project_id, w.task_id AS workspace_task_id,
+    w.status AS workspace_status, w.candidate_commit, w.candidate_tree
+FROM core.runs AS r
+JOIN core.tasks AS t ON t.id = r.task_id AND t.project_id = r.project_id
+JOIN core.task_versions AS tv ON tv.id = r.task_version_id AND tv.task_id = r.task_id
+JOIN core.workspaces AS w ON w.run_id = r.id
+WHERE r.id = sqlc.arg(run_id) AND w.id = sqlc.arg(workspace_id)
+FOR SHARE OF r, t, w;
+
 -- name: AppendEvent :one
 INSERT INTO core.events (
     id, project_id, task_id, run_id, event_type, aggregate_type, aggregate_id,

@@ -237,6 +237,70 @@ type CoreTaskVersion struct {
 	CreatedAt             pgtype.Timestamptz
 }
 
+type CoreVerificationCheck struct {
+	ID                            pgtype.UUID
+	VerificationRunID             pgtype.UUID
+	RunID                         pgtype.UUID
+	Ordinal                       int32
+	GateID                        string
+	Tier                          int16
+	Outcome                       string
+	ExecutionFingerprint          string
+	VerifierProtocolVersion       string
+	VerifierImplementationVersion string
+	ParserKind                    string
+	ParserVersion                 string
+	SourceCommit                  string
+	SourceTree                    string
+	CommandArgv                   []byte
+	WorkingDirectory              string
+	Environment                   []byte
+	ImageReference                string
+	ImageDigest                   string
+	SandboxProfile                string
+	SandboxProfileSha256          string
+	SandboxSpecificationSha256    string
+	AuthorityInputs               []byte
+	OutputPolicy                  []byte
+	ExitCode                      pgtype.Int4
+	TimedOut                      bool
+	Cancelled                     bool
+	StdoutArtifactID              pgtype.UUID
+	StderrArtifactID              pgtype.UUID
+	ParsedResult                  []byte
+	SandboxEvidence               []byte
+	FailureSignatures             []byte
+	ReusedFromCheckID             pgtype.UUID
+	OriginalExecutedAt            pgtype.Timestamptz
+	OccurredAt                    pgtype.Timestamptz
+	StartedAt                     pgtype.Timestamptz
+	CompletedAt                   pgtype.Timestamptz
+	CreatedAt                     pgtype.Timestamptz
+}
+
+type CoreVerificationRun struct {
+	ID                       pgtype.UUID
+	ProjectID                pgtype.UUID
+	TaskID                   pgtype.UUID
+	TaskVersionID            pgtype.UUID
+	RunID                    pgtype.UUID
+	WorkspaceID              pgtype.UUID
+	Purpose                  string
+	Status                   string
+	PlanSchemaVersion        string
+	PlanVersion              string
+	PlanSha256               string
+	PinnedPlan               []byte
+	CandidateCommit          string
+	CandidateTree            string
+	ProjectEnvironmentSha256 string
+	ProjectEnvironment       []byte
+	Differential             []byte
+	StartedAt                pgtype.Timestamptz
+	CompletedAt              pgtype.Timestamptz
+	CreatedAt                pgtype.Timestamptz
+}
+
 type CoreWorkspace struct {
 	ID                     pgtype.UUID
 	RunID                  pgtype.UUID

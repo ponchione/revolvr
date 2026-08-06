@@ -1,6 +1,6 @@
 ---
 id: architecture-017-verification-engine
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-016a-programmatic-compatibility-seams
@@ -11,7 +11,7 @@ depends_on: architecture-016a-programmatic-compatibility-seams
 ## Sequence and status
 
 - Sequence: `017` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-016a-programmatic-compatibility-seams`.
 - Phase gate: Phase 5 verification runs only after a candidate source snapshot
   is frozen and the implementer sandbox can no longer alter it.

@@ -107,19 +107,20 @@ type Resources struct {
 }
 
 type Request struct {
-	SchemaVersion  string            `json:"schema_version"`
-	SandboxID      string            `json:"sandbox_id"`
-	ProjectID      string            `json:"project_id"`
-	TaskID         string            `json:"task_id"`
-	RunID          string            `json:"run_id"`
-	Role           Role              `json:"role"`
-	Image          Image             `json:"image"`
-	RuntimeProfile RuntimeProfile    `json:"runtime_profile"`
-	Command        []string          `json:"command"`
-	Mounts         []Mount           `json:"mounts"`
-	Network        NetworkProfile    `json:"network"`
-	Resources      Resources         `json:"resources"`
-	Environment    map[string]string `json:"environment"`
+	SchemaVersion    string            `json:"schema_version"`
+	SandboxID        string            `json:"sandbox_id"`
+	ProjectID        string            `json:"project_id"`
+	TaskID           string            `json:"task_id"`
+	RunID            string            `json:"run_id"`
+	Role             Role              `json:"role"`
+	Image            Image             `json:"image"`
+	RuntimeProfile   RuntimeProfile    `json:"runtime_profile"`
+	Command          []string          `json:"command"`
+	WorkingDirectory string            `json:"working_directory,omitempty"`
+	Mounts           []Mount           `json:"mounts"`
+	Network          NetworkProfile    `json:"network"`
+	Resources        Resources         `json:"resources"`
+	Environment      map[string]string `json:"environment"`
 }
 
 // ManagedSource is trusted host policy. Requests name SourceID only; they
@@ -169,19 +170,20 @@ type ResolvedMount struct {
 // Specification contains only normalized, runtime-effective values. Slices
 // and maps from the request and policy are not retained.
 type Specification struct {
-	SchemaVersion  string                `json:"schema_version"`
-	SandboxID      string                `json:"sandbox_id"`
-	ProjectID      string                `json:"project_id"`
-	TaskID         string                `json:"task_id"`
-	RunID          string                `json:"run_id"`
-	Role           Role                  `json:"role"`
-	Image          Image                 `json:"image"`
-	RuntimeProfile RuntimeProfile        `json:"runtime_profile"`
-	Command        []string              `json:"command"`
-	Mounts         []ResolvedMount       `json:"mounts"`
-	Network        NetworkProfile        `json:"network"`
-	Resources      Resources             `json:"resources"`
-	Environment    []EnvironmentVariable `json:"environment"`
+	SchemaVersion    string                `json:"schema_version"`
+	SandboxID        string                `json:"sandbox_id"`
+	ProjectID        string                `json:"project_id"`
+	TaskID           string                `json:"task_id"`
+	RunID            string                `json:"run_id"`
+	Role             Role                  `json:"role"`
+	Image            Image                 `json:"image"`
+	RuntimeProfile   RuntimeProfile        `json:"runtime_profile"`
+	Command          []string              `json:"command"`
+	WorkingDirectory string                `json:"working_directory"`
+	Mounts           []ResolvedMount       `json:"mounts"`
+	Network          NetworkProfile        `json:"network"`
+	Resources        Resources             `json:"resources"`
+	Environment      []EnvironmentVariable `json:"environment"`
 }
 
 // SHA256 hashes the compact canonical JSON form used as later runtime
@@ -279,6 +281,10 @@ func Validate(request Request, policy Policy) (Specification, error) {
 	if err != nil {
 		return Specification{}, err
 	}
+	workingDirectory, err := validateWorkingDirectory(request.WorkingDirectory)
+	if err != nil {
+		return Specification{}, err
+	}
 	if err := validateResources(request.Resources, normalizedPolicy.maximumResources); err != nil {
 		return Specification{}, err
 	}
@@ -302,7 +308,7 @@ func Validate(request Request, policy Policy) (Specification, error) {
 			}
 		}
 	}
-	mounts, err := validateMounts(request.Mounts, normalizedPolicy.sources, policy.ForbiddenHostPaths)
+	mounts, err := validateMounts(request.Mounts, normalizedPolicy.sources, policy.ForbiddenHostPaths, request.Role)
 	if err != nil {
 		return Specification{}, err
 	}
@@ -310,9 +316,24 @@ func Validate(request Request, policy Policy) (Specification, error) {
 		SchemaVersion: RequestSchemaVersion, SandboxID: request.SandboxID,
 		ProjectID: request.ProjectID, TaskID: request.TaskID, RunID: request.RunID,
 		Role: request.Role, Image: request.Image, RuntimeProfile: request.RuntimeProfile,
-		Command: command, Mounts: mounts, Network: network, Resources: request.Resources,
+		Command: command, WorkingDirectory: workingDirectory,
+		Mounts: mounts, Network: network, Resources: request.Resources,
 		Environment: environment,
 	}, nil
+}
+
+func validateWorkingDirectory(value string) (string, error) {
+	if value == "" {
+		value = "/workspace"
+	}
+	if !utf8.ValidString(value) || strings.ContainsRune(value, 0) || len(value) > 4096 {
+		return "", invalidf("working_directory is invalid")
+	}
+	cleaned := path.Clean(value)
+	if cleaned != value || (cleaned != "/workspace" && !strings.HasPrefix(cleaned, "/workspace/")) {
+		return "", invalidf("working_directory must be /workspace or a canonical descendant")
+	}
+	return cleaned, nil
 }
 
 type normalizedPolicy struct {
@@ -413,7 +434,7 @@ func normalizePolicy(policy Policy) (normalizedPolicy, error) {
 	return result, nil
 }
 
-func validateMounts(requests []Mount, sources map[string]ManagedSource, configuredForbidden []string) ([]ResolvedMount, error) {
+func validateMounts(requests []Mount, sources map[string]ManagedSource, configuredForbidden []string, role Role) ([]ResolvedMount, error) {
 	if len(requests) == 0 || len(requests) > maxMounts {
 		return nil, invalidf("mount count must be between 1 and %d", maxMounts)
 	}
@@ -439,8 +460,11 @@ func validateMounts(requests []Mount, sources map[string]ManagedSource, configur
 		switch source.Kind {
 		case SourceWorkspace:
 			workspaceCount++
-			if mount.Mode != MountReadWrite {
-				return nil, invalidf("workspace mount must be read-write")
+			if role == RoleVerifier && mount.Mode != MountReadOnly {
+				return nil, invalidf("verifier workspace mount must be read-only")
+			}
+			if role != RoleVerifier && mount.Mode != MountReadWrite {
+				return nil, invalidf("implementer or corrector workspace mount must be read-write")
 			}
 		case SourceContext, SourceCache:
 			if mount.Mode != MountReadOnly {
@@ -454,7 +478,7 @@ func validateMounts(requests []Mount, sources map[string]ManagedSource, configur
 		resolved = append(resolved, item)
 	}
 	if workspaceCount != 1 {
-		return nil, invalidf("exactly one writable workspace mount is required")
+		return nil, invalidf("exactly one workspace mount is required")
 	}
 	sort.Slice(resolved, func(i, j int) bool {
 		return resolved[i].Target+"\x00"+resolved[i].SourceID < resolved[j].Target+"\x00"+resolved[j].SourceID

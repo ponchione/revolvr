@@ -472,6 +472,70 @@ func (q *Queries) CountRunAdmissionEvents(ctx context.Context, arg CountRunAdmis
 	return count, err
 }
 
+const findReusableVerificationCheck = `-- name: FindReusableVerificationCheck :one
+SELECT id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at
+FROM core.verification_checks
+WHERE execution_fingerprint = $1
+  AND reused_from_check_id IS NULL
+  AND outcome IN ('passed', 'failed')
+ORDER BY completed_at DESC, id DESC
+LIMIT 1
+`
+
+func (q *Queries) FindReusableVerificationCheck(ctx context.Context, executionFingerprint string) (CoreVerificationCheck, error) {
+	row := q.db.QueryRow(ctx, findReusableVerificationCheck, executionFingerprint)
+	var i CoreVerificationCheck
+	err := row.Scan(
+		&i.ID,
+		&i.VerificationRunID,
+		&i.RunID,
+		&i.Ordinal,
+		&i.GateID,
+		&i.Tier,
+		&i.Outcome,
+		&i.ExecutionFingerprint,
+		&i.VerifierProtocolVersion,
+		&i.VerifierImplementationVersion,
+		&i.ParserKind,
+		&i.ParserVersion,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CommandArgv,
+		&i.WorkingDirectory,
+		&i.Environment,
+		&i.ImageReference,
+		&i.ImageDigest,
+		&i.SandboxProfile,
+		&i.SandboxProfileSha256,
+		&i.SandboxSpecificationSha256,
+		&i.AuthorityInputs,
+		&i.OutputPolicy,
+		&i.ExitCode,
+		&i.TimedOut,
+		&i.Cancelled,
+		&i.StdoutArtifactID,
+		&i.StderrArtifactID,
+		&i.ParsedResult,
+		&i.SandboxEvidence,
+		&i.FailureSignatures,
+		&i.ReusedFromCheckID,
+		&i.OriginalExecutedAt,
+		&i.OccurredAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getApprovedTaskWithSelectedVersion = `-- name: GetApprovedTaskWithSelectedVersion :one
 SELECT
     t.id, t.project_id, t.external_task_id, t.status, t.accepted_version_id,
@@ -563,6 +627,28 @@ func (q *Queries) GetApprovedTaskWithSelectedVersion(ctx context.Context, arg Ge
 		&i.SelectedExpectedPaths,
 		&i.SelectedOperatorCheckpoints,
 		&i.SelectedCreatedAt,
+	)
+	return i, err
+}
+
+const getArtifactByID = `-- name: GetArtifactByID :one
+SELECT id, sha256, size_bytes, media_type, logical_kind, storage_path, compression, created_at
+FROM core.artifacts
+WHERE id = $1
+`
+
+func (q *Queries) GetArtifactByID(ctx context.Context, id pgtype.UUID) (CoreArtifact, error) {
+	row := q.db.QueryRow(ctx, getArtifactByID, id)
+	var i CoreArtifact
+	err := row.Scan(
+		&i.ID,
+		&i.Sha256,
+		&i.SizeBytes,
+		&i.MediaType,
+		&i.LogicalKind,
+		&i.StoragePath,
+		&i.Compression,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1290,6 +1376,103 @@ func (q *Queries) GetTaskWithSelectedVersionByExternalID(ctx context.Context, ar
 		&i.SelectedExpectedPaths,
 		&i.SelectedOperatorCheckpoints,
 		&i.SelectedCreatedAt,
+	)
+	return i, err
+}
+
+const getVerificationPersistenceAuthority = `-- name: GetVerificationPersistenceAuthority :one
+SELECT
+    r.project_id, r.task_id, r.task_version_id, r.status AS run_status,
+    t.accepted_version_id, t.status AS task_status,
+    tv.verification_plan AS accepted_verification_plan,
+    w.id AS workspace_id, w.run_id AS workspace_run_id,
+    w.project_id AS workspace_project_id, w.task_id AS workspace_task_id,
+    w.status AS workspace_status, w.candidate_commit, w.candidate_tree
+FROM core.runs AS r
+JOIN core.tasks AS t ON t.id = r.task_id AND t.project_id = r.project_id
+JOIN core.task_versions AS tv ON tv.id = r.task_version_id AND tv.task_id = r.task_id
+JOIN core.workspaces AS w ON w.run_id = r.id
+WHERE r.id = $1 AND w.id = $2
+FOR SHARE OF r, t, w
+`
+
+type GetVerificationPersistenceAuthorityParams struct {
+	RunID       pgtype.UUID
+	WorkspaceID pgtype.UUID
+}
+
+type GetVerificationPersistenceAuthorityRow struct {
+	ProjectID                pgtype.UUID
+	TaskID                   pgtype.UUID
+	TaskVersionID            pgtype.UUID
+	RunStatus                string
+	AcceptedVersionID        pgtype.UUID
+	TaskStatus               string
+	AcceptedVerificationPlan []byte
+	WorkspaceID              pgtype.UUID
+	WorkspaceRunID           pgtype.UUID
+	WorkspaceProjectID       pgtype.UUID
+	WorkspaceTaskID          pgtype.UUID
+	WorkspaceStatus          string
+	CandidateCommit          pgtype.Text
+	CandidateTree            pgtype.Text
+}
+
+func (q *Queries) GetVerificationPersistenceAuthority(ctx context.Context, arg GetVerificationPersistenceAuthorityParams) (GetVerificationPersistenceAuthorityRow, error) {
+	row := q.db.QueryRow(ctx, getVerificationPersistenceAuthority, arg.RunID, arg.WorkspaceID)
+	var i GetVerificationPersistenceAuthorityRow
+	err := row.Scan(
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunStatus,
+		&i.AcceptedVersionID,
+		&i.TaskStatus,
+		&i.AcceptedVerificationPlan,
+		&i.WorkspaceID,
+		&i.WorkspaceRunID,
+		&i.WorkspaceProjectID,
+		&i.WorkspaceTaskID,
+		&i.WorkspaceStatus,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+	)
+	return i, err
+}
+
+const getVerificationRun = `-- name: GetVerificationRun :one
+SELECT id, project_id, task_id, task_version_id, run_id, workspace_id,
+    purpose, status, plan_schema_version, plan_version, plan_sha256,
+    pinned_plan, candidate_commit, candidate_tree, project_environment_sha256,
+    project_environment, differential, started_at, completed_at, created_at
+FROM core.verification_runs
+WHERE id = $1
+`
+
+func (q *Queries) GetVerificationRun(ctx context.Context, id pgtype.UUID) (CoreVerificationRun, error) {
+	row := q.db.QueryRow(ctx, getVerificationRun, id)
+	var i CoreVerificationRun
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.Purpose,
+		&i.Status,
+		&i.PlanSchemaVersion,
+		&i.PlanVersion,
+		&i.PlanSha256,
+		&i.PinnedPlan,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.ProjectEnvironmentSha256,
+		&i.ProjectEnvironment,
+		&i.Differential,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -2296,6 +2479,247 @@ func (q *Queries) InsertTaskVersion(ctx context.Context, arg InsertTaskVersionPa
 	return i, err
 }
 
+const insertVerificationCheck = `-- name: InsertVerificationCheck :one
+INSERT INTO core.verification_checks (
+    id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
+    $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38
+)
+RETURNING id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at
+`
+
+type InsertVerificationCheckParams struct {
+	ID                            pgtype.UUID
+	VerificationRunID             pgtype.UUID
+	RunID                         pgtype.UUID
+	Ordinal                       int32
+	GateID                        string
+	Tier                          int16
+	Outcome                       string
+	ExecutionFingerprint          string
+	VerifierProtocolVersion       string
+	VerifierImplementationVersion string
+	ParserKind                    string
+	ParserVersion                 string
+	SourceCommit                  string
+	SourceTree                    string
+	CommandArgv                   []byte
+	WorkingDirectory              string
+	Environment                   []byte
+	ImageReference                string
+	ImageDigest                   string
+	SandboxProfile                string
+	SandboxProfileSha256          string
+	SandboxSpecificationSha256    string
+	AuthorityInputs               []byte
+	OutputPolicy                  []byte
+	ExitCode                      pgtype.Int4
+	TimedOut                      bool
+	Cancelled                     bool
+	StdoutArtifactID              pgtype.UUID
+	StderrArtifactID              pgtype.UUID
+	ParsedResult                  []byte
+	SandboxEvidence               []byte
+	FailureSignatures             []byte
+	ReusedFromCheckID             pgtype.UUID
+	OriginalExecutedAt            pgtype.Timestamptz
+	OccurredAt                    pgtype.Timestamptz
+	StartedAt                     pgtype.Timestamptz
+	CompletedAt                   pgtype.Timestamptz
+	CreatedAt                     pgtype.Timestamptz
+}
+
+func (q *Queries) InsertVerificationCheck(ctx context.Context, arg InsertVerificationCheckParams) (CoreVerificationCheck, error) {
+	row := q.db.QueryRow(ctx, insertVerificationCheck,
+		arg.ID,
+		arg.VerificationRunID,
+		arg.RunID,
+		arg.Ordinal,
+		arg.GateID,
+		arg.Tier,
+		arg.Outcome,
+		arg.ExecutionFingerprint,
+		arg.VerifierProtocolVersion,
+		arg.VerifierImplementationVersion,
+		arg.ParserKind,
+		arg.ParserVersion,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.CommandArgv,
+		arg.WorkingDirectory,
+		arg.Environment,
+		arg.ImageReference,
+		arg.ImageDigest,
+		arg.SandboxProfile,
+		arg.SandboxProfileSha256,
+		arg.SandboxSpecificationSha256,
+		arg.AuthorityInputs,
+		arg.OutputPolicy,
+		arg.ExitCode,
+		arg.TimedOut,
+		arg.Cancelled,
+		arg.StdoutArtifactID,
+		arg.StderrArtifactID,
+		arg.ParsedResult,
+		arg.SandboxEvidence,
+		arg.FailureSignatures,
+		arg.ReusedFromCheckID,
+		arg.OriginalExecutedAt,
+		arg.OccurredAt,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.CreatedAt,
+	)
+	var i CoreVerificationCheck
+	err := row.Scan(
+		&i.ID,
+		&i.VerificationRunID,
+		&i.RunID,
+		&i.Ordinal,
+		&i.GateID,
+		&i.Tier,
+		&i.Outcome,
+		&i.ExecutionFingerprint,
+		&i.VerifierProtocolVersion,
+		&i.VerifierImplementationVersion,
+		&i.ParserKind,
+		&i.ParserVersion,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CommandArgv,
+		&i.WorkingDirectory,
+		&i.Environment,
+		&i.ImageReference,
+		&i.ImageDigest,
+		&i.SandboxProfile,
+		&i.SandboxProfileSha256,
+		&i.SandboxSpecificationSha256,
+		&i.AuthorityInputs,
+		&i.OutputPolicy,
+		&i.ExitCode,
+		&i.TimedOut,
+		&i.Cancelled,
+		&i.StdoutArtifactID,
+		&i.StderrArtifactID,
+		&i.ParsedResult,
+		&i.SandboxEvidence,
+		&i.FailureSignatures,
+		&i.ReusedFromCheckID,
+		&i.OriginalExecutedAt,
+		&i.OccurredAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertVerificationRun = `-- name: InsertVerificationRun :one
+INSERT INTO core.verification_runs (
+    id, project_id, task_id, task_version_id, run_id, workspace_id, purpose,
+    status, plan_schema_version, plan_version, plan_sha256, pinned_plan,
+    candidate_commit, candidate_tree, project_environment_sha256,
+    project_environment, differential, started_at, completed_at, created_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20
+)
+RETURNING id, project_id, task_id, task_version_id, run_id, workspace_id,
+    purpose, status, plan_schema_version, plan_version, plan_sha256,
+    pinned_plan, candidate_commit, candidate_tree, project_environment_sha256,
+    project_environment, differential, started_at, completed_at, created_at
+`
+
+type InsertVerificationRunParams struct {
+	ID                       pgtype.UUID
+	ProjectID                pgtype.UUID
+	TaskID                   pgtype.UUID
+	TaskVersionID            pgtype.UUID
+	RunID                    pgtype.UUID
+	WorkspaceID              pgtype.UUID
+	Purpose                  string
+	Status                   string
+	PlanSchemaVersion        string
+	PlanVersion              string
+	PlanSha256               string
+	PinnedPlan               []byte
+	CandidateCommit          string
+	CandidateTree            string
+	ProjectEnvironmentSha256 string
+	ProjectEnvironment       []byte
+	Differential             []byte
+	StartedAt                pgtype.Timestamptz
+	CompletedAt              pgtype.Timestamptz
+	CreatedAt                pgtype.Timestamptz
+}
+
+func (q *Queries) InsertVerificationRun(ctx context.Context, arg InsertVerificationRunParams) (CoreVerificationRun, error) {
+	row := q.db.QueryRow(ctx, insertVerificationRun,
+		arg.ID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.Purpose,
+		arg.Status,
+		arg.PlanSchemaVersion,
+		arg.PlanVersion,
+		arg.PlanSha256,
+		arg.PinnedPlan,
+		arg.CandidateCommit,
+		arg.CandidateTree,
+		arg.ProjectEnvironmentSha256,
+		arg.ProjectEnvironment,
+		arg.Differential,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.CreatedAt,
+	)
+	var i CoreVerificationRun
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.Purpose,
+		&i.Status,
+		&i.PlanSchemaVersion,
+		&i.PlanVersion,
+		&i.PlanSha256,
+		&i.PinnedPlan,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.ProjectEnvironmentSha256,
+		&i.ProjectEnvironment,
+		&i.Differential,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertWorkspace = `-- name: InsertWorkspace :one
 INSERT INTO core.workspaces (
     id, run_id, project_id, project_source_id, task_id,
@@ -2708,6 +3132,80 @@ func (q *Queries) ListSchedulerTasks(ctx context.Context) ([]ListSchedulerTasksR
 			&i.TaskVersionID,
 			&i.TaskPriority,
 			&i.AwaitingOperatorCheckpoint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVerificationChecks = `-- name: ListVerificationChecks :many
+SELECT id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
+    execution_fingerprint, verifier_protocol_version,
+    verifier_implementation_version, parser_kind, parser_version,
+    source_commit, source_tree, command_argv, working_directory, environment,
+    image_reference, image_digest, sandbox_profile, sandbox_profile_sha256,
+    sandbox_specification_sha256, authority_inputs, output_policy, exit_code,
+    timed_out, cancelled, stdout_artifact_id, stderr_artifact_id, parsed_result,
+    sandbox_evidence, failure_signatures, reused_from_check_id,
+    original_executed_at, occurred_at, started_at, completed_at, created_at
+FROM core.verification_checks
+WHERE verification_run_id = $1
+ORDER BY ordinal
+`
+
+func (q *Queries) ListVerificationChecks(ctx context.Context, verificationRunID pgtype.UUID) ([]CoreVerificationCheck, error) {
+	rows, err := q.db.Query(ctx, listVerificationChecks, verificationRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreVerificationCheck
+	for rows.Next() {
+		var i CoreVerificationCheck
+		if err := rows.Scan(
+			&i.ID,
+			&i.VerificationRunID,
+			&i.RunID,
+			&i.Ordinal,
+			&i.GateID,
+			&i.Tier,
+			&i.Outcome,
+			&i.ExecutionFingerprint,
+			&i.VerifierProtocolVersion,
+			&i.VerifierImplementationVersion,
+			&i.ParserKind,
+			&i.ParserVersion,
+			&i.SourceCommit,
+			&i.SourceTree,
+			&i.CommandArgv,
+			&i.WorkingDirectory,
+			&i.Environment,
+			&i.ImageReference,
+			&i.ImageDigest,
+			&i.SandboxProfile,
+			&i.SandboxProfileSha256,
+			&i.SandboxSpecificationSha256,
+			&i.AuthorityInputs,
+			&i.OutputPolicy,
+			&i.ExitCode,
+			&i.TimedOut,
+			&i.Cancelled,
+			&i.StdoutArtifactID,
+			&i.StderrArtifactID,
+			&i.ParsedResult,
+			&i.SandboxEvidence,
+			&i.FailureSignatures,
+			&i.ReusedFromCheckID,
+			&i.OriginalExecutedAt,
+			&i.OccurredAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

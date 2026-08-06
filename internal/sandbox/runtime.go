@@ -89,6 +89,7 @@ type Evidence struct {
 	RuntimeProfile    RuntimeProfile        `json:"runtime_profile"`
 	Image             Image                 `json:"image"`
 	Command           []string              `json:"command"`
+	WorkingDirectory  string                `json:"working_directory"`
 	Network           NetworkProfile        `json:"network"`
 	Resources         Resources             `json:"resources"`
 	Transitions       []LifecycleTransition `json:"transitions"`
@@ -118,6 +119,26 @@ func NewManager(runtime SandboxRuntime, stateDirectory string) (*Manager, error)
 	return &Manager{runtime: runtime, store: store, now: time.Now}, nil
 }
 
+// ReadArtifact returns exactly the bytes named by one manager-produced
+// reference after rechecking the bound state root, size, and content hash.
+func (m *Manager) ReadArtifact(reference ArtifactReference, maximumBytes int64) ([]byte, error) {
+	if maximumBytes < 0 || reference.SizeBytes < 0 || reference.SizeBytes > maximumBytes {
+		return nil, errors.New("read sandbox artifact: size exceeds policy")
+	}
+	raw, found, err := m.store.ReadFileLimit(reference.Path, false, maximumBytes+1)
+	if err != nil || !found {
+		return nil, fmt.Errorf("read sandbox artifact: %w", errors.Join(err, os.ErrNotExist))
+	}
+	if int64(len(raw)) != reference.SizeBytes {
+		return nil, errors.New("read sandbox artifact: recorded size does not match bytes")
+	}
+	sum := sha256.Sum256(raw)
+	if hex.EncodeToString(sum[:]) != reference.SHA256 {
+		return nil, errors.New("read sandbox artifact: recorded hash does not match bytes")
+	}
+	return raw, nil
+}
+
 func (m *Manager) Run(ctx context.Context, specification Specification) (Evidence, error) {
 	if err := CheckSpecification(specification); err != nil {
 		return Evidence{}, err
@@ -132,7 +153,8 @@ func (m *Manager) Run(ctx context.Context, specification Specification) (Evidenc
 		TaskID: specification.TaskID, RunID: specification.RunID, Role: specification.Role,
 		Runtime: "docker-rootless", RuntimeProfile: specification.RuntimeProfile,
 		Image: specification.Image, Command: append([]string(nil), specification.Command...),
-		Network: specification.Network, Resources: specification.Resources, ExitCode: -1,
+		WorkingDirectory: specification.WorkingDirectory,
+		Network:          specification.Network, Resources: specification.Resources, ExitCode: -1,
 	}
 	transition := func(state string) {
 		evidence.Transitions = append(evidence.Transitions, LifecycleTransition{State: state, At: m.now().UTC()})
@@ -291,13 +313,18 @@ func CheckSpecification(specification Specification) error {
 	} else if len(command) != len(specification.Command) {
 		return invalidf("normalized command is invalid")
 	}
+	if workingDirectory, err := validateWorkingDirectory(specification.WorkingDirectory); err != nil {
+		return err
+	} else if workingDirectory != specification.WorkingDirectory {
+		return invalidf("normalized working_directory is invalid")
+	}
 	if err := validatePositiveResources("resources", specification.Resources); err != nil {
 		return err
 	}
 	if err := checkNormalizedEnvironment(specification); err != nil {
 		return err
 	}
-	return checkNormalizedMounts(specification.Mounts)
+	return checkNormalizedMounts(specification.Mounts, specification.Role)
 }
 
 func checkNormalizedEnvironment(specification Specification) error {
@@ -336,7 +363,7 @@ func checkNormalizedEnvironment(specification Specification) error {
 	return nil
 }
 
-func checkNormalizedMounts(mounts []ResolvedMount) error {
+func checkNormalizedMounts(mounts []ResolvedMount, role Role) error {
 	if len(mounts) == 0 || len(mounts) > maxMounts {
 		return invalidf("normalized mount count must be between 1 and %d", maxMounts)
 	}
@@ -363,7 +390,11 @@ func checkNormalizedMounts(mounts []ResolvedMount) error {
 		switch {
 		case mount.Target == "/workspace":
 			workspaceCount++
-			if mount.Mode != MountReadWrite || mount.SourceType != SourceDirectory {
+			expectedMode := MountReadWrite
+			if role == RoleVerifier {
+				expectedMode = MountReadOnly
+			}
+			if mount.Mode != expectedMode || mount.SourceType != SourceDirectory {
 				return invalidf("normalized workspace mount is invalid")
 			}
 		case mount.Target == "/context" || strings.HasPrefix(mount.Target, "/context/"):
@@ -382,7 +413,7 @@ func checkNormalizedMounts(mounts []ResolvedMount) error {
 		}
 	}
 	if workspaceCount != 1 {
-		return invalidf("exactly one writable workspace mount is required")
+		return invalidf("exactly one workspace mount is required")
 	}
 	for i := range mounts {
 		for j := i + 1; j < len(mounts); j++ {

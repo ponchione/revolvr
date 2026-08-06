@@ -1,5 +1,85 @@
 # Agent State
 
+## Architecture 017 Host-Owned Verification Engine Complete (2026-08-06)
+
+- Task selected: `architecture-017-verification-engine`, confirmed as the sole
+  legally selectable pending task after completed architecture 016a. The
+  committed 016/016a tool-broker, runtime-handler, role registry, and
+  implementer final-summary contracts were preserved; architecture 018 was not
+  begun and no commit was created.
+- Added reversible migration `00009_verification.sql` with immutable terminal
+  verification-run occurrences and ordered check occurrences. Check rows bind
+  task/run/workspace, Tier 0-4, exact source, argv, working directory,
+  environment, image/profile, sandbox specification, parser/output policy,
+  raw artifacts, parsed result, failure signatures, execution/reuse times, and
+  original linkage. Database triggers reject updates and any reuse link that
+  does not exactly preserve the reusable original execution and outcome.
+- Added named sqlc queries and regenerated `internal/storage/postgres` for run/
+  check insertion, ordered reads, artifact-by-ID resolution, exact reusable-
+  original lookup, and locked persistence-authority reads. The PostgreSQL
+  transaction revalidates the active run, accepted task version and
+  verification-plan hash, frozen candidate workspace and commit/tree, then
+  atomically records artifacts, run/check rows, and one append-only event. It
+  does not mutate task, criterion, plan, run, workspace, or lifecycle state.
+- Added the canonical engine beside the unchanged legacy verification API.
+  Plans pin the ordered Tier 0-4 gates, exact direct argv, container working
+  directory, declared nonsecret environment, candidate/baseline source,
+  image digest, strict/compatible sandbox profile and profile hash, resources,
+  parser version, every authority/script/config/fixture/golden input, bounded
+  output policy, accepted verification-plan version/hash, project environment
+  contract, authority-change policy, reuse policy, and final-freshness policy.
+- Each gate fingerprint covers verifier protocol and implementation versions,
+  project/task/version, verification-plan and pinned-plan identities, source
+  commit/tree, argv/cwd/environment, verifier image, sandbox role/network/
+  profile/resources, parser, project environment, material authority inputs,
+  and output policy. Canonical sorting makes equal inputs identical; any
+  material change produces an exact miss.
+- Reuse queries select only original terminal `passed` or `failed` checks by
+  exact fingerprint. A hit creates a new immutable occurrence linked to the
+  original, retaining the original execution time and recording a distinct
+  occurrence time. Reused pass is `passed_reused`; reused failure is
+  `unchanged_failure_reused` and the run remains failed. Cancelled, incomplete,
+  infrastructure-failed, ambiguous, timed-out, malformed, stale, tampered, and
+  prior reuse occurrences are excluded. Completion-purpose Tier 4 always
+  executes fresh; the explicit fresh-final option also bypasses reuse.
+- Added fresh verifier execution through the architecture-015 sandbox manager.
+  Each executed gate receives a unique sandbox identity, pinned image/profile/
+  resources, no network, exact cwd/env/argv, and the exact frozen candidate as
+  a read-only `/workspace` mount. Implementer/corrector workspace mounts remain
+  read-write. Sandbox stdout/stderr are bounded, persisted, then re-read through
+  the bound state root with exact size/SHA-256 checks before content-addressed
+  verification artifact ingestion.
+- Added a frozen-workspace observer that checks clean Git HEAD/tree and every
+  configured authority file before and after execution. Source/environment
+  staleness and authority-file changes fail closed. Reject, dual-run-required,
+  and escalation-required are explicit host directives; the engine never
+  admits changed model-selected checks or mutates lifecycle authority.
+- Added configured `go test -json`, generic JSON, and JUnit XML parsing while
+  preserving raw output as authority. Baseline/candidate occurrences classify
+  stable identities into new, resolved, unchanged, and flaky sets without
+  erasing prior results or converting unchanged failures into passes.
+- Deterministic fixtures cover fingerprint equality/invalidation, exact pass
+  and failure reuse, original/reuse timestamps, fresh Tier 4, unique sandbox
+  identities, read-only mount/cwd/image authority, post-freeze and during-run
+  mutation, stale environment, missing command, timeout, cancellation,
+  malformed/truncated output, infrastructure and artifact failure, authority
+  policy directives, all configured parsers, differential classification,
+  forged reuse, immutability, transaction rollback, and nonreuse of every
+  excluded outcome.
+- Verification passed: migration 00009 Up, Down, and Up against a temporary
+  local `pgvector/pgvector:0.8.6-pg18-trixie` PostgreSQL 18 database; the
+  temporary container was removed. `test -z "$(gofmt -l cmd internal)"`;
+  `go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0 generate -f db/sqlc.yaml`;
+  database-backed `REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test
+  ./internal/verification ./internal/sandbox`; `go test ./...`; and
+  `git diff --check` all passed. A second sqlc generation retained exact hashes
+  `600ff8c6...f7b12b7` (`core.sql.go`) and `75c42838...e4d0a7`
+  (`models.go`). `go.mod` and `go.sum` are unchanged; no dependency was added.
+- Result: **PASS**. Architecture tasks 001-017 and PTC-001 are complete.
+  `architecture-018-evidence-model-completion-gates` is the next and only
+  selectable task; architectures 019-025 and the post-core PTC sequence remain
+  gated.
+
 ## Architecture 016a Programmatic Compatibility Seams Complete (2026-08-06)
 
 - Task selected: `architecture-016a-programmatic-compatibility-seams`, the

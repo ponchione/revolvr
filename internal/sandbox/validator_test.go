@@ -75,6 +75,40 @@ func TestValidAttendedDiagnosticAndDependencyProfiles(t *testing.T) {
 	}
 }
 
+func TestVerifierRequiresReadOnlyWorkspaceWhileMutatingRolesRequireReadWrite(t *testing.T) {
+	policy, request := sandboxFixture(t)
+	policy.Role = RoleVerifier
+	request.Role = RoleVerifier
+	request.Environment["ROLE"] = "verifier"
+	for index := range request.Mounts {
+		if request.Mounts[index].Target == "/workspace" {
+			request.Mounts[index].Mode = MountReadOnly
+		}
+	}
+	if _, err := Validate(request, policy); err != nil {
+		t.Fatalf("read-only verifier workspace: %v", err)
+	}
+	for index := range request.Mounts {
+		if request.Mounts[index].Target == "/workspace" {
+			request.Mounts[index].Mode = MountReadWrite
+		}
+	}
+	if _, err := Validate(request, policy); err == nil || !strings.Contains(err.Error(), "verifier workspace") {
+		t.Fatalf("writable verifier workspace error = %v", err)
+	}
+	policy.Role = RoleImplementer
+	request.Role = RoleImplementer
+	request.Environment["ROLE"] = "implementer"
+	for index := range request.Mounts {
+		if request.Mounts[index].Target == "/workspace" {
+			request.Mounts[index].Mode = MountReadOnly
+		}
+	}
+	if _, err := Validate(request, policy); err == nil || !strings.Contains(err.Error(), "read-write") {
+		t.Fatalf("read-only implementer workspace error = %v", err)
+	}
+}
+
 func TestValidJSONMatchesTypedValidation(t *testing.T) {
 	policy, request := sandboxFixture(t)
 	want, err := Validate(request, policy)
@@ -147,6 +181,8 @@ func TestRejectInvalidRequestAuthorityAndBounds(t *testing.T) {
 			r.Network = NetworkOpen
 		}, "open network"},
 		{"empty command", func(_ *Policy, r *Request) { r.Command = nil }, "command"},
+		{"working directory traversal", func(_ *Policy, r *Request) { r.WorkingDirectory = "/workspace/../host" }, "working_directory"},
+		{"working directory outside workspace", func(_ *Policy, r *Request) { r.WorkingDirectory = "/tmp" }, "working_directory"},
 		{"empty argument", func(_ *Policy, r *Request) { r.Command[0] = "" }, "command[0]"},
 		{"oversized argument", func(_ *Policy, r *Request) { r.Command[0] = strings.Repeat("x", maxArgumentBytes+1) }, "oversized"},
 		{"zero resource", func(_ *Policy, r *Request) { r.Resources.PIDs = 0 }, "must be positive"},
@@ -170,7 +206,7 @@ func TestRejectInvalidRequestAuthorityAndBounds(t *testing.T) {
 		{"mount target", func(_ *Policy, r *Request) { r.Mounts[0].Target = "/etc" }, "target"},
 		{"workspace read only", func(_ *Policy, r *Request) { r.Mounts[1].Mode = MountReadOnly }, "workspace"},
 		{"context writable", func(_ *Policy, r *Request) { r.Mounts[0].Mode = MountReadWrite }, "read-only"},
-		{"missing workspace", func(_ *Policy, r *Request) { r.Mounts = r.Mounts[:1] }, "one writable workspace"},
+		{"missing workspace", func(_ *Policy, r *Request) { r.Mounts = r.Mounts[:1] }, "one workspace"},
 		{"duplicate source", func(_ *Policy, r *Request) { r.Mounts = append(r.Mounts, r.Mounts[0]) }, "duplicates source_id"},
 	}
 	for _, test := range tests {
