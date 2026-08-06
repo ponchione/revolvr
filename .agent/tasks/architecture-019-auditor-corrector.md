@@ -1,6 +1,6 @@
 ---
 id: architecture-019-auditor-corrector
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-018-evidence-model-completion-gates
@@ -11,7 +11,7 @@ depends_on: architecture-018-evidence-model-completion-gates
 ## Sequence and status
 
 - Sequence: `019` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-018-evidence-model-completion-gates`.
 - Phase gate: Phase 6 starts only after deterministic verification and
   completion preflight can reject missing or stale audit evidence.

@@ -175,6 +175,13 @@ type PreparedRequest struct {
 	retry          RetryPolicy
 }
 
+// Evidence returns a defensive copy of the exact immutable request evidence
+// bound by Prepare. Role runtimes use it to reject result provenance that does
+// not match the request they actually admitted.
+func (p PreparedRequest) Evidence() RequestEvidence {
+	return cloneRequestEvidence(p.evidence)
+}
+
 type createRequest struct {
 	Model           string            `json:"model"`
 	Input           string            `json:"input"`

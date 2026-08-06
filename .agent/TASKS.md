@@ -5,12 +5,13 @@
 - The current implementation authority is the numbered sequence under
   `.agent/tasks/architecture-001` through `architecture-025`, with the approved
   compatibility task `architecture-016a` inserted between 016 and 017.
-- Architecture tasks 001-018 and planning task PTC-001 are completed.
+- Architecture tasks 001-019 and planning task PTC-001 are completed.
 - The next and only task is
-  `architecture-019-auditor-corrector`; its architecture-018
+  `architecture-020-local-embedding-adapter`; its architecture-019
   prerequisite is complete.
-- Architectures 019-025 remain ordered by their existing dependency chain.
-  Architectures 019, 020, 023, 024, and 025 are substantively unchanged.
+- Architectures 020-025 remain ordered by their existing dependency chain.
+- Architecture 019 was completed without selecting or beginning architecture
+  020 in the same pass.
 - The legacy external-readiness backlog below is deferred while this canonical
   architecture sequence is active; its unchecked entries are not the current
   fresh-pass selector.
@@ -37,9 +38,10 @@
 - [x] Architecture 017 — implement the host-owned verification engine.
 - [x] Architecture 018 — implement the evidence model and completion rejection
   gates.
-- [ ] Architecture 019 — implement the auditor and bounded corrector loop.
+- [x] Architecture 019 — implement the auditor and bounded corrector loop.
+- [ ] Architecture 020 — implement the local embedding service adapter.
   **Next and only selectable task.**
-- Architecture 020-025 — pending behind architecture 019 and then ordered by
+- Architecture 021-025 — pending behind architecture 020 and then ordered by
   their recorded dependencies; do not select a successor in the same pass.
 
 ## Deferred Programmatic Workspace And Continual Harness Sequence

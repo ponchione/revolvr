@@ -622,6 +622,49 @@ func (q *Queries) CountRunAdmissionEvents(ctx context.Context, arg CountRunAdmis
 	return count, err
 }
 
+const findFailedStrategy = `-- name: FindFailedStrategy :one
+SELECT s.id, s.operation_id, s.project_id, s.task_id, s.task_version_id, s.run_id, s.workspace_id, s.failure_signature_id, s.source_commit, s.source_tree, s.dossier_sha256, s.strategy_fingerprint, s.normalized_strategy, s.corrector_invocation_id, s.sandbox_specification_sha256, s.created_at
+FROM core.strategies s
+JOIN core.failure_signatures f ON f.id = s.failure_signature_id
+JOIN core.strategy_outcomes o ON o.strategy_id = s.id
+WHERE s.task_id = $1
+  AND f.signature_sha256 = $2
+  AND s.strategy_fingerprint = $3
+  AND o.outcome IN ('failed', 'no_progress', 'blocked')
+ORDER BY o.completed_at DESC, s.id DESC
+LIMIT 1
+`
+
+type FindFailedStrategyParams struct {
+	TaskID              pgtype.UUID
+	SignatureSha256     string
+	StrategyFingerprint string
+}
+
+func (q *Queries) FindFailedStrategy(ctx context.Context, arg FindFailedStrategyParams) (CoreStrategy, error) {
+	row := q.db.QueryRow(ctx, findFailedStrategy, arg.TaskID, arg.SignatureSha256, arg.StrategyFingerprint)
+	var i CoreStrategy
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.FailureSignatureID,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.DossierSha256,
+		&i.StrategyFingerprint,
+		&i.NormalizedStrategy,
+		&i.CorrectorInvocationID,
+		&i.SandboxSpecificationSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const findReusableVerificationCheck = `-- name: FindReusableVerificationCheck :one
 SELECT id, verification_run_id, run_id, ordinal, gate_id, tier, outcome,
     execution_fingerprint, verifier_protocol_version,
@@ -820,6 +863,193 @@ func (q *Queries) GetArtifactBySHA256(ctx context.Context, sha256 string) (CoreA
 		&i.LogicalKind,
 		&i.StoragePath,
 		&i.Compression,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getArtifactProvenanceByArtifactAndRun = `-- name: GetArtifactProvenanceByArtifactAndRun :one
+SELECT id, artifact_id, project_id, task_id, task_version_id, run_id, workspace_id, producer_role, producing_operation_id, source_commit, source_tree, created_at FROM core.artifact_provenance
+WHERE artifact_id = $1 AND run_id = $2
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+`
+
+type GetArtifactProvenanceByArtifactAndRunParams struct {
+	ArtifactID pgtype.UUID
+	RunID      pgtype.UUID
+}
+
+func (q *Queries) GetArtifactProvenanceByArtifactAndRun(ctx context.Context, arg GetArtifactProvenanceByArtifactAndRunParams) (CoreArtifactProvenance, error) {
+	row := q.db.QueryRow(ctx, getArtifactProvenanceByArtifactAndRun, arg.ArtifactID, arg.RunID)
+	var i CoreArtifactProvenance
+	err := row.Scan(
+		&i.ID,
+		&i.ArtifactID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.ProducerRole,
+		&i.ProducingOperationID,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getAuditFindingByTaskAndKey = `-- name: GetAuditFindingByTaskAndKey :one
+SELECT id, project_id, task_id, task_version_id, run_id, workspace_id, introduced_audit_run_id, finding_key, significance, summary, required_correction, source_evidence, affected_files, affected_symbols, criterion_impact, definition_sha256, source_commit, source_tree, created_at FROM core.audit_findings
+WHERE task_id = $1 AND finding_key = $2
+`
+
+type GetAuditFindingByTaskAndKeyParams struct {
+	TaskID     pgtype.UUID
+	FindingKey string
+}
+
+func (q *Queries) GetAuditFindingByTaskAndKey(ctx context.Context, arg GetAuditFindingByTaskAndKeyParams) (CoreAuditFinding, error) {
+	row := q.db.QueryRow(ctx, getAuditFindingByTaskAndKey, arg.TaskID, arg.FindingKey)
+	var i CoreAuditFinding
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.IntroducedAuditRunID,
+		&i.FindingKey,
+		&i.Significance,
+		&i.Summary,
+		&i.RequiredCorrection,
+		&i.SourceEvidence,
+		&i.AffectedFiles,
+		&i.AffectedSymbols,
+		&i.CriterionImpact,
+		&i.DefinitionSha256,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getAuditPersistenceAuthority = `-- name: GetAuditPersistenceAuthority :one
+SELECT
+    v.id AS verification_run_id,
+    v.project_id,
+    v.task_id,
+    v.task_version_id,
+    v.run_id,
+    v.workspace_id,
+    v.purpose AS verification_purpose,
+    v.status AS verification_status,
+    v.candidate_commit,
+    v.candidate_tree,
+    v.completed_at AS verification_completed_at,
+    r.status AS run_status,
+    w.status AS workspace_status,
+    w.candidate_commit AS workspace_candidate_commit,
+    w.candidate_tree AS workspace_candidate_tree,
+    w.diff_sha256 AS workspace_diff_sha256,
+    t.accepted_version_id
+FROM core.verification_runs v
+JOIN core.runs r ON r.id = v.run_id
+JOIN core.workspaces w ON w.id = v.workspace_id
+JOIN core.tasks t ON t.id = v.task_id
+WHERE v.id = $1
+FOR SHARE OF v, r, w, t
+`
+
+type GetAuditPersistenceAuthorityRow struct {
+	VerificationRunID        pgtype.UUID
+	ProjectID                pgtype.UUID
+	TaskID                   pgtype.UUID
+	TaskVersionID            pgtype.UUID
+	RunID                    pgtype.UUID
+	WorkspaceID              pgtype.UUID
+	VerificationPurpose      string
+	VerificationStatus       string
+	CandidateCommit          string
+	CandidateTree            string
+	VerificationCompletedAt  pgtype.Timestamptz
+	RunStatus                string
+	WorkspaceStatus          string
+	WorkspaceCandidateCommit pgtype.Text
+	WorkspaceCandidateTree   pgtype.Text
+	WorkspaceDiffSha256      pgtype.Text
+	AcceptedVersionID        pgtype.UUID
+}
+
+func (q *Queries) GetAuditPersistenceAuthority(ctx context.Context, id pgtype.UUID) (GetAuditPersistenceAuthorityRow, error) {
+	row := q.db.QueryRow(ctx, getAuditPersistenceAuthority, id)
+	var i GetAuditPersistenceAuthorityRow
+	err := row.Scan(
+		&i.VerificationRunID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.VerificationPurpose,
+		&i.VerificationStatus,
+		&i.CandidateCommit,
+		&i.CandidateTree,
+		&i.VerificationCompletedAt,
+		&i.RunStatus,
+		&i.WorkspaceStatus,
+		&i.WorkspaceCandidateCommit,
+		&i.WorkspaceCandidateTree,
+		&i.WorkspaceDiffSha256,
+		&i.AcceptedVersionID,
+	)
+	return i, err
+}
+
+const getAuditRunByOperationID = `-- name: GetAuditRunByOperationID :one
+SELECT id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, verification_run_id, audit_kind, disposition, independent, auditor_invocation_id, source_mutating_invocation_ids, dossier_schema_version, dossier_sha256, dossier, prompt_version, prompt_sha256, prompt, response_schema_version, response_schema_sha256, response_schema, model, model_request, model_result, source_commit, source_tree, diff_sha256, report_artifact_id, report_sha256, record_sha256, started_at, completed_at, created_at FROM core.audit_runs WHERE operation_id = $1
+`
+
+func (q *Queries) GetAuditRunByOperationID(ctx context.Context, operationID string) (CoreAuditRun, error) {
+	row := q.db.QueryRow(ctx, getAuditRunByOperationID, operationID)
+	var i CoreAuditRun
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.VerificationRunID,
+		&i.AuditKind,
+		&i.Disposition,
+		&i.Independent,
+		&i.AuditorInvocationID,
+		&i.SourceMutatingInvocationIds,
+		&i.DossierSchemaVersion,
+		&i.DossierSha256,
+		&i.Dossier,
+		&i.PromptVersion,
+		&i.PromptSha256,
+		&i.Prompt,
+		&i.ResponseSchemaVersion,
+		&i.ResponseSchemaSha256,
+		&i.ResponseSchema,
+		&i.Model,
+		&i.ModelRequest,
+		&i.ModelResult,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.DiffSha256,
+		&i.ReportArtifactID,
+		&i.ReportSha256,
+		&i.RecordSha256,
+		&i.StartedAt,
+		&i.CompletedAt,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -1155,6 +1385,63 @@ func (q *Queries) GetEvent(ctx context.Context, id pgtype.UUID) (CoreEvent, erro
 	return i, err
 }
 
+const getFailureSignatureByOperationID = `-- name: GetFailureSignatureByOperationID :one
+SELECT id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, authority_kind, verification_run_id, verification_check_id, audit_run_id, finding_keys, source_commit, source_tree, normalized_material, signature_sha256, created_at FROM core.failure_signatures WHERE operation_id = $1
+`
+
+func (q *Queries) GetFailureSignatureByOperationID(ctx context.Context, operationID string) (CoreFailureSignature, error) {
+	row := q.db.QueryRow(ctx, getFailureSignatureByOperationID, operationID)
+	var i CoreFailureSignature
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.AuthorityKind,
+		&i.VerificationRunID,
+		&i.VerificationCheckID,
+		&i.AuditRunID,
+		&i.FindingKeys,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.NormalizedMaterial,
+		&i.SignatureSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getFindingDispositionByOperationID = `-- name: GetFindingDispositionByOperationID :one
+SELECT id, operation_id, finding_id, task_id, status, authority_role, authority_id, resolution_verification_run_id, resolution_audit_run_id, superseding_finding_id, source_commit, source_tree, evidence, rationale, record_sha256, created_at FROM core.finding_dispositions WHERE operation_id = $1
+`
+
+func (q *Queries) GetFindingDispositionByOperationID(ctx context.Context, operationID string) (CoreFindingDisposition, error) {
+	row := q.db.QueryRow(ctx, getFindingDispositionByOperationID, operationID)
+	var i CoreFindingDisposition
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.FindingID,
+		&i.TaskID,
+		&i.Status,
+		&i.AuthorityRole,
+		&i.AuthorityID,
+		&i.ResolutionVerificationRunID,
+		&i.ResolutionAuditRunID,
+		&i.SupersedingFindingID,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.Evidence,
+		&i.Rationale,
+		&i.RecordSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getGlobalExecutionLease = `-- name: GetGlobalExecutionLease :one
 SELECT lease_name, run_id, coordinator_identity, acquired_at, aggregate_version
 FROM core.execution_leases
@@ -1190,6 +1477,127 @@ func (q *Queries) GetGlobalExecutionLeaseForUpdate(ctx context.Context) (CoreExe
 		&i.CoordinatorIdentity,
 		&i.AcquiredAt,
 		&i.AggregateVersion,
+	)
+	return i, err
+}
+
+const getLatestAuditByTaskRunWorkspace = `-- name: GetLatestAuditByTaskRunWorkspace :one
+SELECT id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, verification_run_id, audit_kind, disposition, independent, auditor_invocation_id, source_mutating_invocation_ids, dossier_schema_version, dossier_sha256, dossier, prompt_version, prompt_sha256, prompt, response_schema_version, response_schema_sha256, response_schema, model, model_request, model_result, source_commit, source_tree, diff_sha256, report_artifact_id, report_sha256, record_sha256, started_at, completed_at, created_at FROM core.audit_runs
+WHERE task_id = $1 AND run_id = $2 AND workspace_id = $3
+ORDER BY completed_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLatestAuditByTaskRunWorkspaceParams struct {
+	TaskID      pgtype.UUID
+	RunID       pgtype.UUID
+	WorkspaceID pgtype.UUID
+}
+
+func (q *Queries) GetLatestAuditByTaskRunWorkspace(ctx context.Context, arg GetLatestAuditByTaskRunWorkspaceParams) (CoreAuditRun, error) {
+	row := q.db.QueryRow(ctx, getLatestAuditByTaskRunWorkspace, arg.TaskID, arg.RunID, arg.WorkspaceID)
+	var i CoreAuditRun
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.VerificationRunID,
+		&i.AuditKind,
+		&i.Disposition,
+		&i.Independent,
+		&i.AuditorInvocationID,
+		&i.SourceMutatingInvocationIds,
+		&i.DossierSchemaVersion,
+		&i.DossierSha256,
+		&i.Dossier,
+		&i.PromptVersion,
+		&i.PromptSha256,
+		&i.Prompt,
+		&i.ResponseSchemaVersion,
+		&i.ResponseSchemaSha256,
+		&i.ResponseSchema,
+		&i.Model,
+		&i.ModelRequest,
+		&i.ModelResult,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.DiffSha256,
+		&i.ReportArtifactID,
+		&i.ReportSha256,
+		&i.RecordSha256,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLatestAuditForCompletion = `-- name: GetLatestAuditForCompletion :one
+SELECT id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, verification_run_id, audit_kind, disposition, independent, auditor_invocation_id, source_mutating_invocation_ids, dossier_schema_version, dossier_sha256, dossier, prompt_version, prompt_sha256, prompt, response_schema_version, response_schema_sha256, response_schema, model, model_request, model_result, source_commit, source_tree, diff_sha256, report_artifact_id, report_sha256, record_sha256, started_at, completed_at, created_at FROM core.audit_runs
+WHERE task_id = $1 AND run_id = $2 AND workspace_id = $3
+  AND verification_run_id = $4 AND source_commit = $5 AND source_tree = $6
+ORDER BY completed_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLatestAuditForCompletionParams struct {
+	TaskID            pgtype.UUID
+	RunID             pgtype.UUID
+	WorkspaceID       pgtype.UUID
+	VerificationRunID pgtype.UUID
+	SourceCommit      string
+	SourceTree        string
+}
+
+func (q *Queries) GetLatestAuditForCompletion(ctx context.Context, arg GetLatestAuditForCompletionParams) (CoreAuditRun, error) {
+	row := q.db.QueryRow(ctx, getLatestAuditForCompletion,
+		arg.TaskID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.VerificationRunID,
+		arg.SourceCommit,
+		arg.SourceTree,
+	)
+	var i CoreAuditRun
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.VerificationRunID,
+		&i.AuditKind,
+		&i.Disposition,
+		&i.Independent,
+		&i.AuditorInvocationID,
+		&i.SourceMutatingInvocationIds,
+		&i.DossierSchemaVersion,
+		&i.DossierSha256,
+		&i.Dossier,
+		&i.PromptVersion,
+		&i.PromptSha256,
+		&i.Prompt,
+		&i.ResponseSchemaVersion,
+		&i.ResponseSchemaSha256,
+		&i.ResponseSchema,
+		&i.Model,
+		&i.ModelRequest,
+		&i.ModelResult,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.DiffSha256,
+		&i.ReportArtifactID,
+		&i.ReportSha256,
+		&i.RecordSha256,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1562,6 +1970,59 @@ func (q *Queries) GetSchedulerProjectSource(ctx context.Context, arg GetSchedule
 		&i.ProjectID,
 		&i.CurrentCommit,
 		&i.CurrentTree,
+	)
+	return i, err
+}
+
+const getStrategyByOperationID = `-- name: GetStrategyByOperationID :one
+SELECT id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, failure_signature_id, source_commit, source_tree, dossier_sha256, strategy_fingerprint, normalized_strategy, corrector_invocation_id, sandbox_specification_sha256, created_at FROM core.strategies WHERE operation_id = $1
+`
+
+func (q *Queries) GetStrategyByOperationID(ctx context.Context, operationID string) (CoreStrategy, error) {
+	row := q.db.QueryRow(ctx, getStrategyByOperationID, operationID)
+	var i CoreStrategy
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.FailureSignatureID,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.DossierSha256,
+		&i.StrategyFingerprint,
+		&i.NormalizedStrategy,
+		&i.CorrectorInvocationID,
+		&i.SandboxSpecificationSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getStrategyOutcome = `-- name: GetStrategyOutcome :one
+SELECT id, strategy_id, task_id, outcome, resulting_source_commit, resulting_source_tree, diff_sha256, verification_run_id, audit_run_id, evidence, record_sha256, completed_at, created_at FROM core.strategy_outcomes WHERE strategy_id = $1
+`
+
+func (q *Queries) GetStrategyOutcome(ctx context.Context, strategyID pgtype.UUID) (CoreStrategyOutcome, error) {
+	row := q.db.QueryRow(ctx, getStrategyOutcome, strategyID)
+	var i CoreStrategyOutcome
+	err := row.Scan(
+		&i.ID,
+		&i.StrategyID,
+		&i.TaskID,
+		&i.Outcome,
+		&i.ResultingSourceCommit,
+		&i.ResultingSourceTree,
+		&i.DiffSha256,
+		&i.VerificationRunID,
+		&i.AuditRunID,
+		&i.Evidence,
+		&i.RecordSha256,
+		&i.CompletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -2237,6 +2698,259 @@ func (q *Queries) InsertArtifactProvenance(ctx context.Context, arg InsertArtifa
 	return i, err
 }
 
+const insertAuditFinding = `-- name: InsertAuditFinding :one
+INSERT INTO core.audit_findings (
+    id, project_id, task_id, task_version_id, run_id, workspace_id,
+    introduced_audit_run_id, finding_key, significance, summary,
+    required_correction, source_evidence, affected_files, affected_symbols,
+    criterion_impact, definition_sha256, source_commit, source_tree, created_at
+) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+)
+RETURNING id, project_id, task_id, task_version_id, run_id, workspace_id, introduced_audit_run_id, finding_key, significance, summary, required_correction, source_evidence, affected_files, affected_symbols, criterion_impact, definition_sha256, source_commit, source_tree, created_at
+`
+
+type InsertAuditFindingParams struct {
+	ID                   pgtype.UUID
+	ProjectID            pgtype.UUID
+	TaskID               pgtype.UUID
+	TaskVersionID        pgtype.UUID
+	RunID                pgtype.UUID
+	WorkspaceID          pgtype.UUID
+	IntroducedAuditRunID pgtype.UUID
+	FindingKey           string
+	Significance         string
+	Summary              string
+	RequiredCorrection   string
+	SourceEvidence       []byte
+	AffectedFiles        []byte
+	AffectedSymbols      []byte
+	CriterionImpact      []byte
+	DefinitionSha256     string
+	SourceCommit         string
+	SourceTree           string
+	CreatedAt            pgtype.Timestamptz
+}
+
+func (q *Queries) InsertAuditFinding(ctx context.Context, arg InsertAuditFindingParams) (CoreAuditFinding, error) {
+	row := q.db.QueryRow(ctx, insertAuditFinding,
+		arg.ID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.IntroducedAuditRunID,
+		arg.FindingKey,
+		arg.Significance,
+		arg.Summary,
+		arg.RequiredCorrection,
+		arg.SourceEvidence,
+		arg.AffectedFiles,
+		arg.AffectedSymbols,
+		arg.CriterionImpact,
+		arg.DefinitionSha256,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.CreatedAt,
+	)
+	var i CoreAuditFinding
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.IntroducedAuditRunID,
+		&i.FindingKey,
+		&i.Significance,
+		&i.Summary,
+		&i.RequiredCorrection,
+		&i.SourceEvidence,
+		&i.AffectedFiles,
+		&i.AffectedSymbols,
+		&i.CriterionImpact,
+		&i.DefinitionSha256,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertAuditFindingOccurrence = `-- name: InsertAuditFindingOccurrence :one
+INSERT INTO core.audit_finding_occurrences (
+    id, audit_run_id, task_id, finding_id, ordinal, occurrence_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7)
+RETURNING id, audit_run_id, task_id, finding_id, ordinal, occurrence_sha256, created_at
+`
+
+type InsertAuditFindingOccurrenceParams struct {
+	ID               pgtype.UUID
+	AuditRunID       pgtype.UUID
+	TaskID           pgtype.UUID
+	FindingID        pgtype.UUID
+	Ordinal          int32
+	OccurrenceSha256 string
+	CreatedAt        pgtype.Timestamptz
+}
+
+func (q *Queries) InsertAuditFindingOccurrence(ctx context.Context, arg InsertAuditFindingOccurrenceParams) (CoreAuditFindingOccurrence, error) {
+	row := q.db.QueryRow(ctx, insertAuditFindingOccurrence,
+		arg.ID,
+		arg.AuditRunID,
+		arg.TaskID,
+		arg.FindingID,
+		arg.Ordinal,
+		arg.OccurrenceSha256,
+		arg.CreatedAt,
+	)
+	var i CoreAuditFindingOccurrence
+	err := row.Scan(
+		&i.ID,
+		&i.AuditRunID,
+		&i.TaskID,
+		&i.FindingID,
+		&i.Ordinal,
+		&i.OccurrenceSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertAuditRun = `-- name: InsertAuditRun :one
+INSERT INTO core.audit_runs (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    verification_run_id, audit_kind, disposition, independent,
+    auditor_invocation_id, source_mutating_invocation_ids,
+    dossier_schema_version, dossier_sha256, dossier,
+    prompt_version, prompt_sha256, prompt, response_schema_version,
+    response_schema_sha256, response_schema, model, model_request, model_result,
+    source_commit, source_tree,
+    diff_sha256, report_artifact_id, report_sha256, record_sha256,
+    started_at, completed_at, created_at
+) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
+    $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
+)
+RETURNING id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, verification_run_id, audit_kind, disposition, independent, auditor_invocation_id, source_mutating_invocation_ids, dossier_schema_version, dossier_sha256, dossier, prompt_version, prompt_sha256, prompt, response_schema_version, response_schema_sha256, response_schema, model, model_request, model_result, source_commit, source_tree, diff_sha256, report_artifact_id, report_sha256, record_sha256, started_at, completed_at, created_at
+`
+
+type InsertAuditRunParams struct {
+	ID                          pgtype.UUID
+	OperationID                 string
+	ProjectID                   pgtype.UUID
+	TaskID                      pgtype.UUID
+	TaskVersionID               pgtype.UUID
+	RunID                       pgtype.UUID
+	WorkspaceID                 pgtype.UUID
+	VerificationRunID           pgtype.UUID
+	AuditKind                   string
+	Disposition                 string
+	Independent                 bool
+	AuditorInvocationID         string
+	SourceMutatingInvocationIds []byte
+	DossierSchemaVersion        string
+	DossierSha256               string
+	Dossier                     []byte
+	PromptVersion               string
+	PromptSha256                string
+	Prompt                      string
+	ResponseSchemaVersion       string
+	ResponseSchemaSha256        string
+	ResponseSchema              []byte
+	Model                       string
+	ModelRequest                []byte
+	ModelResult                 []byte
+	SourceCommit                string
+	SourceTree                  string
+	DiffSha256                  string
+	ReportArtifactID            pgtype.UUID
+	ReportSha256                string
+	RecordSha256                string
+	StartedAt                   pgtype.Timestamptz
+	CompletedAt                 pgtype.Timestamptz
+	CreatedAt                   pgtype.Timestamptz
+}
+
+func (q *Queries) InsertAuditRun(ctx context.Context, arg InsertAuditRunParams) (CoreAuditRun, error) {
+	row := q.db.QueryRow(ctx, insertAuditRun,
+		arg.ID,
+		arg.OperationID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.VerificationRunID,
+		arg.AuditKind,
+		arg.Disposition,
+		arg.Independent,
+		arg.AuditorInvocationID,
+		arg.SourceMutatingInvocationIds,
+		arg.DossierSchemaVersion,
+		arg.DossierSha256,
+		arg.Dossier,
+		arg.PromptVersion,
+		arg.PromptSha256,
+		arg.Prompt,
+		arg.ResponseSchemaVersion,
+		arg.ResponseSchemaSha256,
+		arg.ResponseSchema,
+		arg.Model,
+		arg.ModelRequest,
+		arg.ModelResult,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.DiffSha256,
+		arg.ReportArtifactID,
+		arg.ReportSha256,
+		arg.RecordSha256,
+		arg.StartedAt,
+		arg.CompletedAt,
+		arg.CreatedAt,
+	)
+	var i CoreAuditRun
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.VerificationRunID,
+		&i.AuditKind,
+		&i.Disposition,
+		&i.Independent,
+		&i.AuditorInvocationID,
+		&i.SourceMutatingInvocationIds,
+		&i.DossierSchemaVersion,
+		&i.DossierSha256,
+		&i.Dossier,
+		&i.PromptVersion,
+		&i.PromptSha256,
+		&i.Prompt,
+		&i.ResponseSchemaVersion,
+		&i.ResponseSchemaSha256,
+		&i.ResponseSchema,
+		&i.Model,
+		&i.ModelRequest,
+		&i.ModelResult,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.DiffSha256,
+		&i.ReportArtifactID,
+		&i.ReportSha256,
+		&i.RecordSha256,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertClaim = `-- name: InsertClaim :one
 INSERT INTO core.claims (
     id, project_id, task_id, task_version_id, run_id, criterion_id, claim_key,
@@ -2487,6 +3201,149 @@ func (q *Queries) InsertCompletionClaim(ctx context.Context, arg InsertCompletio
 		arg.ClaimID,
 	)
 	return err
+}
+
+const insertFailureSignature = `-- name: InsertFailureSignature :one
+INSERT INTO core.failure_signatures (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    authority_kind, verification_run_id, verification_check_id, audit_run_id,
+    finding_keys, source_commit, source_tree, normalized_material,
+    signature_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+RETURNING id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, authority_kind, verification_run_id, verification_check_id, audit_run_id, finding_keys, source_commit, source_tree, normalized_material, signature_sha256, created_at
+`
+
+type InsertFailureSignatureParams struct {
+	ID                  pgtype.UUID
+	OperationID         string
+	ProjectID           pgtype.UUID
+	TaskID              pgtype.UUID
+	TaskVersionID       pgtype.UUID
+	RunID               pgtype.UUID
+	WorkspaceID         pgtype.UUID
+	AuthorityKind       string
+	VerificationRunID   pgtype.UUID
+	VerificationCheckID pgtype.UUID
+	AuditRunID          pgtype.UUID
+	FindingKeys         []byte
+	SourceCommit        string
+	SourceTree          string
+	NormalizedMaterial  []byte
+	SignatureSha256     string
+	CreatedAt           pgtype.Timestamptz
+}
+
+func (q *Queries) InsertFailureSignature(ctx context.Context, arg InsertFailureSignatureParams) (CoreFailureSignature, error) {
+	row := q.db.QueryRow(ctx, insertFailureSignature,
+		arg.ID,
+		arg.OperationID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.AuthorityKind,
+		arg.VerificationRunID,
+		arg.VerificationCheckID,
+		arg.AuditRunID,
+		arg.FindingKeys,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.NormalizedMaterial,
+		arg.SignatureSha256,
+		arg.CreatedAt,
+	)
+	var i CoreFailureSignature
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.AuthorityKind,
+		&i.VerificationRunID,
+		&i.VerificationCheckID,
+		&i.AuditRunID,
+		&i.FindingKeys,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.NormalizedMaterial,
+		&i.SignatureSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertFindingDisposition = `-- name: InsertFindingDisposition :one
+INSERT INTO core.finding_dispositions (
+    id, operation_id, finding_id, task_id, status, authority_role, authority_id,
+    resolution_verification_run_id, resolution_audit_run_id,
+    superseding_finding_id, source_commit, source_tree, evidence, rationale,
+    record_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+RETURNING id, operation_id, finding_id, task_id, status, authority_role, authority_id, resolution_verification_run_id, resolution_audit_run_id, superseding_finding_id, source_commit, source_tree, evidence, rationale, record_sha256, created_at
+`
+
+type InsertFindingDispositionParams struct {
+	ID                          pgtype.UUID
+	OperationID                 string
+	FindingID                   pgtype.UUID
+	TaskID                      pgtype.UUID
+	Status                      string
+	AuthorityRole               string
+	AuthorityID                 string
+	ResolutionVerificationRunID pgtype.UUID
+	ResolutionAuditRunID        pgtype.UUID
+	SupersedingFindingID        pgtype.UUID
+	SourceCommit                string
+	SourceTree                  string
+	Evidence                    []byte
+	Rationale                   string
+	RecordSha256                string
+	CreatedAt                   pgtype.Timestamptz
+}
+
+func (q *Queries) InsertFindingDisposition(ctx context.Context, arg InsertFindingDispositionParams) (CoreFindingDisposition, error) {
+	row := q.db.QueryRow(ctx, insertFindingDisposition,
+		arg.ID,
+		arg.OperationID,
+		arg.FindingID,
+		arg.TaskID,
+		arg.Status,
+		arg.AuthorityRole,
+		arg.AuthorityID,
+		arg.ResolutionVerificationRunID,
+		arg.ResolutionAuditRunID,
+		arg.SupersedingFindingID,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.Evidence,
+		arg.Rationale,
+		arg.RecordSha256,
+		arg.CreatedAt,
+	)
+	var i CoreFindingDisposition
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.FindingID,
+		&i.TaskID,
+		&i.Status,
+		&i.AuthorityRole,
+		&i.AuthorityID,
+		&i.ResolutionVerificationRunID,
+		&i.ResolutionAuditRunID,
+		&i.SupersedingFindingID,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.Evidence,
+		&i.Rationale,
+		&i.RecordSha256,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const insertPlan = `-- name: InsertPlan :one
@@ -2891,6 +3748,136 @@ func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) (CoreRun, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ReleasedAt,
+	)
+	return i, err
+}
+
+const insertStrategy = `-- name: InsertStrategy :one
+INSERT INTO core.strategies (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    failure_signature_id, source_commit, source_tree, dossier_sha256,
+    strategy_fingerprint, normalized_strategy, corrector_invocation_id,
+    sandbox_specification_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+RETURNING id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id, failure_signature_id, source_commit, source_tree, dossier_sha256, strategy_fingerprint, normalized_strategy, corrector_invocation_id, sandbox_specification_sha256, created_at
+`
+
+type InsertStrategyParams struct {
+	ID                         pgtype.UUID
+	OperationID                string
+	ProjectID                  pgtype.UUID
+	TaskID                     pgtype.UUID
+	TaskVersionID              pgtype.UUID
+	RunID                      pgtype.UUID
+	WorkspaceID                pgtype.UUID
+	FailureSignatureID         pgtype.UUID
+	SourceCommit               string
+	SourceTree                 string
+	DossierSha256              string
+	StrategyFingerprint        string
+	NormalizedStrategy         []byte
+	CorrectorInvocationID      string
+	SandboxSpecificationSha256 string
+	CreatedAt                  pgtype.Timestamptz
+}
+
+func (q *Queries) InsertStrategy(ctx context.Context, arg InsertStrategyParams) (CoreStrategy, error) {
+	row := q.db.QueryRow(ctx, insertStrategy,
+		arg.ID,
+		arg.OperationID,
+		arg.ProjectID,
+		arg.TaskID,
+		arg.TaskVersionID,
+		arg.RunID,
+		arg.WorkspaceID,
+		arg.FailureSignatureID,
+		arg.SourceCommit,
+		arg.SourceTree,
+		arg.DossierSha256,
+		arg.StrategyFingerprint,
+		arg.NormalizedStrategy,
+		arg.CorrectorInvocationID,
+		arg.SandboxSpecificationSha256,
+		arg.CreatedAt,
+	)
+	var i CoreStrategy
+	err := row.Scan(
+		&i.ID,
+		&i.OperationID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.TaskVersionID,
+		&i.RunID,
+		&i.WorkspaceID,
+		&i.FailureSignatureID,
+		&i.SourceCommit,
+		&i.SourceTree,
+		&i.DossierSha256,
+		&i.StrategyFingerprint,
+		&i.NormalizedStrategy,
+		&i.CorrectorInvocationID,
+		&i.SandboxSpecificationSha256,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertStrategyOutcome = `-- name: InsertStrategyOutcome :one
+INSERT INTO core.strategy_outcomes (
+    id, strategy_id, task_id, outcome, resulting_source_commit,
+    resulting_source_tree, diff_sha256, verification_run_id, audit_run_id,
+    evidence, record_sha256, completed_at, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+RETURNING id, strategy_id, task_id, outcome, resulting_source_commit, resulting_source_tree, diff_sha256, verification_run_id, audit_run_id, evidence, record_sha256, completed_at, created_at
+`
+
+type InsertStrategyOutcomeParams struct {
+	ID                    pgtype.UUID
+	StrategyID            pgtype.UUID
+	TaskID                pgtype.UUID
+	Outcome               string
+	ResultingSourceCommit pgtype.Text
+	ResultingSourceTree   pgtype.Text
+	DiffSha256            pgtype.Text
+	VerificationRunID     pgtype.UUID
+	AuditRunID            pgtype.UUID
+	Evidence              []byte
+	RecordSha256          string
+	CompletedAt           pgtype.Timestamptz
+	CreatedAt             pgtype.Timestamptz
+}
+
+func (q *Queries) InsertStrategyOutcome(ctx context.Context, arg InsertStrategyOutcomeParams) (CoreStrategyOutcome, error) {
+	row := q.db.QueryRow(ctx, insertStrategyOutcome,
+		arg.ID,
+		arg.StrategyID,
+		arg.TaskID,
+		arg.Outcome,
+		arg.ResultingSourceCommit,
+		arg.ResultingSourceTree,
+		arg.DiffSha256,
+		arg.VerificationRunID,
+		arg.AuditRunID,
+		arg.Evidence,
+		arg.RecordSha256,
+		arg.CompletedAt,
+		arg.CreatedAt,
+	)
+	var i CoreStrategyOutcome
+	err := row.Scan(
+		&i.ID,
+		&i.StrategyID,
+		&i.TaskID,
+		&i.Outcome,
+		&i.ResultingSourceCommit,
+		&i.ResultingSourceTree,
+		&i.DiffSha256,
+		&i.VerificationRunID,
+		&i.AuditRunID,
+		&i.Evidence,
+		&i.RecordSha256,
+		&i.CompletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -3655,6 +4642,54 @@ func (q *Queries) ListActiveRuns(ctx context.Context) ([]CoreRun, error) {
 	return items, nil
 }
 
+const listAuditRunFindings = `-- name: ListAuditRunFindings :many
+SELECT f.id, f.project_id, f.task_id, f.task_version_id, f.run_id, f.workspace_id, f.introduced_audit_run_id, f.finding_key, f.significance, f.summary, f.required_correction, f.source_evidence, f.affected_files, f.affected_symbols, f.criterion_impact, f.definition_sha256, f.source_commit, f.source_tree, f.created_at
+FROM core.audit_finding_occurrences o
+JOIN core.audit_findings f ON f.id = o.finding_id
+WHERE o.audit_run_id = $1
+ORDER BY o.ordinal
+`
+
+func (q *Queries) ListAuditRunFindings(ctx context.Context, auditRunID pgtype.UUID) ([]CoreAuditFinding, error) {
+	rows, err := q.db.Query(ctx, listAuditRunFindings, auditRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreAuditFinding
+	for rows.Next() {
+		var i CoreAuditFinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.TaskID,
+			&i.TaskVersionID,
+			&i.RunID,
+			&i.WorkspaceID,
+			&i.IntroducedAuditRunID,
+			&i.FindingKey,
+			&i.Significance,
+			&i.Summary,
+			&i.RequiredCorrection,
+			&i.SourceEvidence,
+			&i.AffectedFiles,
+			&i.AffectedSymbols,
+			&i.CriterionImpact,
+			&i.DefinitionSha256,
+			&i.SourceCommit,
+			&i.SourceTree,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCompletionCriteria = `-- name: ListCompletionCriteria :many
 SELECT id, external_criterion_id, status
 FROM core.task_acceptance_criteria
@@ -3930,6 +4965,72 @@ func (q *Queries) ListSchedulerTasks(ctx context.Context) ([]ListSchedulerTasksR
 			&i.TaskVersionID,
 			&i.TaskPriority,
 			&i.AwaitingOperatorCheckpoint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskFindingsWithDisposition = `-- name: ListTaskFindingsWithDisposition :many
+SELECT
+    f.id, f.finding_key, f.significance, f.summary, f.required_correction,
+    f.source_evidence, f.affected_files, f.affected_symbols, f.criterion_impact,
+    f.source_commit, f.source_tree,
+    COALESCE(d.status, 'open')::text AS disposition_status,
+    d.id AS disposition_id,
+    d.evidence AS disposition_evidence
+FROM core.audit_findings f
+LEFT JOIN core.finding_dispositions d ON d.finding_id = f.id
+WHERE f.task_id = $1
+ORDER BY f.finding_key
+`
+
+type ListTaskFindingsWithDispositionRow struct {
+	ID                  pgtype.UUID
+	FindingKey          string
+	Significance        string
+	Summary             string
+	RequiredCorrection  string
+	SourceEvidence      []byte
+	AffectedFiles       []byte
+	AffectedSymbols     []byte
+	CriterionImpact     []byte
+	SourceCommit        string
+	SourceTree          string
+	DispositionStatus   string
+	DispositionID       pgtype.UUID
+	DispositionEvidence []byte
+}
+
+func (q *Queries) ListTaskFindingsWithDisposition(ctx context.Context, taskID pgtype.UUID) ([]ListTaskFindingsWithDispositionRow, error) {
+	rows, err := q.db.Query(ctx, listTaskFindingsWithDisposition, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTaskFindingsWithDispositionRow
+	for rows.Next() {
+		var i ListTaskFindingsWithDispositionRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FindingKey,
+			&i.Significance,
+			&i.Summary,
+			&i.RequiredCorrection,
+			&i.SourceEvidence,
+			&i.AffectedFiles,
+			&i.AffectedSymbols,
+			&i.CriterionImpact,
+			&i.SourceCommit,
+			&i.SourceTree,
+			&i.DispositionStatus,
+			&i.DispositionID,
+			&i.DispositionEvidence,
 		); err != nil {
 			return nil, err
 		}

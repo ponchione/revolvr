@@ -1,5 +1,80 @@
 # Agent State
 
+## Architecture 019 Auditor And Bounded Corrector Complete (2026-08-06)
+
+- Task selected: `architecture-019-auditor-corrector`, confirmed as the sole
+  dependency-satisfied pending architecture task after completed architecture
+  018. Architecture-017 verification occurrences remain immutable and
+  read-only; architecture-018 remains the sole completion/finalization
+  authority. Architecture 020 was not begun.
+- Added reversible migration `00011_audit_correction.sql`, named sqlc queries,
+  and regenerated PostgreSQL code for immutable audit runs, durable findings
+  and occurrences, evidence-authorized dispositions, exact failure
+  signatures, normalized correction strategies, and strategy outcomes.
+  Composite ownership constraints, report-hash validation, update-rejection
+  triggers, replay material hashes, and transactional events preserve exact
+  project/task/version/run/workspace provenance.
+- Added `internal/audit`. Versioned, hashed Section 13.4 dossiers contain the
+  exact task, plan, acceptance matrix, patch bytes, changed files/symbols,
+  bounded source bytes, architecture-017 final verification, blast radius,
+  and prior findings. One fresh, tool-free auditor request is bound to the
+  exact model request, prompt, closed response schema, source, dossier, and a
+  durable list of distinct source-mutating invocations. Accepted results are
+  exactly `clean`, `changes_required`, or `blocked`; findings require stable
+  kebab-case IDs, blocking/non-blocking significance, exact bounded source
+  line citations, affected paths/symbols, required corrections, and known
+  criterion impact.
+- Optional security, performance, integration, migration, documentation, and
+  API-compatibility audits are routed in stable order from admitted task risk,
+  mutation class, actual changed paths/symbols, and blast radius. Model output
+  cannot select routes, waive findings, mutate source, or grant lifecycle
+  authority.
+- Audit persistence revalidates the accepted task version, active run, frozen
+  candidate workspace, exact source/diff, and newer final verification in one
+  transaction. It retains exact dossier, prompt, response schema, full model
+  result, canonical report artifact/provenance, findings, occurrences, and
+  event evidence. Exact replay is non-effecting; changed replay, stale source,
+  forged model evidence, and partial transaction effects fail closed.
+- Finding transitions are closed to `resolved`, `waived`, `rejected`,
+  `superseded`, or `stale`. Resolution requires host authority plus exact
+  passing final verification and a clean source-bound re-audit; waiver and
+  rejection require operator authority and rationale; staleness requires an
+  exact changed frozen-workspace source. Multi-finding resolution is atomic,
+  and a concurrent disposition has exactly one winner.
+- Added `internal/correction`. Its hashed dossier contains only one exact
+  verification failure or exact active audit findings, current bounded source,
+  relevant tests, and prior strategies. Failure signatures and semantic
+  strategy fingerprints are canonical; materially repeated failed strategies,
+  identical diffs/failures, unrelated files/symbols, no change/evidence,
+  exhausted budgets, cancellation, and worker failure stop with typed
+  outcomes. The corrector must use the architecture-015 corrector sandbox and
+  shared architecture-016 tool registry, then pass a fresh non-reused Tier 4
+  final verification and a distinct clean re-audit before atomic finding
+  resolution and a successful outcome.
+- `audit.CompletionOverlay` replaces architecture-018's deterministic audit
+  fixture with canonical audit/finding/artifact provenance while leaving its
+  preflight and terminal transaction unchanged. The correction acceptance
+  fixture passes the existing architecture-018 completion audit gate only
+  after exact resolution, fresh verification, and independent clean re-audit.
+- Tests cover clean/changes-required/blocked results; deterministic dossier and
+  specialist routing; malformed, refused, stale, self-audited, uncited,
+  unknown-significance, duplicate-ID, divergent-model, and changed-source
+  rejection; sandbox/tool containment; all typed correction stops; semantic
+  repeat detection; completion acceptance; PostgreSQL rollback/retry/replay,
+  immutable rows, successful and failed strategy outcomes, atomic batch and
+  concurrent dispositions, and canonical completion projection.
+- Verification passed against temporary `pgvector/pgvector:pg17` PostgreSQL
+  17: migration 00011 Down and Up; `test -z "$(gofmt -l cmd internal)"`;
+  pinned sqlc v1.27.0 generation; `env -u OPENAI_API_KEY
+  REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test ./internal/audit
+  ./internal/correction`; `go test ./...`; and `git diff --check`. An
+  additional uncached `go test -count=1 ./...` passed. `go.mod` and `go.sum`
+  are unchanged; no dependency was added. The temporary database container was
+  removed after verification.
+- Result: **PASS**. Architecture tasks 001-019 and PTC-001 are complete.
+  `architecture-020-local-embedding-adapter` is next and solely selectable;
+  architectures 021-025 and all post-core PTC tasks remain gated.
+
 ## Architecture 018 Evidence Model And Completion Gates Complete (2026-08-06)
 
 - Task selected: `architecture-018-evidence-model-completion-gates`, confirmed

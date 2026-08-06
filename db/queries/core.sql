@@ -937,3 +937,168 @@ SET run_id = NULL, coordinator_identity = NULL, acquired_at = NULL,
 WHERE lease_name = 'global-source-mutation-v1'
   AND run_id = $1 AND aggregate_version = $2
 RETURNING *;
+
+-- name: GetAuditPersistenceAuthority :one
+SELECT
+    v.id AS verification_run_id,
+    v.project_id,
+    v.task_id,
+    v.task_version_id,
+    v.run_id,
+    v.workspace_id,
+    v.purpose AS verification_purpose,
+    v.status AS verification_status,
+    v.candidate_commit,
+    v.candidate_tree,
+    v.completed_at AS verification_completed_at,
+    r.status AS run_status,
+    w.status AS workspace_status,
+    w.candidate_commit AS workspace_candidate_commit,
+    w.candidate_tree AS workspace_candidate_tree,
+    w.diff_sha256 AS workspace_diff_sha256,
+    t.accepted_version_id
+FROM core.verification_runs v
+JOIN core.runs r ON r.id = v.run_id
+JOIN core.workspaces w ON w.id = v.workspace_id
+JOIN core.tasks t ON t.id = v.task_id
+WHERE v.id = $1
+FOR SHARE OF v, r, w, t;
+
+-- name: InsertAuditRun :one
+INSERT INTO core.audit_runs (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    verification_run_id, audit_kind, disposition, independent,
+    auditor_invocation_id, source_mutating_invocation_ids,
+    dossier_schema_version, dossier_sha256, dossier,
+    prompt_version, prompt_sha256, prompt, response_schema_version,
+    response_schema_sha256, response_schema, model, model_request, model_result,
+    source_commit, source_tree,
+    diff_sha256, report_artifact_id, report_sha256, record_sha256,
+    started_at, completed_at, created_at
+) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
+    $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
+)
+RETURNING *;
+
+-- name: GetAuditRunByOperationID :one
+SELECT * FROM core.audit_runs WHERE operation_id = $1;
+
+-- name: GetLatestAuditForCompletion :one
+SELECT * FROM core.audit_runs
+WHERE task_id = $1 AND run_id = $2 AND workspace_id = $3
+  AND verification_run_id = $4 AND source_commit = $5 AND source_tree = $6
+ORDER BY completed_at DESC, id DESC
+LIMIT 1;
+
+-- name: GetLatestAuditByTaskRunWorkspace :one
+SELECT * FROM core.audit_runs
+WHERE task_id = $1 AND run_id = $2 AND workspace_id = $3
+ORDER BY completed_at DESC, id DESC
+LIMIT 1;
+
+-- name: GetAuditFindingByTaskAndKey :one
+SELECT * FROM core.audit_findings
+WHERE task_id = $1 AND finding_key = $2;
+
+-- name: InsertAuditFinding :one
+INSERT INTO core.audit_findings (
+    id, project_id, task_id, task_version_id, run_id, workspace_id,
+    introduced_audit_run_id, finding_key, significance, summary,
+    required_correction, source_evidence, affected_files, affected_symbols,
+    criterion_impact, definition_sha256, source_commit, source_tree, created_at
+) VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+)
+RETURNING *;
+
+-- name: InsertAuditFindingOccurrence :one
+INSERT INTO core.audit_finding_occurrences (
+    id, audit_run_id, task_id, finding_id, ordinal, occurrence_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7)
+RETURNING *;
+
+-- name: ListAuditRunFindings :many
+SELECT f.*
+FROM core.audit_finding_occurrences o
+JOIN core.audit_findings f ON f.id = o.finding_id
+WHERE o.audit_run_id = $1
+ORDER BY o.ordinal;
+
+-- name: ListTaskFindingsWithDisposition :many
+SELECT
+    f.id, f.finding_key, f.significance, f.summary, f.required_correction,
+    f.source_evidence, f.affected_files, f.affected_symbols, f.criterion_impact,
+    f.source_commit, f.source_tree,
+    COALESCE(d.status, 'open')::text AS disposition_status,
+    d.id AS disposition_id,
+    d.evidence AS disposition_evidence
+FROM core.audit_findings f
+LEFT JOIN core.finding_dispositions d ON d.finding_id = f.id
+WHERE f.task_id = $1
+ORDER BY f.finding_key;
+
+-- name: GetArtifactProvenanceByArtifactAndRun :one
+SELECT * FROM core.artifact_provenance
+WHERE artifact_id = $1 AND run_id = $2
+ORDER BY created_at DESC, id DESC
+LIMIT 1;
+
+-- name: InsertFindingDisposition :one
+INSERT INTO core.finding_dispositions (
+    id, operation_id, finding_id, task_id, status, authority_role, authority_id,
+    resolution_verification_run_id, resolution_audit_run_id,
+    superseding_finding_id, source_commit, source_tree, evidence, rationale,
+    record_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+RETURNING *;
+
+-- name: GetFindingDispositionByOperationID :one
+SELECT * FROM core.finding_dispositions WHERE operation_id = $1;
+
+-- name: InsertFailureSignature :one
+INSERT INTO core.failure_signatures (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    authority_kind, verification_run_id, verification_check_id, audit_run_id,
+    finding_keys, source_commit, source_tree, normalized_material,
+    signature_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+RETURNING *;
+
+-- name: GetFailureSignatureByOperationID :one
+SELECT * FROM core.failure_signatures WHERE operation_id = $1;
+
+-- name: InsertStrategy :one
+INSERT INTO core.strategies (
+    id, operation_id, project_id, task_id, task_version_id, run_id, workspace_id,
+    failure_signature_id, source_commit, source_tree, dossier_sha256,
+    strategy_fingerprint, normalized_strategy, corrector_invocation_id,
+    sandbox_specification_sha256, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+RETURNING *;
+
+-- name: GetStrategyByOperationID :one
+SELECT * FROM core.strategies WHERE operation_id = $1;
+
+-- name: FindFailedStrategy :one
+SELECT s.*
+FROM core.strategies s
+JOIN core.failure_signatures f ON f.id = s.failure_signature_id
+JOIN core.strategy_outcomes o ON o.strategy_id = s.id
+WHERE s.task_id = $1
+  AND f.signature_sha256 = $2
+  AND s.strategy_fingerprint = $3
+  AND o.outcome IN ('failed', 'no_progress', 'blocked')
+ORDER BY o.completed_at DESC, s.id DESC
+LIMIT 1;
+
+-- name: InsertStrategyOutcome :one
+INSERT INTO core.strategy_outcomes (
+    id, strategy_id, task_id, outcome, resulting_source_commit,
+    resulting_source_tree, diff_sha256, verification_run_id, audit_run_id,
+    evidence, record_sha256, completed_at, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+RETURNING *;
+
+-- name: GetStrategyOutcome :one
+SELECT * FROM core.strategy_outcomes WHERE strategy_id = $1;

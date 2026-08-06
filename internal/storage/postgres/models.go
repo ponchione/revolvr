@@ -34,6 +34,75 @@ type CoreArtifactProvenance struct {
 	CreatedAt            pgtype.Timestamptz
 }
 
+type CoreAuditFinding struct {
+	ID                   pgtype.UUID
+	ProjectID            pgtype.UUID
+	TaskID               pgtype.UUID
+	TaskVersionID        pgtype.UUID
+	RunID                pgtype.UUID
+	WorkspaceID          pgtype.UUID
+	IntroducedAuditRunID pgtype.UUID
+	FindingKey           string
+	Significance         string
+	Summary              string
+	RequiredCorrection   string
+	SourceEvidence       []byte
+	AffectedFiles        []byte
+	AffectedSymbols      []byte
+	CriterionImpact      []byte
+	DefinitionSha256     string
+	SourceCommit         string
+	SourceTree           string
+	CreatedAt            pgtype.Timestamptz
+}
+
+type CoreAuditFindingOccurrence struct {
+	ID               pgtype.UUID
+	AuditRunID       pgtype.UUID
+	TaskID           pgtype.UUID
+	FindingID        pgtype.UUID
+	Ordinal          int32
+	OccurrenceSha256 string
+	CreatedAt        pgtype.Timestamptz
+}
+
+type CoreAuditRun struct {
+	ID                          pgtype.UUID
+	OperationID                 string
+	ProjectID                   pgtype.UUID
+	TaskID                      pgtype.UUID
+	TaskVersionID               pgtype.UUID
+	RunID                       pgtype.UUID
+	WorkspaceID                 pgtype.UUID
+	VerificationRunID           pgtype.UUID
+	AuditKind                   string
+	Disposition                 string
+	Independent                 bool
+	AuditorInvocationID         string
+	SourceMutatingInvocationIds []byte
+	DossierSchemaVersion        string
+	DossierSha256               string
+	Dossier                     []byte
+	PromptVersion               string
+	PromptSha256                string
+	Prompt                      string
+	ResponseSchemaVersion       string
+	ResponseSchemaSha256        string
+	ResponseSchema              []byte
+	Model                       string
+	ModelRequest                []byte
+	ModelResult                 []byte
+	SourceCommit                string
+	SourceTree                  string
+	DiffSha256                  string
+	ReportArtifactID            pgtype.UUID
+	ReportSha256                string
+	RecordSha256                string
+	StartedAt                   pgtype.Timestamptz
+	CompletedAt                 pgtype.Timestamptz
+	CreatedAt                   pgtype.Timestamptz
+}
+
 type CoreClaim struct {
 	ID              pgtype.UUID
 	ProjectID       pgtype.UUID
@@ -121,6 +190,45 @@ type CoreExecutionLease struct {
 	CoordinatorIdentity pgtype.Text
 	AcquiredAt          pgtype.Timestamptz
 	AggregateVersion    int64
+}
+
+type CoreFailureSignature struct {
+	ID                  pgtype.UUID
+	OperationID         string
+	ProjectID           pgtype.UUID
+	TaskID              pgtype.UUID
+	TaskVersionID       pgtype.UUID
+	RunID               pgtype.UUID
+	WorkspaceID         pgtype.UUID
+	AuthorityKind       string
+	VerificationRunID   pgtype.UUID
+	VerificationCheckID pgtype.UUID
+	AuditRunID          pgtype.UUID
+	FindingKeys         []byte
+	SourceCommit        string
+	SourceTree          string
+	NormalizedMaterial  []byte
+	SignatureSha256     string
+	CreatedAt           pgtype.Timestamptz
+}
+
+type CoreFindingDisposition struct {
+	ID                          pgtype.UUID
+	OperationID                 string
+	FindingID                   pgtype.UUID
+	TaskID                      pgtype.UUID
+	Status                      string
+	AuthorityRole               string
+	AuthorityID                 string
+	ResolutionVerificationRunID pgtype.UUID
+	ResolutionAuditRunID        pgtype.UUID
+	SupersedingFindingID        pgtype.UUID
+	SourceCommit                string
+	SourceTree                  string
+	Evidence                    []byte
+	Rationale                   string
+	RecordSha256                string
+	CreatedAt                   pgtype.Timestamptz
 }
 
 type CorePlan struct {
@@ -233,6 +341,41 @@ type CoreRun struct {
 	CreatedAt                    pgtype.Timestamptz
 	UpdatedAt                    pgtype.Timestamptz
 	ReleasedAt                   pgtype.Timestamptz
+}
+
+type CoreStrategy struct {
+	ID                         pgtype.UUID
+	OperationID                string
+	ProjectID                  pgtype.UUID
+	TaskID                     pgtype.UUID
+	TaskVersionID              pgtype.UUID
+	RunID                      pgtype.UUID
+	WorkspaceID                pgtype.UUID
+	FailureSignatureID         pgtype.UUID
+	SourceCommit               string
+	SourceTree                 string
+	DossierSha256              string
+	StrategyFingerprint        string
+	NormalizedStrategy         []byte
+	CorrectorInvocationID      string
+	SandboxSpecificationSha256 string
+	CreatedAt                  pgtype.Timestamptz
+}
+
+type CoreStrategyOutcome struct {
+	ID                    pgtype.UUID
+	StrategyID            pgtype.UUID
+	TaskID                pgtype.UUID
+	Outcome               string
+	ResultingSourceCommit pgtype.Text
+	ResultingSourceTree   pgtype.Text
+	DiffSha256            pgtype.Text
+	VerificationRunID     pgtype.UUID
+	AuditRunID            pgtype.UUID
+	Evidence              []byte
+	RecordSha256          string
+	CompletedAt           pgtype.Timestamptz
+	CreatedAt             pgtype.Timestamptz
 }
 
 type CoreTask struct {

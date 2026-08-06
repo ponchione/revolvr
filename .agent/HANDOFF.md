@@ -4,55 +4,48 @@ Updated: 2026-08-06
 
 ## Where We Stopped
 
-- Architecture 018 is complete in the current uncommitted working tree; no
-  commit was created. Architecture-017 verification rows remain immutable,
-  read-only evidence and its host-owned final-verification authority was not
-  widened or rewritten.
-- Reversible migration 00010, named sqlc queries, and regenerated PostgreSQL
-  code add exact artifact provenance, claims/evidence links, completion
-  records, attached artifacts, and completion claims. Ownership and SHA-256
-  constraints, immutable update triggers, content-compared operation identity,
-  and one atomic terminal transaction fail closed.
-- `internal/evidence` supplies versioned provenance/claim/trajectory/harness
-  contracts, content-addressed immutable bytes, divergence detection, and
-  secret-sentinel scanning. Direct tools use explicit inactive trajectory and
-  exact empty/inactive harness records; used inputs require complete exact
-  version/hash/coverage/artifact authority.
-- `internal/completion` supplies a read-only repeatable-read preflight, stable
-  Section 18.7 rejection reasons, deterministic JSON/Markdown/manifest
-  capsules, post-materialization revalidation, crash-safe byte reuse, and an
-  atomic completion transaction. It binds accepted task/version, aggregate
-  versions, source/diff/commit/tree, plan/criteria, fresh final verification,
-  clean audit evidence, findings, budget, workspace/lease, prompt/model/image/
-  profile, artifacts, operator inputs, trajectory, harness assets, and claims.
-- The deterministic fixture hashes are preflight `1c708037...a47ceb66`, JSON
-  `df699513...2b2c538a`, Markdown `65a8aba5...ed7405d`, and manifest
-  `5890c055...e14f0db1`. Forced artifact and transaction interruption, stale
-  second reads, rollback, exact retry/replay, divergent bytes/hashes, secret
-  sentinels, and architecture-017 immutability are covered.
-- Migration Down/Up, pinned sqlc generation, PostgreSQL integration tests,
-  formatting, the complete Go suite, and diff validation pass. The temporary
-  PostgreSQL container was removed. `go.mod` and `go.sum` are unchanged; no
-  dependency was added.
-- Architecture tasks 001-018 and PTC-001 are complete. Architecture 019 is the
-  next and only task. Architectures 020-025 and all post-core PTC tasks remain
-  gated.
+- Architecture 019 is complete in the current working tree. Architecture-017
+  verification occurrences remain immutable read-only evidence, and
+  architecture-018 retains exclusive completion/finalization authority.
+- Reversible migration 00011, named sqlc queries, and regenerated PostgreSQL
+  code add immutable audit runs, findings/occurrences/dispositions, failure
+  signatures, correction strategies/outcomes, exact ownership, transactional
+  event provenance, report-hash validation, and replay-safe record hashes.
+- `internal/audit` builds the hashed Section 13.4 dossier with actual bounded
+  source and patch bytes; invokes one fresh tool-free independent auditor;
+  strictly validates clean/changes-required/blocked output and exact cited
+  findings; routes optional specialists deterministically; persists canonical
+  evidence; and projects it into architecture-018 completion snapshots.
+- `internal/correction` builds only exact failure/finding-scoped context,
+  normalizes failure/strategy identities, rejects repeated/no-progress/budget/
+  scope failures, enforces the shared corrector sandbox and tool registry, and
+  requires fresh final verification plus a distinct clean re-audit. Exact
+  multi-finding resolution is atomic.
+- Unit, fake-model, sandbox, completion-gate, and PostgreSQL tests cover all
+  required fixtures and typed stops, malformed/stale/forged evidence,
+  rollback/retry/replay, immutable rows, atomic/concurrent dispositions, and
+  successful correction evidence. Migration 00011 Down/Up and the complete
+  deterministic verification sequence pass. No dependency was added.
+- Architecture tasks 001-019 and PTC-001 are complete. Architecture 020 is the
+  next and only dependency-satisfied pending task. Architectures 021-025 and
+  every post-core PTC task remain gated.
 
 ## Continue Here
 
 The next and only task for the next fresh session is
-`.agent/tasks/architecture-019-auditor-corrector.md`.
+`.agent/tasks/architecture-020-local-embedding-adapter.md`.
 
-Read the durable state files and task-019 required ADR/specification sections.
-Use architecture-017 verification and architecture-018 completion preflight as
-read-only authority. Do not rerun architecture 018 or begin architecture 020.
+Read the durable state files and task-020 required ADR/specification sections.
+Preserve architecture-017 verification, architecture-018 completion, and
+architecture-019 audit/correction authority. Do not rerun architecture 019 or
+begin architecture 021.
 
 Start one fresh pass from the repository root:
 
 ```bash
-codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, .agent/TASKS.md, .agent/STATE.md, .agent/DECISIONS.md, .agent/LOOP_PROMPT.md, REVOLVR_CANONICAL_ARCHITECTURE_SPEC.md, and .agent/tasks/architecture-019-auditor-corrector.md. Confirm architecture 019 is the sole legally selectable pending task. Complete only architecture-019-auditor-corrector, preserve architecture-017 verification and architecture-018 completion authority, run its deterministic verification, update durable state, and stop.'
+codex exec 'Read AGENTS.md, README.md, .agent/HANDOFF.md, .agent/TASKS.md, .agent/STATE.md, .agent/DECISIONS.md, .agent/LOOP_PROMPT.md, REVOLVR_CANONICAL_ARCHITECTURE_SPEC.md, and .agent/tasks/architecture-020-local-embedding-adapter.md. Confirm architecture 020 is the sole legally selectable pending task. Complete only architecture-020-local-embedding-adapter, preserve architecture-017 verification, architecture-018 completion, and architecture-019 audit/correction authority, run its deterministic verification, update durable state, and stop.'
 ```
 
 Graphiti remains deferred: architecture 025 is a decision-only gate after
-successful core-loop dogfooding. Completion-gate evidence is not evidence
+successful core-loop dogfooding. Audit/correction completion is not evidence
 that Graphiti or the post-core programmatic workspace is needed.

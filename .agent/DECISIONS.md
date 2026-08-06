@@ -1,5 +1,37 @@
 # Agent Decisions
 
+## Audit And Correction Authority Is Independent, Exact, And Bounded (2026-08-06)
+
+- An accepted audit is a new tool-free model invocation whose complete request
+  evidence, prompt, strict schema, dossier, output, and source identity are
+  persisted immutably. Its invocation identity must differ from every recorded
+  source-mutating invocation; an `independent` assertion without those durable
+  identities is insufficient.
+- The auditor receives actual bounded source and exact patch bytes together
+  with their hashes, not path/hash metadata alone. Every finding cites exact
+  included source lines, files, and known symbols and has one stable definition
+  hash. Specialist routing is a deterministic host decision over admitted risk
+  and observed changes; model output cannot add or suppress a route.
+- Findings are immutable identities with separate terminal disposition
+  occurrences. Models cannot waive, reject, resolve, supersede, or stale a
+  finding. Resolution consumes exact final-verification and clean-re-audit
+  authority; waiver/rejection consumes explicit operator authority; staleness
+  consumes exact changed workspace authority. A correction resolves its whole
+  finding set in one transaction so partial closure cannot poison retry
+  eligibility.
+- Correction is one nonrecursive, budgeted source-mutation attempt authorized
+  by exactly one verification failure or an exact active finding set. Its
+  failure signature and declared strategy are canonical semantic identities,
+  persisted before work, and failed/no-progress/blocked fingerprints cannot be
+  retried materially unchanged. File and symbol mutation remains within cited
+  dossier and strategy scope and uses the shared corrector sandbox/tool broker.
+- Successful correction is not worker prose. It requires a new source identity,
+  exact correction evidence, a fresh non-reused Tier 4 final verification, a
+  separate clean audit newer than that verification, and an immutable
+  successful strategy outcome. Canonical audit projection feeds the existing
+  architecture-018 completion preflight; it does not acquire completion or
+  architecture-017 verification mutation authority.
+
 ## Completion Authority Is Hashed, Immutable, And Transactional (2026-08-06)
 
 - Completion is a trusted-host decision over one normalized, read-only

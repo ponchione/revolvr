@@ -11,7 +11,7 @@ import (
 const (
 	SnapshotSchemaVersion  = "revolvr-completion-preflight-snapshot-v1"
 	PreflightSchemaVersion = "revolvr-completion-preflight-v1"
-	AuditSchemaVersion     = "revolvr-completion-audit-fixture-v1"
+	AuditSchemaVersion     = "revolvr-audit-run-v1"
 )
 
 var (
