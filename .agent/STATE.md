@@ -1,5 +1,238 @@
 # Agent State
 
+## Architecture 016a Programmatic Compatibility Seams Complete (2026-08-06)
+
+- Task selected: `architecture-016a-programmatic-compatibility-seams`, the
+  sole legally selectable pending task after completed architecture 016 and
+  PTC-001. The existing uncommitted architecture-016 implementation was
+  preserved, architecture 017 was not begun, and no commit was created.
+- Tool execution evidence now has the closed host-owned `RuntimeKind`
+  discriminator. Its only admitted value is `direct_tools_v1`; unknown or
+  reserved dispatch and handler values fail before executor effects or
+  accepted replay. The role registry remains byte-identical at SHA-256
+  `31133527fcfa704bfe4cdfa8272ab45b3e111f829a98a65fd88f1995f10a73aa`:
+  no tool, role, capability, permission, or runtime admission was added.
+- Each normalized execution result is an exclusive bounded inline value or
+  one-or-more immutable content-addressed artifact references. Both forms
+  carry explicit media type, byte size, SHA-256, truncation byte count, and
+  resolution evidence. The journal retains its immutable legacy input,
+  result, stdout, and stderr artifacts while explicit request/result hashes
+  remain independent of the selected result storage form.
+- A trusted-host `TrajectorySequencer` assigns exact run/runtime/request-bound
+  monotonically increasing occurrence sequences. Missing, duplicate, stale,
+  foreign, or explicitly untrusted grants fail before handler dispatch.
+  Terminal replay remains non-effecting, retains the original execution
+  sequence/result hash, and records a new host occurrence sequence linked to
+  the original; exact intent without a terminal result remains non-repeatable.
+- `RuntimeHandler` is the narrow internal extension boundary. It receives only
+  the already-validated call, normalized operation, cloned sandbox, exact
+  request hash/sequence, and pinned host-policy identity. Broker validation,
+  journaling, output caps, effect proof, cancellation, and normalized evidence
+  remain shared and host-owned. The sole installed adapter wraps the existing
+  direct sandbox executor.
+- Evidence continues to bind project, task/version, run, source revision/
+  commit/tree, accepted plan/version/revision and step batch, workspace,
+  sandbox, registry, and host policy. Runtime evidence now also renders the
+  already-pinned image, profile, network, resources, and sandbox/policy hashes;
+  timeout, denial, truncation, source changes, effect proof, replay, and
+  cancellation evidence remain intact.
+- Model-visible history strips host paths from both legacy artifacts and the
+  new artifact-reference form. The implementer final-summary schema is
+  byte-identical at SHA-256
+  `f9dab2c9ae3719880db7e593313e5de7cc9126f5fce5e0369679d88c20cfe6bb`;
+  lifecycle, plan, verification, completion, audit, canonical worker, and
+  canonical-state authority did not change.
+- Deterministic tests cover the closed runtime enum, unknown-handler refusal,
+  bounded inline and immutable artifact-backed results, storage-independent
+  hashes, inline/hash and artifact-immutability mismatch, truncation
+  resolution, denial, cancellation, terminal and intent-only replay, trusted
+  host sequence injection/refusal, fake-handler normalization, sandbox image/
+  profile/resource preservation, and registry/summary compatibility.
+- Verification passed: `test -z "$(gofmt -l cmd internal)"`;
+  `env -u OPENAI_API_KEY go test ./internal/tool ./internal/implementer`;
+  `go test ./...`; and `git diff --check`. No live model, Python runtime,
+  network operation, dependency, package, database migration, scratch, skill,
+  refinement, worker role, or Graphiti work was added. `go.mod`, `go.sum`, and
+  migrations `00001` through `00008` are unchanged.
+- Result: **PASS**. Architecture tasks 001-016a and PTC-001 are complete.
+  `architecture-017-verification-engine` is the next and only selectable task;
+  architectures 018-025 and the post-core PTC sequence remain gated.
+
+## PTC-001 Task-Specification Integration Complete (2026-08-06)
+
+- Task selected: `ptc-001-amend-task-specifications`. Durable state proved the
+  integration-planning pass had not occurred: architecture 016 was complete in
+  the current uncommitted tree, architecture 017 had not begun, the selector
+  in `.agent/TASKS.md` still named architecture 012, and no 016a or deferred PTC
+  task specifications existed. This was the sole task; architecture 016a was
+  not implemented and no commit was created.
+- Reconciled the active sequence to architecture 001-016 complete, PTC-001
+  complete, architecture 016a next and only, then architectures 017-025 in
+  their existing dependency order. Architecture 017 now depends on 016a.
+- Added `architecture-016a-programmatic-compatibility-seams`, limited to a
+  closed direct-tools runtime-kind discriminator, bounded inline or immutable
+  artifact-backed result evidence, explicit request/result hashes, a trusted-
+  host ordering seam, preserved broker authority/evidence, and a narrow future
+  runtime-handler boundary. It explicitly adds no Python/runtime/tool/role,
+  process persistence, scratch, skill, package, migration, or network feature.
+- Amended architecture 017 to require an exact material-input verification
+  fingerprint, terminal exact lookup, a new occurrence per reuse,
+  `unchanged_failure_reused`, failure preservation, nonreuse of cancelled/
+  incomplete/infrastructure/ambiguous results, distinct execution/reuse times,
+  exact invalidation, and explicit fresh-final policy with deterministic
+  database/cache/reuse/freshness tests.
+- Amended architecture 018 with a versioned trajectory-provenance envelope,
+  exact harness-asset-set manifest/hash, canonical inactive/empty direct-tools
+  values, and fail-closed used-input provenance. Full trajectory service,
+  Python, skills, and refinement remain post-core.
+- Amended architecture 021 with exact inline/artifact/trajectory-range context
+  references, deterministic externalization manifests and retrieval
+  instructions, canonical evidence precedence, and a read-only internal host
+  query seam. It explicitly excludes Python, scratch, trajectory service, and
+  harness implementation.
+- Amended architecture 022 with closed `worker_execution_mode`, implemented
+  `direct_tools_v1`, reserved/refused `programmatic_workspace_v1`, a mode-
+  neutral scenario boundary, and exact context/token/tool/read/verification/
+  correction/time/outcome metrics. It cannot simulate a programmatic success.
+- Architectures 019, 020, 023, 024, and 025 have no diff. Architecture 025
+  remains a documentation/decision-only Graphiti gate; programmatic-workspace
+  or continual-harness evidence is explicitly not Graphiti-need evidence.
+- Added blocked/deferred specifications in exact order: PTC-101 trajectory;
+  PTC-102 pinned rootless programmatic runtime; PTC-103 role-scoped
+  `python_exec`; PTC-104 explicit scratch/tombstones; PTC-107 context,
+  continuation, and compaction provenance; PTC-108A paired asset-free base-
+  workspace evaluation; PTC-105 hash-pinned skills only after useful and safe
+  108A evidence; PTC-106 proposal/operator approval/activation/rejection/
+  rollback; and PTC-108B separate harness-asset evaluation/activation decision.
+  All remain `status: blocked` until architecture 001-025, verified initial
+  core-loop dogfooding, and their exact per-task phase gates exist. Missing
+  evidence requires deferral, never invented success.
+- Recorded the new durable staged adoption decision: sequential execution;
+  Python only inside the disposable rootless sandbox; no host/database/runtime/
+  model credentials, runtime package installation, arbitrary snapshot/pickle,
+  worker canonical-state authority, or proposal self-activation; explicit
+  operator approval for every initial activation; and `direct_tools_v1` as the
+  rollback path.
+- Files added: the completed PTC-001 task, architecture 016a, and the nine
+  blocked PTC-101-through-108B task specifications. Files amended:
+  architectures 017, 018, 021, and 022 plus `.agent/TASKS.md`,
+  `.agent/DECISIONS.md`, `.agent/STATE.md`, and `.agent/HANDOFF.md`.
+- Verification passed: a full frontmatter/dependency audit reported exactly
+  one ready task (`architecture-016a-programmatic-compatibility-seams`) and the
+  exact active/deferred chain; manual diffs confirmed the five protected core
+  tasks above were unchanged; `git diff --check` passed; and `go test ./...`
+  passed. The content manifest over `go.mod`, `go.sum`, `cmd`, `internal`, `db`,
+  and `web` was identical before and after PTC-001 at SHA-256
+  `1770460cf0af60e86713e979a9afdfd7704f9cd56390c8e2d0c0f20589fcd149`.
+- The optional focused `go run ./cmd/revolvr task list`/`status` projection
+  stopped read-only because the pre-existing `.agent` directory mode is 0775;
+  it reported `unsafe harness runtime path` and made no change. The explicit
+  dependency audit and full Go suite provide the required planning evidence;
+  this unrelated repository-mode refusal is not a PTC-001 blocker.
+- Result: **PASS**. No product implementation, dependency, migration, Python
+  runtime, continual-harness activation, or Graphiti work was introduced. The
+  next and only task is `architecture-016a-programmatic-compatibility-seams`.
+
+## Architecture 016 Tool Broker and Implementer Complete (2026-08-06)
+
+- Task selected: `.agent/tasks/architecture-016-tool-broker-implementer.md`,
+  the sole task named by the architecture handoff. Published task 015 evidence
+  at commit `383a533ce6ca40d774591ff57ed0af607c05e8d5` was not modified. Task
+  017 was not started, and no commit was created in this pass.
+- Added `internal/tool`, a closed and versioned broker boundary for
+  `file_read`, `text_search`, `source_edit`, and exact direct-argv `command`
+  calls. Implementer and corrector are the only registry roles with source
+  writes; verifier receives only read, search, and command capabilities.
+  Unknown roles, tools, fields, duplicate JSON keys, and malformed arguments
+  fail closed.
+- Every tool call binds the exact project, task/version, run, source
+  revision/commit/tree, accepted plan/version/revision, ordered active-step
+  batch hash and IDs, managed workspace, validated sandbox, registry, and
+  host-policy identities. Dispatch rechecks the immutable sandbox
+  specification and workspace device/inode before any effect.
+- Host policy admits normalized workspace-relative expected/adjacent paths,
+  protected and denied-read paths, exact argv, container working directories,
+  safe environment-variable names, network profile, timeout, CPU, memory,
+  PID, tmpfs, read/edit/search, and stdout/stderr bounds. Traversal, symlinks,
+  special files and runtime sockets, secrets, raw container controls, paths
+  outside the admitted workspace, stale authority, and over-policy requests
+  are denied before executor dispatch.
+- Tool execution receives only a cloned validated sandbox specification and a
+  normalized operation. Broker-owned deadlines stop timed-out or cancelled
+  sandbox work; returned output is capped again even if an executor violates
+  its contract. Git hooks and ambient host configuration must remain disabled,
+  and credential/runtime environment names never enter the worker boundary.
+- The file-backed broker journal publishes exact call input and intent before
+  dispatch, then bounded stdout/stderr, result, timing, exit/timeout/cancel
+  state, denial, truncation, exact source changes, and before/after effect
+  proof. Terminal exact replay returns recorded evidence without executing;
+  conflicting or intent-only replay cannot repeat an uncertain external
+  effect.
+- Added `internal/implementer`, which admits only an accepted run and accepted
+  plan with one active step or at most four ordinal-adjacent steps. The exact
+  ordered step JSON is SHA-256 bound through admission, broker authority,
+  prompt, final-summary identity, and replay intent.
+- The implementer invokes an injected fake-capable model interface in a fresh,
+  stateless, bounded loop. Each iteration receives the complete immutable
+  prompt, closed schema, registry, exact authority, and explicit
+  invocation-local history. Model usage and latency are recorded. Model-visible
+  tool history keeps bounded output and content identities but strips all host
+  artifact paths; no hidden response/conversation identity is supported.
+- Final output is checked with the existing Draft 2020-12 JSON Schema engine,
+  strict decoding, duplicate-field rejection, exact identity comparison, and
+  semantic validation. The summary exposes advisory claims, voluntary tests,
+  and candidate plan-step progress only; it has no criterion, lifecycle,
+  verification, completion, database, memory, commit, or canonical-state
+  mutation authority.
+- The trusted host observer runs Git with hooks, credential helpers, global and
+  system configuration, terminal prompts, and optional locks disabled. It
+  captures stable before/after source snapshots, policy source revisions,
+  HEAD/tree, status, changed manifest, and bounded binary diff artifacts from
+  the isolated managed workspace.
+- Reconciliation compares claimed files and tool-reported path/content
+  identities with the host manifest and source snapshots. It emits explicit
+  adjacent, unexpected, protected, dependency, verification-authority,
+  claimed/actual, tool/actual, no-source-change, partial-work, and cancellation
+  signals. It never advances plan steps, criteria, verification, lifecycle, or
+  completion.
+- Focused tests use only deterministic in-process fake models and fake sandbox
+  executors with temporary managed workspaces. The happy fixture creates an
+  isolated temporary Git repository, pins its workspace mount device/inode and
+  strict network-none sandbox, performs one brokered edit, and proves that the
+  host diff, final snapshot content hash, recorded source change, and effect
+  proof agree exactly. Exact replay performs no second model or tool effect;
+  drifted terminal source is refused.
+- Denial tests cover unknown/malformed calls, closed schemas and role scope,
+  traversal, external symlinks, protected and secret paths, runtime sockets,
+  wrong working directories, disallowed network, excessive time/output/CPU,
+  secret environment names, raw shell attempts, raw container controls, stale
+  run/workspace/plan/step/source/sandbox/host-policy identities, replaced
+  workspace inodes, indeterminate intent, tool timeout, tool cancellation, and
+  model cancellation. Partial stdout and cancellation evidence remain bounded
+  and durable.
+- Dependency and migration decision: the standard library plus existing
+  `jsonschema`, model, planner, sandbox, workspace/runtime-path, Git-state,
+  runner, output-cap, and path-guard foundations were sufficient. No dependency
+  was added; `go.mod`, `go.sum`, and migration numbering through `00008` are
+  unchanged. `.agent/DECISIONS.md` was not changed because this implements the
+  already accepted ADR-010/013/023/024 boundary without a new durable choice.
+- Files changed: new `internal/tool/{contracts,registry,policy,store,broker}.go`
+  and `broker_test.go`; new
+  `internal/implementer/{contracts,schema,observer,store,runtime}.go` and
+  `runtime_test.go`; this task status file; `.agent/STATE.md`; and
+  `.agent/HANDOFF.md`.
+- Required verification passed: `test -z "$(gofmt -l cmd internal)"`,
+  `env -u OPENAI_API_KEY go test ./internal/tool ./internal/implementer
+  ./internal/sandbox ./internal/workspace`, `go test ./...`, and
+  `git diff --check`. Additional checks passed: `go vet ./internal/tool
+  ./internal/implementer` and `env -u OPENAI_API_KEY go test -race -count=1
+  ./internal/tool ./internal/implementer`. No API key was required or read, and
+  no live model, external network, PostgreSQL, nested Codex, commit, or push
+  operation occurred.
+- Result: **PASS**. Architecture tasks 001-016 are complete; tasks 017-025
+  remain. There are no blockers. The next and only task is
+  `architecture-017-verification-engine`.
+
 ## Architecture 015 Versioned Planner Complete (2026-08-06)
 
 - Task selected: `.agent/tasks/architecture-015-planner.md`, the sole task

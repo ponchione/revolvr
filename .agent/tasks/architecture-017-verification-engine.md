@@ -3,7 +3,7 @@ id: architecture-017-verification-engine
 status: pending
 workflow: mixed-pass-v1
 phase: implement
-depends_on: architecture-016-tool-broker-implementer
+depends_on: architecture-016a-programmatic-compatibility-seams
 ---
 
 # Implement the host-owned verification engine
@@ -12,7 +12,7 @@ depends_on: architecture-016-tool-broker-implementer
 
 - Sequence: `017` of `025`.
 - Status: pending.
-- Prerequisite: `architecture-016-tool-broker-implementer`.
+- Prerequisite: `architecture-016a-programmatic-compatibility-seams`.
 - Phase gate: Phase 5 verification runs only after a candidate source snapshot
   is frozen and the implementer sandbox can no longer alter it.
 
@@ -27,6 +27,8 @@ source/environment-bound results that models cannot redefine or self-certify.
 - Specification Sections 9.12, 12.4, 17.7, 18,
   29 Phase 5, 37.8, 39.1, 40.8, 44.4, 52-55,
   58, and 60.
+- `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
+  and 14 as subordinate fingerprint/reuse requirements.
 
 ## Existing foundations to inspect
 
@@ -52,8 +54,31 @@ source/environment-bound results that models cannot redefine or self-certify.
   types, and atomic result/event persistence.
 - Pin the ordered Tier 0-4 plan, command argv, environment names, working
   directory, source commit/tree, image digest, sandbox profile, and plan hash.
+- Compute one canonical exact execution fingerprint for each admitted gate.
+  At minimum it covers verifier protocol, implementation, and configured parser
+  versions; project identity; task version; verification-plan version and
+  hash; candidate source tree; ordered argv and working directories; declared
+  environment names and nonsecret values; verifier/worker image digest;
+  sandbox profile hash; project environment contract; every admitted
+  verification-authority file; scripts, fixtures, and goldens; and the exact
+  output policy.
+- Look up only terminal results by exact fingerprint before execution. When
+  policy permits reuse, create a new occurrence linked to the original
+  execution; never rewrite, erase, or retimestamp the original result.
+- Make reuse outcomes explicit. In particular, an exact reused failure is
+  `unchanged_failure_reused` and remains a failure. Cancelled, incomplete,
+  infrastructure-failed, or ambiguous results are not reusable unless a later
+  closed policy explicitly admits that exact typed outcome.
+- Record original execution time and reuse occurrence time separately; a
+  reused result is never described as freshly executed.
+- Invalidate reuse after any material fingerprint input changes. No partial,
+  heuristic, source-only, or prose-based cache match is authority.
+- Add an explicit policy option requiring fresh final verification even when
+  an equal reusable terminal result exists. Initial completion-purpose Tier 4
+  policy remains fresh and source-bound.
 - Run baseline when configured, then focused/project/risk checks as admitted,
-  and a fresh Tier 4 check against the exact candidate source.
+  and apply the explicit freshness policy to the Tier 4 check against the exact
+  candidate source.
 - Capture bounded raw stdout/stderr artifacts and parse structured Go test JSON,
   JUnit/JSON, or equivalent only when configured; raw evidence remains
   authoritative.
@@ -75,6 +100,9 @@ source/environment-bound results that models cannot redefine or self-certify.
 
 - Results bind exact source, task/run/plan, image/profile, command, timestamps,
   exit/timeout, parsed data, and raw artifacts.
+- Equal complete inputs produce the same fingerprint; database lookup, cache
+  selection, original-result linkage, reuse occurrence, and both timestamps
+  are deterministic and exact.
 - Fresh verifier isolation prevents reliance on implementer-local state.
 - Baseline differential fixtures classify new/resolved/unchanged/flaky
   outcomes without false pass.
@@ -83,6 +111,10 @@ source/environment-bound results that models cannot redefine or self-certify.
   failure stop or escalate exactly as policy states.
 - Transaction failure leaves no partial accepted verification and retry does
   not erase prior occurrences.
+- Database, cache, invalidation, reuse, and final-freshness fixtures prove exact
+  hits and misses, a new occurrence per reuse, unchanged failure preservation,
+  exclusion of cancelled/incomplete/infrastructure/ambiguous results, and
+  forced execution when final-freshness policy is enabled.
 - PostgreSQL, sandbox fixture, and full Go tests pass.
 
 ## Deterministic verification
@@ -97,6 +129,7 @@ git diff --check
 
 ## Expected completion report
 
-Report schema/package changes, tier plan and pinned identities, fresh-sandbox
-proof, differential/tamper/timeout/malformed/rollback coverage, artifact
-evidence, and all test results.
+Report schema/package changes, tier plan and pinned identities, fingerprint
+components and canonicalization, exact lookup/reuse/invalidation/freshness
+behavior, fresh-sandbox proof, differential/tamper/timeout/malformed/rollback
+coverage, artifact evidence, and all test results.

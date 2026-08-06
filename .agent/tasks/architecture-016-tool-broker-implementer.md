@@ -1,6 +1,6 @@
 ---
 id: architecture-016-tool-broker-implementer
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-015-planner
@@ -11,7 +11,7 @@ depends_on: architecture-015-planner
 ## Sequence and status
 
 - Sequence: `016` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-015-planner`.
 - Phase gate: an implementer runs only for an accepted bounded plan step in an
   admitted managed workspace and validated sandbox.

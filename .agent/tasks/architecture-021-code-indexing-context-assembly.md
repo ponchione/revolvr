@@ -28,6 +28,8 @@ exact sources over fuzzy retrieval.
 - Specification Sections 9.19-9.23, 10.7, 13, 14,
   27.1-27.4, 29 Phase 7 and Phase 8, 37.12-37.13,
   40.9-40.10, 43.5-43.6, 50-53, and NFR-006/NFR-008.
+- `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
+  and 15 only as subordinate external-reference/query compatibility guidance.
 
 ## Existing foundations to inspect
 
@@ -65,6 +67,21 @@ exact sources over fuzzy retrieval.
 - Build immutable role-specific dossiers within byte/token budgets, recording
   included/excluded candidates, source hashes/scores, retrieval config,
   embedding space, final size, and dossier SHA-256.
+- Represent each context item by exact bounded inline content or an immutable
+  content-addressed artifact or trajectory-range reference. Reference forms
+  retain exact identity, hash, range/offset, media type, and retrieval
+  instructions; unresolved references are omissions or failures, never
+  silently summarized content.
+- Record a deterministic manifest of every intentionally externalized item,
+  including its hash, explicit omission reason, authority/ranking class, and
+  bounded retrieval instructions.
+- Enforce source precedence: exact accepted task state, exact project files
+  and symbols, host policy, and canonical verification/audit/evidence outrank
+  model-authored scratch, summaries, compaction, or refinement material.
+- Expose a narrow read-only internal host query interface for manifests,
+  admitted context items, exact artifact ranges, and reserved trajectory-range
+  references. It must be suitable for a later sandbox-brokered client without
+  giving that client storage, lifecycle, policy, or canonical-state authority.
 - When embeddings are stale/unavailable, keep direct reads, exact symbol/text,
   and FTS usable; label omitted/stale vector and graph lanes explicitly.
 - Create real-project retrieval fixtures from Section 50 and measure Recall@5,
@@ -75,6 +92,8 @@ exact sources over fuzzy retrieval.
 
 - Do not add LanceDB, Graphiti, Neo4j, a learned ranker, mandatory reranker,
   graph lifecycle authority, or broad source dumps.
+- Do not add a Python API/runtime, `python_exec`, durable scratch store,
+  trajectory service, skill/refinement system, or continual harness.
 - Do not let retrieved memory override accepted tasks, policy, verification, or
   direct source references.
 - Do not reindex unchanged files or silently query vectors from the wrong
@@ -90,7 +109,11 @@ exact sources over fuzzy retrieval.
   stale commit, embedding outage/drift, interrupted build, and failed activation
   recover without corrupting the prior clean index.
 - Context manifests are deterministic under equal inputs, enforce each role's
-  budget, and retain provenance for every included item and omission.
+  budget, and retain provenance for every inline/reference item, intentionally
+  externalized item, retrieval instruction, and omission.
+- Host-query tests are read-only, bounded, deterministic, and preserve the
+  authority precedence of exact task/source/symbol/policy/evidence over any
+  model-authored advisory content.
 - Migration/sqlc, PostgreSQL/pgvector, parser, retrieval-quality, degraded-mode,
   and full Go tests pass.
 

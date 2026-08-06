@@ -3,13 +3,20 @@
 ## Active Architecture Sequence
 
 - The current implementation authority is the numbered sequence under
-  `.agent/tasks/architecture-001` through `architecture-025`.
-- Architecture tasks 001-011 are completed. The next and only task is
-  `architecture-012-workspace-lifecycle`; it was not started during this
-  completion pass.
+  `.agent/tasks/architecture-001` through `architecture-025`, with the approved
+  compatibility task `architecture-016a` inserted between 016 and 017.
+- Architecture tasks 001-016a and planning task PTC-001 are completed.
+- The next and only task is `architecture-017-verification-engine`; it has not
+  begun and its architecture-016a prerequisite is complete.
+- Architectures 017-025 remain ordered by their existing dependency chain.
+  Architectures 019, 020, 023, 024, and 025 are substantively unchanged.
 - The legacy external-readiness backlog below is deferred while this canonical
   architecture sequence is active; its unchecked entries are not the current
   fresh-pass selector.
+- PTC-101 through PTC-108B are also blocked/deferred and are not fresh-pass
+  selectors. They cannot be changed to pending until architectures 001-025 and
+  initial core-loop dogfooding are complete and the exact phase-gate evidence
+  named by each task exists.
 
 ## Rules
 
@@ -19,6 +26,54 @@
 - If blocked, record the blocker and stop.
 - Add only small, specific, directly discovered follow-up tasks.
 - Do not invent broad roadmap work.
+
+## Current Architecture Work
+
+- [x] Architecture 001-016 — completed.
+- [x] PTC-001 — amend the active and deferred task specifications.
+- [x] Architecture 016a — add programmatic-runtime compatibility seams to the
+  completed direct-tool broker.
+- [ ] Architecture 017 — implement the host-owned verification engine.
+  **Next and only selectable task.**
+- Architecture 018-025 — pending behind architecture 017 and then ordered by
+  their recorded dependencies; do not select a successor in the same pass.
+
+## Deferred Programmatic Workspace And Continual Harness Sequence
+
+These task specifications are recorded now but have `status: blocked`. They
+remain non-selectable until the complete architecture sequence and initial
+core-loop dogfooding gate are satisfied. A missing dogfood, evaluation,
+operator-approval, runtime-identity, or other required evidence produces an
+explicit deferral; it is never replaced with model-authored or invented
+success.
+
+1. PTC-101 — append-only trajectory manifest and bounded query service;
+   depends on architecture 025 plus verified initial core-loop dogfooding.
+2. PTC-102 — pinned programmatic workspace protocol and sandbox runtime;
+   depends on PTC-101 and exact rootless runtime/image evidence.
+3. PTC-103 — role-scoped `python_exec` broker integration; depends on PTC-102.
+4. PTC-104 — explicit durable scratch catalog with tombstones; depends on
+   PTC-103.
+5. PTC-107 — externalized context querying, bounded continuation, and
+   compaction provenance; depends on PTC-104 and the PTC-101 foundation.
+6. PTC-108A — paired direct-tools versus base programmatic-workspace
+   evaluation with an exact empty/inactive harness-asset set and no
+   self-authored activated skills; depends on PTC-107.
+7. PTC-105 — versioned, tested, hash-pinned Python skills; depends on exact
+   PTC-108A evidence that the base workspace is both useful and safe.
+8. PTC-106 — evidence-backed refinement proposal, operator approval,
+   activation, rejection, and rollback workflow; depends on PTC-105.
+9. PTC-108B — separate harness-asset evaluation and activation decision;
+   depends on PTC-106.
+
+The entire deferred sequence preserves sequential execution, Python only in
+the existing disposable rootless sandbox, no host/database/runtime/model
+credentials, no runtime package installation, no arbitrary snapshot/pickle
+authority, no worker canonical-state authority, no proposal self-activation,
+operator approval for every initial activation, and `direct_tools_v1` as the
+rollback path. Programmatic-workspace or continual-harness evidence is not
+evidence that Graphiti is needed; architecture 025 remains the decision-only
+Graphiti gate.
 
 ## Current Backlog
 

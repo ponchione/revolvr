@@ -1,5 +1,33 @@
 # Agent Decisions
 
+## Programmatic Workspace Adoption Is Staged Before Skills (2026-08-06)
+
+- The supplemental programmatic-workspace specification remains subordinate to
+  the accepted ADRs and canonical architecture. The completed direct-tool core
+  is preserved: architecture 016a adds only compatibility seams, and
+  architectures 017, 018, 021, and 022 add exact fingerprint/provenance/
+  context/evaluation contracts without implementing Python or continual
+  harness behavior.
+- Post-core implementation remains blocked until architecture 001-025 and
+  exact initial core-loop dogfooding evidence are complete. The admitted order
+  is PTC-101 trajectory, PTC-102 pinned sandbox runtime, PTC-103 role-scoped
+  `python_exec`, PTC-104 explicit scratch, and PTC-107 external context and
+  continuation, followed by PTC-108A paired evaluation of the base
+  programmatic workspace with an exact empty/inactive harness-asset set.
+- Self-authored Python skills are deliberately not present in PTC-108A. PTC-105
+  may begin only when exact PTC-108A evidence shows the base workspace is both
+  useful and safe. PTC-106 then owns proposal/approval/activation/rollback, and
+  PTC-108B separately evaluates exact harness-asset sets before any activation
+  decision. Missing, inconclusive, or negative evidence means deferral.
+- Execution stays sequential; Python runs only in the existing disposable
+  rootless sandbox without host/database/runtime/model credentials, runtime
+  package installation, arbitrary snapshot/pickle authority, or canonical
+  worker authority. No proposal self-activates, every initial activation needs
+  explicit operator approval, and `direct_tools_v1` remains the rollback path.
+- Neither programmatic-workspace nor continual-harness evidence implies that
+  Graphiti is needed. Architecture 025 remains a decision-only phase gate and
+  no Graphiti implementation follows from this sequence.
+
 ## OpenAI Calls Are Fresh, Pinned, And Completed-Response Authoritative (2026-08-06)
 
 - A model invocation is prepared entirely in the trusted process before

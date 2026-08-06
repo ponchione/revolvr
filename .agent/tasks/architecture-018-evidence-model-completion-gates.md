@@ -28,6 +28,8 @@ capsules.
 - ADR-016, ADR-019, ADR-023, and ADR-024.
 - Specification Sections 3.5, 9.16-9.18, 12.8, 18,
   29 Phase 5, 37.11, 39, 44.5, 48, and 56.5.
+- `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2,
+  10.3, and 25-26 only as subordinate provenance compatibility requirements.
 
 ## Existing foundations to inspect
 
@@ -57,6 +59,18 @@ capsules.
   and no terminal mutation.
 - Materialize deterministic completion evidence JSON, readable Markdown, and a
   manifest of exact hashes before the terminal transaction.
+- Include a versioned trajectory-manifest provenance envelope/state in
+  completion evidence and bind it into the preflight/capsule/manifest hashes.
+  The current direct-tools core loop may record an explicit
+  `inactive_not_applicable` trajectory-extension state; it must not fabricate a
+  normalized post-core trajectory manifest.
+- Include the exact harness-asset-set manifest and hash that influenced the
+  run. Current `direct_tools_v1` uses a canonical exact empty/inactive asset
+  set rather than an omitted, null, or inferred value.
+- Fail closed when a run used any trajectory or harness input but its exact
+  versions, hashes, covered sequence/range, referenced artifacts, or asset-set
+  manifest are missing, unresolved, stale, divergent, or changed at preflight
+  or terminal revalidation.
 - In one transaction revalidate the preflight hash/aggregate versions, attach
   artifacts and claims, mark task/run completed, release the lease, and append
   terminal events.
@@ -68,6 +82,9 @@ capsules.
 
 - Do not implement the auditor/corrector, archive/export, retention, task-state
   inference from prose, or automatic operator waivers.
+- Do not implement the post-core trajectory normalization/query service,
+  Python workspace, skills, refinement proposal/activation, or harness-asset
+  evaluation. Full trajectory generation remains PTC-101.
 - Do not mark criteria or findings terminal without their required authority
   and evidence.
 - Do not store raw secrets in any capsule or manifest.
@@ -76,6 +93,10 @@ capsules.
 
 - Every completion capsule field from Sections 18.6 and 48 resolves to exact
   canonical evidence and verified artifact bytes.
+- Direct-tools completion fixtures record the explicit inactive trajectory
+  envelope and exact empty/inactive harness-asset-set manifest/hash. Fixtures
+  that claim trajectory or harness influence fail when any exact provenance,
+  coverage, artifact, version, or hash is absent, stale, or changed.
 - Parameterized tests reject missing/nonterminal plan or criteria, stale/failed
   verification, missing/stale/non-clean audit, open findings, changed source,
   invalid budget/workspace/commit, incomplete artifacts, stale preflight, and
