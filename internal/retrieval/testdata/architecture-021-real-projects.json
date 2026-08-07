@@ -1,0 +1,85 @@
+{
+  "schema_version": "revolvr-retrieval-fixtures-v1",
+  "projects": [
+    {
+      "name": "revolvr",
+      "repository": "revolvr",
+      "source_uri": "https://github.com/ponchione/revolvr",
+      "revision": "5a99f1455273b9b1a47560831159205e5773b2b7",
+      "tree": "e777750997a0dd7302ea2e80e1a9c1e5c21040c7",
+      "include": [
+        "internal/verification/postgres.go",
+        "internal/workspace/lifecycle.go",
+        "internal/taskintake/import.go",
+        "internal/completion/postgres.go",
+        "internal/audit/postgres.go",
+        "docs/adr/004-postgresql-is-the-canonical-database.md",
+        "docs/adr/007-pgvector-replaces-lancedb.md",
+        "docs/adr/018-graphiti-is-optional-and-derived.md",
+        "docs/adr/024-verification-is-host-owned.md",
+        "db/migrations/00009_verification.sql",
+        "db/migrations/00010_evidence_completion.sql",
+        "db/migrations/00011_audit_correction.sql"
+      ]
+    },
+    {
+      "name": "pff",
+      "repository": "pff",
+      "source_uri": "https://github.com/ponchione/pff",
+      "revision": "e5ad44aa5674360bc76ac0fccbbebd666f2544d6",
+      "tree": "7fdf6c614d2c47289d44f50203a4ce4dec303a82",
+      "include": [
+        "frontend/src/calendar.ts",
+        "frontend/src/insights.ts",
+        "frontend/src/money.ts",
+        "frontend/src/textZoom.ts",
+        "frontend/src/theme.ts"
+      ]
+    },
+    {
+      "name": "scrapeyard",
+      "repository": "scrapeyard",
+      "source_uri": "https://github.com/ponchione/scrapeyard",
+      "revision": "f8e1af0244e56d70c39c7383fafd9c97938442eb",
+      "tree": "e6d12313d7ffab25a3702a58c2d47e3cdc141de2",
+      "include": [
+        "src/scrapeyard/api/query_parsing.py",
+        "src/scrapeyard/api/transport_policy.py",
+        "src/scrapeyard/common/budgets.py",
+        "src/scrapeyard/common/paths.py",
+        "src/scrapeyard/common/settings.py"
+      ]
+    }
+  ],
+  "fixtures": [
+    {"id":"go-verification-persistence","project":"revolvr","query":"what code persists verification execution evidence and results?","exact_symbols":["PostgresStore.Persist"],"expected":[{"path":"internal/verification/postgres.go","symbol":"PostgresStore.Persist","language":"go"}]},
+    {"id":"go-verification-reuse","project":"revolvr","query":"find a reusable verification check by execution fingerprint","exact_symbols":["PostgresStore.FindReusable"],"expected":[{"path":"internal/verification/postgres.go","symbol":"PostgresStore.FindReusable","language":"go"}]},
+    {"id":"go-workspace-cleanup","project":"revolvr","query":"which component removes a terminal managed worktree and marks workspace cleanup?","exact_symbols":["Manager.Cleanup"],"expected":[{"path":"internal/workspace/lifecycle.go","symbol":"Manager.Cleanup","language":"go"}]},
+    {"id":"go-task-import","project":"revolvr","query":"where are exact task source bytes imported into content addressed artifacts?","exact_symbols":["Import"],"expected":[{"path":"internal/taskintake/import.go","symbol":"Import","language":"go"}]},
+    {"id":"go-completion-admission","project":"revolvr","query":"what code commits terminal completion after verification and audit authority checks?","exact_symbols":["PostgresStore.CommitCompletion"],"expected":[{"path":"internal/completion/postgres.go","symbol":"PostgresStore.CommitCompletion","language":"go"}]},
+
+    {"id":"markdown-postgres-authority","project":"revolvr","query":"why is PostgreSQL canonical instead of splitting authority across stores?","expected":[{"path":"docs/adr/004-postgresql-is-the-canonical-database.md","language":"markdown"}]},
+    {"id":"markdown-lancedb-removal","project":"revolvr","query":"why was LanceDB removed in favor of pgvector?","expected":[{"path":"docs/adr/007-pgvector-replaces-lancedb.md","language":"markdown"}]},
+    {"id":"markdown-graphiti-derived","project":"revolvr","query":"why must Graphiti remain optional derived relationship data?","expected":[{"path":"docs/adr/018-graphiti-is-optional-and-derived.md","language":"markdown"}]},
+    {"id":"markdown-verification-owner","project":"revolvr","query":"which trusted component owns verification execution and evidence?","expected":[{"path":"docs/adr/024-verification-is-host-owned.md","language":"markdown"}]},
+
+    {"id":"sql-verification-checks","project":"revolvr","query":"schema storing verification command outcomes fingerprints and output artifacts","expected":[{"path":"db/migrations/00009_verification.sql","symbol":"core.verification_checks","language":"sql"}]},
+    {"id":"sql-completion-claims","project":"revolvr","query":"table linking an admitted completion to canonical claims","expected":[{"path":"db/migrations/00010_evidence_completion.sql","symbol":"core.completion_claims","language":"sql"}]},
+    {"id":"sql-audit-occurrences","project":"revolvr","query":"schema recording repeated audit finding occurrences across audit runs","expected":[{"path":"db/migrations/00011_audit_correction.sql","symbol":"core.audit_finding_occurrences","language":"sql"}]},
+    {"id":"sql-completion-record","project":"revolvr","query":"terminal completion admission record with verification and audit linkage","expected":[{"path":"db/migrations/00010_evidence_completion.sql","symbol":"core.completions","language":"sql"}]},
+
+    {"id":"typescript-format-cents","project":"pff","query":"format an integer cent amount as display currency","exact_symbols":["formatCents"],"expected":[{"path":"frontend/src/money.ts","symbol":"formatCents","language":"typescript"}]},
+    {"id":"typescript-parse-cents","project":"pff","query":"parse a user-entered money string into exact cents","exact_symbols":["parseCents"],"expected":[{"path":"frontend/src/money.ts","symbol":"parseCents","language":"typescript"}]},
+    {"id":"typescript-calendar-shift","project":"pff","query":"move a calendar month forward or backward without exceeding bounds","exact_symbols":["shiftCalendarMonth"],"expected":[{"path":"frontend/src/calendar.ts","symbol":"shiftCalendarMonth","language":"typescript"}]},
+    {"id":"typescript-text-zoom","project":"pff","query":"create the controller for persisted responsive text scaling","exact_symbols":["createTextZoomController"],"expected":[{"path":"frontend/src/textZoom.ts","symbol":"createTextZoomController","language":"typescript"}]},
+    {"id":"typescript-insight-error-title","project":"pff","query":"map an insight operation error code to its user-facing title","exact_symbols":["operationErrorTitle"],"expected":[{"path":"frontend/src/insights.ts","symbol":"operationErrorTitle","language":"typescript"}]},
+    {"id":"typescript-initial-theme","project":"pff","query":"choose the initial light or dark theme from stored preference","exact_symbols":["resolveInitialTheme"],"expected":[{"path":"frontend/src/theme.ts","symbol":"resolveInitialTheme","language":"typescript"}]},
+
+    {"id":"python-safe-path-part","project":"scrapeyard","query":"reject an unsafe path component containing traversal or separators","exact_symbols":["safe_path_part"],"expected":[{"path":"src/scrapeyard/common/paths.py","symbol":"safe_path_part","language":"python"}]},
+    {"id":"python-safe-join","project":"scrapeyard","query":"join validated path parts underneath a trusted root","exact_symbols":["safe_join"],"expected":[{"path":"src/scrapeyard/common/paths.py","symbol":"safe_join","language":"python"}]},
+    {"id":"python-query-filters","project":"scrapeyard","query":"parse API error filters including status and since timestamp","exact_symbols":["parse_error_filters"],"expected":[{"path":"src/scrapeyard/api/query_parsing.py","symbol":"parse_error_filters","language":"python"}]},
+    {"id":"python-transport-policy","project":"scrapeyard","query":"enforce secure submission transport and reject untrusted origins","exact_symbols":["enforce_submission_transport_policy"],"expected":[{"path":"src/scrapeyard/api/transport_policy.py","symbol":"enforce_submission_transport_policy","language":"python"}]},
+    {"id":"python-budget-setting","project":"scrapeyard","query":"read a numeric runtime budget setting with a default limit","exact_symbols":["_numeric_setting"],"expected":[{"path":"src/scrapeyard/common/budgets.py","symbol":"_numeric_setting","language":"python"}]},
+    {"id":"python-service-settings","project":"scrapeyard","query":"load and cache validated service configuration settings","exact_symbols":["get_settings"],"expected":[{"path":"src/scrapeyard/common/settings.py","symbol":"get_settings","language":"python"}]}
+  ]
+}

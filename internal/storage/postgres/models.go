@@ -571,3 +571,207 @@ type CoreWorkspaceOperation struct {
 	CreatedAt      pgtype.Timestamptz
 	AppliedAt      pgtype.Timestamptz
 }
+
+type RetrievalChunk struct {
+	ID                   pgtype.UUID
+	DocumentVersionID    pgtype.UUID
+	ChunkOrdinal         int32
+	ChunkKind            string
+	Language             string
+	SymbolName           pgtype.Text
+	Signature            string
+	StartLine            int32
+	EndLine              int32
+	Body                 string
+	BodySha256           string
+	StructuralProvenance []byte
+	SearchVector         interface{}
+	CreatedAt            pgtype.Timestamptz
+}
+
+type RetrievalChunkEmbedding struct {
+	ChunkID              pgtype.UUID
+	EmbeddingSpaceID     pgtype.UUID
+	Dimensions           int32
+	Embedding            string
+	EmbeddingInputSha256 string
+	CreatedAt            pgtype.Timestamptz
+}
+
+type RetrievalDocument struct {
+	ID        pgtype.UUID
+	ProjectID pgtype.UUID
+	FilePath  string
+	Language  string
+	CreatedAt pgtype.Timestamptz
+}
+
+type RetrievalDocumentVersion struct {
+	ID                   pgtype.UUID
+	DocumentID           pgtype.UUID
+	ContentSha256        string
+	SizeBytes            int64
+	StructuralProvenance []byte
+	CreatedAt            pgtype.Timestamptz
+}
+
+type RetrievalEmbeddingSpace struct {
+	ID                 pgtype.UUID
+	SpaceSha256        string
+	SchemaVersion      string
+	ModelName          string
+	ModelRevision      string
+	Dimensions         int32
+	Pooling            string
+	Normalization      string
+	Quantization       string
+	ArtifactSha256     string
+	License            string
+	SourceUri          string
+	ServingImageDigest string
+	CreatedAt          pgtype.Timestamptz
+}
+
+type RetrievalIndexBuild struct {
+	ID                    pgtype.UUID
+	OperationID           string
+	ProjectID             pgtype.UUID
+	SourceRevision        string
+	SourceTree            string
+	EmbeddingSpaceID      pgtype.UUID
+	PreviousActiveBuildID pgtype.UUID
+	BuildKind             string
+	Status                string
+	ManifestSha256        string
+	FileCount             int32
+	ChunkCount            int32
+	SymbolCount           int32
+	VectorCount           int32
+	ErrorCode             pgtype.Text
+	CreatedAt             pgtype.Timestamptz
+	CompletedAt           pgtype.Timestamptz
+}
+
+type RetrievalIndexBuildChunk struct {
+	BuildID pgtype.UUID
+	ChunkID pgtype.UUID
+}
+
+type RetrievalIndexBuildDocument struct {
+	BuildID           pgtype.UUID
+	DocumentVersionID pgtype.UUID
+	FilePath          string
+	ContentSha256     string
+	Reused            bool
+}
+
+type RetrievalIndexBuildSymbol struct {
+	BuildID  pgtype.UUID
+	SymbolID pgtype.UUID
+}
+
+type RetrievalIndexState struct {
+	ProjectID              pgtype.UUID
+	Status                 string
+	ActiveBuildID          pgtype.UUID
+	ActiveSourceRevision   pgtype.Text
+	ActiveEmbeddingSpaceID pgtype.UUID
+	LastBuildID            pgtype.UUID
+	Detail                 string
+	UpdatedAt              pgtype.Timestamptz
+}
+
+type RetrievalRelation struct {
+	ID              pgtype.UUID
+	ProjectID       pgtype.UUID
+	BuildID         pgtype.UUID
+	SubjectKind     string
+	SubjectIdentity string
+	Predicate       string
+	ObjectKind      string
+	ObjectIdentity  string
+	AuthorityClass  string
+	CreatedAt       pgtype.Timestamptz
+}
+
+type RetrievalRelationSource struct {
+	RelationID     pgtype.UUID
+	SourceKind     string
+	SourceIdentity string
+	SourceSha256   string
+	ArtifactID     pgtype.UUID
+	Provenance     []byte
+}
+
+type RetrievalSymbol struct {
+	ID                pgtype.UUID
+	DocumentVersionID pgtype.UUID
+	ChunkID           pgtype.UUID
+	SymbolName        string
+	SymbolKind        string
+	Signature         string
+	StartLine         int32
+	EndLine           int32
+	CreatedAt         pgtype.Timestamptz
+}
+
+type RetrievalSymbolEdge struct {
+	ID                pgtype.UUID
+	DocumentVersionID pgtype.UUID
+	FromSymbolID      pgtype.UUID
+	EdgeKind          string
+	TargetSymbol      string
+	TargetPath        pgtype.Text
+	SourceLine        int32
+	Provenance        []byte
+	CreatedAt         pgtype.Timestamptz
+}
+
+type TelemetryContextItem struct {
+	ContextPackageID      pgtype.UUID
+	Ordinal               int32
+	CandidateIdentity     string
+	AuthorityClass        string
+	SourceKind            string
+	SourceIdentity        string
+	SourceSha256          string
+	SourcePath            pgtype.Text
+	SymbolName            pgtype.Text
+	StartLine             pgtype.Int4
+	EndLine               pgtype.Int4
+	RankingSignals        []byte
+	Included              bool
+	StorageForm           string
+	InlineContent         pgtype.Text
+	ArtifactID            pgtype.UUID
+	ArtifactSha256        pgtype.Text
+	RangeStart            pgtype.Int8
+	RangeEnd              pgtype.Int8
+	TrajectoryID          pgtype.Text
+	TrajectoryStart       pgtype.Int8
+	TrajectoryEnd         pgtype.Int8
+	MediaType             pgtype.Text
+	RetrievalInstructions []byte
+	OmissionReason        pgtype.Text
+}
+
+type TelemetryContextPackage struct {
+	ID                     pgtype.UUID
+	ProjectID              pgtype.UUID
+	TaskID                 pgtype.UUID
+	RunID                  pgtype.UUID
+	SchemaVersion          string
+	Role                   string
+	SourceRevision         string
+	EmbeddingSpaceID       pgtype.UUID
+	ByteBudget             int32
+	TokenBudget            int32
+	FinalBytes             int32
+	FinalTokens            int32
+	TokenEstimator         string
+	RetrievalConfiguration []byte
+	Manifest               []byte
+	Dossier                []byte
+	DossierSha256          string
+	CreatedAt              pgtype.Timestamptz
+}

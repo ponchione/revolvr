@@ -1,6 +1,6 @@
 ---
 id: architecture-021-code-indexing-context-assembly
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-020-local-embedding-adapter
@@ -11,7 +11,7 @@ depends_on: architecture-020-local-embedding-adapter
 ## Sequence and status
 
 - Sequence: `021` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-020-local-embedding-adapter`.
 - Phase gate: retrieval indexing may consume only a validated embedding-space
   identity and must degrade safely when that optional service is unavailable.

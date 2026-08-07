@@ -1,5 +1,116 @@
 # Agent State
 
+## Architecture 021 Code Indexing And Context Assembly Complete (2026-08-07)
+
+- Task selected: `architecture-021-code-indexing-context-assembly`, confirmed
+  as the sole dependency-satisfied pending task after Architecture 020.
+  Architecture-017 verification, Architecture-018 completion/finalization, and
+  Architecture-019 independent audit/correction authority remain unchanged;
+  all Architecture 021 state is derived or frozen read-only evidence.
+- Added reversible migration `00012_retrieval_context.sql`, named sqlc queries,
+  and generated bindings for exact embedding spaces, build/state, documents
+  and immutable versions, structural chunks/symbols/edges, pgvector vectors,
+  typed relations/sources, and immutable context packages/items. FTS uses GIN;
+  the selected 1,024-dimensional Qwen vector lane uses one partial HNSW index.
+  Schema, model-evidence, persistence, evaluation-adapter, and retrieval-query
+  admission reject every non-selected model representation; no prior-model
+  vector index or query branch remains. The adapter and retriever also require
+  the selected Qwen query-input policy/SHA-256. Vectors use explicit text casts,
+  so no Go dependency was added.
+- Added `internal/index`. Exact Git commit/tree reads admit only bounded UTF-8
+  blobs under include/exclude rules, reject symlink/submodule/vendor/runtime
+  state, and preserve content hashes. Go AST, TypeScript/JavaScript, Python,
+  Markdown, and SQL parsers extract semantic units and structural provenance;
+  malformed/unsupported content uses deterministic 32 KiB / 240-line fallback
+  windows. Embedding input contains only authoritative path, symbol, signature,
+  language, lines, parser provenance, body hash, and exact body—no generated
+  description model.
+- Full, empty, incremental, rebuild, and space-switch preparation is
+  deterministic. Incremental builds reuse unchanged versions/vectors only in
+  the exact active embedding space. PostgreSQL stages a complete replacement
+  transaction, validates counts, and activates atomically. Exact operation
+  replay recovers committed interruption; failed replacements retain the prior
+  clean revision and embedding space, and no build mixes revisions or spaces.
+- Added `internal/retrieval`. Authority order is canonical task, exact source,
+  host policy, canonical evidence, structural, lexical, vector, then advisory;
+  the transparent Section 51 score operates only within authority. Exact path,
+  symbol, text, one-hop structural, FTS, and vector lanes deduplicate by chunk.
+  `revolvr-hybrid-retrieval-v2` compiles natural language into at most 32
+  deterministic OR/prefix FTS lexemes. Stale revision, wrong space, missing
+  service, outage, drift, graph, and reranker state is labeled and never blocks
+  exact/FTS reads.
+- Added `internal/context`. Deterministic role budgets pack exact inline bytes
+  or immutable artifact/trajectory ranges and manifest every included or
+  excluded candidate, authority/score/signals, source identity/hash, retrieval
+  config and query-instruction hash, embedding space, sizes, retrieval
+  instruction, omission, and dossier SHA-256. Package identity hashes the full
+  manifest. Unresolved references are explicit omissions. The read-only host
+  query has only manifest, admitted-item, exact admitted artifact-range, and
+  reserved trajectory-range methods with count/range/hash bounds.
+- Added a bounded loopback-only evaluation proxy and strict real-project
+  evaluation command. The frozen dataset SHA-256 is
+  `4b8bf7283578c9b0b6cda5230f9d4420d473cf03c8901d6c6f9ba4b0ee6deeb2`:
+  25 queries, 22 files, 337 chunks, and 239 symbols from exact Revolvr, PFF,
+  and Scrapeyard revisions, covering 5 Go, 6 TypeScript, 6 Python, 4 Markdown,
+  and 4 SQL queries. The lexical-only baseline measured Recall@5/10
+  0.84/0.96, MRR 0.4657, and about 1.8 ms p95.
+- Pinned live candidates and final retrieval-v2 results on the RTX 4090:
+  - Selected Qwen3-Embedding-0.6B-GGUF Q8_0, revision
+    `370f27d7550e0def9b39c1f16d3fbaa13aa67728`, artifact SHA-256
+    `06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439`,
+    1,024 dimensions/last/L2, Apache-2.0, embedding space
+    `6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8`.
+    Vector Recall@5/10/MRR was 0.96/0.96/0.8727; hybrid was
+    0.96/1.00/0.9444; explicit symbol preservation 1.00; hybrid p95 23.80 ms,
+    69.32 QPS; 4,470 MiB VRAM; 59.10 chunks/s; 4,161,536 B index growth.
+  - Nomic CodeRankEmbed, exact 768-dimensional CLS/L2 FP32 artifact with FP16
+    runtime, measured vector 0.80/0.84/0.7657 and hybrid
+    0.96/0.96/0.9225, 40.52 ms p95, 50.45 QPS, 756 MiB VRAM, 333.51 chunks/s,
+    and 4,005,888 B growth. It failed the vector Recall@5 threshold.
+  - Legacy Nomic Embed Code Q8_0, exact 3,584-dimensional artifact, measured
+    vector 0.92/0.96/0.8767 and hybrid 0.96/0.96/0.9236, 48.55 ms p95,
+    28.96 QPS, 8,720 MiB VRAM, 25.91 chunks/s, and 9,633,792 B growth.
+  Qwen was selected by quality, latency, VRAM, throughput, and index size—not
+  inertia. Exact revisions, sources, licenses, sizes, hashes, image digests,
+  pooling/normalization/quantization, query instructions, per-language metrics,
+  and thresholds are recorded in
+  `docs/architecture/code-indexing-context-assembly.md`.
+- Dependencies: no `go.mod` or `go.sum` change. The selected Qwen weights exist
+  only in the ignored external cache. The Revolvr-owned CodeRank evaluation
+  artifacts and TEI image were removed after measurement; the pre-existing
+  Sodoryard prior-model artifact remains external and untouched. Evaluation
+  used llama.cpp image digest
+  `sha256:8903d304f9cadf35ac881ebf0bb3537426b5b096b63088d0f17b719656b07c20`
+  and the archived comparison used TEI digest
+  `sha256:84bf2441cc388266613ebfe6692799db59f32b844dd95ab998ddee5eba84975a`.
+- Verification passed: migration 00012 Down/Up; `test -z "$(gofmt -l cmd
+  internal)"`; pinned sqlc v1.27.0 generation; exact
+  `REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test -count=1
+  ./internal/index ./internal/retrieval ./internal/context`; the same focused
+  suite with `-race`; `go test ./...`; both Architecture 020 smoke checks used
+  for live candidates; and `git diff --check`. PostgreSQL tests cover empty,
+  incremental, interruption/replay, failed activation, atomic space switch,
+  FTS/pgvector/structural retrieval, outage/drift/staleness, manifest budgets
+  and determinism, immutable persistence, and the bounded read-only host query.
+- Qwen-only follow-up verification also passed against a fresh disposable
+  pgvector PostgreSQL instance: migration 00012 Up/Down/Up; a schema assertion
+  that exactly one 1,024-dimensional HNSW lane exists and unsupported model
+  metadata is rejected; selected-query-policy rejection; the required focused
+  database suite; the focused `-race` suite including the adapter; pinned sqlc
+  regeneration; Compose rendering with fixed Qwen metadata; `go test ./...`;
+  gofmt; and `git diff --check`. The Revolvr-owned CodeRank cache (two exact
+  targets, about 1.09 GB) and TEI image were permanently removed after their
+  archived measurements were preserved. No commit was created.
+- Optional `go run ./cmd/revolvr config check` was also attempted after the
+  required checks; it correctly refused the pre-existing operator-owned
+  `.agent` directory mode `0775`. This unrelated repository-path condition was
+  not changed during Architecture 021. `revolvr --help` and Compose rendering
+  passed.
+- Result: **PASS**. Architecture tasks 001-021 and PTC-001 are complete.
+  `architecture-022-deterministic-eval-suite` is next and solely selectable;
+  architectures 023-025 and all post-core PTC tasks remain gated. Architecture
+  022 was not begun, and no commit was created.
+
 ## Architecture 020 Local Embedding Adapter Complete (2026-08-06)
 
 - Task selected: `architecture-020-local-embedding-adapter`, confirmed as the

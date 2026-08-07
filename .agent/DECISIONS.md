@@ -1,5 +1,62 @@
 # Agent Decisions
 
+## Retrieval Is Exact-First, Atomically Rebuildable, And Measured (2026-08-07)
+
+- Code index/search/relationship rows are rebuildable derived state bound to
+  one exact Git revision. One project has one active build and at most one
+  active Architecture-020 embedding-space identity. New full, incremental,
+  rebuild, and space-switch state is staged separately, count/space validated,
+  and atomically activated; a failed replacement retains the prior clean build.
+  Unchanged vectors may be reused only for an identical chunk identity and
+  identical embedding-space SHA-256.
+- Exact canonical task/run state, explicit source paths, exact symbols/text,
+  host policy, and canonical verification/audit/evidence always outrank fuzzy
+  structural, lexical, vector, graph, reranker, or model-advisory material.
+  The Section 51 score is transparent within authority classes. Missing,
+  unhealthy, stale, or wrong-space embeddings explicitly omit/degrade the
+  vector lane without disabling exact or FTS retrieval. Graph and reranker
+  lanes remain explicit omissions until separately measured.
+- Semantic units contain exact source only: path, symbol, signature, language,
+  line range, body/hash, source revision around the unit, and structural parser
+  provenance. Generated descriptions are non-authoritative and absent. Adding
+  a description writer, reranker, learned ranker, or second generative model
+  requires a separate measured A/B result that justifies model/runtime cost,
+  latency, memory, provenance, and failure surface.
+- Context packages are immutable, deterministic, and role-budgeted. Their full
+  manifests determine package identity and retain every included/excluded
+  candidate, authority/ranking signal, source hash, retrieval config and query-
+  instruction hash, embedding space, size, immutable range instruction,
+  omission, and dossier hash. Unresolved references are omissions or failures,
+  never summaries. The host query remains a narrow bounded read-only interface
+  and gains no database, storage, lifecycle, policy, verification, completion,
+  audit, correction, or canonical-state authority.
+- The active default is the exact Q8_0 artifact of
+  `Qwen/Qwen3-Embedding-0.6B-GGUF` revision
+  `370f27d7550e0def9b39c1f16d3fbaa13aa67728`, SHA-256
+  `06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439`,
+  1,024 dimensions, last-token pooling, L2 normalization, Apache-2.0, and
+  embedding-space SHA-256
+  `6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8`.
+  The exact query instruction SHA-256 is
+  `8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a`.
+  A 25-query real-project comparison measured vector Recall@5/10 0.96/0.96,
+  hybrid Recall@5/10 0.96/1.00, exact-symbol preservation 1.00, and 23.80 ms
+  hybrid p95. It outperformed both CodeRankEmbed and the legacy Nomic code
+  model under the same chunks/configuration. Selection does not authorize
+  automatic download, model drift, a remote/fabricated fallback, or use of a
+  stale revision/space.
+- Qwen3-Embedding-0.6B Q8_0 is the sole supported Architecture-021 vector
+  representation. PostgreSQL constraints, model-evidence admission, index
+  persistence, the local evaluation adapter, and pgvector queries reject all
+  other model names, dimensions, pooling, normalization, and quantization.
+  The adapter and vector retrieval path also reject any query instruction other
+  than the exact selected Qwen instruction.
+  Atomic space switch remains only for a deliberate new exact revision or
+  artifact of this same representation. Comparison rows below are retained as
+  decision evidence, not compatibility. Revolvr-owned non-selected model
+  artifacts and their runtime image are removed; the read-only Sodoryard
+  reference remains outside Revolvr and was not modified.
+
 ## Local Embedding Space Is Exact, Local, And Degradable (2026-08-06)
 
 - The adapter pins one complete embedding-space identity: model name,

@@ -5,13 +5,13 @@
 - The current implementation authority is the numbered sequence under
   `.agent/tasks/architecture-001` through `architecture-025`, with the approved
   compatibility task `architecture-016a` inserted between 016 and 017.
-- Architecture tasks 001-020 and planning task PTC-001 are completed.
+- Architecture tasks 001-021 and planning task PTC-001 are completed.
 - The next and only task is
-  `architecture-021-code-indexing-context-assembly`; its architecture-020
+  `architecture-022-deterministic-eval-suite`; its architecture-021
   prerequisite is complete.
-- Architectures 021-025 remain ordered by their existing dependency chain.
-- Architecture 020 was completed without selecting or beginning architecture
-  021 in the same pass.
+- Architectures 022-025 remain ordered by their existing dependency chain.
+- Architecture 021 was completed without selecting or beginning architecture
+  022 in the same pass.
 - The legacy external-readiness backlog below is deferred while this canonical
   architecture sequence is active; its unchecked entries are not the current
   fresh-pass selector.
@@ -40,10 +40,12 @@
   gates.
 - [x] Architecture 019 — implement the auditor and bounded corrector loop.
 - [x] Architecture 020 — implement the local embedding service adapter.
-- [ ] Architecture 021 — implement code indexing, retrieval, and context
-  assembly.
+- [x] Architecture 021 — implement code indexing, retrieval, and context
+  assembly. Qwen3-Embedding-0.6B Q8_0 is the sole supported vector
+  representation; no prior-model runtime/schema/query compatibility remains.
+- [ ] Architecture 022 — build the deterministic architecture evaluation suite.
   **Next and only selectable task.**
-- Architecture 022-025 — pending behind architecture 021 and then ordered by
+- Architecture 023-025 — pending behind architecture 022 and then ordered by
   their recorded dependencies; do not select a successor in the same pass.
 
 ## Deferred Programmatic Workspace And Continual Harness Sequence

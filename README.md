@@ -88,8 +88,15 @@ docker compose -f compose/compose.yaml -f compose/compose.dev.yaml down --volume
 ### Local embedding service
 
 The optional `embeddings` Compose profile runs an operator-supplied local
-embedding image. Revolvr does not select a permanent model until the Phase 7
-retrieval evaluation has measured it. The service receives GPU access and one
+embedding image. Architecture 021 selected the exact Q8_0 artifact of
+`Qwen/Qwen3-Embedding-0.6B-GGUF` at revision
+`370f27d7550e0def9b39c1f16d3fbaa13aa67728` after a measured three-model
+real-project comparison. Its 1,024-dimensional, last-token-pooled, L2-normalized
+Q8_0 representation is the sole supported code-index vector space; there is no
+prior-model compatibility or fallback if that exact service is absent or
+drifted. The full evidence is in
+[`docs/architecture/code-indexing-context-assembly.md`](docs/architecture/code-indexing-context-assembly.md).
+The service receives GPU access and one
 read-only model mount on the internal control network; it receives no project,
 database, OpenAI credential, or container-runtime socket mount. The development
 override publishes only a loopback port for the opt-in smoke command.
@@ -104,19 +111,21 @@ The image must implement the versioned adapter contract below under `/v1`:
   `encoding_format` fields plus `input_type` (`documents` or `query`), and
   returns indexed vectors plus the same exact `model_info` object.
 
-Supply one evaluated image and exact metadata, then start only that profile:
+Compose fixes the selected model metadata rather than accepting model overrides.
+Supply the evaluated image and read-only artifact path; export the same exact
+metadata for the host-side smoke assertion, then start only that profile:
 
 ```bash
 export REVOLVR_POSTGRES_PASSWORD='choose-a-development-password'
 export REVOLVR_EMBEDDING_IMAGE='your-local-embedding-service@sha256:<image-digest>'
 export REVOLVR_EMBEDDING_MODEL_PATH='/absolute/read-only/model/path'
-export REVOLVR_EMBEDDING_MODEL_NAME='evaluated-model-name'
-export REVOLVR_EMBEDDING_MODEL_REVISION='exact-model-revision'
-export REVOLVR_EMBEDDING_DIMENSIONS='exact-positive-dimension'
-export REVOLVR_EMBEDDING_POOLING='exact-pooling-policy'
-export REVOLVR_EMBEDDING_NORMALIZATION='exact-normalization-policy'
-export REVOLVR_EMBEDDING_QUANTIZATION='exact-quantization-policy'
-export REVOLVR_EMBEDDING_ARTIFACT_SHA256='lowercase-model-artifact-sha256'
+export REVOLVR_EMBEDDING_MODEL_NAME='Qwen/Qwen3-Embedding-0.6B-GGUF'
+export REVOLVR_EMBEDDING_MODEL_REVISION='370f27d7550e0def9b39c1f16d3fbaa13aa67728'
+export REVOLVR_EMBEDDING_DIMENSIONS='1024'
+export REVOLVR_EMBEDDING_POOLING='last'
+export REVOLVR_EMBEDDING_NORMALIZATION='l2'
+export REVOLVR_EMBEDDING_QUANTIZATION='Q8_0'
+export REVOLVR_EMBEDDING_ARTIFACT_SHA256='06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439'
 docker compose -f compose/compose.yaml -f compose/compose.dev.yaml \
   --profile embeddings up -d embedding-service
 ```
@@ -138,6 +147,31 @@ status and no vectors. Callers must continue exact-file and lexical retrieval
 in the reported degraded mode; there is no fabricated-vector or remote-provider
 fallback.
 
+### Code index, retrieval, and context packages
+
+The Architecture 021 index is rebuildable PostgreSQL derived state tied to one
+exact Git revision and, when vectors are enabled, one exact embedding space.
+It admits bounded Git blobs only, extracts Go, TypeScript/JavaScript, Python,
+Markdown, and SQL semantic units, and uses deterministic bounded fallback
+chunks for malformed or unsupported text. New full, incremental, rebuild, and
+space-switch builds are staged separately and activated atomically only after
+row-count and embedding-space validation; failed replacements retain a prior
+clean active build.
+
+Retrieval order is canonical task material, exact file, exact symbol, exact
+text, one-hop structural relations, bounded PostgreSQL FTS, optional pgvector,
+then explicitly omitted graph/reranker lanes. Vector results never outrank an
+exact source. Missing, unhealthy, stale-revision, or wrong-space embeddings are
+reported as omitted, degraded, or stale while exact and lexical lanes remain
+usable.
+
+Context compilation freezes deterministic role-budgeted dossier bytes and an
+immutable manifest containing every included and excluded candidate, source
+hash, authority/ranking signal, retrieval configuration, query-instruction
+hash, embedding space, size, omission, retrieval instruction, and final dossier
+SHA-256. The read-only host query exposes only manifests, admitted items, exact
+admitted artifact ranges, and a reserved trajectory-range boundary.
+
 ## Documentation
 
 - This README is the operator guide for setup, task workflows, runtime modes,
@@ -145,6 +179,9 @@ fallback.
 - [`docs/architecture/repository-build-baseline.md`](docs/architecture/repository-build-baseline.md)
   records the canonical repository-history, build, test, CLI, CI, and
   just-in-time structure baseline.
+- [`docs/architecture/code-indexing-context-assembly.md`](docs/architecture/code-indexing-context-assembly.md)
+  records Architecture 021 schema, recovery, retrieval/context contracts, exact
+  model evidence, real-project metrics, and the active embedding selection.
 - [`docs/attended-developer-alpha.md`](docs/attended-developer-alpha.md) is the
   bounded source-build path for attended evaluation in disposable or
   recoverable repositories; it is explicitly not a release or external-use
