@@ -1,0 +1,42 @@
+[
+  {
+    "id": "run-symbol",
+    "query": "where is deterministic Run behavior implemented?",
+    "exact_path": "main.go",
+    "exact_symbol": "Run",
+    "expected_path": "main.go",
+    "expected_symbol": "Run"
+  },
+  {
+    "id": "run-test",
+    "query": "which test checks the Run result?",
+    "exact_path": "main_test.go",
+    "exact_symbol": "TestRun",
+    "expected_path": "main_test.go",
+    "expected_symbol": "TestRun"
+  },
+  {
+    "id": "module-identity",
+    "query": "what module identifies the fixture?",
+    "exact_path": "go.mod",
+    "exact_symbol": "",
+    "expected_path": "go.mod",
+    "expected_symbol": ""
+  },
+  {
+    "id": "fixture-purpose",
+    "query": "why does this fixture avoid operator home data?",
+    "exact_path": "README.md",
+    "exact_symbol": "",
+    "expected_path": "README.md",
+    "expected_symbol": ""
+  },
+  {
+    "id": "ready-literal",
+    "query": "where is the ready literal returned?",
+    "exact_path": "main.go",
+    "exact_symbol": "Run",
+    "expected_path": "main.go",
+    "expected_symbol": "Run"
+  }
+]

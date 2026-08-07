@@ -1,0 +1,4955 @@
+{
+  "schema_version": "revolvr-architecture-evaluation-baseline-v1",
+  "suite_sha256": "51bb8f136a1081ebbec3358012f2d2e6bc1ada6c23aff240ea354d77e1d9a629",
+  "fixture_repository_sha256": "71cb255ca7ab33c6e413166d7b58637fcc71e6bc27ef7030ecc89f5bb9373474",
+  "implementation_sha256": "2de97fe49e56a45cf7d4cd75b1b5f6fbf1847dee5b87422377dbd8218c05d494",
+  "worker_modes": [
+    "direct_tools_v1"
+  ],
+  "scenario_count": 20,
+  "results": [
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "straight-success",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "998345c166ed4f002819980e2b17349ae981868f4ba904060d2af65835e81d9a",
+      "outcome": "completed",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "7bd3b08c6efc5f0b7df1e1b58a5e8a2176270f79e60b92fa08abe3193bcc1ca2"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "aebebaf97b34ff8f63cb3ed45c00872e14daecc47494ca06b5f148635cacc70f"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "cc1566777efa066c8919c92e6e9fd7ae054c373d1c7099deeb0d91cbf8c769c2"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "67aaedff32e7ec22a053f3bcc0b4ab7c35835228f52911135b5ad70da7e20de4"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "598136dcc3537d8ae083d3df1563d9142e10ad380856dde4ed750eb348d2ae9b"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "c01e027fc99eab5fa8ef7db9611e603fdc25cbcc",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "eee03ddb8fe4ba0d33c01e38817f6015c03669aeee64005ea2daa8f054cdd0ab"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "839416d6a838bc76673b031814cb8b6530baf497babe417b7d01f2abaa1221d5"
+        },
+        "executions": 1,
+        "exact_reuses": 0,
+        "occurrences": 1,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "9907d7946319bfd27f9f382265bf81981c50af3776044baafa0d21aafd365c8c"
+        },
+        "runs": 1,
+        "independent": true,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "48cc99a326e7c2d356617b786a0ef0f0e0bb5433cb60d95079d6ede11a8ef5ae"
+        },
+        "capsule_sha256": "34603983889bebcb5907601d6d04963737d334e9018e5977233a5189670e2331",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "669a6df65411b9adceb8d8d29c5dbd4c4127cbf74e24b3dcb795ce42db495d7a"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "527cdd80d112d6ede1d8c9621786ece06394087ff8d116bd717541c6938c3b8c"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "21612124b11bf0b8964b5c1781d558993a82b048cdf0706cb25bbc1bf823acd9"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "ac448f8311ed7243728efdff08c45013e7a972f39a051feb0bdd654726a61789"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "de7c951b6773a2d3b14130fbd0ed38abe7fb287456ecbd45b4ab81a4e097c16c"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "710b884febe24d349f35598926af26d5955685fe9e9910ad1fb9f569edcf9151"
+        },
+        {
+          "sequence": 7,
+          "type": "verification_passed",
+          "sha256": "0eff2c3a327972560124cad29208b2ce8b6353e9235c038ee7a85d2f8616797c"
+        },
+        {
+          "sequence": 8,
+          "type": "audit_clean",
+          "sha256": "46253975bec114e03002b043c3b0a9ee81c8e4ac2b9012f7e602b35d145ab487"
+        },
+        {
+          "sequence": 9,
+          "type": "completion_materialized",
+          "sha256": "1243e738e8e1d2c83e06880776025b7142168d68ef2ce92143a993d24dfb06bd"
+        },
+        {
+          "sequence": 10,
+          "type": "task_completed",
+          "sha256": "b7bed3b4b0284a772390c851b3c0a8b5b09e30fba3a4a8d422649e32836c3794"
+        },
+        {
+          "sequence": 11,
+          "type": "lease_released",
+          "sha256": "99bdbb089844118fc5252d06c2c51cc185d995306e343de57aaefa217ca726df"
+        },
+        {
+          "sequence": 12,
+          "type": "sandbox_removed",
+          "sha256": "eb294fbd81b3f4fce4b2479f33195ef0c17570486bdfcf87d1aa5231ff9b1dbe"
+        },
+        {
+          "sequence": 13,
+          "type": "workspace_cleaned",
+          "sha256": "af6ebfd16f1f92af14d82eaa68bc08fd0a3898282ed9da5b4731126a8196892a"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "0a803cb370c96a9d52636869e985cebd224d4096df047c8a9ab0bf67d786c1d2",
+          "size_bytes": 1513
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "33b500084c2f340869e69cdb88922977bfc0a8e32df4cada241d45ee61a174ed",
+          "size_bytes": 4792
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "5e665eeb0277177a5f495d769740c22d60f84b20cb3f46eb3fbbdaab37f77bbd",
+          "size_bytes": 1835
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "a2d2265bb6bb5b28aea719a5e1635197a22cc5754e1068140a51c4fd76ef37db",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "0c32465d7d63f2420a579385231ad0edf587a21a721dfcfccbb541753c6c00a2",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "cdee725f08ef8cf6353004054970fd377566957ca71e54f9490d7d0b608cd411",
+          "size_bytes": 275
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "34603983889bebcb5907601d6d04963737d334e9018e5977233a5189670e2331",
+          "size_bytes": 1173
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "caa2a323-cc85-5a14-a15c-76daa465dbc7",
+        "context_manifest_sha256": "33b500084c2f340869e69cdb88922977bfc0a8e32df4cada241d45ee61a174ed",
+        "dossier_sha256": "0a803cb370c96a9d52636869e985cebd224d4096df047c8a9ab0bf67d786c1d2",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1513,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 4,
+        "repeated_read_count": 0,
+        "verification_executions": 1,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 130000000,
+        "final_typed_outcome": "completed",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "compile-failure-correction",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "fbc2700a93ef8a4702ad2890fd16a2b00b6d90d8107fbb9b213e16227319b41a",
+      "outcome": "completed",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "266bdc8dcd0a2b60467fde47c3b16f28f6726192df3eda16a92a260164ccf32a"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "7994911c350d7a1885cb3fcf7e1b0889e6e66b61ed360906a4a01b4bda892b08"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "80b0c84f59218df44af1e196f769f5057ca7ccb9a43d8231b68df20476bce8f6"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "c0e121213ea7b52d1fbe1087827c05dd65c6bdfde990e50a39c1002f1de2e189"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "cc1c0673042b82412bab583f77c4249220eb4bbc563478ac1c6060c41b814aaa"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "13de912b89fad25441b5e7d3d5aedb2f205a5072",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "3c721d901bcda6ad8c4b4839298375e80322a499dedec689e7cb08c9b4f8563f"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "ec511a76b83a76546fcd332b65b5c70790486268e2fb50a7268fe0e0461c19c3"
+        },
+        "executions": 2,
+        "exact_reuses": 0,
+        "occurrences": 2,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "236b0e42e4e5801747088b618a6db5ae0d20960b11c31006de674b8c00df3097"
+        },
+        "runs": 1,
+        "independent": true,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "3a6f3f6fa37ec18db4e4783d2fffa20d0c51c2ddec433434d54849f0cc772b05"
+        },
+        "capsule_sha256": "37523c07b3db6851cc49677a2728eb03b1b092bec7110c8be0c74a8b4584dd64",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "e6d17bcd1bdce450e5666481ad8f3c22895d82ff4c4b5f31adc70f2f9b18ec19"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "a26c982939675bade8812e9fdb42c0610ff9e8d8b022aaddf5b0a96fd1648e4e"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "662b10935c96aee1cc6628c9981304723eb349ced20577b20daf94371a8431f7"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "cad768a23a17778752f004058efc94da01a958c54946d1f0cc1f695205b55a34"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "d7bd654f0b076955648db89db67219a5d19eff742f006c13e40f4c2f77a9849f"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "3a69ed4ba2c5e5b778794bcde96b8d77ff055621b2faa91078360027eda5ba82"
+        },
+        {
+          "sequence": 7,
+          "type": "compile_verification_failed",
+          "sha256": "1d77f11d83da56a43c2053952eab28769cc306e0e39879e4abf43fd4f204e1da"
+        },
+        {
+          "sequence": 8,
+          "type": "correction_admitted",
+          "sha256": "e20e4954a05507afb48cacf8ec4c43e40267e8b4b61f93909e5e527800760ee8"
+        },
+        {
+          "sequence": 9,
+          "type": "corrector_completed",
+          "sha256": "6f38367bbec55365b5b9b2ccf5d8afb81d8cd058d666592aaf431851b1533cbd"
+        },
+        {
+          "sequence": 10,
+          "type": "verification_passed",
+          "sha256": "ae5e6950fff91eaa67449e84309b5e32939e2bddf389320319f17c7a8e06744e"
+        },
+        {
+          "sequence": 11,
+          "type": "audit_clean",
+          "sha256": "490711675eac40bbaff19886312633db5bc09b489af8f56b0787ee56b4234764"
+        },
+        {
+          "sequence": 12,
+          "type": "completion_materialized",
+          "sha256": "d448bf7cdbc35981b3271dbe883ae21e4b3050f218fb8b18e891f45744761389"
+        },
+        {
+          "sequence": 13,
+          "type": "task_completed",
+          "sha256": "dc7fe44e276de31b43d2c1d89ead6b01b9a81e3852407a81196dec5b5c29b8b7"
+        },
+        {
+          "sequence": 14,
+          "type": "lease_released",
+          "sha256": "741ccb694448bcc19997a4d71aeccc5e8d6b4b269ab5e522447ff318604324c9"
+        },
+        {
+          "sequence": 15,
+          "type": "sandbox_removed",
+          "sha256": "d02fefbb02cafa7746fc5daffef99373f8e94ff63194e289e346f31261f4768b"
+        },
+        {
+          "sequence": 16,
+          "type": "workspace_cleaned",
+          "sha256": "5e778f3193e4632dae0ce13fa01ef00fe01649e75e241b8d6bafa7c8fde7ddf7"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "2642762f8a94fe7b6cb89f517399fd093c562e585855e486751b58236902657d",
+          "size_bytes": 1545
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "7defed8f216775a1a18b86fb9d4017c4342f27c9e0ea09a650bbe07c260bcdb6",
+          "size_bytes": 4822
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "96c6a867424f092fd1c5893f8b410985e271b092247dc7c3f2ff881fd8b5d984",
+          "size_bytes": 2278
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "ba93013d2e29404474f1a0889da6829ba3e243d9219df6a68d59eef04943b5c5",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "43fa843ff31bb62fba282799405f643ae5378761a46d0253afa5923de981ede8",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "fb71144aa019ba0865609bf41e1207ac4c6596d114be7d4a2c8304fd21d9addc",
+          "size_bytes": 275
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "37523c07b3db6851cc49677a2728eb03b1b092bec7110c8be0c74a8b4584dd64",
+          "size_bytes": 1183
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "a227a220-1dbb-5e33-8ba1-856ffdf8f112",
+        "context_manifest_sha256": "7defed8f216775a1a18b86fb9d4017c4342f27c9e0ea09a650bbe07c260bcdb6",
+        "dossier_sha256": "2642762f8a94fe7b6cb89f517399fd093c562e585855e486751b58236902657d",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1545,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 6,
+        "repeated_read_count": 1,
+        "verification_executions": 2,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 1,
+        "wall_time_nanoseconds": 240000000,
+        "final_typed_outcome": "completed",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "test-failure-correction",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "f351e767f49b44deb3a4485156f6e1998e9acc71fed9217283698a7fcf8b53c5",
+      "outcome": "completed",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "60e0fcd377d5564e4baa5904f683e20267a5d8623fad93a7a12685f701055fdf"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "682110125f2ebacff5abad371370e204e5682f1b1f8cbd29d27586323d1746ba"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "ca37c2a5072d014429758cc32a54d2b1ab7eb7b96ac6dc4bf0517a47ebfaab67"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "9cc217ed8c634ee466805ca841faaafc1ef23504bd82102af6007f49067d5dfb"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "0b25f43aafc09ddbb77eed21ca24cea546351e1fb48cf92cefc453e3dee9124e"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "2b13048fa06c3c5ecb44863cc97ffa3d2ff7fce9",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "232bde11f453219ab32a2e648e50568f70ceb24eccfe9c49c716de873fcb95c5"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "d84152a5152eb1d55d1ed05735e5ce44a9990b320eb60f995e3e53f4f7f5f4fc"
+        },
+        "executions": 2,
+        "exact_reuses": 0,
+        "occurrences": 2,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "52d87348a77da760831129f855d501e84f3304a2281cac7f2cb36d14239af74a"
+        },
+        "runs": 1,
+        "independent": true,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "51d6778ba8e7569d0cb6d8d8471b302a5f7db729ef3dd46db002b99ac7d29996"
+        },
+        "capsule_sha256": "0a76883836646177281240ac359c357b65f83a17496bb6ffac784df52474019f",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "a797c59f7649884b714bfb202cc6ce39aea0daceab3bb31e1f86ab6ada53f84f"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "101923dd6fc79508cc4f158d61fd842cac2a0b40fd55b2dcc82dd780ae4b8d07"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "cdedf108b4fb03119f8103e0a8ea00eee9cdbfc3ef079ea02de0717a50db54ec"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "2c850197fe487bc736fa3c1245c2dd90fdaaacc38de2486e35a92100afd3dfb8"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "fa5386a086d539cc53ea19ffc9e85168428976b2b4f42e5d324e9589b1d47552"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "d36f5453c7adf2308cdaf02066c58494880f08f20f68a5e3d64f1a8078e1e8bd"
+        },
+        {
+          "sequence": 7,
+          "type": "test_verification_failed",
+          "sha256": "bedbf8102de46a0caea89266c8cc662768b079631d084b9a1cf7c489e2fd82a4"
+        },
+        {
+          "sequence": 8,
+          "type": "correction_admitted",
+          "sha256": "20ade7748ea11d46e1167432756f764b30bbf3cbfb89cb39afbce9b0402395a8"
+        },
+        {
+          "sequence": 9,
+          "type": "corrector_completed",
+          "sha256": "4670000bfa6a75cc375ab8cf15f7bb5bbe205fe8c0c644b8b44c27d345e7b057"
+        },
+        {
+          "sequence": 10,
+          "type": "verification_passed",
+          "sha256": "503e7f168bc74c615fcafaa9eb0ff610504d107ed2f607429e602c7812030522"
+        },
+        {
+          "sequence": 11,
+          "type": "audit_clean",
+          "sha256": "d30250d6ac4f5dd35887cbfdbda3d9e89dc7694e8afbaf3db20e8fffd08e68f0"
+        },
+        {
+          "sequence": 12,
+          "type": "completion_materialized",
+          "sha256": "efefc8b1a68fa46dde362c74a4f90cb1ca92d350859ddeba23f8cec0c68871a6"
+        },
+        {
+          "sequence": 13,
+          "type": "task_completed",
+          "sha256": "0c157d284f9696db02695b02206c6fe488fc591b1c93c36e567bb96f5f9d58a2"
+        },
+        {
+          "sequence": 14,
+          "type": "lease_released",
+          "sha256": "6c9fc6450fd558ecfeb1bb673712da2546adf8fe47796d93caa79f41c2e62409"
+        },
+        {
+          "sequence": 15,
+          "type": "sandbox_removed",
+          "sha256": "b23cc9b5c7ec7e795e0e7c9e0b5588f60e0f66986986d75062385dc34effea87"
+        },
+        {
+          "sequence": 16,
+          "type": "workspace_cleaned",
+          "sha256": "cde4847dd4866680dc2cb99a4365bb9be9634caa37453f494a6b9e5c4751de83"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "aaccb2633d24eb57aac929b0cabe7e4384a8c094febf16004a43cf639e890762",
+          "size_bytes": 1541
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "da9d06c3c2e6438f3723f793dbde2fb4519a1bb3f788b6ad4a0830c39be42fdd",
+          "size_bytes": 4813
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "4c28e054de3fc6802713360f3ef8e18ef0c592813312c7ffa83c5b1050e59d52",
+          "size_bytes": 2275
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "dacf8025e492bd429eb00a4868dfaa24cccf568ebb4ac58ba8fa757b023e8fd7",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "f3f23f0a49d4b007625b559b336c1bd3f19f29975a0f0c9f0e2be76e0c69b347",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "ff665e3390455f67f972bfda47a907f42a5c2f86d3c8d85f9e973a3a04c008e0",
+          "size_bytes": 275
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "0a76883836646177281240ac359c357b65f83a17496bb6ffac784df52474019f",
+          "size_bytes": 1180
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "1bc8bbde-a59a-52ed-9f78-daa7cb5f6353",
+        "context_manifest_sha256": "da9d06c3c2e6438f3723f793dbde2fb4519a1bb3f788b6ad4a0830c39be42fdd",
+        "dossier_sha256": "aaccb2633d24eb57aac929b0cabe7e4384a8c094febf16004a43cf639e890762",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1541,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 7,
+        "repeated_read_count": 1,
+        "verification_executions": 2,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 1,
+        "wall_time_nanoseconds": 260000000,
+        "final_typed_outcome": "completed",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "audit-finding-correction",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "12ec8aeebcfaec343cb987800e739e59f758a620dbb70049aa323a2bb7af6d48",
+      "outcome": "completed",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "28c98526331c35f22112451332051c5386887c2d57111c87fa0dfd79c015aabd"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "0b7e7ac5f63b5224aafacdbe9a99316066cd0a7c77424aaa173b18f4f79dba37"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "6cbe7b2f99af66e102f48f1a4609f0e931f514b448256399af4a58a9d7b02cd5"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "9b7321abd59f487d818c560b4b506e8b6a6936eb889e9f96f04105db3d273bd1"
+        }
+      ],
+      "findings": [
+        {
+          "finding_id": "audit-finding-1",
+          "status": "resolved",
+          "definition_sha256": "ce870793dc1a5a00475e302c37bfbb6e792ac3929dac11cd237f9786b86357f9"
+        }
+      ],
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "65a01db86bb2e62e4e129f906d0e3b0b32b01a24407998a8bd4c0b9387c6bfb9"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "d7ba953b98ffd247341db632c8d7521d189fc022",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "8692aed6d386304c7d92ea37ab6c7aa68c73df099534da8d21c7b8dd1515bc0d"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "180be16d69eee8099944c6316cd8b96e3c8af355a5cde07d31d03684e32474d7"
+        },
+        "executions": 2,
+        "exact_reuses": 0,
+        "occurrences": 2,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "f537778801b65e76f0edef897abb20bc7e8678dc23e7208346f6c37322405f4c"
+        },
+        "runs": 2,
+        "independent": true,
+        "blocking_findings": 1
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "289c6a54113fd7132a41c654534011be8d60ada9153b21349291c90d866b0a4d"
+        },
+        "capsule_sha256": "b1f0a914d9bd16b623a2b57892683d022e5f3720986416b1cbc81792da21c87a",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "ed466687f4bc5a06865ffc9c9b98084feb8f23bd53d25dba4a11ef4559f2ca69"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "e75cbd5fffa0ca2b7ae6f91e2718731960ae7fb3ef0d1d574145d146cde36af0"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "72e4824243bd96ccbe34e7521bfafc216c79adfb8f19c1e8cccab889e0752d08"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "0a7c2d5fab65674cba5ad05782a4c63b9765a9178129b01ba24dff43ee49f855"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "f45ad644600433031de09431a5b5d3b7fdf048be15a2aded59b135f6bd42ddba"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "a278f8f524e1e6a0026aa05615e3267b87ab7f1565287e6016245c86a19430bf"
+        },
+        {
+          "sequence": 7,
+          "type": "verification_passed",
+          "sha256": "7e13e01caa399eea8a481bb01f69697a47dd71c75b9ae3a5a87c00e08a769ac8"
+        },
+        {
+          "sequence": 8,
+          "type": "audit_changes_required",
+          "sha256": "cdc363ced8af5717714a99662cacded335bb883bb78edb641036b75a42513f6b"
+        },
+        {
+          "sequence": 9,
+          "type": "finding_opened",
+          "sha256": "c80ff36981a9efb4639c11cface98df4d9bed8410c09dac5d78202f89c7cf0ab"
+        },
+        {
+          "sequence": 10,
+          "type": "correction_admitted",
+          "sha256": "e3fadf91d56f70aed57f78ff93bd21fd9e31c1c8fe288bc5b47adb3c192fa581"
+        },
+        {
+          "sequence": 11,
+          "type": "corrector_completed",
+          "sha256": "4135277d7945013d3236760f02ea77d62903bb9b04f9bc4d8d469928937876af"
+        },
+        {
+          "sequence": 12,
+          "type": "verification_passed",
+          "sha256": "040f40df11f639537c759f5e2d4adbdddc7b1d3451cd9d6e16899d97b8e6b333"
+        },
+        {
+          "sequence": 13,
+          "type": "audit_clean",
+          "sha256": "e8e40d3677653560c212d5fc17d7700dac2986670f1231a3331b5c479f1becc1"
+        },
+        {
+          "sequence": 14,
+          "type": "finding_resolved",
+          "sha256": "62f55ef011468ceb4110c2bc52fc8abdacfad7787d29d21d77af708206bfed5f"
+        },
+        {
+          "sequence": 15,
+          "type": "completion_materialized",
+          "sha256": "c28e6ad92e380d3d1344205f77e161df329269d4157b7ca1c74b5ab5b3658405"
+        },
+        {
+          "sequence": 16,
+          "type": "task_completed",
+          "sha256": "edadf9367f90509d8d38adacfe2d64e1353a53d8ab56e8395daa32f0f3508b6f"
+        },
+        {
+          "sequence": 17,
+          "type": "lease_released",
+          "sha256": "23d590c5f17381b01ee49c480acd38fb32fffae738d3ca2160386c00b52a5248"
+        },
+        {
+          "sequence": 18,
+          "type": "sandbox_removed",
+          "sha256": "923b139ebcfb3db1c50971397104efb78952fd53a9c9736e5c2d52845e0382db"
+        },
+        {
+          "sequence": 19,
+          "type": "workspace_cleaned",
+          "sha256": "10e08cc2178275bbdeaa02aaa52afb92a9195489423431197eed8c67ef806b2b"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "51d44fbb63c5c6e377b6948cc6c5850d06021bf4bd9cc61737bad4cb7c27940a",
+          "size_bytes": 1533
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "6c9fe684bc4bffe376fe7e24a9361d34c2603b7cb9cc8ad0312f39a05a87ed91",
+          "size_bytes": 4816
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "b49aa0e366ac3f23612b1c6662e0bbcaccb2951ea40e2cf05183ea54fe115b27",
+          "size_bytes": 2700
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "f46e0eac8dbedc96bed2cca66ba7652566efee55b3cc6a38cf53f3646c421ed9",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "2e196b308c6fa5681b513c52f009bf50e726f52c7e3b1193af49e62a190c6423",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "11bdd9f47d681f169c2781c9f639b66cd10c6c2a1207a0e918d94480bc5e8f26",
+          "size_bytes": 449
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "b1f0a914d9bd16b623a2b57892683d022e5f3720986416b1cbc81792da21c87a",
+          "size_bytes": 1181
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "15ba5ba3-1589-5f7b-bfea-12a199e511b5",
+        "context_manifest_sha256": "6c9fe684bc4bffe376fe7e24a9361d34c2603b7cb9cc8ad0312f39a05a87ed91",
+        "dossier_sha256": "51d44fbb63c5c6e377b6948cc6c5850d06021bf4bd9cc61737bad4cb7c27940a",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1533,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 7,
+        "repeated_read_count": 1,
+        "verification_executions": 2,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 1,
+        "wall_time_nanoseconds": 290000000,
+        "final_typed_outcome": "completed",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "ambiguous-requirement",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "e72b7a1d9c2bc491b4421cb3fda399ee30947b456a10f714d34ca0993663eea6",
+      "outcome": "needs_input",
+      "stop_reason": "ambiguity_requires_operator",
+      "task": {
+        "status": "needs_input",
+        "applicability": "applicable",
+        "sha256": "71171c522e3a75bd0680ca9bea101597ef054d3b219613957c7edff4a1704c0d"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "289e2c4151f1469abe4173785a15e62574b95788524666301823614985efa313"
+      },
+      "plan": {
+        "status": "not_created",
+        "applicability": "not_reached",
+        "sha256": "6ebb6d77b23b1e574d94d6fd0198a14a13aba9a81f835a0f5d36e3c9dfa40dee"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "not_created",
+          "applicability": "not_reached",
+          "sha256": "58db65cce442e8a4be732cff3fc65b1814272618dbf89ee743a5b3bb1a2dc067"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": false
+      },
+      "sandbox": {
+        "state": {
+          "status": "not_created",
+          "applicability": "not_reached",
+          "sha256": "79919b8bde910bc4a8724bcb046d46f283c33adc8657f14e7964750c7958c07c"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "72e338b02f22fbdfe1bb782c719eb3e62c732b86fa55bcf1ecc4a62f1493521f"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "18184fd6c7a78ce09fe9a245aedda074a88d4f76a43881541efc43fe2ff42605"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "1c7b6c4aac25b33c25f707a67a527e4e8ead10a8a59eb9cb02d0fb2885a49ed4"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "6ce7fe5350854650d4228dbd6f123ba4a21334415e7a431e4692fd2eefc157c8"
+        },
+        {
+          "sequence": 2,
+          "type": "supervisor_needs_input",
+          "sha256": "877aa0546a3f3c149dc936ab9567dd3f5acb8859e9fdd0063239451a602c841b"
+        },
+        {
+          "sequence": 3,
+          "type": "task_needs_input",
+          "sha256": "d8971c002f62de48c6a0d558c21c590ee31d8a1fffef044bd7b379659e257eb3"
+        },
+        {
+          "sequence": 4,
+          "type": "lease_released",
+          "sha256": "b8a550de7f6743e3a0847d3939352907ad76e9dc0b69516a7151da0ff3c8008b"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "ffd2b21ae8c28eb582eb7f950fff75dc3a23ebac8a1312d5079e530ddd98efc7",
+          "size_bytes": 1497
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "bf25e9afa97e0843219ec1bf6092869d29f8c72880540ad00b79852d87591d93",
+          "size_bytes": 4807
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "a6db460c12b992eeb85ac0a7521a9a4acb981990db3313929f1d71ec93ee7ead",
+          "size_bytes": 568
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "696f0ddb-d2ef-5f6a-85b0-0238ddcf8e47",
+        "context_manifest_sha256": "bf25e9afa97e0843219ec1bf6092869d29f8c72880540ad00b79852d87591d93",
+        "dossier_sha256": "ffd2b21ae8c28eb582eb7f950fff75dc3a23ebac8a1312d5079e530ddd98efc7",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1497,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 0,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 20000000,
+        "final_typed_outcome": "needs_input",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "missing-dependency",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "96737cee4ac0e320ec55d9feb1d0b43bbe26b5fb96c18ef9030dbddb42e3f369",
+      "outcome": "dependency_missing",
+      "stop_reason": "dependency_missing",
+      "task": {
+        "status": "pending",
+        "applicability": "applicable",
+        "sha256": "767c1ca8113b083404d3526e8a7c549101808e4533d4ef8bb6e3771fb2e9751a"
+      },
+      "run": {
+        "status": "not_admitted",
+        "applicability": "not_admitted",
+        "sha256": "185449db898cd94f91d8ca11b87770a8b5bfd1f587f1ccc4580325f651423634"
+      },
+      "plan": {
+        "status": "not_created",
+        "applicability": "not_reached",
+        "sha256": "c775981db1dae7f105e1a4bb57a283c2cb993b8cf8927141073009b199dc9134"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "not_created",
+          "applicability": "not_reached",
+          "sha256": "b60f4e494b3ac29ec111ff0ae9f99b185ab162a1625ac6959cee7b05f5fde505"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": false
+      },
+      "sandbox": {
+        "state": {
+          "status": "not_created",
+          "applicability": "not_reached",
+          "sha256": "b5473b374f1536648b5409e47c3dabc87f67f8c52ea666c4050b1850af5cdab8"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "3f1238f18a95ea5c6398aa8ec04872c6ce5bb498cfd6203a053507978f2f1fd9"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "fea4b52994adfd13cf30c414e2d6add861aeee7eca54ac5661ca8b38e8af5f41"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "b7986252a996239e0f246271c2a94754fe082732167cdd217241465696c08c5d"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "dependency_graph_refused_missing",
+          "sha256": "b0d35b2ce3279a81414f9ce564b3f54ad633cbdab2b9bc1f6d36d11c684e9b1f"
+        },
+        {
+          "sequence": 2,
+          "type": "lease_not_acquired",
+          "sha256": "fe7c984f0b2fea8c31c670a17b0c989310653e6e0d498e17794c924c9ac1b1b4"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "98e7bf28a838644016472764d20eb8cdea8fc438fbcf84c73a10891ec70c9583",
+          "size_bytes": 1498
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "7f9d39ba96204010ae1f0740eff53fe31991db0baf9dfcc92da8af6377850b3d",
+          "size_bytes": 4798
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "cbc28ed1943092fac56e0491f3657ad132a747cfd0ee68e93685e7825d01aa57",
+          "size_bytes": 303
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "03ba2684-d7a8-51d1-a5ee-acdb1f9b6a9f",
+        "context_manifest_sha256": "7f9d39ba96204010ae1f0740eff53fe31991db0baf9dfcc92da8af6377850b3d",
+        "dossier_sha256": "98e7bf28a838644016472764d20eb8cdea8fc438fbcf84c73a10891ec70c9583",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1498,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 0,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 10000000,
+        "final_typed_outcome": "dependency_missing",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": false,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "cyclic-dependency",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "7eb9ad9ab0ec43d27501e2c9ac5180e52024293d2284ec9ece95eecaba791ac8",
+      "outcome": "dependency_cycle",
+      "stop_reason": "dependency_cycle",
+      "task": {
+        "status": "pending",
+        "applicability": "applicable",
+        "sha256": "c2c752570714125dc7ea0181cd4638c6ebc529001c2174751355d14bb9142fcb"
+      },
+      "run": {
+        "status": "not_admitted",
+        "applicability": "not_admitted",
+        "sha256": "7993ca6dd06a16eed37583353939c6b0e5992b9a23ce2eb50d4be84553e7d88a"
+      },
+      "plan": {
+        "status": "not_created",
+        "applicability": "not_reached",
+        "sha256": "e15b928c12de485db9892bd6244fabd7851b25e6f9d642137b44f262825c788f"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "not_created",
+          "applicability": "not_reached",
+          "sha256": "818220f48d0b7dcc67d215b70445c1790ad7934bf76a1aa8f11eaf9a3d55b88b"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": false
+      },
+      "sandbox": {
+        "state": {
+          "status": "not_created",
+          "applicability": "not_reached",
+          "sha256": "07b23888c8c1138a443069a63275fcfbc988ca1d91d4c1b66537623afcab218b"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "3ffa9f1d631065e3f71946a37f054142ef63c6e0fd66219df10174f47c6da6f0"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "48fb911f7fa7ab3a1c7a88086d248dc771ece5f40476a2d48beef8b3dc716b10"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "33f5aa5581bcb140c9153713c3664819ffdb937255eb1532aa1c16c080f697f6"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "dependency_graph_refused_cycle",
+          "sha256": "18dd3a7a9b2eebcb77badd92755cf564d03e500433523126a5ac220f3af5c07c"
+        },
+        {
+          "sequence": 2,
+          "type": "lease_not_acquired",
+          "sha256": "cb00b8abf453971e14e9523a9b3cd4b168df125ffefc691707d6800714f27fe5"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "b8e57a51c90d94b841a7a759005a398f66eb564958cfc1348bde66cca51a56a1",
+          "size_bytes": 1493
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "27b2e5e351d0228f203ba61d240fa47e25d89e5852f73c6291dda832601f9aa7",
+          "size_bytes": 4795
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "63447a24bbe03ca37dfc9c6dc57b39eefc67866753a958ddb5bce4e6608342a9",
+          "size_bytes": 301
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "0438e80b-9cb9-5cec-a305-473e5d3f26fc",
+        "context_manifest_sha256": "27b2e5e351d0228f203ba61d240fa47e25d89e5852f73c6291dda832601f9aa7",
+        "dossier_sha256": "b8e57a51c90d94b841a7a759005a398f66eb564958cfc1348bde66cca51a56a1",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1493,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 0,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 10000000,
+        "final_typed_outcome": "dependency_cycle",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": false,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "scope-violation",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "9c7dde9a4a938584519438462e00f12dac259f75433d00ac0916ae8cc1376a6c",
+      "outcome": "scope_violation",
+      "stop_reason": "scope_violation",
+      "task": {
+        "status": "unsafe",
+        "applicability": "applicable",
+        "sha256": "df6fb9119d23f69ebb0c3bd60c32a4f0cca021331e8c3e33b73f18b5f17ea615"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "d594eacd76fa9bbe3a2a7ea5563f303ecd4164443b6e7be958302ea2cbe82785"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "9d7a8450b066a74f4cae590cf5050154e83189bd0d99a0b97bb52f544cca2897"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "c2895d0da0e12edee143d05ed0aedb8baff46ec5cff1989484b7bca4e4c742a2"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "a8e04d6e9ca36ce966640312afa4bea26ad1ba895307ffdde8d0568f8d63c916"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "8ee788017e20aece7665b96d51d3ac43d676f29bc4a1acd4057f6c996297972e"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "abc1591c326faad57b0ceb196d3426493ea7e94a6fca0711038ecedaf2dda003"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "b55086ad4d9b24918d698d5f9b9f2c12655374aa24f75f926ebba674f41a1c22"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "0a97ee0f9389a8e02757622b8466cc18f6865c405d98fcdf509a540766614715"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "01a5d4de640fd88ba54e56ef2e37ffb1b5cbe228a26c4129c9fd038620a9c9eb"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "d63257624d2c8f9803d936f702fa4e52bd53705ad194e28c21656bb8a68d90ee"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "afa7e3b51d737ba63f815890c0988b739da71355b9b7aa5145af4253b82e1971"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "7e38856182af7ddf7ce12038d53049e33160260199906767de9f9dc98e2c21fb"
+        },
+        {
+          "sequence": 6,
+          "type": "scope_change_denied",
+          "sha256": "63881f75b499d6359bdd1ebb1ec69a3cc9d7f614f0c17a61c66503775906b811"
+        },
+        {
+          "sequence": 7,
+          "type": "task_unsafe",
+          "sha256": "21bbc8fbd312e0e24cb7008baf17d5e06cfc7cca25b7d5570966e884761c8a52"
+        },
+        {
+          "sequence": 8,
+          "type": "lease_released",
+          "sha256": "200e3b5fdef177ded8190da7b6af3b634fba02663c7e009c370b8f50f3cc4c1b"
+        },
+        {
+          "sequence": 9,
+          "type": "sandbox_removed",
+          "sha256": "ca8a395a429e5bdb5342ebe00e109dfd89143a7af067bbcf269ea74d9e995cdb"
+        },
+        {
+          "sequence": 10,
+          "type": "workspace_cleaned",
+          "sha256": "f8cfe27074da268069b868b03e35f26a4372980c2d7258ff03254ac425bd7035"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "04d186538e2f1505daf93940ce8ec3f62423103b675576cba18e0de93f226b43",
+          "size_bytes": 1464
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "d9e4932bc241d3f78d41bb65a86639c841a23b25e4316d6db84754c6e3084a3e",
+          "size_bytes": 4788
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "7af7be99a2e4eafdb04185f3394d05f88673055fad0bb187ab501e5d943bd96b",
+          "size_bytes": 1402
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "acf5adc4-b38d-578e-a5d8-c5be46dedbbe",
+        "context_manifest_sha256": "d9e4932bc241d3f78d41bb65a86639c841a23b25e4316d6db84754c6e3084a3e",
+        "dossier_sha256": "04d186538e2f1505daf93940ce8ec3f62423103b675576cba18e0de93f226b43",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1464,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 2,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 50000000,
+        "final_typed_outcome": "scope_violation",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "protected-path-violation",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "3550a64ca40c91b7cd3299a31e2f8330dff90a72162f838c596c7ff431b3eb58",
+      "outcome": "protected_path_violation",
+      "stop_reason": "protected_path_violation",
+      "task": {
+        "status": "unsafe",
+        "applicability": "applicable",
+        "sha256": "8dcf02fe114f005b001904892af28d08125a5fa7aa53a654c6455ef9195ca480"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "22c80848c97a6a30db97eb845c7b1601d0647845d3f622d851ff9defdfed530e"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "1e6eac5d2ad00ea6b2b2c0e3f5a8fccdbefc77abd32bc84a0844cacfa82780b1"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "003738b39e3babcf1503413718bd0ad9c520adb235618c2758e112b0aeacfe46"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "728106e71f73a1ea24b45f08527da5450e6c35f0e942e1e9eb06cd2e5ea22e7d"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "2ba9c7e73ab8365cdc84c13fbeb36f76602955b766c19aee51170f7b0fd74119"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "b0a1ce736f100f1618fb98b35430b118223293a5c85abe9c3e1669d817c6b069"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "72faf5b02a3a4d5c48ef54d15ae3b9937a0aa824f480fa64cef07c8bf1ac2c14"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "170ab549f2cc07b4c59519bd786d53a9a4dcb2651a15204c0d6f869ef9de261f"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "f2547a2b45f9aa4acf847d2bc48212fd28585d4b6fbb3054bc0d2d6a0c66262b"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "1595de1feb6f2476210ff8a4a2c68239e6ae91dd9dcf921ddab4f01f73a1d5f7"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "df5cf62e477ebbe49761bb6a55606baa158fc300acc1a2acba6b7494fdadaa12"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "73eb3566caee2c9b9c01b629c819d02107ac1047d9fd0d35e00303c3000a662a"
+        },
+        {
+          "sequence": 6,
+          "type": "protected_path_change_denied",
+          "sha256": "af89a12083cc9067f1a8b1ce08ef66315f3b5bd34ec6a94f32b2459493b883c7"
+        },
+        {
+          "sequence": 7,
+          "type": "task_unsafe",
+          "sha256": "582e59a4c649897d9eb4859ed2b6ab46d5cda1cf29ae85a2daf10640c9747cbb"
+        },
+        {
+          "sequence": 8,
+          "type": "lease_released",
+          "sha256": "4c9761d0f077fc93b4087173ebcb60a10e3d526bb1bd44d3e9bbc9dce795d39e"
+        },
+        {
+          "sequence": 9,
+          "type": "sandbox_removed",
+          "sha256": "044818645324d46e44f321417d80d36c5f6bfdeb5b0c80ba13e3159a688a30fc"
+        },
+        {
+          "sequence": 10,
+          "type": "workspace_cleaned",
+          "sha256": "654c63e5661221c327788f8bf8214b081b35efb92584beb0434719f4a640e3f6"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "feba391257dfafcc8d3f5d49cd3f82cfbfa37bd6dedcc16ab61b494e453b66e9",
+          "size_bytes": 1521
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "deacea7b6d892dde2fe0f1a3306cf6304f6c9bc507513b19038616d4b1fe34db",
+          "size_bytes": 4816
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "344e27a66fb556c90446af68aafc4242d7288cc821114b618f004c83190b20ee",
+          "size_bytes": 1411
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "de000e62-4e16-5576-9359-51e41b4bc42e",
+        "context_manifest_sha256": "deacea7b6d892dde2fe0f1a3306cf6304f6c9bc507513b19038616d4b1fe34db",
+        "dossier_sha256": "feba391257dfafcc8d3f5d49cd3f82cfbfa37bd6dedcc16ab61b494e453b66e9",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1521,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 2,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 50000000,
+        "final_typed_outcome": "protected_path_violation",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "repeated-failed-strategy",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "2e5e5e37b9be69fcc23a88336733f48420073d2707f4dbf1983f2d86b803ccd0",
+      "outcome": "repeated_strategy_denied",
+      "stop_reason": "no_progress_repeated_strategy",
+      "task": {
+        "status": "blocked",
+        "applicability": "applicable",
+        "sha256": "1b04336242c0130438a871960e43317e72c38379e509f11935cd710540cbdde0"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "53d13ead26fb1bc38750398fd38ea906c87ba2f4b059c01192ee32b9cb01d771"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "64c55bc7e30064c4e2f236059104fe395d2702305bbdf5110742fc82be59b72e"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "07179c300c5f2cc0da4cf74441611f53d03bb4a8a9b0988e0fe2f125d016104b"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "e30d1d91d72bd909216ccd80b764591e187b24896abf700e3e5caa1a9f5aab78"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "failed",
+          "applicability": "applicable",
+          "sha256": "63e018bb12f7f6eb549d064e8a581f3ed36fb6ae43a11cbf7c378803fe1a5f21"
+        },
+        "executions": 1,
+        "exact_reuses": 1,
+        "occurrences": 2,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "70e46b7b2f311a551e812b90c3071cf9e866e615ec0895b677da405f1cde51cc"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "b955f0bc298281667fa728a197206f81d58808243ee4e6fc903463a61ae80126"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "30465ba66af7841c17a5143ea6e2edcdccece74883b87f7709f02ded743edc92"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "e2372d7b71f49b0b62e7a115eecf28b8d1601533bec2eddfd54f1951b7983bd9"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "6fbe412a6b80b75064c8d2f237f33588f2c4feb044136da2b61b47f2cec4130d"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "a40a9170d7543ddf6d065b0d89dc2e1608a38f631e570739ac91cbe53a95b316"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "c3e49af1d44b161f464aa87d7a237a152e965a754e5d6f3c64fd8c4a17b24015"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "d5e7564d8e9781fbc0a4eb71df18971e878f44699dc90bf16ccba4e16f2f56d5"
+        },
+        {
+          "sequence": 7,
+          "type": "verification_failed",
+          "sha256": "e31c0af8d494cd91b3ff1682531cd98819698470809eee2f63dc059f7b1c3e29"
+        },
+        {
+          "sequence": 8,
+          "type": "correction_failed",
+          "sha256": "9aceb393272509fa6d9e9ccf143a1fbd1169b9f8148ca9aa5e151f335749d230"
+        },
+        {
+          "sequence": 9,
+          "type": "repeated_strategy_denied",
+          "sha256": "cfc10a0b1fbcfc276cd5974be13cb65ee827a9fe93f176c5606c002fbb35271f"
+        },
+        {
+          "sequence": 10,
+          "type": "task_blocked",
+          "sha256": "094cb1b84cdcd6297940b507f0d8346edc68d4200efd8ac1c3522e211ea311a8"
+        },
+        {
+          "sequence": 11,
+          "type": "lease_released",
+          "sha256": "1c62cad44413efe5ba31fdc8b03d30b35b09ecf4fdcdcc58b7f76029389f0de2"
+        },
+        {
+          "sequence": 12,
+          "type": "sandbox_removed",
+          "sha256": "69b5fa83e4e0a9f0d225d138794effab9e155b4f6eefbbd10b2f288974387f73"
+        },
+        {
+          "sequence": 13,
+          "type": "workspace_cleaned",
+          "sha256": "6b611f9d0ae257b642cbc84f6309ab9bae1e2e2c45bc754b7ebcc007e24aac4b"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "5afab7e353492f80af3fd5cca21661dcfc7e617a85ffe4fb3e767a72f0fe0b94",
+          "size_bytes": 1535
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "3e7dd945744fae9c54c152a2c2e4ca591b560a640f771f9778c6432705859d47",
+          "size_bytes": 4816
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "5c06e8088c544baa84f6098d04ee6f7b01b5d51980b4525ec12bf504a3e41e2d",
+          "size_bytes": 1840
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "925285ca112d467fe7745e0c13ce1c0cf4ea4637330df6afa1215625da744f0a",
+          "size_bytes": 245
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "260721d6-f820-572f-844a-0e3ad18b56a0",
+        "context_manifest_sha256": "3e7dd945744fae9c54c152a2c2e4ca591b560a640f771f9778c6432705859d47",
+        "dossier_sha256": "5afab7e353492f80af3fd5cca21661dcfc7e617a85ffe4fb3e767a72f0fe0b94",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1535,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 7,
+        "repeated_read_count": 3,
+        "verification_executions": 1,
+        "verification_exact_reuses": 1,
+        "correction_cycles": 1,
+        "wall_time_nanoseconds": 180000000,
+        "final_typed_outcome": "repeated_strategy_denied",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "no-source-changes",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "e90dfbf9784cc1e4b870962dd7a1ba5e1c0ba3ee21bf9832f6b441514c585e00",
+      "outcome": "no_changes",
+      "stop_reason": "no_changes",
+      "task": {
+        "status": "blocked",
+        "applicability": "applicable",
+        "sha256": "03ea5d567a638346f08d659faa26d4b49fd1760ce0f741fedd626415a8bf85a1"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "8815ca84ddd41450a8cccb7bf8dd2927d61333d79e5f2dbc32bbc7e8e978ccd1"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "241fe447bed90270cef8105396df22181d5ee997f677ea58fb6f17ccac04e8dc"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "0186198ef2d225199da95822d384ce1cadee1b9c9ced4fb007bb31487a7586ed"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "6a992d92e5356ddf3e5d468b0a358a70257160b86a36ad8598764f24e37ea6a4"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "baa228488285bdc484a676b255683e274cf9f7f08a62e929d45a0fc9beaea25b"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "50589560778c73e7d5f85637898606fc179ab8e38cdcc9ecc13f3f8dc00be6b7"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "7996e4d597fd96d54c01c4f26fd8f9ade817f0cc731b5828395abbdb49016ac8"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "baf44d8b7e2b8d842ef68475a9c120b27998812dba480692698af8156858b09c"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "b851114cb84548fbe71399bf12ca91bf5f630480c158125e316126933f1914e1"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "ccfffa522a5389875ff86a159885462c7c7fc6510dc0c1fca6ef76c14527f071"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "af80f6f790a6518a24ee0d78f85ed96b02b0aa2819016e9dc786b304183d5ece"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "85c567ff118b20e245cc07de5a83c9e498aef24b2073a757e5de150ca6b81a37"
+        },
+        {
+          "sequence": 6,
+          "type": "source_capture_no_changes",
+          "sha256": "4e661b6156958bede08d75bba7a7c55ad84f5cb32000f90fd9c2c1e1455dcd57"
+        },
+        {
+          "sequence": 7,
+          "type": "task_blocked",
+          "sha256": "fcc16eada54e3400518618e2dd8b99e104ab828c00e3207fcb0abab71584daf0"
+        },
+        {
+          "sequence": 8,
+          "type": "lease_released",
+          "sha256": "2ebdc96f811e29fc7047879b48bb4fb4bff5bc775607813146e65bb4a61c207f"
+        },
+        {
+          "sequence": 9,
+          "type": "sandbox_removed",
+          "sha256": "e90eec104cd2e9a804bfc898301b748e212d105573af6ba56d145b8ef3fb70c1"
+        },
+        {
+          "sequence": 10,
+          "type": "workspace_cleaned",
+          "sha256": "294c14381829d500e3f10c2c56c797eceabb650a178513454d3525a2fd1805ff"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "4302ae017cf44879d0ce23395ba066df2595517448bd41d5a4cb969c7d9faa25",
+          "size_bytes": 1481
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "f0414e58d20e4941c628bddb5cb499c21c98acd234229755700141f4db73dead",
+          "size_bytes": 4794
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "366dbf22ae3dfc9a763676415e942186e3391ce790868e2c28869c1f4ac253d1",
+          "size_bytes": 1409
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "08c6b8e6-5080-598c-8585-233431ce1793",
+        "context_manifest_sha256": "f0414e58d20e4941c628bddb5cb499c21c98acd234229755700141f4db73dead",
+        "dossier_sha256": "4302ae017cf44879d0ce23395ba066df2595517448bd41d5a4cb969c7d9faa25",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1481,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 2,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 60000000,
+        "final_typed_outcome": "no_changes",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "test-tampering",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "2af2541ec5e04a23eca85038494361830bca58b1e5485796b760e16f240437d3",
+      "outcome": "test_tampering",
+      "stop_reason": "verification_authority_tampered",
+      "task": {
+        "status": "unsafe",
+        "applicability": "applicable",
+        "sha256": "63033b34bcb097cd77a50926ccb887869b29be0e8e5bb3bc1ab7b5cc21d1c8d8"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "f3035412985a4e3976c0e2873a0d074d4c8daf92a18bd5640eb7a5994cd2fdd3"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "301844787f3ffb928a718e435537ceb0d78353bea5e98abb37c027749c5b2c52"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "e95d2469a0165b8d375635714a7a3c322622d8243ce472e5706b8d9c3241e66d"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "c60e3935cef10f4e020969d3446a8ac09262346da33417194b4876829db05e4b"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "authority_tampered",
+          "applicability": "applicable",
+          "sha256": "ec20e092020befe081a9873b49086dbda65c8535eb53c813d5b9f2786c9ad757"
+        },
+        "executions": 1,
+        "exact_reuses": 0,
+        "occurrences": 1,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "e35e71ea7963e68d9c2d295908382b92038ee9472f9bb6e47110ccddcc03eb87"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "8efd2f8b26c063ec768a892525a66fdc89cd63af8890e82fe88a5ab9dace6938"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "f64a306f5b1cf6d12a40544a695c1df9a2e5f170ce0f740c4cf604f22f53d6fe"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "2b1640c24553d2d8905edb53ea69b04280868229d058a589f3af51838a147eca"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "1446ec83b44faa9a562eb0902bf131e802650153c7e9d25b001eba952acc829a"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "b796f145448138007233b4423aa9258d55619bb782f3b4a8406746e64eb65574"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "0cc80a138854aca96752409c3adc7dc2b3e7d027e2dea1488c562c6210dc2404"
+        },
+        {
+          "sequence": 6,
+          "type": "verification_authority_tampered",
+          "sha256": "fbab9dcdcc776322c4835b7cd149d34936172c55ef011218a4bbdd38fc903e12"
+        },
+        {
+          "sequence": 7,
+          "type": "task_unsafe",
+          "sha256": "fe4c00f150f0f15895a389b51fcadc1a915629e826b3e81b8a025b1c7d632828"
+        },
+        {
+          "sequence": 8,
+          "type": "lease_released",
+          "sha256": "3ad6cec417630a52fcde9ead1d77dc8fcaa3609632ae2a86c36c458d534599b6"
+        },
+        {
+          "sequence": 9,
+          "type": "sandbox_removed",
+          "sha256": "1d3a23f4c7cf83b3b2fa393f1df3c4c2bf5ff18db9a77890da9940ac74064ebe"
+        },
+        {
+          "sequence": 10,
+          "type": "workspace_cleaned",
+          "sha256": "72570daa0ca9cefe5c31e14fa54c61fda96b1f3b7e7d08fa1bbf3bfee6d53e1d"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "3cf9d59e472dd3ba1df5cb08d975460a36dd72b5733443fc9dce39d7d2253082",
+          "size_bytes": 1493
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "af1d3fb964816588a5af200a230f9c75969deabfef88026f00934850311cadff",
+          "size_bytes": 4786
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "aa646e667030c5deae5bf60b52c63369589270d48b121978aa11a94c35550542",
+          "size_bytes": 1414
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "c5c782d59d3cd9c5a0e46bae507c69a77555add17edda0cc188d3a66e76ec8d3",
+          "size_bytes": 257
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "52344509-06d4-5520-b16a-e81a8e4f4f8e",
+        "context_manifest_sha256": "af1d3fb964816588a5af200a230f9c75969deabfef88026f00934850311cadff",
+        "dossier_sha256": "3cf9d59e472dd3ba1df5cb08d975460a36dd72b5733443fc9dce39d7d2253082",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1493,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 3,
+        "repeated_read_count": 0,
+        "verification_executions": 1,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 90000000,
+        "final_typed_outcome": "test_tampering",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "mid-run-source-change",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "6aaf86603b000ea7aed69238a4c8c2aed708ef80b30d7a1e29e1887448a2c6e1",
+      "outcome": "source_revision_changed",
+      "stop_reason": "source_revision_changed",
+      "task": {
+        "status": "unsafe",
+        "applicability": "applicable",
+        "sha256": "cdb726024068412f19a610da117fc83b307275a5191a588e1411e43ca37d58ee"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "14e52e4a1a0045e542adea216bd62c6148b2cef81cbb998cdb2d9aa8612d44a6"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "8051cc7a024ac4c85058d780636e2dbb6fb9c3343279dbcae4373d4b6da5c56a"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "d0d6d9902520ee5353366991c869f55f2e32c423756388caea21ee63597a63fd"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "848ce44cc6183dbcfc485e374530e0851f9f2a7b",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "f391b531e77ff70d6675ee3882a3979de78b39c38315409dc0cc26c66d9f1a7d"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "f0e3824667e9bf31f8b922b9e5c86ac54f05748263d0d97186a69358cc954f5d"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "0c3055168c67c7526721b01d2d20e6f4d930af16424c66d8cb742d3414d010c8"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "ad5680b2f4f083656c942211d3d4a496a044be21a7f4db33f2c7cd83ebc1e062"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "cfca7ef25e3aa384f749077c04e9fd9ac69b0060bbb1789c2f2e4e691c68b204"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "85c3d4a0337135b538c1c042143e538521d9a6b3ff31faaac591920a23e36f6f"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "6e0bd0a5decca50c27b5139d8e124882a611626bbd0ea1a265d52581eeebf1ab"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "b04eafc4e87ebe8873241b8fa5ccadf1e169ffd0b5f339d91d7d600350b71d37"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "f93519862b5ff4e2903602414d4a8cc105ae64a4a49a1cff2348980d4e93258f"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "f5636ad59a902f41e2238f6e99d485316f6f69f0e8c133370f95ce65b981ffc5"
+        },
+        {
+          "sequence": 7,
+          "type": "source_revision_changed",
+          "sha256": "c65bb49dcd46a2c29e8031011fc54036344b71247bd6a681b597237dc8474026"
+        },
+        {
+          "sequence": 8,
+          "type": "task_unsafe",
+          "sha256": "36ee1ff895fc57614d62090ccc7e92a4bbd7b5844ca128a04c896c90f11a93cb"
+        },
+        {
+          "sequence": 9,
+          "type": "lease_released",
+          "sha256": "e58f9c43ee658522a280c0106a1b6f2b04bc41a200a6af2ee9d00f8258043ac8"
+        },
+        {
+          "sequence": 10,
+          "type": "sandbox_removed",
+          "sha256": "9e8eff3771fc08a199283a5b246d9e7adc3127011ef3e38aabfa7fdaee33dd70"
+        },
+        {
+          "sequence": 11,
+          "type": "workspace_cleaned",
+          "sha256": "3c2f52a635423f6226cae9ded4b793845277d4c661ff4853733dac4c5d16fbd3"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "2937cb2c4d88606bbe993128e47e3e6a127d86124a60b0647fe5b3a67df7a25c",
+          "size_bytes": 1512
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "edcf981a7afe197910f5381716424e9d38abe2627d922d4cb2f715f05849e4be",
+          "size_bytes": 4807
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "d6c0cad6a3832f80827c660a9bf572c7be3b32ea3375188d73c93ff2636e95a6",
+          "size_bytes": 1550
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "c3a365b2b86311279c37562d91b6cee75fab0d09c44d968ce78456e91f2fb814",
+          "size_bytes": 82
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "ecf4753c-8026-51c5-9a08-7281aa0fd73e",
+        "context_manifest_sha256": "edcf981a7afe197910f5381716424e9d38abe2627d922d4cb2f715f05849e4be",
+        "dossier_sha256": "2937cb2c4d88606bbe993128e47e3e6a127d86124a60b0647fe5b3a67df7a25c",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1512,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 3,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 100000000,
+        "final_typed_outcome": "source_revision_changed",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "cancellation",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "b6b8adb42ce642a06fa645df26312a87aff75648d1194131219cc51e549d352e",
+      "outcome": "cancelled",
+      "stop_reason": "cancelled",
+      "task": {
+        "status": "cancelled",
+        "applicability": "applicable",
+        "sha256": "3b11387c1911cf55a73bc39d0dcd081f78cbe4c57affa5bd8150030edf2f5027"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "ff5e26724289cebca6f7685b7210fe0ffc7360f872890d5eefd0d24921a51b03"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "3c4c0ae554aa9a5cec3b96f3111b82a652a2a86430bd8e1465022b207ea5b86e"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "e1a872bb7c22ffd4bbed3b18ee0b30792ab6f8337ee8b9ba3b8cd1d581bf6f8f"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "4f0817a8c9832f87a13bd05885ea74c41adf28dc3fff4733586c8ed0111a4fe9"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "cancelled",
+          "applicability": "applicable",
+          "sha256": "bf58a6147134a637df8f23998d5225d5e6ca618f788d634fb3d41bb219bd1c03"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "3c1c7cb641be5210217a312c3c052a24009b314fc021510face118e5efd149a1"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "9d6cfadeb6d80f01834865ea15aeae77f4faa703bb5d2419e432b0e22def3497"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "b8bd532b758c0d36f4861c4237068e58bf71b07644bfcb79ecb3b276290053a4"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "0f561415d9305c39ca0bda7f4738a610c4a01f092c5e36d56a1e867703955090"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "b988a006cdc2a5c9536f75f9770993e336edcd27ebf9bfc689f9a0f0d2c39032"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "ee2d607ccdee3ffb04626467f56ac0c62312a184887427269b5785a1e05236bd"
+        },
+        {
+          "sequence": 5,
+          "type": "cancellation_requested",
+          "sha256": "e26a61b3e99b6822d10cdfe2759b806ae1314b6164b28aa511ec8a51d3a337b7"
+        },
+        {
+          "sequence": 6,
+          "type": "sandbox_cancelled",
+          "sha256": "6f446fc1731a98b30b1e5cf48aaf9a7078e8d256ee6faa2d98bf2b592d770238"
+        },
+        {
+          "sequence": 7,
+          "type": "task_cancelled",
+          "sha256": "85eef24bf7b5fd517fba8bbd8ed390033e4fe5c13dfcb92ecd36f3decd0fb0ec"
+        },
+        {
+          "sequence": 8,
+          "type": "lease_released",
+          "sha256": "b59ada88a2eb0a2fe158b50e5c3b440062720c793e06413ccb6e490f5aee37df"
+        },
+        {
+          "sequence": 9,
+          "type": "sandbox_removed",
+          "sha256": "f08ae71931a0704e0d0fd89dfd8df2c930628bb0c5e57dcd900f9e0e02d434b7"
+        },
+        {
+          "sequence": 10,
+          "type": "workspace_cleaned",
+          "sha256": "d0770985c31f8460aa530c72074d261d79d9a1b755e69b9e5310da3e970ce3eb"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "a9c79fa6c42fd423d3c8fe8875ee112c7e32b0cee5d877ac05fd4d5286d11c69",
+          "size_bytes": 1487
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "1f3e6c3db5376a1c5b16e34ec17a29661b368d846188ad04f07cb3f8e739c341",
+          "size_bytes": 4780
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "6b7942277905ff307c04d9a6676096b443e11e8f2d4b026c5eee229631f854e2",
+          "size_bytes": 1409
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "6d0b919a-3b78-5ef7-b102-14b66bcb5982",
+        "context_manifest_sha256": "1f3e6c3db5376a1c5b16e34ec17a29661b368d846188ad04f07cb3f8e739c341",
+        "dossier_sha256": "a9c79fa6c42fd423d3c8fe8875ee112c7e32b0cee5d877ac05fd4d5286d11c69",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1487,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 1,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 70000000,
+        "final_typed_outcome": "cancelled",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "crash-during-state-effects",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "52caeacf06faf622990e44867d1bef7581bcc098dcfc8f76f42079c562bd59e1",
+      "outcome": "completed_after_recovery",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "6ddac3f05467ac27321209a2d15a5c08a5153c7298cdb07769ecd42f2d013346"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "fd3620ab33a8ba30000395d0e589dbb32aa5d1d4ee34109c834bc7f26195d9a8"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "8b42018dd85067f32f1c733b1aff14f108ba33b2595013ea4a35a628a6cb0034"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "d2a53c97ef1ad98280ca14d0dbbf97df128e5a41bf31fca6604a40dd725f67e2"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "2a235e59b4860db1faab625179bfd5f3ad77e70a27e35aa53b71adfbc5d4701d"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "eb6af8fc924355eb421e3130cda803de3b4e0245",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "87bff5678be0ec96fac41930756e992dbf849228be3ffbc7f23edbd5053746f9"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "2e5cede0032638eae4153be6a6009b57654941c3ff6491829248bde0d8c69a44"
+        },
+        "executions": 1,
+        "exact_reuses": 0,
+        "occurrences": 1,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "d537baa1eee73080296901a78fde3a622dc392973ae81d566986c852baaf48fc"
+        },
+        "runs": 1,
+        "independent": true,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "d4bbdedaa3110431db354c820ef567b29b2644d09099b6bc194f30f6500fb947"
+        },
+        "capsule_sha256": "bf010af2cf9aa5e1d671f83c42c5ed9f86f57784c9a78734ce5b342747648e6f",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "99713b7bdd3a3f98651cffed56a3dc32e43b95ecede74a22389bced80c407939"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "81bda130e9e1a7c087db12d570d73cb9bde9f4e1f02919d0b7080b124aa695df"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "0d6db0d2d39885ac4afbe44a56d76591e8774c9d048885b63883e9580a740561"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "09d55c572ef71e4f1ca36055d87abc658f3f60adedf3dd34d3d47f1fa511c03b"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "aba932b30f28109a5e842edc15bd99c2e23a4563e11deb5f97bb692f85d53a32"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "02322d524e9ef104d58c5dc60885d6af39bd7508a69216d2b3ad60371643d528"
+        },
+        {
+          "sequence": 7,
+          "type": "crash_before_sandbox_recovered",
+          "sha256": "f793e9043ca684c8c41a99de068d8c1710e3ceff4c5c67e77bd84bdaceb3bdda"
+        },
+        {
+          "sequence": 8,
+          "type": "verification_passed",
+          "sha256": "cbe54d463a58db04e94964ecc71d7b78b652b1f6e522ec7f4e16a1ece5ac2748"
+        },
+        {
+          "sequence": 9,
+          "type": "audit_clean",
+          "sha256": "435327f67aa9d48177d3c3de47aef3f8865c2e83f24097d1ff709681cbf05ae0"
+        },
+        {
+          "sequence": 10,
+          "type": "completion_materialized",
+          "sha256": "a8214de960e8ad74d717e56e05afd05026db37345a35e30c363a967297bc9614"
+        },
+        {
+          "sequence": 11,
+          "type": "crash_after_completion_artifacts_recovered",
+          "sha256": "31b9cf0d69ef94a39d31fd79bafb4a4546f6315cffb1d7f0f8a5f253df54c089"
+        },
+        {
+          "sequence": 12,
+          "type": "task_completed",
+          "sha256": "29c782f4e9985a780f3cc51601678b81b22f6af435f478f353af9a47166806c3"
+        },
+        {
+          "sequence": 13,
+          "type": "lease_released",
+          "sha256": "acc51a2786af9ebc7c80d5d12dcfa22c7ac96428b132d4e8a8cae9142e289aea"
+        },
+        {
+          "sequence": 14,
+          "type": "sandbox_removed",
+          "sha256": "693f03376230b82f407cdc592ad8e4dcb45f3d536b91c5044882a05e43900430"
+        },
+        {
+          "sequence": 15,
+          "type": "workspace_cleaned",
+          "sha256": "6c771e67dc96156dd14da9eb45b640eb1ffe6da947b1dde0932f37ee39e5fd76"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "9b916fc15c7eb981ab6c0c28a8fd711cafb7c72b01aca319a982851f8572424e",
+          "size_bytes": 1548
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "4132256c280c6042ab401e4c8e2654c8032c5164fd90bd02b4abfb4a755d6cb0",
+          "size_bytes": 4822
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "64d45a25dfe26fd9e0486f82bc22d17ce4e41c6af40c97c89063b3db9683ecf7",
+          "size_bytes": 2159
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "0f53448259ff947145f311cc5818aedbed82c528b38cfce1f46c05a1a71e8968",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "2972819146eb1a09703d0d8ceb71e7977ea02db0329fc2bec2e3dc87c355ca56",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "c60a8f4a52e8a1076f7a3db075d82c6093fd9f7b1bfe074909106da0413c4088",
+          "size_bytes": 275
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "bf010af2cf9aa5e1d671f83c42c5ed9f86f57784c9a78734ce5b342747648e6f",
+          "size_bytes": 1198
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "a38da939-222a-5778-9ee8-1e5b4ffc9099",
+        "context_manifest_sha256": "4132256c280c6042ab401e4c8e2654c8032c5164fd90bd02b4abfb4a755d6cb0",
+        "dossier_sha256": "9b916fc15c7eb981ab6c0c28a8fd711cafb7c72b01aca319a982851f8572424e",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": [
+        {
+          "boundary": "before_sandbox_creation",
+          "effect_sha256": "abd47b0751eb76bcb51c17d59be738df5a44154df9cedc3d164e51a3e23723f3",
+          "replay_count": 1,
+          "exact_replay_idempotent": true,
+          "divergent_replay_outcome": "unsafe_or_ambiguous"
+        },
+        {
+          "boundary": "after_completion_artifacts_before_terminal_state",
+          "effect_sha256": "c00edd2f8d7e2e0c8132eb48c335827b5094fe0dd51c18d585b49eb7f975b2be",
+          "replay_count": 1,
+          "exact_replay_idempotent": true,
+          "divergent_replay_outcome": "unsafe_or_ambiguous"
+        }
+      ],
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1548,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 4,
+        "repeated_read_count": 0,
+        "verification_executions": 1,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 180000000,
+        "final_typed_outcome": "completed_after_recovery",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "crash-during-external-effects",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "da379a9cf6bc2378bc03cf48c635db173b65ef03a72b7c10f4ccc7405489228d",
+      "outcome": "completed_after_recovery",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "d8698421d6e9e1cc942e55fd87b404481418dcf8eb6ce0eb6a84c9570907bc10"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "e2d47c533a8f9378250632fb81120a1de6d8f770257abb7fcc63a687b4e0f137"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "29eab7f4764d29b455cb76f34d21df9fccc639c90ce24a8849b3d0639748830a"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "900b3a37045d8f7334f60bbc3fb8c4a4bc2edaaf777a67cd54c934047d251f3d"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "5f5866c79f7d3f4d2e82b98b298540cd00cbe837fc0dcb292230f468ad63105d"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "4c24c627fb29785da7830a55ff032eaa20003d35",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "257c20a1ede6cbc12fede7b646d55b2ef77a783d1dd310d4886fc1a9f53be001"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "d42b99bda15ef142b664fb211b0b073572a590ecdda15c605030f97552c9c4ca"
+        },
+        "executions": 1,
+        "exact_reuses": 0,
+        "occurrences": 1,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "44d3ec02c454c5a091f58fdaca0a7f232609586ca5465ed8a290c4b36f2e1e57"
+        },
+        "runs": 1,
+        "independent": true,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "98f9ef2ad3725a31d6fb034bcecf9fa89d28542475e2d4b8066ae2dc3d7e66a1"
+        },
+        "capsule_sha256": "e5a411cd7f20b5022ebc0acf73dd48ebd0e9aa3bc03516ffd00a1d3bcd5b392b",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "559aa4fe155a474d8b6b056c83bb8729d1dc902a843a1efb70b8fbe90aa17f73"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "b364ded0af8a8b7a3aad0c878274438b338411b35fb543b22f55867cad893dec"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "6a0052e0cbaa95e9d985b523c44b2e7957153699e5fe78fab695b3ba41d8a0c3"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "6ce8b9be1fdcf9f740d7ce96cd57b044d2ce18a7f2b526241e020c9cef2978fe"
+        },
+        {
+          "sequence": 5,
+          "type": "worker_completed",
+          "sha256": "f318d01f796fc038b01c2aeaa11d1090ad3db072c1668c2c40e6d8e8b7526963"
+        },
+        {
+          "sequence": 6,
+          "type": "candidate_captured",
+          "sha256": "fa774f602b1de2b1d7d37bd3f7b33b36b09961520610ec98660d3a27accf94ee"
+        },
+        {
+          "sequence": 7,
+          "type": "sandbox_effect_reconciled",
+          "sha256": "5f2f5b97cd7879cfdfda6d77faae5b03d2232642bdd1d327f15681a6e3cdb379"
+        },
+        {
+          "sequence": 8,
+          "type": "worker_output_reconciled",
+          "sha256": "bb2e8dde12903f26239398f53a743730b1529a2b1a1a784e5f6e32336e2509db"
+        },
+        {
+          "sequence": 9,
+          "type": "candidate_commit_reconciled",
+          "sha256": "265aa1645db5527ddce5adbf6d6b8dd229677515aeeb37e706f983856c436ccc"
+        },
+        {
+          "sequence": 10,
+          "type": "external_export_reconciled",
+          "sha256": "9ed490374ff3b61d2e3c59cb2943d5ffeb4729244bc13040dec638fd9c12579d"
+        },
+        {
+          "sequence": 11,
+          "type": "verification_passed",
+          "sha256": "f6fab035ba8f8455d0cbe08c45b3706e15abdce7a375f18c84ef9a7d7f5f89c5"
+        },
+        {
+          "sequence": 12,
+          "type": "audit_clean",
+          "sha256": "92a6c7b43970c0a3abb2a069986ae1b379d1169113588ec4df98243a735826d9"
+        },
+        {
+          "sequence": 13,
+          "type": "completion_materialized",
+          "sha256": "570d0fc83850e86cd950794693c62fbd06660b04f9d98a04031f8ce23ff3f1d3"
+        },
+        {
+          "sequence": 14,
+          "type": "task_completed",
+          "sha256": "a997cfa903b29d1c2022b6d1d5eb4cde92e6477afad00e1963dee63f7c517425"
+        },
+        {
+          "sequence": 15,
+          "type": "lease_released",
+          "sha256": "aba558aa45596e7e222354efb3bab54b591dd09ff076d17534e1ed92b5b900a1"
+        },
+        {
+          "sequence": 16,
+          "type": "sandbox_removed",
+          "sha256": "419fcbc17e54e7c05e6d2f7a44676c0f8e2bfa285d55fba5f47d1d1f43fb902d"
+        },
+        {
+          "sequence": 17,
+          "type": "workspace_cleaned",
+          "sha256": "27b211ab1c387962c1becab4ab306e6a83cf8086ee5bcbba20d4f569071395df"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "1a450d03d3e5bea0e11db8b2cac8025549a72f8774ee37e7c3247c4b5f8964e0",
+          "size_bytes": 1556
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "14e5492af059ac74a0ba8555788e8029f9646a367bc2b20d1168b8fd3d3e71cc",
+          "size_bytes": 4831
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "c900c3419ae2646d2384a9a2bacb87b8f22b2531200b695ad88e36f233c1a2d1",
+          "size_bytes": 2441
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "da01252b8fd439f446be38b7dd5e1d7bb957becdb5e2d482e52a4e2b6ec94eca",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "b0c4364031fb2356c9fe8206793878f700ca7da9e10612a81ee264fc44bdc482",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "28dcbe9c1c3bb35b7cdea43b862fce18451b156a9b6155dae2019cfd52d8c53d",
+          "size_bytes": 275
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "e5a411cd7f20b5022ebc0acf73dd48ebd0e9aa3bc03516ffd00a1d3bcd5b392b",
+          "size_bytes": 1201
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "de019f51-cf9a-5634-a456-2508731c013d",
+        "context_manifest_sha256": "14e5492af059ac74a0ba8555788e8029f9646a367bc2b20d1168b8fd3d3e71cc",
+        "dossier_sha256": "1a450d03d3e5bea0e11db8b2cac8025549a72f8774ee37e7c3247c4b5f8964e0",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": [
+        {
+          "boundary": "after_sandbox_creation_before_state_update",
+          "effect_sha256": "2692befe1c323b958ee166f6711f6ef88e83a179054591a2e798c2b904493b56",
+          "replay_count": 1,
+          "exact_replay_idempotent": true,
+          "divergent_replay_outcome": "unsafe_or_ambiguous"
+        },
+        {
+          "boundary": "after_worker_exit_before_artifact_ingestion",
+          "effect_sha256": "3f44b82e1a7d8e3e827345da4ce50baf776b2c2ec389090746727a3feabef08d",
+          "replay_count": 1,
+          "exact_replay_idempotent": true,
+          "divergent_replay_outcome": "unsafe_or_ambiguous"
+        },
+        {
+          "boundary": "after_candidate_commit_before_state_update",
+          "effect_sha256": "6f8286c7ae74e425152b95b3fcabfea7698aa579f92a4a5e8b4ccc063ba19c87",
+          "replay_count": 1,
+          "exact_replay_idempotent": true,
+          "divergent_replay_outcome": "unsafe_or_ambiguous"
+        },
+        {
+          "boundary": "after_external_branch_export",
+          "effect_sha256": "013cddfff3e026f29c64106686b37b101cb9ad88697efdffeb54fa63a588815a",
+          "replay_count": 1,
+          "exact_replay_idempotent": true,
+          "divergent_replay_outcome": "unsafe_or_ambiguous"
+        }
+      ],
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1556,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 4,
+        "repeated_read_count": 0,
+        "verification_executions": 1,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 220000000,
+        "final_typed_outcome": "completed_after_recovery",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "stale-retrieval-index",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "da954ba56097aef8593c734db658dc338eda4d8c6d662918bede40312ba342bb",
+      "outcome": "completed_degraded_retrieval",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "c3aa05b4f1ce2ffad900eeaa8f1ad248171ade9ea1d383e41c180bc451f4fbce"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "11f71c98ffd10bbf67b5a000619e8975f01d5770cec612776e560e64939de6a3"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "b9834cd182fd33014b65527f646212bd70ab681145fc0bf11fc0987f84b59c06"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "39be9f34ef3ff3443f3fa06386666a99a26fd20ae970a89e2b588d1f12f232e0"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "639706f1242fa5c086bb7c5b25b972fe28a7c4b0aec9fed9f3f9da270112eaef"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "18b17b583fe247eec0449846b08d7d0172025242",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "f6fdde5e79e6cff35148fa25927a2b727029f293c4f300b5f57a8b194dede997"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "7b62c00c27fd8a1bbbb6290a113d3ef4c33bb934d20a5d8c9b504bf20f4d2190"
+        },
+        "executions": 1,
+        "exact_reuses": 0,
+        "occurrences": 1,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "98adc03f251c0eedce9657579140e4b5b10d9aef66ea111197f1e00a47f2d31b"
+        },
+        "runs": 1,
+        "independent": true,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "f90d886766875a26a25f72f8a91c2e83dea53d27bd32424256b3de9576c9a04e"
+        },
+        "capsule_sha256": "d8c0122e2abe0bcca85118e2e9a5c443d2a93d48094114d0d8a7e3c5a38daf2e",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "retrieval_index_stale_exact_lexical_retained",
+          "sha256": "02da7e1dabbab6f36e149e6da48792a9e295d54eb94dee05ead40fcba85d15cd"
+        },
+        {
+          "sequence": 2,
+          "type": "task_admitted",
+          "sha256": "3a829ca53f7d7a503165b106f8a3041fb1cb535bfb3d16e0838673bafeef9117"
+        },
+        {
+          "sequence": 3,
+          "type": "plan_accepted",
+          "sha256": "4a1f3552b64fc2da7a3619bc882115db1a0b2a397b584a16cce461dbe0f6b44b"
+        },
+        {
+          "sequence": 4,
+          "type": "workspace_ready",
+          "sha256": "d03f8c53651271315ae8297262cf22ee0e76be61aace69004e70c6d04db2f1c5"
+        },
+        {
+          "sequence": 5,
+          "type": "sandbox_running",
+          "sha256": "1c8356e726425118b4d10fcf11a51743d808bc93fc20e3f4306a274e2ada6dda"
+        },
+        {
+          "sequence": 6,
+          "type": "worker_completed",
+          "sha256": "778c4903c165d45e5ecc6f212b0719dba36c410d12e6588156f081d72c580740"
+        },
+        {
+          "sequence": 7,
+          "type": "candidate_captured",
+          "sha256": "426372447404efa72d16782cc6f9f8f12a856d4eea981a7962e7e0cc0b58de24"
+        },
+        {
+          "sequence": 8,
+          "type": "verification_passed",
+          "sha256": "2a64927483a444dedfecf8d4e7c122dc09bc5dd8b71609ec9cd5b29af358dcce"
+        },
+        {
+          "sequence": 9,
+          "type": "audit_clean",
+          "sha256": "0d8f1f0e77676eb0589814755fd5b468e96901868385a68ffb5244ba832f29b9"
+        },
+        {
+          "sequence": 10,
+          "type": "completion_materialized",
+          "sha256": "8fb0045040a3ac40be65b87d47967cf7c2338d10d1c217f7a63071263eaa18eb"
+        },
+        {
+          "sequence": 11,
+          "type": "task_completed",
+          "sha256": "e7b52078e011a3c251389a04599216bd2f14ea79565111eb0def8ee6e1062966"
+        },
+        {
+          "sequence": 12,
+          "type": "lease_released",
+          "sha256": "bf8201f9cb23707c76c2c239c5a4c572e69b5eec22b77bbc76815eb58f805f59"
+        },
+        {
+          "sequence": 13,
+          "type": "sandbox_removed",
+          "sha256": "f3769ed876fd1d4f92067c133b92ee7fc8b99bac44747e984f42830a3dfbb3aa"
+        },
+        {
+          "sequence": 14,
+          "type": "workspace_cleaned",
+          "sha256": "ffc4b90d3cb8c456ccec7110ca7f4f29199631d5aca81956cfb1c1dc3535759a"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "28b3c6f3c1b97bbfe971cac3a0649679e4de6cea14ad1412e48a5862bd5c8ed7",
+          "size_bytes": 1537
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "299bf4f844b22d6fae644e17e1009e5b2e77567cdc4f222e203132029d887604",
+          "size_bytes": 5221
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "57c8e1c6ec98b02c8e8f0525ae5ced0f6d7228af3ce4db63427eec1e50294baf",
+          "size_bytes": 2005
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "0ef994dac8f510afd4e05b4740a3d5eeeaf0c133f7332d6b63790c07d6a8dd97",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "9264ad9f0665480f389ee477aad977910779ed23dcb935fbf30a56c5d2e06a7c",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "46ea94140087b7239c379ab8d1a773b5c3f2e8e2710873b11f5efb14bec3a142",
+          "size_bytes": 275
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "d8c0122e2abe0bcca85118e2e9a5c443d2a93d48094114d0d8a7e3c5a38daf2e",
+          "size_bytes": 1197
+        }
+      ],
+      "retrieval": {
+        "status": "stale_index",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:stale",
+          "exact_symbol:stale",
+          "exact_text:omitted",
+          "structural:stale",
+          "fts:stale",
+          "vector:stale",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "29b7b992-9a80-5930-8ff8-887cc3b3defc",
+        "context_manifest_sha256": "299bf4f844b22d6fae644e17e1009e5b2e77567cdc4f222e203132029d887604",
+        "dossier_sha256": "28b3c6f3c1b97bbfe971cac3a0649679e4de6cea14ad1412e48a5862bd5c8ed7",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": true
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1537,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 4,
+        "repeated_read_count": 0,
+        "verification_executions": 1,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 140000000,
+        "final_typed_outcome": "completed_degraded_retrieval",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "missing-embedding-service",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "70ebeca59a42d0590bc57d47b73ad48c7e82e293260ffeb8842c0d19335661a6",
+      "outcome": "completed_degraded_retrieval",
+      "stop_reason": "completed",
+      "task": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "7fc8cdfe2cef66b9cec5aa84d2f78757ecb2c64e07b14017a51386a880a38622"
+      },
+      "run": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "e2d7155ee77cee9052270688ce60831a489b201c8f0167358b5888c318569d69"
+      },
+      "plan": {
+        "status": "completed",
+        "applicability": "applicable",
+        "sha256": "a4111e1040aef753c8574f67f8d9531281f1b595159df21019afaf189cd9db47"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "passed",
+          "evidence_sha256": "d52447acfa61aef7846cfeb91911c5eaa27648b8e0ba06e72207dbdd2600ec31"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "f7f70bb64831a56f21d2a65ffb89286c69fd435d20748968dde26c6334d834bc"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "candidate_commit": "f3cfcd1d3a81aed4b55e54ef3a8cd0d94e922946",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "15917bfa46e24c5858ac4be7d5bc4059b5b9fe533fe7ec2d10e0ef66d86091c5"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "passed",
+          "applicability": "applicable",
+          "sha256": "cd8892ce55c6337af5fbc2d2cf01d5d8ec5eda140c7a2ad925880869a80d409f"
+        },
+        "executions": 1,
+        "exact_reuses": 0,
+        "occurrences": 1,
+        "fresh_final": true
+      },
+      "audit": {
+        "state": {
+          "status": "clean",
+          "applicability": "applicable",
+          "sha256": "50d101b0bd230d3d8ea6e653c368d6ac7f127feff2284d1841868f8f34fd0685"
+        },
+        "runs": 1,
+        "independent": true,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "materialized",
+          "applicability": "applicable",
+          "sha256": "500c38afc0ded4575c2f398d9fdecd51f7a37cb6e2b62c4a03506361842f3e7d"
+        },
+        "capsule_sha256": "2bae67f1c3cc81a991e1cae938aa4f851f44cce54b76355b2eeb6ae592fc8762",
+        "authorized": true
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "embedding_service_degraded_exact_lexical_retained",
+          "sha256": "5c6e00c51b40de1d98271e53c34443c1648da7f82eb5a05f1f979880a1227f91"
+        },
+        {
+          "sequence": 2,
+          "type": "task_admitted",
+          "sha256": "6af4e1d7114a88f7b2e79095a3b8fab90189b0e7a0bd82a1ea8a96a9159b2bc5"
+        },
+        {
+          "sequence": 3,
+          "type": "plan_accepted",
+          "sha256": "fc2fef2eccf55172e6cb197789fee0663149796bea6cfad220764744e354d541"
+        },
+        {
+          "sequence": 4,
+          "type": "workspace_ready",
+          "sha256": "0dd883184af6a7324923fe36ad3e750c947312747d5f4c5d1199e768a3d0964b"
+        },
+        {
+          "sequence": 5,
+          "type": "sandbox_running",
+          "sha256": "3ac1818034cd2fd498a1870d578e63738357b5f90b9372528e8f6a4820ab97a8"
+        },
+        {
+          "sequence": 6,
+          "type": "worker_completed",
+          "sha256": "1ae15b1b02aff1a8dc5940887bab3a76a9705fbf9aa0826e9d66f9a76eb82253"
+        },
+        {
+          "sequence": 7,
+          "type": "candidate_captured",
+          "sha256": "79bfd480d9d53227fb1931421d03f7137d2de32e99104ecb256b91618d3a42f2"
+        },
+        {
+          "sequence": 8,
+          "type": "verification_passed",
+          "sha256": "e33e4365d37a2d00584b7f5b8947a6590fc0fc10ca681b9d81bab89c766b8d21"
+        },
+        {
+          "sequence": 9,
+          "type": "audit_clean",
+          "sha256": "a85a4ce395540e64dc9cc20b9695e11267d1fcd8b486837d8fb91336735bf94c"
+        },
+        {
+          "sequence": 10,
+          "type": "completion_materialized",
+          "sha256": "987312f351977b8d3199f8bfa28f2fafd0add34ff3289ba6f346f119cad7cbc9"
+        },
+        {
+          "sequence": 11,
+          "type": "task_completed",
+          "sha256": "7823f6bb0e82de1c982aa7ca3306712c2f82ae82941873a55dd52b3f7bbe774c"
+        },
+        {
+          "sequence": 12,
+          "type": "lease_released",
+          "sha256": "ac08c8c2f516480fc53114ff27bb75d7053808edd2e2dda00d6f0dbbc726dc00"
+        },
+        {
+          "sequence": 13,
+          "type": "sandbox_removed",
+          "sha256": "d233002dea2e754f1327618193be263a50bcc3a65f5411ba0d10a7ea8a5c91cc"
+        },
+        {
+          "sequence": 14,
+          "type": "workspace_cleaned",
+          "sha256": "0cd1ef8723be0e4045aa6d89829ce342d34f44fcac22f08d5caf62fa335f0f77"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "2e69eb0502f3bd5613c60636aa508220e26a467549a2f8dd48faf8b179154647",
+          "size_bytes": 1553
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "f4bea51312d2b56c03981039c686516d3d6706e635ed47e147a0aee06ce1c8a7",
+          "size_bytes": 4888
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "0416c70964625ee9d3f2b8ed660b8f3914145792590055d37bc509744be61c2e",
+          "size_bytes": 2010
+        },
+        {
+          "kind": "candidate_source",
+          "sha256": "9e447cee73a3406c959045f421071fc7ff43771ff734daf3b7da899fdf68821a",
+          "size_bytes": 82
+        },
+        {
+          "kind": "verification_evidence",
+          "sha256": "fe89246b324da7ae216916ee1145e3810d3d715d24c22a11c51c254186ef4ee1",
+          "size_bytes": 244
+        },
+        {
+          "kind": "audit_evidence",
+          "sha256": "01b0c446cdebe6950a6d5a5b7cdd9832172b41583f8112d4a654020a6d6c0d31",
+          "size_bytes": 275
+        },
+        {
+          "kind": "completion_capsule",
+          "sha256": "2bae67f1c3cc81a991e1cae938aa4f851f44cce54b76355b2eeb6ae592fc8762",
+          "size_bytes": 1201
+        }
+      ],
+      "retrieval": {
+        "status": "missing_embeddings",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:degraded",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "158ec168-631f-5554-8e30-3f6823bab4ab",
+        "context_manifest_sha256": "f4bea51312d2b56c03981039c686516d3d6706e635ed47e147a0aee06ce1c8a7",
+        "dossier_sha256": "2e69eb0502f3bd5613c60636aa508220e26a467549a2f8dd48faf8b179154647",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": true
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1553,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 4,
+        "repeated_read_count": 0,
+        "verification_executions": 1,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 140000000,
+        "final_typed_outcome": "completed_degraded_retrieval",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "sandbox-timeout",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "5c37aa6602b4e88991f31010f7af1e23d188649c115f95fbd2d47f4c340b3958",
+      "outcome": "sandbox_timeout",
+      "stop_reason": "sandbox_timeout",
+      "task": {
+        "status": "blocked",
+        "applicability": "applicable",
+        "sha256": "03a47e98aa92cae17ef7e35a289a3cd2b6a046873fdde6ea61547823a1fc692f"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "2011a7678bf855977d74c7e685876640d82e17f2a1a6dddaecbd00b377ceb9c2"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "127bc354a55bbc783bb8e3adf09026b08908ad7ea00c50474ccc73d20d233c91"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "1a6456257fe8258a433a7ec4c8ba2e19a7883a2fb8e02112b6479e40f119cf11"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "2711717a67130ff8073d5374315241e08003468f3f4601055217191b1ef07f08"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "timed_out",
+          "applicability": "applicable",
+          "sha256": "cc44c06fcf106cf950882d50fea6e71b980dcacad1888b69dc2d36ad053ef7af"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "ba8a502784dd080fd20d5110d5867f01db3473bcaaf5d8cb75e51fc16bf4b70c"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "acecc9e7bbac24262a01b47a9a34bbfc82dc79164a06210cac7bce923f080d07"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "31f1a650edad17aa28e0ffb02665f482c17ad6121cb1fa4ae887082f6ebd1d58"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "c240795561a88df9beca4d0fb5830b091f607f36459fa5a463c9e72b6308bfe3"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "9dfa3567e48a3445cdeba6d4f93ff8cf694e516d9e6d32716b4f217077e9290d"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "f81522d26fb9ef42a28c6fcf5b373179ab6ff5c816923f644d8355ace80f44e4"
+        },
+        {
+          "sequence": 5,
+          "type": "sandbox_timed_out",
+          "sha256": "e334395d8f2b4eb95ab98ffc65eff2008cea24ae01617eb3ff78273cdc5de1b8"
+        },
+        {
+          "sequence": 6,
+          "type": "task_blocked",
+          "sha256": "7c2f99f83dee129b442e6323a1023a7d7ce7b8d7ab7c985c0ea4e72f52e8e4a3"
+        },
+        {
+          "sequence": 7,
+          "type": "lease_released",
+          "sha256": "03c061975071adc3d39196624eaa552aacc40d560e432da2f442bfbb9b23fa80"
+        },
+        {
+          "sequence": 8,
+          "type": "sandbox_removed",
+          "sha256": "9ad3a55dc99144dda566fc1f93a04dbd8621817c25f330d2ca7cb0fb28a34b8f"
+        },
+        {
+          "sequence": 9,
+          "type": "workspace_cleaned",
+          "sha256": "dd46bb1ebd8a03b2946822dd5275ad12ae8baab273391f0d60790468cba365de"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "98271c013b850ac226e3c859bd618978fbd8d01fe8a42dfc2bf1651b581d3e10",
+          "size_bytes": 1489
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "29539c33a05ea90bc3e31e3d00edc71d499b18263a681ffc2ade76102a9d0adf",
+          "size_bytes": 4789
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "dfe5392b00f36ff2f61644751687055d4b358eade694623e608e26d6dc1593a4",
+          "size_bytes": 1259
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "a24669a4-3b88-5971-a959-dff6a5d1ed22",
+        "context_manifest_sha256": "29539c33a05ea90bc3e31e3d00edc71d499b18263a681ffc2ade76102a9d0adf",
+        "dossier_sha256": "98271c013b850ac226e3c859bd618978fbd8d01fe8a42dfc2bf1651b581d3e10",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1489,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 1,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 110000000,
+        "final_typed_outcome": "sandbox_timeout",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    },
+    {
+      "schema_version": "revolvr-architecture-evaluation-result-v1",
+      "scenario_id": "network-denied-dependency-install",
+      "worker_execution_mode": "direct_tools_v1",
+      "authority_sha256": "6a9a8d8079176497ce2f789c8fe6361a2182f5fa097c40bacaa4f6223a82cf6c",
+      "outcome": "network_denied",
+      "stop_reason": "network_denied_dependency_install",
+      "task": {
+        "status": "blocked",
+        "applicability": "applicable",
+        "sha256": "e10b1d99c56d0599f1fd7c9d7855e1974bc56dba6b118091374cf50620fe5696"
+      },
+      "run": {
+        "status": "stopped",
+        "applicability": "applicable",
+        "sha256": "38d75323c4ac1bc58ba333ea68ea0c6f3e8c8c70c26d0aad6a61a28439a582c0"
+      },
+      "plan": {
+        "status": "accepted",
+        "applicability": "applicable",
+        "sha256": "65e65160d8f05a81da5565704d587d66858a5a00cb9e3fba03bfd3ffa55fd86f"
+      },
+      "criteria": [
+        {
+          "criterion_id": "ac-1",
+          "status": "pending"
+        }
+      ],
+      "findings": null,
+      "workspace": {
+        "state": {
+          "status": "cleaned",
+          "applicability": "applicable",
+          "sha256": "fa23ac2d93a43248f074eefc7a2388f853a2982b24d6feca03ba2e7ca294c6f2"
+        },
+        "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
+        "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_after": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
+        "original_checkout_unchanged": true,
+        "cleaned": true
+      },
+      "sandbox": {
+        "state": {
+          "status": "removed",
+          "applicability": "applicable",
+          "sha256": "0b6091ccbbdeeb0b2740f647f694b7f3ac84eb66904dea114926cb6a6dfc706b"
+        },
+        "profile": "strict",
+        "network": "none",
+        "ambient_environment_inherited": false,
+        "runtime_socket_mounted": false,
+        "original_checkout_mounted": false
+      },
+      "verification": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "95ba53cd34c2eb41d27abc601e9729e7cda2bb9768010c8bc8b22e36b07713f4"
+        },
+        "executions": 0,
+        "exact_reuses": 0,
+        "occurrences": 0,
+        "fresh_final": false
+      },
+      "audit": {
+        "state": {
+          "status": "not_run",
+          "applicability": "not_reached",
+          "sha256": "09f9dd160ec99c14be15c07cd8a3dbac6d2151d7004ce583956050e24507a5ff"
+        },
+        "runs": 0,
+        "independent": false,
+        "blocking_findings": 0
+      },
+      "completion": {
+        "state": {
+          "status": "not_authorized",
+          "applicability": "rejected_or_not_reached",
+          "sha256": "26054d0930eb2251cc7ee959fa497546bb49df013f5d6c2f5abababce443613e"
+        },
+        "authorized": false
+      },
+      "events": [
+        {
+          "sequence": 1,
+          "type": "task_admitted",
+          "sha256": "ed4b8e63e1425aaec5d24d462006c1bd495424702d311d2a97b5fd10dcc410b0"
+        },
+        {
+          "sequence": 2,
+          "type": "plan_accepted",
+          "sha256": "28977a043ebb6a8dbcc98d70840eff3990497f75636aad6494733ed2b2356e39"
+        },
+        {
+          "sequence": 3,
+          "type": "workspace_ready",
+          "sha256": "bf474553fe4c5265ed189d4d2955900a6c0c4da14b6816402c5da7fd95b8adfc"
+        },
+        {
+          "sequence": 4,
+          "type": "sandbox_running",
+          "sha256": "532a52a36dc9c744b582fcfbf0563c1ae4ce5156068a8df3ec83d1b3585179c7"
+        },
+        {
+          "sequence": 5,
+          "type": "network_dependency_install_denied",
+          "sha256": "9394ca4d321b298515574583667ab5e8ab9e3b3461c40268a5c88388376f177b"
+        },
+        {
+          "sequence": 6,
+          "type": "task_blocked",
+          "sha256": "dd0ce20accce4d7e7563a07e45c3f78cae93f5a3b999170e68cea2ab97ed2914"
+        },
+        {
+          "sequence": 7,
+          "type": "lease_released",
+          "sha256": "e297ef036aa1a45d5fd3510f1dfca63844805ce8346f04c42cf6a9a1446fb9fd"
+        },
+        {
+          "sequence": 8,
+          "type": "sandbox_removed",
+          "sha256": "2adc11a3519c98c79fc4a96ef98dac759cb40404ce4955ce630f5f13db6a1c14"
+        },
+        {
+          "sequence": 9,
+          "type": "workspace_cleaned",
+          "sha256": "bb762142b1d25ba2569c4515221607538ffe7401373e98dc78a688c603b85720"
+        }
+      ],
+      "artifacts": [
+        {
+          "kind": "context_dossier",
+          "sha256": "4c003e7b972d5b0ca0aeb4440a538a242b5ccdda3abd9e2fe8f1b584846cf7c8",
+          "size_bytes": 1575
+        },
+        {
+          "kind": "context_manifest",
+          "sha256": "0e1713e4000a116522f94e5e60db52fe5c6560d4493aa3391eb01c763e3e93de",
+          "size_bytes": 4843
+        },
+        {
+          "kind": "event_timeline",
+          "sha256": "69c5072fdc7e036f178259e63ad0446819b7c9cd4471fff0ca506a1abb71d717",
+          "size_bytes": 1275
+        }
+      ],
+      "retrieval": {
+        "status": "ready",
+        "candidate_ids": [
+          "canonical-task",
+          "source-main",
+          "source-test"
+        ],
+        "lane_states": [
+          "canonical:used",
+          "exact_file:used",
+          "exact_symbol:used",
+          "exact_text:omitted",
+          "structural:used",
+          "fts:used",
+          "vector:used",
+          "relationship_graph:omitted",
+          "reranker:omitted"
+        ],
+        "context_package_id": "5cb66a9b-e117-51c2-83ca-3ac14698879f",
+        "context_manifest_sha256": "0e1713e4000a116522f94e5e60db52fe5c6560d4493aa3391eb01c763e3e93de",
+        "dossier_sha256": "4c003e7b972d5b0ca0aeb4440a538a242b5ccdda3abd9e2fe8f1b584846cf7c8",
+        "exact_source_first": true,
+        "embedding_model_name": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "embedding_revision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+        "embedding_space_sha256": "6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8",
+        "query_instruction_sha256": "8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a",
+        "degraded_without_fallback": false
+      },
+      "crash_replays": null,
+      "metrics": {
+        "schema_version": "revolvr-architecture-evaluation-metrics-v1",
+        "worker_execution_mode": "direct_tools_v1",
+        "context_bytes": 1575,
+        "tokens": {
+          "input": null,
+          "output": null,
+          "reasoning": null,
+          "cached": null
+        },
+        "direct_tool_count": 1,
+        "repeated_read_count": 0,
+        "verification_executions": 0,
+        "verification_exact_reuses": 0,
+        "correction_cycles": 0,
+        "wall_time_nanoseconds": 60000000,
+        "final_typed_outcome": "network_denied",
+        "omissions": [
+          {
+            "field": "tokens.cached",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.input",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.output",
+            "reason": "not_reported_by_deterministic_fake"
+          },
+          {
+            "field": "tokens.reasoning",
+            "reason": "not_reported_by_deterministic_fake"
+          }
+        ]
+      },
+      "lease_acquired": true,
+      "lease_released": true,
+      "safety": {
+        "no_live_model": true,
+        "no_public_network": true,
+        "no_ambient_credentials": true,
+        "no_operator_home_data": true,
+        "no_runtime_socket": true,
+        "original_checkout_intact": true
+      }
+    }
+  ],
+  "retrieval_quality": {
+    "fixture_count": 5,
+    "recall_at_5": 1,
+    "recall_at_10": 1,
+    "mrr": 1,
+    "exact_symbol_preservation": 1,
+    "threshold": null,
+    "omissions": [
+      {
+        "field": "latency",
+        "reason": "nondeterministic_host_timing_excluded_from_byte_stable_quality_baseline"
+      },
+      {
+        "field": "quality_threshold",
+        "reason": "not_set_before_measured_baseline"
+      }
+    ]
+  },
+  "live_dogfood": "omitted_not_run_use_scripts/dogfood-live.sh_with_recorded_source_model_prompt_sandbox_task_and_outcome_identities",
+  "omissions": [
+    {
+      "field": "quality_threshold",
+      "reason": "not_set_before_measured_baseline"
+    },
+    {
+      "field": "estimated_cost",
+      "reason": "not_reported_by_deterministic_fake_and_not_estimated"
+    },
+    {
+      "field": "live_dogfood",
+      "reason": "separate_opt_in_command_not_run_by_architecture_evaluation"
+    }
+  ]
+}

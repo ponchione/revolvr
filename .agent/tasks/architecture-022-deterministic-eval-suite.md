@@ -1,6 +1,6 @@
 ---
 id: architecture-022-deterministic-eval-suite
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-021-code-indexing-context-assembly
@@ -11,7 +11,7 @@ depends_on: architecture-021-code-indexing-context-assembly
 ## Sequence and status
 
 - Sequence: `022` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-021-code-indexing-context-assembly`.
 - Phase gate: queue autonomy and Graphiti consideration remain disabled until
   deterministic core-loop and retrieval failure scenarios are executable and

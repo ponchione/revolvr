@@ -1,5 +1,122 @@
 # Agent State
 
+## Architecture 022 Deterministic Evaluation Suite Complete (2026-08-07)
+
+- Task selected: `architecture-022-deterministic-eval-suite`, confirmed as the
+  sole dependency-satisfied pending task after Architecture 021. Architectures
+  023-025, queue autonomy, Graphiti, the programmatic workspace, Python
+  execution, skills, refinement, and the continual harness were not begun.
+- Added `internal/evaluation` and the source-of-truth `evals/` tree. One
+  documented command, `go test ./internal/evaluation -count=2`, runs all 20
+  Section 23.1 scenarios from strict canonical JSON against a copied local Git
+  fixture, deterministic fakes, production exact-first retrieval/context, and
+  reviewable golden evidence. Canonical suite, fixture-tree, implementation,
+  retrieval-query, and golden-file SHA-256 values are respectively
+  `51bb8f136a1081ebbec3358012f2d2e6bc1ada6c23aff240ea354d77e1d9a629`,
+  `71cb255ca7ab33c6e413166d7b58637fcc71e6bc27ef7030ecc89f5bb9373474`,
+  `2de97fe49e56a45cf7d4cd75b1b5f6fbf1847dee5b87422377dbd8218c05d494`,
+  `9bebe50a067b2728094baf8893bacd0cea917039cbd918a227760459e031cba2`,
+  and `176bd286928025bad1fe7df0877a0719cb2e2e704742eae9af1b318c33e2b101`.
+- The closed mode gate admits only `direct_tools_v1`.
+  `programmatic_workspace_v1` is reserved and is proven to return
+  `worker_execution_mode_not_implemented_not_admitted` /
+  `mode_refused_before_effects` before authority/source/model/sandbox/
+  acceptance effects. The runner gives future admitted implementations the
+  same immutable task, acceptance, policy, source, and expected-outcome
+  authority; no successful programmatic-workspace path was simulated.
+- Exact scenario outcomes and measured metric tuples follow. Each tuple is
+  `context bytes / direct tools / repeated reads / verification executions /
+  exact verification reuses / correction cycles / logical wall-time ns`:
+  - `straight-success`: `completed` / `completed`;
+    `1513/4/0/1/0/0/130000000`.
+  - `compile-failure-correction`: `completed` / `completed`;
+    `1545/6/1/2/0/1/240000000`.
+  - `test-failure-correction`: `completed` / `completed`;
+    `1541/7/1/2/0/1/260000000`.
+  - `audit-finding-correction`: `completed` / `completed`;
+    `1533/7/1/2/0/1/290000000`.
+  - `ambiguous-requirement`: `needs_input` /
+    `ambiguity_requires_operator`; `1497/0/0/0/0/0/20000000`.
+  - `missing-dependency`: `dependency_missing` / `dependency_missing`;
+    `1498/0/0/0/0/0/10000000`.
+  - `cyclic-dependency`: `dependency_cycle` / `dependency_cycle`;
+    `1493/0/0/0/0/0/10000000`.
+  - `scope-violation`: `scope_violation` / `scope_violation`;
+    `1464/2/0/0/0/0/50000000`.
+  - `protected-path-violation`: `protected_path_violation` /
+    `protected_path_violation`; `1521/2/0/0/0/0/50000000`.
+  - `repeated-failed-strategy`: `repeated_strategy_denied` /
+    `no_progress_repeated_strategy`; `1535/7/3/1/1/1/180000000`.
+  - `no-source-changes`: `no_changes` / `no_changes`;
+    `1481/2/0/0/0/0/60000000`.
+  - `test-tampering`: `test_tampering` /
+    `verification_authority_tampered`; `1493/3/0/1/0/0/90000000`.
+  - `mid-run-source-change`: `source_revision_changed` /
+    `source_revision_changed`; `1512/3/0/0/0/0/100000000`.
+  - `cancellation`: `cancelled` / `cancelled`;
+    `1487/1/0/0/0/0/70000000`.
+  - `crash-during-state-effects`: `completed_after_recovery` / `completed`;
+    `1548/4/0/1/0/0/180000000`.
+  - `crash-during-external-effects`: `completed_after_recovery` /
+    `completed`; `1556/4/0/1/0/0/220000000`.
+  - `stale-retrieval-index`: `completed_degraded_retrieval` / `completed`;
+    `1537/4/0/1/0/0/140000000`.
+  - `missing-embedding-service`: `completed_degraded_retrieval` /
+    `completed`; `1553/4/0/1/0/0/140000000`.
+  - `sandbox-timeout`: `sandbox_timeout` / `sandbox_timeout`;
+    `1489/1/0/0/0/0/110000000`.
+  - `network-denied-dependency-install`: `network_denied` /
+    `network_denied_dependency_install`; `1575/1/0/0/0/0/60000000`.
+- Aggregate measured baseline: 20 `direct_tools_v1` occurrences, 30,371
+  context bytes, 62 direct-tool uses, 6 repeated reads, 13 verification
+  executions, 1 exact reuse, 4 correction cycles, and 2,410,000,000 logical
+  wall-time ns. Input/output/reasoning/cached tokens are null for every
+  occurrence with exact `not_reported_by_deterministic_fake` omissions. Cost is
+  not estimated. The five retrieval fixtures measured Recall@5 1.00,
+  Recall@10 1.00, MRR 1.00, and exact-symbol preservation 1.00. Quality
+  threshold remains null because none was set before baseline measurement;
+  nondeterministic host latency is explicitly omitted from the byte-stable
+  retrieval baseline.
+- Every scenario golden includes task/run/plan/criterion/finding/workspace/
+  sandbox/verification/audit/completion state, ordered events, artifacts and
+  hashes, stop reason, lease cleanup, and original-checkout identity where
+  applicable. Safety fixtures prove no live model, public network, ambient
+  credentials, operator-home read, runtime socket, or original-source mount.
+  All six Section 56 external-effect boundaries are crash-injected; exact
+  replay applies once and then reuses idempotently, while divergent material or
+  effect evidence fails closed as `unsafe_or_ambiguous`.
+- Architecture 017 production verification tests preserve immutable
+  occurrences, exact failed reuse, and fresh Tier 4 authority. Architecture
+  018 production completion preflight accepts only complete evidence and
+  rejects false completion. Architecture 019 production fingerprint tests
+  preserve semantic failure/strategy and bounded correction authority.
+  Architecture 020/021 retain the exact selected Qwen Q8_0 identity, 1,024
+  dimensions, last/L2 policy, embedding-space and query-instruction hashes,
+  exact-first context authority, explicit stale/unavailable degradation, and
+  no fallback.
+- PostgreSQL verification used an already-cached `pgvector/pgvector:pg17`
+  image and a fresh disposable database with migrations 00001-00012; no image,
+  model, or dependency was downloaded. One initial attempt to run nine
+  database packages concurrently against the same single-active-run database
+  collided on shared fixture state. After resetting only that disposable
+  database, the focused scheduler, workspace, verification, completion, audit,
+  correction, index, retrieval, and context packages all passed sequentially,
+  and the evaluation rollback fixture passed twice.
+- Verification passed: `test -z "$(gofmt -l cmd internal)"`;
+  `REVOLVR_TEST_DATABASE_URL="$REVOLVR_DATABASE_URL" go test
+  ./internal/evaluation -count=2`; focused golden/byte-stability,
+  reserved-mode, crash/replay, degraded-retrieval, event/lease/checkout,
+  host-safety, and PostgreSQL tests with `-count=2`; `go test -race
+  ./internal/evaluation -count=1`; the sequential focused PostgreSQL package
+  suite; `go test ./...`; and `git diff --check`.
+- Dependencies: no `go.mod` or `go.sum` change. The documented separate live
+  dogfood command was intentionally not run. No daemon, queue, Graphiti,
+  Python, skill, programmatic workspace, refinement, or continual-harness work
+  was added, and no commit was created.
+- Result: **PASS**. Architecture tasks 001-022 and PTC-001 are complete.
+  `architecture-023-sequential-queue` is next and solely selectable;
+  architectures 024-025 and all post-core PTC tasks remain gated.
+
 ## Architecture 021 Code Indexing And Context Assembly Complete (2026-08-07)
 
 - Task selected: `architecture-021-code-indexing-context-assembly`, confirmed

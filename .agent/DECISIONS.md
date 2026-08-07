@@ -1,5 +1,50 @@
 # Agent Decisions
 
+## Deterministic Evaluation Has Closed Modes And Reviewable Evidence (2026-08-07)
+
+- `worker_execution_mode` is a closed authority dimension.
+  `direct_tools_v1` is the sole implemented and admitted value.
+  `programmatic_workspace_v1` is reserved but returns the typed
+  `not_implemented_not_admitted` refusal before reading source or invoking
+  model, sandbox, acceptance, or any other scenario effect. It is never
+  simulated with direct-tool behavior. The mode-neutral runner freezes one
+  identical task, acceptance, policy, source, and expected-outcome authority
+  envelope for any future admitted implementation.
+- `evals/scenarios.json`, `evals/fixtures/repository`, and
+  `evals/retrieval/queries.json` are the source-of-truth Architecture 022
+  inputs. `evals/golden/baseline.json` is reviewable canonical evidence, not
+  worker-owned verification authority; changing it requires the explicit
+  golden-update command and inspection of the resulting diff. Fixed clocks,
+  local temporary Git repositories, deterministic model/sandbox/acceptance/
+  embedding fakes, replacement environment variables, and a no-network local
+  clone prevent reliance on live services, ambient credentials, operator home
+  data, or the original checkout.
+- Every Section 23.1 scenario records canonical task, run, plan, criterion,
+  finding, workspace, sandbox, verification, audit, completion, event,
+  artifact, hash, stop, lease, checkout, retrieval, safety, and metric facts.
+  Recovery separately plans and applies all six Section 56 external-effect
+  boundaries. Exact evidence replay is idempotent; changed material or effect
+  evidence fails closed as `unsafe_or_ambiguous`.
+- Architecture 017 remains the only verification authority, Architecture 018
+  remains the only completion/finalization authority, and Architecture 019
+  retains independent audit/finding/correction authority. Evaluation tests
+  invoke those production authorities directly instead of granting the golden
+  or fakes mutation authority.
+- Retrieval is production exact-first retrieval and deterministic context
+  compilation. Its vector identity remains exactly Qwen3-Embedding-0.6B-GGUF
+  Q8_0 revision `370f27d7550e0def9b39c1f16d3fbaa13aa67728`, 1,024
+  dimensions, last-token/L2, embedding space
+  `6f97b968a41b7e090aa4b75bdda157d8e01898a16a198ad5eb1f66469d70deb8`,
+  and query-instruction SHA-256
+  `8a1900345dce8d58adb5671a807e86ed39eeb6da706c491f71fa845c7ed9f59a`.
+  Stale index and missing embedding service retain exact retrieval, emit
+  degraded status, and have no fabricated, remote, or alternate-model
+  fallback.
+- Baseline metrics are observations, not invented gates. Token fields remain
+  null with explicit source omissions, cost is not estimated, and the initial
+  retrieval-quality threshold remains unset. The separate live-dogfood
+  command is documented but is not ordinary test authority and was not run.
+
 ## Retrieval Is Exact-First, Atomically Rebuildable, And Measured (2026-08-07)
 
 - Code index/search/relationship rows are rebuildable derived state bound to
