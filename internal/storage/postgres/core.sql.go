@@ -1914,6 +1914,52 @@ func (q *Queries) GetProjectRegistrationByCanonicalSourcePath(ctx context.Contex
 	return i, err
 }
 
+const getQueueOperation = `-- name: GetQueueOperation :one
+SELECT id, schema_version, status, worker_mode, maximum_workers, quality_gate_status, config_schema, config_sha256, configuration, max_tasks, max_cycles_per_task, max_total_cycles, max_remote_tokens, max_cost_microusd, max_duration_milliseconds, tasks_started, cycles_consumed, remote_tokens_consumed, cost_microusd_consumed, peak_source_mutating_workers, next_occurrence_sequence, selection_intent_id, selection_scheduler_run_id, selection_intent_sequence, active_occurrence_id, cancel_requested_at, started_at, deadline_at, updated_at, terminal_at, stop_reason, stop_detail, terminal_marker_sha256, aggregate_version FROM core.queue_operations WHERE id = $1
+`
+
+func (q *Queries) GetQueueOperation(ctx context.Context, id pgtype.UUID) (CoreQueueOperation, error) {
+	row := q.db.QueryRow(ctx, getQueueOperation, id)
+	var i CoreQueueOperation
+	err := row.Scan(
+		&i.ID,
+		&i.SchemaVersion,
+		&i.Status,
+		&i.WorkerMode,
+		&i.MaximumWorkers,
+		&i.QualityGateStatus,
+		&i.ConfigSchema,
+		&i.ConfigSha256,
+		&i.Configuration,
+		&i.MaxTasks,
+		&i.MaxCyclesPerTask,
+		&i.MaxTotalCycles,
+		&i.MaxRemoteTokens,
+		&i.MaxCostMicrousd,
+		&i.MaxDurationMilliseconds,
+		&i.TasksStarted,
+		&i.CyclesConsumed,
+		&i.RemoteTokensConsumed,
+		&i.CostMicrousdConsumed,
+		&i.PeakSourceMutatingWorkers,
+		&i.NextOccurrenceSequence,
+		&i.SelectionIntentID,
+		&i.SelectionSchedulerRunID,
+		&i.SelectionIntentSequence,
+		&i.ActiveOccurrenceID,
+		&i.CancelRequestedAt,
+		&i.StartedAt,
+		&i.DeadlineAt,
+		&i.UpdatedAt,
+		&i.TerminalAt,
+		&i.StopReason,
+		&i.StopDetail,
+		&i.TerminalMarkerSha256,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
 const getRun = `-- name: GetRun :one
 SELECT id, project_id, task_id, task_version_id, project_source_id, status,
     aggregate_version, admitted_task_aggregate_version, source_commit,
@@ -3693,6 +3739,100 @@ func (q *Queries) InsertProjectSource(ctx context.Context, arg InsertProjectSour
 	return i, err
 }
 
+const insertQueueOperation = `-- name: InsertQueueOperation :one
+INSERT INTO core.queue_operations (
+    id, schema_version, status, worker_mode, maximum_workers,
+    quality_gate_status, config_schema, config_sha256, configuration,
+    max_tasks, max_cycles_per_task, max_total_cycles, max_remote_tokens,
+    max_cost_microusd, max_duration_milliseconds, started_at, deadline_at,
+    updated_at
+) VALUES (
+    $1, $2, 'active', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+    $14, $15, $16, $17
+)
+RETURNING id, schema_version, status, worker_mode, maximum_workers, quality_gate_status, config_schema, config_sha256, configuration, max_tasks, max_cycles_per_task, max_total_cycles, max_remote_tokens, max_cost_microusd, max_duration_milliseconds, tasks_started, cycles_consumed, remote_tokens_consumed, cost_microusd_consumed, peak_source_mutating_workers, next_occurrence_sequence, selection_intent_id, selection_scheduler_run_id, selection_intent_sequence, active_occurrence_id, cancel_requested_at, started_at, deadline_at, updated_at, terminal_at, stop_reason, stop_detail, terminal_marker_sha256, aggregate_version
+`
+
+type InsertQueueOperationParams struct {
+	ID                      pgtype.UUID
+	SchemaVersion           string
+	WorkerMode              string
+	MaximumWorkers          int16
+	QualityGateStatus       string
+	ConfigSchema            string
+	ConfigSha256            string
+	Configuration           []byte
+	MaxTasks                int64
+	MaxCyclesPerTask        int64
+	MaxTotalCycles          int64
+	MaxRemoteTokens         int64
+	MaxCostMicrousd         int64
+	MaxDurationMilliseconds int64
+	StartedAt               pgtype.Timestamptz
+	DeadlineAt              pgtype.Timestamptz
+	UpdatedAt               pgtype.Timestamptz
+}
+
+func (q *Queries) InsertQueueOperation(ctx context.Context, arg InsertQueueOperationParams) (CoreQueueOperation, error) {
+	row := q.db.QueryRow(ctx, insertQueueOperation,
+		arg.ID,
+		arg.SchemaVersion,
+		arg.WorkerMode,
+		arg.MaximumWorkers,
+		arg.QualityGateStatus,
+		arg.ConfigSchema,
+		arg.ConfigSha256,
+		arg.Configuration,
+		arg.MaxTasks,
+		arg.MaxCyclesPerTask,
+		arg.MaxTotalCycles,
+		arg.MaxRemoteTokens,
+		arg.MaxCostMicrousd,
+		arg.MaxDurationMilliseconds,
+		arg.StartedAt,
+		arg.DeadlineAt,
+		arg.UpdatedAt,
+	)
+	var i CoreQueueOperation
+	err := row.Scan(
+		&i.ID,
+		&i.SchemaVersion,
+		&i.Status,
+		&i.WorkerMode,
+		&i.MaximumWorkers,
+		&i.QualityGateStatus,
+		&i.ConfigSchema,
+		&i.ConfigSha256,
+		&i.Configuration,
+		&i.MaxTasks,
+		&i.MaxCyclesPerTask,
+		&i.MaxTotalCycles,
+		&i.MaxRemoteTokens,
+		&i.MaxCostMicrousd,
+		&i.MaxDurationMilliseconds,
+		&i.TasksStarted,
+		&i.CyclesConsumed,
+		&i.RemoteTokensConsumed,
+		&i.CostMicrousdConsumed,
+		&i.PeakSourceMutatingWorkers,
+		&i.NextOccurrenceSequence,
+		&i.SelectionIntentID,
+		&i.SelectionSchedulerRunID,
+		&i.SelectionIntentSequence,
+		&i.ActiveOccurrenceID,
+		&i.CancelRequestedAt,
+		&i.StartedAt,
+		&i.DeadlineAt,
+		&i.UpdatedAt,
+		&i.TerminalAt,
+		&i.StopReason,
+		&i.StopDetail,
+		&i.TerminalMarkerSha256,
+		&i.AggregateVersion,
+	)
+	return i, err
+}
+
 const insertRun = `-- name: InsertRun :one
 INSERT INTO core.runs (
     id, project_id, task_id, task_version_id, project_source_id, status,
@@ -4791,6 +4931,106 @@ func (q *Queries) ListPlanSteps(ctx context.Context, planVersionID pgtype.UUID) 
 			&i.Assumptions,
 			&i.EvidenceRefs,
 			&i.Lineage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQueueTaskEffects = `-- name: ListQueueTaskEffects :many
+SELECT id, queue_operation_id, task_occurrence_id, effect_sequence, effect_kind, effect_identity, material_sha256, status, evidence_sha256, intended_at, completed_at FROM core.queue_task_effects
+WHERE task_occurrence_id = $1
+ORDER BY effect_sequence
+`
+
+func (q *Queries) ListQueueTaskEffects(ctx context.Context, taskOccurrenceID pgtype.UUID) ([]CoreQueueTaskEffect, error) {
+	rows, err := q.db.Query(ctx, listQueueTaskEffects, taskOccurrenceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreQueueTaskEffect
+	for rows.Next() {
+		var i CoreQueueTaskEffect
+		if err := rows.Scan(
+			&i.ID,
+			&i.QueueOperationID,
+			&i.TaskOccurrenceID,
+			&i.EffectSequence,
+			&i.EffectKind,
+			&i.EffectIdentity,
+			&i.MaterialSha256,
+			&i.Status,
+			&i.EvidenceSha256,
+			&i.IntendedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQueueTaskOccurrences = `-- name: ListQueueTaskOccurrences :many
+SELECT id, queue_operation_id, occurrence_sequence, state, scheduler_run_id, coordinator_identity, project_id, project_source_id, task_id, task_version_id, external_task_id, expected_task_aggregate_version, task_priority, task_created_at, source_commit, source_tree, selection, selection_sha256, outcome, outcome_detail, result, result_sha256, effect_chain_sha256, cycles_consumed, remote_tokens_consumed, cost_microusd_consumed, workspace_reconciled, evidence_reconciled, lease_reconciled, selected_at, admitted_at, runner_terminal_at, checkpointed_at, created_at, updated_at FROM core.queue_task_occurrences
+WHERE queue_operation_id = $1
+ORDER BY occurrence_sequence
+`
+
+func (q *Queries) ListQueueTaskOccurrences(ctx context.Context, queueOperationID pgtype.UUID) ([]CoreQueueTaskOccurrence, error) {
+	rows, err := q.db.Query(ctx, listQueueTaskOccurrences, queueOperationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CoreQueueTaskOccurrence
+	for rows.Next() {
+		var i CoreQueueTaskOccurrence
+		if err := rows.Scan(
+			&i.ID,
+			&i.QueueOperationID,
+			&i.OccurrenceSequence,
+			&i.State,
+			&i.SchedulerRunID,
+			&i.CoordinatorIdentity,
+			&i.ProjectID,
+			&i.ProjectSourceID,
+			&i.TaskID,
+			&i.TaskVersionID,
+			&i.ExternalTaskID,
+			&i.ExpectedTaskAggregateVersion,
+			&i.TaskPriority,
+			&i.TaskCreatedAt,
+			&i.SourceCommit,
+			&i.SourceTree,
+			&i.Selection,
+			&i.SelectionSha256,
+			&i.Outcome,
+			&i.OutcomeDetail,
+			&i.Result,
+			&i.ResultSha256,
+			&i.EffectChainSha256,
+			&i.CyclesConsumed,
+			&i.RemoteTokensConsumed,
+			&i.CostMicrousdConsumed,
+			&i.WorkspaceReconciled,
+			&i.EvidenceReconciled,
+			&i.LeaseReconciled,
+			&i.SelectedAt,
+			&i.AdmittedAt,
+			&i.RunnerTerminalAt,
+			&i.CheckpointedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

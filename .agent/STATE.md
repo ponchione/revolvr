@@ -1,5 +1,110 @@
 # Agent State
 
+## Architecture 023 Bounded Sequential Queue Complete (2026-08-07)
+
+- Task selected: `architecture-023-sequential-queue`, confirmed as the sole
+  dependency-satisfied pending task after Architecture 022. Architecture 024,
+  UI work, Architecture 025, Graphiti, programmatic workspace work, Python,
+  skills, refinement, continual-harness work, daemon mode, parallel workers,
+  swarms, and task delegation were not begun.
+- Added reversible migration `db/migrations/00013_sequential_queue.sql` and
+  stable sqlc queries/bindings. `core.queue_operations` stores one UUIDv7
+  operation, schema/config identities, `direct_tools_v1`, exactly one worker,
+  the `deterministic_evaluation_only` gate, finite task/per-task-cycle/total-
+  cycle/token/micro-USD/duration limits, exact counters, peak workers,
+  selection intent, active occurrence, cancellation, terminal reason, and
+  terminal SHA-256. `core.queue_task_occurrences` stores ordered exact
+  scheduler/run/task/source selection, terminal-for-now result/reconciliation,
+  effect-chain SHA-256, lease cleanup, and checkpoint state.
+  `core.queue_task_effects` stores contiguous supervisor, worker, verification,
+  audit, correction, and completion intent/completion evidence. Database
+  constraints admit no second active queue, no worker count other than one,
+  no unbounded limits, and no worker mode or quality-gate value outside the
+  closed Architecture 023 contract.
+- Added `internal/queue`. Every scheduler selection first persists the exact
+  occurrence and scheduler-run intent, then uses task-009 `scheduler.Select`
+  as the sole selector. Selection is never prefetched; the chosen occurrence
+  remains pinned through scheduler admission, the bounded executor, terminal
+  persistence, global-lease release, and queue checkpoint. Each boundary then
+  invokes `scheduler.Select` again, rebuilding and revalidating the canonical
+  graph. The read-only `scheduler.InspectQueueState` classifies an empty valid
+  projection but cannot select or reorder work.
+- Queue events are contiguous under the `queue_operation` aggregate:
+  `queue.operation.started`, `queue.task.selection_intent`,
+  `queue.task.selection_empty`, `queue.task.selected`,
+  `queue.task.admitted`, `queue.task.effect_intent`,
+  `queue.task.effect_completed`, `queue.task.runner_terminal`,
+  `queue.task.checkpointed`, `queue.operation.cancel_requested`, and
+  `queue.operation.terminal`. Exact configuration, selection, result,
+  effect-chain, event-version, and terminal-marker evidence is revalidated on
+  replay; unknown, changed, incomplete, noncontiguous, or ambiguous evidence
+  returns the typed authority conflict instead of being adopted.
+- Pinned finite CLI defaults are 100 task occurrences, 50 cycles per task,
+  5,000 total cycles, 5,000,000 remote tokens, 100,000,000 micro-USD, eight
+  hours, one worker, and `direct_tools_v1`. `revolvr queue start` requires an
+  operator-provided stable UUIDv7 and exposes every resource limit;
+  `queue status` renders pinned authority, ordered outcomes, usage, peak
+  workers, and the terminal marker; `queue cancel` durably requests exact
+  cancellation. All three use the same `internal/app` services. There is no
+  daemon/background startup, hidden network fetch, worker-count control,
+  archive/export/push/deploy/merge behavior, or unbounded default.
+- Ordered task outcomes are `completed`, `blocked`, `needs_input`,
+  `dependency_waiting`, `task_budget_exhausted`, `cancelled`, `unsafe`, and
+  `system_failure`. A yielded blocked/input/dependency/task-budget occurrence
+  is checkpointed before the graph is re-evaluated, so unrelated ready work
+  continues under unchanged task-009 priority. Queue stop reasons are exactly
+  `drained`, `waiting_on_dependencies`, `waiting_on_input`,
+  `all_remaining_blocked`, `budget_exhausted`, `cancelled`, `unsafe`, and
+  `system_failure`. Active duration exhaustion cancels and reconciles its
+  child, records the task-local bounded outcome, releases the lease, and stops
+  as `budget_exhausted`.
+- PostgreSQL instrumentation observed peak source-mutating workers `1` in both
+  the executor and persisted result while executing three deterministically
+  ordered dependency-linked tasks. A direct run admitted between queue
+  selection and admission won the existing singleton global lease; queue
+  admission was refused and the database contained exactly one active run.
+  No parallel execution path exists.
+- Crash injection passed before/after task selection, worker effect,
+  completion, and queue checkpoint. Each of the eight replays produced one
+  occurrence, one scheduler run, one instance of each external effect, one
+  contiguous event version per committed transition, and the same terminal
+  evidence. The separate external-worker-effect/local-completion window was
+  reconciled without replaying the external mutation. A terminal replay made
+  zero executor calls. Divergent effect material/evidence and changed terminal
+  evidence failed closed.
+- Cancellation testing stopped the active child through its context, recorded
+  a typed `cancelled` task result with workspace/evidence reconciliation,
+  released the global source-mutation lease, checkpointed the occurrence, and
+  terminalized the queue. An explicit correction-cycle test recorded
+  supervisor/worker/verification/audit/correction/reverification/reaudit/
+  completion in exact order before completion.
+- Architecture 017 remains the verification authority, Architecture 018 the
+  completion authority, Architecture 019 the independent audit/correction
+  authority, Architecture 020 the exact Qwen/no-fallback authority,
+  Architecture 021 the exact-first retrieval/context authority, and
+  Architecture 022 the closed-mode/golden authority. The queue adds no
+  substitute implementation for any of them.
+- Quality gate: Architecture 022's deterministic measured baseline is
+  sufficient for Architecture 023 deterministic verification but Section
+  23.3 still has no approved real-project threshold. Ordinary CLI start
+  therefore fails closed before PostgreSQL or worker effects when no admitted
+  canonical executor is injected. No live-project queue dogfood or quality
+  claim was made.
+- Verification passed against a fresh disposable PostgreSQL 17/pgvector
+  database migrated through 00013: gofmt cleanliness; sqlc v1.27.0 generation
+  with byte-stable generated Go; `REVOLVR_TEST_DATABASE_URL=... go test
+  ./internal/queue ./internal/evaluation`; all focused ordering, dependency,
+  yield, stop, exact-budget, active-duration, one-worker, lease-race, eight
+  crash/replay, divergent-evidence, cancellation, correction, migration, CLI,
+  and application gate tests; `go test -race -count=1 ./internal/queue`;
+  migration 00013 down/up; `go run ./cmd/revolvr queue --help`; `go test
+  ./...`; and `git diff --check`. No dependency changed and no commit was
+  created.
+- Result: **PASS**. Architecture tasks 001-023 and PTC-001 are complete.
+  `.agent/tasks/architecture-024-ui.md` is next and is the sole
+  dependency-satisfied pending task; Architecture 025 and all deferred PTC
+  tasks remain gated.
+
 ## Architecture 022 Deterministic Evaluation Suite Complete (2026-08-07)
 
 - Task selected: `architecture-022-deterministic-eval-suite`, confirmed as the

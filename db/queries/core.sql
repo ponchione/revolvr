@@ -6,6 +6,32 @@ INSERT INTO core.artifacts (
 )
 RETURNING id, sha256, size_bytes, media_type, logical_kind, storage_path, compression, created_at;
 
+-- name: InsertQueueOperation :one
+INSERT INTO core.queue_operations (
+    id, schema_version, status, worker_mode, maximum_workers,
+    quality_gate_status, config_schema, config_sha256, configuration,
+    max_tasks, max_cycles_per_task, max_total_cycles, max_remote_tokens,
+    max_cost_microusd, max_duration_milliseconds, started_at, deadline_at,
+    updated_at
+) VALUES (
+    $1, $2, 'active', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+    $14, $15, $16, $17
+)
+RETURNING *;
+
+-- name: GetQueueOperation :one
+SELECT * FROM core.queue_operations WHERE id = $1;
+
+-- name: ListQueueTaskOccurrences :many
+SELECT * FROM core.queue_task_occurrences
+WHERE queue_operation_id = $1
+ORDER BY occurrence_sequence;
+
+-- name: ListQueueTaskEffects :many
+SELECT * FROM core.queue_task_effects
+WHERE task_occurrence_id = $1
+ORDER BY effect_sequence;
+
 -- name: GetArtifactBySHA256 :one
 SELECT id, sha256, size_bytes, media_type, logical_kind, storage_path, compression, created_at
 FROM core.artifacts

@@ -326,6 +326,95 @@ type CoreProjectSource struct {
 	Remotes               []byte
 }
 
+type CoreQueueOperation struct {
+	ID                        pgtype.UUID
+	SchemaVersion             string
+	Status                    string
+	WorkerMode                string
+	MaximumWorkers            int16
+	QualityGateStatus         string
+	ConfigSchema              string
+	ConfigSha256              string
+	Configuration             []byte
+	MaxTasks                  int64
+	MaxCyclesPerTask          int64
+	MaxTotalCycles            int64
+	MaxRemoteTokens           int64
+	MaxCostMicrousd           int64
+	MaxDurationMilliseconds   int64
+	TasksStarted              int64
+	CyclesConsumed            int64
+	RemoteTokensConsumed      int64
+	CostMicrousdConsumed      int64
+	PeakSourceMutatingWorkers int16
+	NextOccurrenceSequence    int64
+	SelectionIntentID         pgtype.UUID
+	SelectionSchedulerRunID   pgtype.UUID
+	SelectionIntentSequence   pgtype.Int8
+	ActiveOccurrenceID        pgtype.UUID
+	CancelRequestedAt         pgtype.Timestamptz
+	StartedAt                 pgtype.Timestamptz
+	DeadlineAt                pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+	TerminalAt                pgtype.Timestamptz
+	StopReason                pgtype.Text
+	StopDetail                pgtype.Text
+	TerminalMarkerSha256      pgtype.Text
+	AggregateVersion          int64
+}
+
+type CoreQueueTaskEffect struct {
+	ID               pgtype.UUID
+	QueueOperationID pgtype.UUID
+	TaskOccurrenceID pgtype.UUID
+	EffectSequence   int64
+	EffectKind       string
+	EffectIdentity   string
+	MaterialSha256   string
+	Status           string
+	EvidenceSha256   pgtype.Text
+	IntendedAt       pgtype.Timestamptz
+	CompletedAt      pgtype.Timestamptz
+}
+
+type CoreQueueTaskOccurrence struct {
+	ID                           pgtype.UUID
+	QueueOperationID             pgtype.UUID
+	OccurrenceSequence           int64
+	State                        string
+	SchedulerRunID               pgtype.UUID
+	CoordinatorIdentity          string
+	ProjectID                    pgtype.UUID
+	ProjectSourceID              pgtype.UUID
+	TaskID                       pgtype.UUID
+	TaskVersionID                pgtype.UUID
+	ExternalTaskID               pgtype.Text
+	ExpectedTaskAggregateVersion pgtype.Int8
+	TaskPriority                 pgtype.Int4
+	TaskCreatedAt                pgtype.Timestamptz
+	SourceCommit                 pgtype.Text
+	SourceTree                   pgtype.Text
+	Selection                    []byte
+	SelectionSha256              pgtype.Text
+	Outcome                      pgtype.Text
+	OutcomeDetail                pgtype.Text
+	Result                       []byte
+	ResultSha256                 pgtype.Text
+	EffectChainSha256            pgtype.Text
+	CyclesConsumed               pgtype.Int8
+	RemoteTokensConsumed         pgtype.Int8
+	CostMicrousdConsumed         pgtype.Int8
+	WorkspaceReconciled          pgtype.Bool
+	EvidenceReconciled           pgtype.Bool
+	LeaseReconciled              bool
+	SelectedAt                   pgtype.Timestamptz
+	AdmittedAt                   pgtype.Timestamptz
+	RunnerTerminalAt             pgtype.Timestamptz
+	CheckpointedAt               pgtype.Timestamptz
+	CreatedAt                    pgtype.Timestamptz
+	UpdatedAt                    pgtype.Timestamptz
+}
+
 type CoreRun struct {
 	ID                           pgtype.UUID
 	ProjectID                    pgtype.UUID

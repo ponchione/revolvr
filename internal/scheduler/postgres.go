@@ -73,6 +73,14 @@ type Reconciliation struct {
 	Changed bool
 }
 
+// QueueState classifies a valid graph only after Select reports no ready task.
+// It does not select, reorder, or admit work; Select remains the sole selector.
+type QueueState struct {
+	WaitingDependencies []WaitingTask
+	WaitingInput        []WaitingTask
+	Blocked             []WaitingTask
+}
+
 type UnsafeGraphError struct {
 	Diagnostics []Diagnostic
 }
@@ -142,6 +150,76 @@ func Select(ctx context.Context, pool *pgxpool.Pool) (Candidate, error) {
 		return Candidate{}, fmt.Errorf("scheduler selection: %w", err)
 	}
 	return candidate, nil
+}
+
+func InspectQueueState(ctx context.Context, pool *pgxpool.Pool) (QueueState, error) {
+	if pool == nil {
+		return QueueState{}, errors.New("scheduler queue inspection: PostgreSQL pool is required")
+	}
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return QueueState{}, fmt.Errorf("scheduler queue inspection: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	queries := postgres.New(tx)
+	lease, err := queries.GetGlobalExecutionLease(ctx)
+	if err != nil {
+		return QueueState{}, fmt.Errorf("scheduler queue inspection: load global lease: %w", err)
+	}
+	if lease.RunID.Valid {
+		return QueueState{}, leaseBusy(lease)
+	}
+	active, err := queries.ListActiveRuns(ctx)
+	if err != nil {
+		return QueueState{}, fmt.Errorf("scheduler queue inspection: list active runs: %w", err)
+	}
+	if len(active) != 0 {
+		return QueueState{}, activeRunWithoutLease(active)
+	}
+	tasks, err := loadGraph(ctx, queries)
+	if err != nil {
+		return QueueState{}, fmt.Errorf("scheduler queue inspection: %w", err)
+	}
+	projection := evaluateGraph(tasks)
+	if len(projection.diagnostics) != 0 {
+		return QueueState{}, &UnsafeGraphError{Diagnostics: projection.diagnostics}
+	}
+	if projection.candidate != nil {
+		return QueueState{}, fmt.Errorf("%w: ready work exists", ErrConflict)
+	}
+	byID := make(map[string]graphTask, len(tasks))
+	for _, task := range tasks {
+		byID[task.taskID] = task
+	}
+	state := QueueState{}
+	for _, task := range tasks {
+		switch task.status {
+		case "needs_input":
+			state.WaitingInput = append(state.WaitingInput, WaitingTask{TaskID: task.taskID, Reason: "task_needs_input"})
+		case "blocked":
+			state.Blocked = append(state.Blocked, WaitingTask{TaskID: task.taskID, Reason: "task_blocked"})
+		case "pending":
+			reason := waitingReason(task, byID)
+			if task.awaitingOperatorCheckpoint || dependencyHasStatus(task, byID, "needs_input") {
+				state.WaitingInput = append(state.WaitingInput, WaitingTask{TaskID: task.taskID, Reason: reason})
+			} else if reason != "" {
+				state.WaitingDependencies = append(state.WaitingDependencies, WaitingTask{TaskID: task.taskID, Reason: reason})
+			}
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return QueueState{}, fmt.Errorf("scheduler queue inspection: %w", err)
+	}
+	return state, nil
+}
+
+func dependencyHasStatus(task graphTask, byID map[string]graphTask, status string) bool {
+	for _, edge := range task.dependencies {
+		if byID[edge.targetID].status == status {
+			return true
+		}
+	}
+	return false
 }
 
 func Admit(ctx context.Context, pool *pgxpool.Pool, command AdmissionCommand) (Admission, error) {

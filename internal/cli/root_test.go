@@ -57,6 +57,10 @@ func TestNewRootCommandConstructsExpectedCommands(t *testing.T) {
 		{"archive", "reopen"},
 		{"metrics"},
 		{"metrics", "show"},
+		{"queue"},
+		{"queue", "start"},
+		{"queue", "status"},
+		{"queue", "cancel"},
 		{"config"},
 		{"config", "check"},
 		{"run"},
@@ -90,7 +94,7 @@ func TestRootHelpWorks(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "checkpoint", "archive", "run", "doctor", "status", "tui", "show", "receipt"} {
+	for _, want := range []string{"Run bounded Codex harness passes", "init", "task", "checkpoint", "archive", "queue", "run", "doctor", "status", "tui", "show", "receipt"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help output missing %q:\n%s", want, help)
 		}

@@ -864,6 +864,42 @@ The loop never spends surplus cycles on another task. `--once` and
 `--max-passes` retain their existing mixed-pass meanings and cannot be combined
 with `--until-terminal`.
 
+### Canonical bounded sequential queue
+
+The Architecture 023 queue has its own explicit foreground command surface and
+uses the PostgreSQL scheduler/global source-mutation lease. An operator supplies
+one stable UUIDv7 operation identity and every finite task, per-task cycle,
+total-cycle, remote-token, cost, and duration bound:
+
+```bash
+go run ./cmd/revolvr queue start \
+  --operation-id <uuidv7> \
+  --max-tasks 100 \
+  --max-cycles-per-task 50 \
+  --max-total-cycles 5000 \
+  --max-remote-tokens 5000000 \
+  --max-cost-microusd 100000000 \
+  --max-duration 8h
+
+go run ./cmd/revolvr queue status <uuidv7>
+go run ./cmd/revolvr queue cancel <uuidv7>
+```
+
+The canonical queue fixes `direct_tools_v1` and exactly one source-mutating
+worker. It re-runs the task-009 scheduler after every checkpoint, pins one task
+occurrence until its terminal-for-now result, records intent before each
+supervisor/worker/verification/audit/correction/completion effect, and returns
+ordered outcomes plus an exact terminal marker. Cancellation is durable and
+the foreground coordinator stops the active child before reconciling its
+workspace, evidence, and global lease.
+
+Architecture 022 established a deterministic baseline but deliberately did
+not invent the Section 23.3 real-project quality thresholds. Consequently the
+ordinary CLI start currently fails closed before PostgreSQL or worker effects;
+the injected deterministic evaluation/application service is the admitted
+Architecture 023 execution path. `status` and `cancel` remain available for
+canonical operations. No flag can manufacture real-project approval.
+
 Run every currently ready autonomous task until the queue is
 drained, waiting, bounded, cancelled, or stopped by safety evidence:
 

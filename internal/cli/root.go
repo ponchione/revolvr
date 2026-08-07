@@ -27,6 +27,7 @@ import (
 	"revolvr/internal/codexexec"
 	"revolvr/internal/ledger"
 	"revolvr/internal/ledgerexport"
+	"revolvr/internal/queue"
 	"revolvr/internal/receipt"
 	"revolvr/internal/runonce"
 	"revolvr/internal/taskfile"
@@ -58,6 +59,9 @@ type Options struct {
 	PlanTaskMigration      MigrationPlanFunc
 	ApplyTaskMigration     MigrationApplyFunc
 	RecoverTask            TaskRecoveryFunc
+	StartSequentialQueue   SequentialQueueStartFunc
+	SequentialQueueStatus  SequentialQueueStatusFunc
+	CancelSequentialQueue  SequentialQueueCancelFunc
 }
 
 type TaskRunFunc func(context.Context, app.Config, app.TaskRunInput) (autonomoustaskrun.Result, error)
@@ -70,6 +74,9 @@ type CheckpointFulfillFunc func(context.Context, app.Config, app.FulfillCheckpoi
 type MigrationPlanFunc func(context.Context, app.Config, app.MigrationPlanInput) (autonomousmigration.Plan, error)
 type MigrationApplyFunc func(context.Context, app.Config, app.MigrationPlanInput) (autonomousmigration.ApplyResult, error)
 type TaskRecoveryFunc func(context.Context, app.Config, app.RecoverAutonomousTaskInput) (app.RecoverAutonomousTaskResult, error)
+type SequentialQueueStartFunc func(context.Context, app.Config, app.SequentialQueueStartInput) (queue.Result, error)
+type SequentialQueueStatusFunc func(context.Context, app.Config, string, string) (queue.Status, error)
+type SequentialQueueCancelFunc func(context.Context, app.Config, string, string) (queue.Status, bool, error)
 
 type RunOnceFunc = app.RunOnceRunner
 type TUIRunFunc func(context.Context, app.StatusResult, tuiapp.RunOptions) error
@@ -114,6 +121,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newLedgerCommand(opts),
 		newMetricsCommand(opts),
 		newNotificationCommand(opts),
+		newSequentialQueueCommand(opts),
 		newConfigCommand(opts),
 		newRunCommand(opts),
 		newDoctorCommand(opts),
@@ -1257,6 +1265,157 @@ func newConfigCheckCommand(opts Options) *cobra.Command {
 			return writeConfigCheck(cmd.OutOrStdout(), result)
 		},
 	}
+}
+
+func newSequentialQueueCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "queue",
+		Short: "Manage manually started bounded sequential queues",
+		Args:  cobra.NoArgs,
+		RunE:  runHelp,
+	}
+	cmd.AddCommand(
+		newSequentialQueueStartCommand(opts),
+		newSequentialQueueStatusCommand(opts),
+		newSequentialQueueCancelCommand(opts),
+	)
+	return cmd
+}
+
+func newSequentialQueueStartCommand(opts Options) *cobra.Command {
+	runner := opts.StartSequentialQueue
+	if runner == nil {
+		runner = app.StartSequentialQueue
+	}
+	var operationID string
+	limits := queue.Limits{
+		MaximumTasks: 100, MaximumCyclesPerTask: 50, MaximumTotalCycles: 5000,
+		MaximumRemoteTokens: 5_000_000, MaximumCostMicrousd: 100_000_000,
+		MaximumDuration: 8 * time.Hour,
+	}
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start or exactly resume one foreground sequential queue",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if strings.TrimSpace(operationID) == "" {
+				return errors.New("queue start: --operation-id is required")
+			}
+			pinned, _, _, err := queue.NewPinnedConfiguration(limits, queue.QualityGateDeterministicOnly)
+			if err != nil {
+				return err
+			}
+			result, err := runner(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, app.SequentialQueueStartInput{
+				OperationID: operationID, CoordinatorIdentity: "queue-cli:" + operationID,
+				Limits: pinned.Limits, QualityGateStatus: queue.QualityGateDeterministicOnly,
+			})
+			if result.OperationID != "" {
+				if writeErr := writeSequentialQueueResult(cmd.OutOrStdout(), result); writeErr != nil {
+					return writeErr
+				}
+			}
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "stable UUIDv7 queue operation identity (required)")
+	cmd.Flags().Int64Var(&limits.MaximumTasks, "max-tasks", limits.MaximumTasks, "maximum admitted task occurrences")
+	cmd.Flags().Int64Var(&limits.MaximumCyclesPerTask, "max-cycles-per-task", limits.MaximumCyclesPerTask, "maximum supervisor cycles per task")
+	cmd.Flags().Int64Var(&limits.MaximumTotalCycles, "max-total-cycles", limits.MaximumTotalCycles, "maximum supervisor cycles across the queue")
+	cmd.Flags().Int64Var(&limits.MaximumRemoteTokens, "max-remote-tokens", limits.MaximumRemoteTokens, "maximum recorded remote model tokens")
+	cmd.Flags().Int64Var(&limits.MaximumCostMicrousd, "max-cost-microusd", limits.MaximumCostMicrousd, "maximum recorded API cost in millionths of a US dollar")
+	cmd.Flags().DurationVar(&limits.MaximumDuration, "max-duration", limits.MaximumDuration, "maximum foreground queue duration")
+	return cmd
+}
+
+func newSequentialQueueStatusCommand(opts Options) *cobra.Command {
+	reader := opts.SequentialQueueStatus
+	if reader == nil {
+		reader = app.SequentialQueueStatus
+	}
+	return &cobra.Command{
+		Use:   "status <operation-id>",
+		Short: "Show canonical queue limits, usage, outcomes, and terminal marker",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			status, err := reader(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, "", args[0])
+			if err != nil {
+				return err
+			}
+			return writeSequentialQueueStatus(cmd.OutOrStdout(), status)
+		},
+	}
+}
+
+func newSequentialQueueCancelCommand(opts Options) *cobra.Command {
+	canceller := opts.CancelSequentialQueue
+	if canceller == nil {
+		canceller = app.CancelSequentialQueue
+	}
+	return &cobra.Command{
+		Use:   "cancel <operation-id>",
+		Short: "Request cancellation of an exact active queue operation",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			status, replayed, err := canceller(cmd.Context(), app.Config{WorkDir: opts.WorkDir}, "", args[0])
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Queue cancellation: operation=%s replayed=%t status=%s\n", status.OperationID, replayed, status.Status); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+}
+
+func writeSequentialQueueResult(out io.Writer, result queue.Result) error {
+	if _, err := fmt.Fprintf(out, "Sequential queue: operation=%s stop=%s tasks=%d cycles=%d tokens=%d cost_microusd=%d peak_workers=%d replayed=%t terminal=%s gate=%s\n",
+		result.OperationID, result.StopReason, result.TasksStarted, result.CyclesConsumed,
+		result.RemoteTokensConsumed, result.CostMicrousdConsumed,
+		result.PeakSourceMutatingWorkers, result.Replayed, result.TerminalMarkerSHA256,
+		result.QualityGateStatus); err != nil {
+		return err
+	}
+	for _, outcome := range result.Outcomes {
+		if _, err := fmt.Fprintf(out, "Occurrence: sequence=%d id=%s task=%s external=%s run=%s outcome=%s cycles=%d tokens=%d cost_microusd=%d lease_reconciled=%t detail=%s\n",
+			outcome.OccurrenceSequence, outcome.OccurrenceID, outcome.TaskID,
+			outcome.ExternalTaskID, outcome.SchedulerRunID, outcome.Outcome,
+			outcome.CyclesConsumed, outcome.RemoteTokensConsumed,
+			outcome.CostMicrousdConsumed, outcome.LeaseReconciled,
+			oneLine(outcome.Detail)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeSequentialQueueStatus(out io.Writer, status queue.Status) error {
+	terminalAt := ""
+	if status.TerminalAt != nil {
+		terminalAt = cliTime(*status.TerminalAt)
+	}
+	if _, err := fmt.Fprintf(out, "Sequential queue status: operation=%s status=%s stop=%s terminal=%s terminal_at=%s\nLimits: tasks=%d cycles_per_task=%d total_cycles=%d tokens=%d cost_microusd=%d duration=%s workers=%d mode=%s gate=%s\nUsage: tasks=%d cycles=%d tokens=%d cost_microusd=%d peak_workers=%d\n",
+		status.OperationID, status.Status, status.StopReason, status.TerminalMarkerSHA256,
+		terminalAt, status.Configuration.Limits.MaximumTasks,
+		status.Configuration.Limits.MaximumCyclesPerTask,
+		status.Configuration.Limits.MaximumTotalCycles,
+		status.Configuration.Limits.MaximumRemoteTokens,
+		status.Configuration.Limits.MaximumCostMicrousd,
+		status.Configuration.Limits.MaximumDuration,
+		status.Configuration.MaximumWorkers, status.Configuration.WorkerMode,
+		status.Configuration.QualityGateStatus, status.TasksStarted,
+		status.CyclesConsumed, status.RemoteTokensConsumed,
+		status.CostMicrousdConsumed, status.PeakSourceMutatingWorkers); err != nil {
+		return err
+	}
+	for _, outcome := range status.Outcomes {
+		if _, err := fmt.Fprintf(out, "Occurrence: sequence=%d id=%s task=%s outcome=%s result=%s\n",
+			outcome.OccurrenceSequence, outcome.OccurrenceID, outcome.TaskID,
+			outcome.Outcome, outcome.ResultSHA256); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func newRunCommand(opts Options) *cobra.Command {

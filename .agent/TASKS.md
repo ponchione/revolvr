@@ -5,12 +5,12 @@
 - The current implementation authority is the numbered sequence under
   `.agent/tasks/architecture-001` through `architecture-025`, with the approved
   compatibility task `architecture-016a` inserted between 016 and 017.
-- Architecture tasks 001-022 and planning task PTC-001 are completed.
-- The next and only task is `architecture-023-sequential-queue`; its
-  architecture-022 prerequisite is complete.
-- Architectures 023-025 remain ordered by their existing dependency chain.
-- Architecture 022 was completed without selecting or beginning architecture
-  023 in the same pass.
+- Architecture tasks 001-023 and planning task PTC-001 are completed.
+- The next and only dependency-satisfied pending task is
+  `architecture-024-ui`; its architecture-023 prerequisite is complete.
+- Architecture 025 remains ordered behind Architecture 024.
+- Architecture 023 was completed without selecting or beginning Architecture
+  024 in the same pass.
 - The legacy external-readiness backlog below is deferred while this canonical
   architecture sequence is active; its unchecked entries are not the current
   fresh-pass selector.
@@ -46,10 +46,15 @@
   All 20 Section 23.1 scenarios, closed worker-mode refusal, byte-stable
   baselines, recovery, retrieval, safety, and immutable authority contracts
   are recorded under `evals/` and `internal/evaluation`.
-- [ ] Architecture 023 — implement the sequential queue. **Next and only
-  selectable task.**
-- Architecture 024-025 — pending behind architecture 023 and then ordered by
-  their recorded dependencies; do not select a successor in the same pass.
+- [x] Architecture 023 — implement the bounded sequential queue. The canonical
+  PostgreSQL queue is foreground-only, pins `direct_tools_v1`, admits exactly
+  one global source-mutating worker, and remains closed to real-project starts
+  while the Section 23.3 measured threshold is unset.
+- [ ] Architecture 024 — add the desktop operator UI. **Next and only
+  dependency-satisfied pending task; it was not begun in the Architecture 023
+  pass.**
+- Architecture 025 — pending behind Architecture 024; do not select a
+  successor in the same pass.
 
 ## Deferred Programmatic Workspace And Continual Harness Sequence
 

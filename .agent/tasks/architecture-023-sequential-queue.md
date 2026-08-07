@@ -1,6 +1,6 @@
 ---
 id: architecture-023-sequential-queue
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-022-deterministic-eval-suite
@@ -11,7 +11,7 @@ depends_on: architecture-022-deterministic-eval-suite
 ## Sequence and status
 
 - Sequence: `023` of `025`.
-- Status: pending.
+- Status: completed.
 - Prerequisite: `architecture-022-deterministic-eval-suite`.
 - Phase gate: Phase 10 queue work begins only after deterministic recovery,
   scope, sandbox, and false-completion scenarios pass. Real-project queue use

@@ -1,5 +1,51 @@
 # Agent Decisions
 
+## The Canonical Queue Is Foreground, Sequential, Exact, And Gate-Closed (2026-08-07)
+
+- A queue is one operator-started UUIDv7 operation with immutable canonical
+  JSON configuration and finite task, per-task-cycle, total-cycle, remote-
+  token, micro-USD, and duration bounds. Its only worker mode is
+  `direct_tools_v1`, its maximum source-mutating workers is exactly one, and a
+  PostgreSQL uniqueness constraint permits only one active canonical queue.
+  There is no queue daemon, parallelism setting, implicit start, or legacy
+  autonomous-queue substitution.
+- Task-009 `scheduler.Select` remains the sole selector. The queue writes a
+  stable occurrence/scheduler-run selection intent before calling it, persists
+  the exact returned candidate, and then pins that occurrence through
+  admission, bounded execution, terminal-for-now persistence, lease release,
+  and checkpoint. Only after checkpoint may the queue rebuild and revalidate
+  the graph. A read-only queue-state projection may classify why no candidate
+  exists but has no selection or ordering authority.
+- Every supervisor, worker, verification, audit, correction, and completion
+  effect has a stable per-occurrence identity, material SHA-256, persisted
+  intent, completion evidence SHA-256, and contiguous sequence. Result and
+  effect-chain hashes freeze the occurrence; a terminal marker freezes the
+  ordered results, usage, peak workers, stop reason, configuration, and time.
+  Recovery resumes only an exact unresolved identity. Exact terminal replay
+  performs no work, while changed/unknown/incomplete evidence fails closed.
+- Yielding `blocked`, `needs_input`, `dependency_waiting`, or
+  `task_budget_exhausted` completes and checkpoints the current occurrence;
+  it never rewrites priority or keeps a stale batch. Unrelated ready work can
+  then be selected canonically. Drained, dependency wait, input wait, all
+  blocked, exact budget, cancellation, unsafe, and system failure are the
+  complete closed set of terminal queue reasons.
+- The existing singleton `global-source-mutation-v1` scheduler lease decides
+  concurrent direct-run/queue admission. The winner alone owns the active run;
+  the loser receives the typed lease-busy result. Queue cancellation is
+  durable, cancels the cooperative child context, requires workspace/evidence
+  reconciliation, releases the lease, checkpoints the typed result, and only
+  then emits the terminal marker.
+- Architecture 017 verification, Architecture 018 completion, Architecture
+  019 audit/correction, Architecture 020 exact Qwen degradation/no-fallback,
+  Architecture 021 exact-first retrieval/context, and Architecture 022
+  closed-mode/golden contracts remain authoritative application boundaries.
+  The queue coordinates them but does not reproduce or weaken them.
+- `deterministic_evaluation_only` is the sole stored quality-gate status.
+  Section 23.3 real-project thresholds remain unset, so a production CLI start
+  without an explicitly injected admitted executor fails before database or
+  worker effects. Deterministic verification is not relabeled as real-project
+  queue dogfood and cannot manufacture gate approval.
+
 ## Deterministic Evaluation Has Closed Modes And Reviewable Evidence (2026-08-07)
 
 - `worker_execution_mode` is a closed authority dimension.
