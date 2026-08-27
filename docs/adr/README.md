@@ -1,7 +1,9 @@
 # Architecture Decision Records
 
-These accepted ADRs materialize the canonical decisions in Section 4 of
+These ADRs materialize the canonical decisions in Section 4 of
 [`REVOLVR_CANONICAL_ARCHITECTURE_SPEC.md`](../../REVOLVR_CANONICAL_ARCHITECTURE_SPEC.md).
+ADR-025 is the current product-interface and harness direction; superseded
+ADRs remain listed as history.
 
 1. [ADR-001 — Product Name](001-product-name.md)
 2. [ADR-002 — Single-User Local-First Product](002-single-user-local-first-product.md)
@@ -27,3 +29,4 @@ These accepted ADRs materialize the canonical decisions in Section 4 of
 22. [ADR-022 — Manual Queue Start Before Daemon Mode](022-manual-queue-start-before-daemon-mode.md)
 23. [ADR-023 — Prompt and Policy Immutability During a Run](023-prompt-and-policy-immutability-during-a-run.md)
 24. [ADR-024 — Verification Is Host-Owned](024-verification-is-host-owned.md)
+25. [ADR-025 — Terminal-First Product and Simplified Harness](025-terminal-first-simplified-harness.md)

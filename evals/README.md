@@ -18,7 +18,9 @@ install, or ambient credential.
 `direct_tools_v1` is the only admitted mode. The reserved
 `programmatic_workspace_v1` value returns the typed
 `not_implemented_not_admitted` refusal before fixture source, model, sandbox,
-or acceptance effects. It is never substituted with direct-tool behavior.
+or acceptance effects. It is retained only as a historical compatibility
+fixture, is never substituted with direct-tool behavior, and has no current
+implementation roadmap under ADR-025.
 
 The golden records measured deterministic-fixture baselines. Token fields are
 null with explicit omissions because the fakes report no model usage. Logical

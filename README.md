@@ -5,6 +5,22 @@ repo-owned Markdown tasks under `.agent/tasks/*.md`. It keeps local runtime
 state under `.revolvr/`, launches fresh Codex executions for work passes,
 verifies the resulting work, records run history, and commits verified changes.
 
+Revolvr is terminal-first. Its CLI and existing Bubble Tea TUI are the product
+surface; no desktop GUI, Wails/Vue frontend, embedded web server, or local
+REST/SSE interface is planned. The TUI reuses the same Go application services
+as the CLI and owns no business logic. Codex CLI interaction patterns are
+inspiration only—Revolvr does not clone, vendor, port, or depend on Codex
+source.
+
+Direct tool execution is the default harness. Do not add custom Python
+environments, `python_exec`, scratch runtimes, Python skill systems, or
+refinement infrastructure without measured dogfood evidence that direct tools
+fail and a small prototype proving the need. Revolvr's "brain" means only
+durable project knowledge, typed relationships, retrieval, prior evidence, and
+provenance-bearing context assembly. Canonical truth remains in the existing
+Go/PostgreSQL ledger and artifact model; Graphiti is optional and deferred
+unless real usage proves a concrete gap in that brain.
+
 ## Setup
 
 Requirements:
@@ -182,6 +198,10 @@ admitted artifact ranges, and a reserved trajectory-range boundary.
 - [`docs/architecture/code-indexing-context-assembly.md`](docs/architecture/code-indexing-context-assembly.md)
   records Architecture 021 schema, recovery, retrieval/context contracts, exact
   model evidence, real-project metrics, and the active embedding selection.
+- [ADR-025](docs/adr/025-terminal-first-simplified-harness.md) records the
+  terminal-first product and simplified direct-tools harness direction.
+- [`REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md`](REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md)
+  is retained only as explicitly superseded architectural history.
 - [`docs/attended-developer-alpha.md`](docs/attended-developer-alpha.md) is the
   bounded source-build path for attended evaluation in disposable or
   recoverable repositories; it is explicitly not a release or external-use
@@ -768,6 +788,12 @@ Open the interactive terminal UI from the repository root:
 go run ./cmd/revolvr tui
 ```
 
+This Bubble Tea interface is the operator UI refined by Architecture 024. The
+dashboard centers the latest canonical run-event transcript, with a compact
+task/run/safety status, command composer and typed operator responses, command
+discovery, and focused diff/evidence/approval views over existing app services
+and dependencies.
+
 The TUI shows the same app-backed state as the CLI: task counts, task details,
 recent runs, run diagnostics, artifacts, receipt validation results, preflight
 readiness checks, and a live progress pane while a TUI-started operation is
@@ -791,6 +817,11 @@ option or recommendation is preselected, and submission requires an explicit
 choice plus confirmation. Press `c` to request cancellation of the active
 TUI-started run, loop, task run, or queue, `v` in Run Detail to validate the
 loaded receipt, `r` to refresh, and `?` for in-app key help.
+Press `/` to open the command composer. `/diff`, `/evidence`, and `/approval`
+open the focused views; `d`, `e`, and `A` are their keyboard shortcuts. A
+waiting typed question can also be answered with `/answer <option-id>` and the
+explicit confirmation that follows. `esc` returns from a focused view, and all
+focused content remains scrollable at narrow terminal widths.
 
 Current limitations: the TUI is still a local terminal view over the same
 runtime and `.agent/tasks/*.md` task state. It does not verify/create/reopen

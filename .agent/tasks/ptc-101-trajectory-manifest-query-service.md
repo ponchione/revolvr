@@ -1,12 +1,29 @@
 ---
 id: ptc-101-trajectory-manifest-query-service
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-025-memory-graphiti-phase-gate
 ---
 
 # Add the append-only trajectory manifest and bounded query service
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- Existing canonical capabilities already provide the proposed value:
+  PostgreSQL `core.events` and `core.artifacts` retain ordered events and
+  content identities; `internal/ledger` provides append-only event order,
+  exact run/task queries, and read-only snapshots; `ledger.RunArtifactsFromEvents`
+  resolves run artifacts; `app.RunTimeline` projects run events; and receipt
+  validation binds outcomes, verification, commits, changed files, and
+  artifacts back to ledger evidence.
+- No dogfood evidence identifies a missing trajectory query that justifies a
+  second manifest/query subsystem. A future concrete query gap should be one
+  narrow task against these existing stores, not a revived PTC chain.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

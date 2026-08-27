@@ -16,3 +16,5 @@ A future Graphiti integration may consume accepted documents, tasks, runs, findi
 
 - Any Graphiti projection is derived from accepted canonical inputs and may only improve retrieval.
 - Lifecycle authorization and state remain outside Graphiti.
+- ADR-025 keeps Graphiti deferred unless real usage proves a concrete gap in
+  the existing brain; no implementation is currently planned.

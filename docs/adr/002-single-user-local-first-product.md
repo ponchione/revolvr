@@ -4,6 +4,9 @@
 - Date: 2026-08-03
 - Source: Section 4, “ADR-002 — Single-User Local-First Product,” in [`REVOLVR_CANONICAL_ARCHITECTURE_SPEC.md`](../../REVOLVR_CANONICAL_ARCHITECTURE_SPEC.md)
 
+> ADR-025 supersedes only the loopback-API allowance below. That clause remains
+> historical; no local API or local API secret is currently planned.
+
 ## Context
 
 Revolvr is designed for one operator on a local machine, not for a multi-user service.

@@ -1,12 +1,21 @@
 ---
 id: ptc-105-versioned-python-skills
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-108a-base-programmatic-workspace-evaluation
 ---
 
 # Add versioned, tested, hash-pinned Python skills
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- A Python skill system is speculative under the direct-tools harness and is
+  not planned without measured dogfood evidence and a small prototype.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

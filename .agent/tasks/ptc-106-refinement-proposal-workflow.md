@@ -1,12 +1,22 @@
 ---
 id: ptc-106-refinement-proposal-workflow
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-105-versioned-python-skills
 ---
 
 # Add the evidence-backed refinement proposal workflow
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- No custom refinement/activation infrastructure is planned for the existing
+  direct-tools harness without measured failure evidence and a small
+  prototype.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

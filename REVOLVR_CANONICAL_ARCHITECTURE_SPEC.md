@@ -1,7 +1,7 @@
 # Revolvr — Canonical Architecture and Product Specification
 
-**Status:** Canonical architecture baseline\
-**Version:** 0.1\
+**Status:** Canonical architecture baseline, amended by ADR-025\
+**Version:** 0.2\
 **Date:** 2026-08-03\
 **Primary audience:** Project owner, implementation agents, task-generation agents, and future maintainers\
 **Intended use:** Convert this specification into epics, implementation plans, bounded tasks, acceptance criteria, verification suites, and architectural decision records\
@@ -29,6 +29,17 @@ The resulting system is not an “AI swarm,” a hosted agent platform, or a gen
 10. Remains understandable, recoverable, and maintainable for years.
 
 This document is deliberately detailed. It should serve as the root source for generating the project backlog.
+
+## Current Direction Amendment — 2026-08-27
+
+[ADR-025](docs/adr/025-terminal-first-simplified-harness.md) supersedes the
+desktop/web direction in ADR-020 and ADR-021 and the separate programmatic-
+workspace roadmap. Revolvr is terminal-first: extend the existing Bubble Tea
+TUI over shared Go application services, keep direct tools as the default
+harness, keep canonical truth in the existing Go/PostgreSQL ledger and artifact
+model, and treat Graphiti only as a deferred evidence gate. Historical text is
+retained where explicitly labeled; current phase, UI, API, and task-generation
+sections below reflect the amendment.
 
 ---
 
@@ -80,7 +91,7 @@ OpenAI Responses API
 Local embedding service
 Rootless OCI containers
 Optional gVisor sandbox runtime
-Vue 3 + TypeScript desktop/web UI
+Bubble Tea terminal UI
 ```
 
 The system must remain sequential. It may manage a queue of tasks, but only one source-mutating task may execute at a time. Parallel workers, swarms, and concurrent mutation are explicit non-goals.
@@ -208,6 +219,12 @@ The following are out of scope unless this specification is intentionally revise
 - Shunter integration.
 - LanceDB integration.
 - Neo4j or Graphiti as a launch dependency.
+- Desktop GUI, Wails, Vue, or a browser frontend.
+- An embedded web server or local REST/SSE application interface.
+- Cloning, vendoring, porting, or depending on Codex source.
+- A custom Python execution environment, scratch runtime, Python skill system,
+  or harness-refinement framework without measured direct-tool failure evidence
+  and a separate small prototype.
 - Local coding models as the primary reasoning engine.
 - Automatic production deployment.
 - Automatic release publication.
@@ -368,7 +385,8 @@ Revolvr is built exclusively for one local operator.
 
 No user table, organization table, team table, membership table, or remote authentication system will be created.
 
-A small local API secret may still be used to protect the loopback API from accidental local access; this is transport protection, not a user-account system.
+Terminal clients call shared application services in-process; there is no local
+web API or transport-secret requirement.
 
 ## ADR-003 — Remove Shunter Entirely
 
@@ -521,7 +539,8 @@ PostgreSQL stores artifact metadata and hashes. A future object-store adapter ma
 
 Typed project relationships initially live in PostgreSQL tables.
 
-Graphiti, Neo4j, or FalkorDB are deferred dogfooding experiments.
+Graphiti, Neo4j, or FalkorDB are deferred to ADR-025's evidence gate. Do not
+run an experiment merely for architectural completeness.
 
 ## ADR-018 — Graphiti Is Optional and Derived
 
@@ -537,19 +556,24 @@ Do not rebuild the entire system around event sourcing.
 
 State transitions should atomically update current state and append the associated durable event.
 
-## ADR-020 — CLI First, Desktop UI Second
+## ADR-020 — CLI First, Desktop UI Second — Superseded
 
-The core must be fully operable from the CLI.
+Historical decision: the core must be fully operable from the CLI.
 
 The desktop UI should use the same application service interfaces and must not contain unique business logic.
 
 The preferred desktop stack is Wails + Vue 3 + TypeScript.
 
-## ADR-021 — REST + Server-Sent Events
+ADR-025 supersedes the desktop portion. The CLI/TUI remain the product surface.
 
-Use local REST APIs for commands and queries.
+## ADR-021 — REST + Server-Sent Events — Superseded
+
+Historical decision: use local REST APIs for commands and queries.
 
 Use Server-Sent Events for progress/event streaming unless a concrete requirement proves WebSockets necessary.
+
+ADR-025 supersedes this interface. Terminal clients call shared Go application
+services in-process; no local REST/SSE surface is planned.
 
 ## ADR-022 — Manual Queue Start Before Daemon Mode
 
@@ -571,6 +595,20 @@ The implementing agent does not gain authority by editing tests, scripts, or ver
 
 Changes to verification authority must be detected and either rejected or escalated.
 
+## ADR-025 — Terminal-First Product and Simplified Harness
+
+Revolvr is terminal-first. Extend the existing Bubble Tea TUI over shared Go
+application services and installed dependencies; do not add a desktop GUI,
+embedded web server, or local REST/SSE interface.
+
+Codex CLI interaction style is inspiration only, never a source dependency.
+The brain is durable project knowledge, relationships, retrieval, prior
+evidence, and provenance-bearing context assembly. Canonical truth remains in
+the existing Go/PostgreSQL ledger and artifact model. Graphiti remains optional
+and evidence-gated. Direct tools remain the default harness; custom Python
+runtime and refinement work requires measured failure evidence plus a separate
+small prototype.
+
 ---
 
 # 5. High-Level System Context
@@ -579,7 +617,7 @@ Changes to verification authority must be detected and either rejected or escala
 +-------------------------------------------------------------------+
 |                           Local Operator                           |
 |                                                                   |
-| CLI / Wails desktop UI / Markdown task imports                     |
+| CLI / Bubble Tea TUI / Markdown task imports                       |
 +-------------------------------+-----------------------------------+
                                 |
                                 v
@@ -627,8 +665,8 @@ Changes to verification authority must be detected and either rejected or escala
 
 ## 6.1 Trusted Components
 
-- Revolvr CLI and desktop launcher.
-- Revolvr API/control plane.
+- Revolvr CLI and TUI process.
+- Revolvr application services/control plane.
 - PostgreSQL.
 - Sandbox manager.
 - Policy engine.
@@ -674,7 +712,7 @@ No untrusted component receives:
 
 ```text
 Host
-├── revolvr CLI / Wails launcher
+├── revolvr CLI / Bubble Tea TUI
 ├── revolvr-sandboxd
 ├── rootless container runtime
 └── managed data root
@@ -685,8 +723,7 @@ Host
     ├── models/
     └── runtime/
 
-Persistent control stack
-├── revolvr-api
+Persistent data services
 ├── postgres + pgvector
 └── embedding-service
 
@@ -698,7 +735,7 @@ Ephemeral
 
 ## 7.2 Why a Small Host Sandbox Manager Exists
 
-Granting a general web/API container access to a container runtime socket creates a powerful host-control path.
+Granting a general control process access to a container runtime socket creates a powerful host-control path.
 
 Instead, a minimal trusted `revolvr-sandboxd` process should run as the local user and expose a narrow Unix-socket API.
 
@@ -732,20 +769,13 @@ It must reject:
 
 The model never calls `sandboxd` directly.
 
-## 7.3 Control Stack Containerization
+## 7.3 Local Data Services
 
-The persistent control stack should be started through Docker Compose or an equivalent local composition tool.
+PostgreSQL and the optional embedding service may be started through Docker
+Compose or an equivalent local composition tool. The Revolvr CLI/TUI remains a
+foreground host process rather than an embedded server.
 
 The stack should include:
-
-### `revolvr-api`
-
-- Go control-plane service.
-- Loopback-only or Unix-socket exposure.
-- OpenAI API access.
-- PostgreSQL access.
-- Artifact-store access.
-- No direct arbitrary host filesystem access.
 
 ### `postgres`
 
@@ -849,10 +879,8 @@ Mutable tags alone are not sufficient evidence.
 revolvr/
 ├── cmd/
 │   ├── revolvr/
-│   ├── revolvr-api/
 │   └── revolvr-sandboxd/
 ├── internal/
-│   ├── api/
 │   ├── app/
 │   ├── artifact/
 │   ├── audit/
@@ -898,9 +926,6 @@ revolvr/
 │   ├── images/
 │   ├── profiles/
 │   └── seccomp/
-├── web/
-│   ├── src/
-│   └── package.json
 ├── compose/
 │   ├── compose.yaml
 │   └── compose.dev.yaml
@@ -1467,6 +1492,10 @@ Project memory consists of human-readable durable documents:
 Documents may be imported from the repository or created by Revolvr.
 
 Canonical document bytes should be stored as artifacts or controlled files with database metadata.
+
+Together with typed relationships, retrieval, prior evidence, and
+provenance-bearing context assembly, this is Revolvr's narrowly defined brain.
+It is context, not canonical lifecycle authority.
 
 ## 9.23 Relationship Graph
 
@@ -3022,44 +3051,35 @@ revolvr restore
 revolvr eval run
 ```
 
-## 24.2 Desktop UI
+## 24.2 Terminal UI
 
-Primary views:
+Refine the existing Bubble Tea TUI around:
 
-- Dashboard.
-- Projects.
-- Task backlog.
-- Task compiler/review.
-- Active run.
-- Plan and criteria.
-- Diff.
-- Verification.
-- Audit findings.
-- Context inspector.
-- Evidence browser.
-- Model usage.
-- System health.
-- Settings.
+- transcript and run events,
+- command composition and typed operator responses,
+- compact status/footer information,
+- a command palette or slash-command equivalent,
+- focused diff, evidence, and approval views.
+
+Codex CLI interaction patterns are inspiration only. Do not clone, vendor,
+port, or depend on Codex source.
 
 ## 24.3 No Hidden UI State
 
-All task/run state displayed by the UI comes from canonical APIs.
+All task/run state displayed by the TUI comes from shared Go application
+services and canonical stores.
 
-The UI must not infer lifecycle truth from local component state.
+The TUI must not infer lifecycle truth from local component state or contain
+business logic.
 
 ---
 
-# 25. Local API Security
+# 25. No Local Web/API Surface
 
-Even without user accounts:
-
-- bind to loopback or Unix socket,
-- generate a local installation secret,
-- require it for mutating API calls,
-- protect against browser-origin request abuse,
-- reject external binding by default,
-- do not expose PostgreSQL publicly,
-- do not expose the container runtime API over TCP.
+Revolvr does not plan an embedded web server, browser frontend, or local
+REST/SSE command/query interface. CLI and TUI commands call the same Go
+application services in-process. PostgreSQL and the container runtime remain
+unexposed to browser or public-network clients.
 
 ---
 
@@ -3121,7 +3141,7 @@ Recovery must reconcile actual external effects rather than trusting a mutable c
 
 ---
 
-# 27. Graph Memory and Graphiti Roadmap
+# 27. Existing Brain and Optional Graph Evidence Gate
 
 ## 27.1 What Exists First
 
@@ -3135,9 +3155,10 @@ This already supports many useful questions:
 - Which files changed during this strategy?
 - Which decision superseded another decision?
 
-## 27.2 When Graphiti Becomes Worthwhile
+## 27.2 Evidence Required Before Any Graph Prototype
 
-Consider Graphiti after Revolvr has accumulated enough history that relational queries and hybrid retrieval struggle with:
+Graphiti remains deferred unless substantial real usage repeatedly proves that
+the existing brain cannot handle:
 
 - entity aliases,
 - temporal fact supersession,
@@ -3145,20 +3166,11 @@ Consider Graphiti after Revolvr has accumulated enough history that relational q
 - repeated architectural evolution,
 - large volumes of decisions and failure history.
 
-## 27.3 Dogfood Integration Shape
-
-```text
-Canonical PostgreSQL + artifacts
-            |
-            v
-Graph projection worker
-            |
-            v
-Graphiti / graph database
-            |
-            v
-Optional retrieval lane
-```
+The evidence must include exact failed queries, source provenance, baseline
+metrics, and proof that a smaller relational or retrieval improvement is
+insufficient. Missing evidence produces deferral. If every gate passes, a
+separate task may authorize only a small removable comparison prototype; no
+Graphiti implementation is planned by this specification.
 
 ## 27.4 Graphiti Authority
 
@@ -3174,19 +3186,14 @@ Graphiti cannot:
 - authorize actions,
 - complete tasks.
 
-## 27.5 Python Policy
+## 27.5 Harness Policy
 
-Python services are allowed behind versioned interfaces when they add measurable value.
-
-Potential Python services:
-
-- Graphiti projection,
-- reranking,
-- embedding evaluation,
-- specialized parsing,
-- offline analytics.
-
-They do not own canonical state.
+Direct tools remain the default harness. Do not create a custom Python
+environment, `python_exec`, scratch runtime, Python skill system, or refinement
+infrastructure merely to support an optional graph or for architectural
+completeness. Such work requires measured dogfood evidence that the current
+approach fails and a separate small prototype demonstrating the need. It can
+never own canonical state.
 
 ---
 
@@ -3235,7 +3242,7 @@ Preserve or adapt:
 - brain/project knowledge concepts,
 - tool registry design,
 - changed-file guardrails,
-- desktop operator experience.
+- terminal operator experience patterns, without porting source.
 
 ## 28.3 Revolvr Code Not to Preserve Blindly
 
@@ -3470,28 +3477,22 @@ Definition of done:
 - evidence sources resolve.
 - memory cannot mutate lifecycle authority.
 
-## Phase 9 — Desktop UI and Observability
+## Phase 9 — Terminal Operator Workflow
 
 Deliverables:
 
-- Wails/Vue application,
-- dashboard,
-- task review,
-- active run,
-- diff,
-- verification,
-- audit,
-- context inspector,
-- evidence browser,
-- SSE progress,
-- health diagnostics.
+- transcript/run-event view,
+- command composer and typed operator-response flow,
+- compact status/footer,
+- command palette or slash-command equivalent,
+- focused diff, evidence, and approval views.
 
 Definition of done:
 
-- All core CLI state is visible.
-- UI contains no unique lifecycle logic.
-- active runs stream progress.
-- operator can answer needs-input questions.
+- Existing application services and dependencies are reused.
+- TUI state is canonical and contains no business logic.
+- Active runs and operator responses are usable from the keyboard.
+- No desktop or local web/API surface is introduced.
 
 ## Phase 10 — Sequential Queue and Recovery Hardening
 
@@ -3513,7 +3514,7 @@ Definition of done:
 - crash recovery is deterministic.
 - no parallel workers exist.
 
-## Phase 11 — Graphiti Dogfood Experiment
+## Phase 11 — Existing-Brain Evidence Gate
 
 Entry criteria:
 
@@ -3521,20 +3522,17 @@ Entry criteria:
 - baseline retrieval metrics,
 - clear multi-hop retrieval failures.
 
-Deliverables:
-
-- optional Python projection service,
-- Graphiti adapter,
-- source-grounded graph retrieval,
-- A/B evaluation,
-- removal path.
+Deliverable: one evidence-backed `defer` decision unless real usage proves a
+repeated concrete gap in the existing project knowledge, relationship,
+retrieval, prior-evidence, and context-assembly brain. If all evidence exists,
+authorize at most a separate small comparison prototype; do not implement or
+plan Graphiti in this phase.
 
 Definition of done:
 
-- graph retrieval measurably improves selected evals,
-- every fact carries provenance,
-- system works without Graphiti,
-- no canonical authority moved into graph storage.
+- every claimed gap resolves to exact usage and source evidence,
+- absent or inconclusive evidence produces deferral,
+- canonical Go/PostgreSQL ledger and artifact authority is unchanged.
 
 ## Phase 12 — Unattended Daemon Consideration
 
@@ -3709,9 +3707,10 @@ Mitigation:
 
 **Default:** Configuration and evaluation determine this. Do not make model names part of the domain model.
 
-## Q7. Is the desktop UI required for v1?
+## Q7. Is a desktop UI planned?
 
-**Default:** No. CLI completion is the v1 gate. Desktop UI follows after the core loop is trustworthy.
+**Default:** No. Revolvr is terminal-first and extends its existing Bubble Tea
+TUI.
 
 ## Q8. Does Revolvr automatically export successful commits?
 
@@ -3723,7 +3722,8 @@ Mitigation:
 
 ## Q10. Should Graphiti be included from day one?
 
-**Default:** No. Preserve a clean projection interface and dogfood it later.
+**Default:** No. Keep Graphiti deferred unless real usage proves a concrete
+gap in the existing brain.
 
 ---
 
@@ -3739,7 +3739,8 @@ When generating implementation tasks from this specification:
 6. Create interfaces before multiple implementations.
 7. Create fixture-based tests alongside domain state machines.
 8. Prefer vertical slices that can be dogfooded.
-9. Do not generate Graphiti, daemon, or parallel-worker tasks before their phase gates.
+9. Do not generate Graphiti work without the Phase 11 evidence gate, or daemon
+   or parallel-worker tasks before their phase gates.
 10. Do not introduce Shunter, LanceDB, SQLite, or multi-user concerns.
 11. Every security-sensitive task must include abuse-case tests.
 12. Every lifecycle task must include illegal-transition tests.
@@ -3749,6 +3750,9 @@ When generating implementation tasks from this specification:
 16. Every database task must include migration and transaction tests.
 17. Every retrieval task must include quality fixtures, not only unit tests.
 18. Every completion task must include false-completion rejection tests.
+19. Do not generate custom Python workspace, `python_exec`, scratch-runtime,
+    Python-skill, or refinement tasks without measured direct-tool failure
+    evidence and a separate small prototype.
 
 ---
 
@@ -3846,8 +3850,8 @@ When generating implementation tasks from this specification:
 ## Epic J — Operator Experience
 
 - CLI,
-- SSE,
-- Wails/Vue UI,
+- Bubble Tea TUI,
+- transcript and command workflow,
 - context/evidence inspector,
 - system diagnostics.
 
@@ -4781,70 +4785,17 @@ type Embedder interface {
 
 ---
 
-# 41. Local API Surface
+# 41. In-Process Application Service Surface
 
-The exact URL structure may evolve. The important point is separation between command and query operations.
+CLI and TUI presentations reuse the same Go application commands and queries
+in-process. These services own project, task, run, queue, artifact, evidence,
+approval, and operator-response operations. Presentation code may compose and
+render them but may not duplicate lifecycle, policy, scheduling, verification,
+or completion rules.
 
-## 41.1 Project Endpoints
-
-```text
-POST   /api/projects
-GET    /api/projects
-GET    /api/projects/{id}
-POST   /api/projects/{id}/refresh
-POST   /api/projects/{id}/index
-POST   /api/projects/{id}/baseline
-```
-
-## 41.2 Task Endpoints
-
-```text
-POST   /api/tasks/import
-POST   /api/tasks/compile
-POST   /api/tasks/{id}/approve
-GET    /api/tasks
-GET    /api/tasks/{id}
-GET    /api/tasks/{id}/why
-POST   /api/tasks/{id}/run
-POST   /api/tasks/{id}/cancel
-POST   /api/tasks/{id}/answer
-```
-
-## 41.3 Run Endpoints
-
-```text
-GET    /api/runs
-GET    /api/runs/{id}
-GET    /api/runs/{id}/events
-GET    /api/runs/{id}/context
-GET    /api/runs/{id}/diff
-GET    /api/runs/{id}/verification
-GET    /api/runs/{id}/audit
-```
-
-## 41.4 Queue Endpoints
-
-```text
-POST   /api/queues
-GET    /api/queues/{id}
-POST   /api/queues/{id}/cancel
-```
-
-## 41.5 Artifact and Evidence Endpoints
-
-```text
-GET    /api/artifacts/{id}
-GET    /api/evidence/{id}
-GET    /api/completions/{task-id}
-```
-
-## 41.6 Event Stream
-
-```text
-GET /api/events/stream
-```
-
-SSE events contain stable event IDs so clients may resume.
+No HTTP routing, embedded server, REST endpoint, SSE stream, browser binding,
+or installation-secret protocol is planned. Stable ledger event and artifact
+identities remain the progress and transcript source.
 
 ---
 
@@ -4854,10 +4805,6 @@ SSE events contain stable event IDs so clients may resume.
 schema_version: revolvr-config-v1
 
 data_root: /home/mitchell/.local/share/revolvr
-
-api:
-  listen: 127.0.0.1:7437
-  local_secret_file: runtime/api-token
 
 database:
   url_env: REVOLVR_DATABASE_URL
@@ -5745,13 +5692,12 @@ Do not spend disproportionate effort migrating low-value telemetry from experime
 - no unbounded table scans in hot UI paths.
 - transaction isolation explicitly chosen.
 
-## 58.3 Frontend
+## 58.3 Terminal UI
 
-- TypeScript strict mode.
-- generated API types where practical.
-- no lifecycle inference.
-- accessible keyboard navigation.
-- state sourced from API.
+- Bubble Tea components already present in the repository.
+- no lifecycle inference or TUI-owned business logic.
+- accessible keyboard navigation and visible focus/status.
+- state sourced from shared application services and canonical evidence.
 
 ## 58.4 Security
 
@@ -5760,7 +5706,7 @@ Do not spend disproportionate effort migrating low-value telemetry from experime
 - symlink race tests.
 - unsafe container-spec tests.
 - secret-redaction tests.
-- local API request-origin tests.
+- application-service boundary tests.
 
 ## 58.5 Model Integration
 

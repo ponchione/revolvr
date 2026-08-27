@@ -1,5 +1,33 @@
 # Agent Decisions
 
+## Terminal-First Product And Simplified Harness (2026-08-27)
+
+- ADR-025 is current authority and supersedes ADR-020, ADR-021, the former
+  Architecture 024 desktop/queue phase gate, and the programmatic-workspace
+  roadmap. Those records remain historical evidence only.
+- Revolvr is terminal-first. Extend the existing Bubble Tea TUI and reuse the
+  existing Go application-service seam and installed terminal dependencies.
+  No desktop GUI, Wails/Vue frontend, embedded web server, or local REST/SSE
+  interface is planned, and business logic never moves into the TUI.
+- Codex CLI interaction style is inspiration only. Revolvr will not clone,
+  vendor, port, or depend on Codex source.
+- The brain means durable project knowledge, typed relationships, retrieval,
+  prior evidence, and provenance-bearing context assembly. Canonical truth
+  remains in Revolvr's existing Go/PostgreSQL ledger and artifact model.
+- Graphiti remains optional, derived, and evidence-gated. Architecture 025 is
+  an evidence-only decision after Architecture 024; absent concrete repeated
+  real-usage failures means defer, and the task itself plans or implements no
+  graph technology.
+- Direct tools remain the default harness. Custom Python environments,
+  `python_exec`, scratch runtimes, Python skills, and refinement infrastructure
+  are not planned without measured dogfood evidence that direct tools fail and
+  a separate small prototype demonstrating the need.
+- PTC-101 through PTC-108B are terminally superseded. PTC-101 duplicates
+  existing ordered PostgreSQL/ledger events, task/run queries, timeline,
+  receipt-validation, and artifact/provenance capability; no concrete gap was
+  found. The rest of the chain depends on speculative custom Python runtime
+  work and is not replaced.
+
 ## Codex Compatibility Uses Captured Identity, Not A Compiled Allowlist (2026-08-27)
 
 - The embedded single-build Codex release manifest is removed. A configured
@@ -22,7 +50,9 @@
   release-manifest decision. Historical task and state records remain evidence
   of the contract that existed when EXT-04 completed.
 
-## Architecture 024 Requires An Operable Real-Project Queue Gate (2026-08-07)
+## Historical Architecture 024 Queue Gate (superseded 2026-08-27)
+
+ADR-025 supersedes the following 2026-08-07 desktop-specific gate decision.
 
 - A completed file dependency is necessary but not sufficient for an
   architecture task with an explicit phase gate. Architecture 023 satisfies
@@ -98,7 +128,8 @@
 
 - `worker_execution_mode` is a closed authority dimension.
   `direct_tools_v1` is the sole implemented and admitted value.
-  `programmatic_workspace_v1` is reserved but returns the typed
+  `programmatic_workspace_v1` is retained only as a historical compatibility
+  value and returns the typed
   `not_implemented_not_admitted` refusal before reading source or invoking
   model, sandbox, acceptance, or any other scenario effect. It is never
   simulated with direct-tool behavior. The mode-neutral runner freezes one
@@ -283,7 +314,10 @@
   version, hash, coverage, artifact, and resolution authority through both
   preflight reads and terminal revalidation.
 
-## Programmatic Workspace Adoption Is Staged Before Skills (2026-08-06)
+## Historical Programmatic Workspace Roadmap (superseded 2026-08-27)
+
+ADR-025 supersedes the following staged roadmap. Its compatibility evidence
+remains historical; it grants no current implementation authority.
 
 - The supplemental programmatic-workspace specification remains subordinate to
   the accepted ADRs and canonical architecture. The completed direct-tool core

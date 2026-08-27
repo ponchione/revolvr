@@ -28,7 +28,8 @@ capsules.
 - ADR-016, ADR-019, ADR-023, and ADR-024.
 - Specification Sections 3.5, 9.16-9.18, 12.8, 18,
   29 Phase 5, 37.11, 39, 44.5, 48, and 56.5.
-- `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2,
+- The superseded
+  `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2,
   10.3, and 25-26 only as subordinate provenance compatibility requirements.
 
 ## Existing foundations to inspect

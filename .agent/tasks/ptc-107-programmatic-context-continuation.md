@@ -1,12 +1,21 @@
 ---
 id: ptc-107-programmatic-context-continuation
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-104-durable-scratch-catalog
 ---
 
 # Add externalized context querying, bounded continuation, and compaction provenance
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- Existing provenance-bearing context assembly and direct tools remain the
+  supported path; no custom programmatic continuation runtime is planned.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

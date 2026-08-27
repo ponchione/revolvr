@@ -1,6 +1,71 @@
 # Agent State
 
-## Attended Runtime Compatibility And Receipt Evidence Reconciled (2026-08-27)
+## Architecture 024 Terminal Operator Workflow Complete (2026-08-27)
+
+- Completed `architecture-024-ui` without beginning Architecture 025.
+- The Dashboard's principal content is the latest canonical run-event
+  transcript, using `app.Status`, `app.RunTimeline`, ledger event identities,
+  and existing run projections. Its compact line keeps the selected task, run
+  state, and verification/safety outcome visible.
+- `/` opens a command composer with discoverable slash commands for existing
+  views and actions. `/answer <option-id>` selects only a current typed
+  needs-input option and still requires explicit confirmation before the
+  existing `app.AnswerAutonomousInput` callback persists and resumes it.
+- Keyboard shortcuts `d`, `e`, and `A` open focused diff, evidence, and
+  approval views. They render canonical changed-file events, receipts,
+  artifacts, provenance, verification, acceptance, decisions, and typed input
+  already supplied by `ShowRun` and `ShowAutonomousTask`; the TUI adds no
+  lifecycle, scheduling, verification, approval, or completion authority.
+- Cancellation and refresh behavior remain shared with the existing run and
+  application callbacks. Focused content is scrollable, wraps at narrow
+  widths, exposes visible focus/confirmation, and returns with `esc`.
+- Reused the installed Bubble Tea/Bubbles/Lip Gloss dependencies and existing
+  app, ledger, receipt, artifact, queue, and operator-response seams. Added no
+  dependency, desktop/web surface, REST/SSE server, Graphiti, Python
+  infrastructure, or Codex source.
+- Verification passed: formatting under `internal/tui`, focused
+  `internal/tui`/`internal/app` tests, `go test ./...`, TUI help, and
+  `git diff --check`.
+- Architecture 025 is now the next runnable evidence-only gate. It remains
+  pending and was not executed; absent concrete brain-gap evidence means
+  defer Graphiti.
+
+## Terminal-First Roadmap Reset Before Architecture 024 (2026-08-27)
+
+- Recorded ADR-025 as the current direction, explicitly superseding ADR-020,
+  ADR-021, the former Architecture 024 desktop gate, and the programmatic-
+  workspace roadmap. Revolvr is terminal-first; no desktop GUI, Wails/Vue
+  frontend, embedded web server, or local REST/SSE interface is planned.
+- Architecture 024 keeps its ID/dependency position and is pending as the next
+  runnable task. It now refines the existing Bubble Tea TUI around a run-event
+  transcript, command composer and typed operator responses, compact status/
+  footer, command discovery, and focused diff/evidence/approval views. It must
+  reuse existing app services/dependencies and contain no business logic.
+- Codex CLI interaction patterns are inspiration only; Revolvr does not clone,
+  vendor, port, or depend on Codex source.
+- The brain is narrowly durable project knowledge, typed relationships,
+  retrieval, prior evidence, and provenance-bearing context assembly.
+  Canonical truth remains in the existing Go/PostgreSQL ledger and artifact
+  model.
+- Architecture 025 remains pending behind 024 as an evidence-only decision.
+  Graphiti stays deferred unless real usage proves a concrete repeated gap in
+  the existing brain and a smaller existing-lane improvement is insufficient.
+- PTC-101 through PTC-108B are terminal `superseded`. PTC-101 was not retained:
+  PostgreSQL events/artifacts, the append-only run ledger and ordered run/task
+  queries, `app.RunTimeline`, receipt validation, and artifact projections
+  already cover its proposed trajectory value, with no concrete missing query
+  in dogfood evidence. The Python workspace, `python_exec`, scratch, skills,
+  refinement, and evaluation chain is speculative and has no replacement.
+- Direct tools remain the default harness. Any future custom execution or
+  refinement work requires measured dogfood failure evidence and a separate
+  small prototype.
+- This reset changes documentation/task metadata only. The required
+  verification results are recorded in the handoff for the next fresh worker.
+
+## Historical Attended Runtime Reconciliation (superseded 2026-08-27)
+
+This maintenance record predates ADR-025. Its runtime evidence remains valid;
+its Architecture 024 selection conclusion does not.
 
 - Reviewed and completed the post-Architecture-024 uncommitted patch as one
   maintenance task. It does not change architecture ordering or satisfy the
@@ -35,7 +100,10 @@
 - Result: **PASS**. The active architecture sequence remains blocked at
   Architecture 024's Section 23.3 evidence/production-executor gate.
 
-## Architecture 024 Desktop UI Blocked At Phase Gate (2026-08-07)
+## Historical Architecture 024 Desktop Gate (superseded 2026-08-27)
+
+The following 2026-08-07 record is retained as historical evidence. ADR-025
+supersedes its desktop direction and phase-gate conclusion.
 
 - Task selected: `architecture-024-ui`. At pass entry it was the sole
   dependency-satisfied pending task: Architecture 023 is complete,
@@ -1126,7 +1194,8 @@
   `conversation` or `previous_response_id` is sent. Each transport attempt has
   a unique deterministic `X-Client-Request-Id` derived from the pinned logical
   request ID.
-- Typed SSE processing enforces an increasing event sequence and bounded total
+- Typed OpenAI Responses API SSE processing enforces an increasing event
+  sequence and bounded total
   stream and diagnostic bytes. Deltas and refusal fragments are redacted,
   bounded diagnostics only; the exact nested response from
   `response.completed` is canonical. The host requires a completed, non-stored,
@@ -5821,7 +5890,11 @@
   only then a separately confirmed live pass using the exact command retained
   in `.agent/HANDOFF.md`.
 
-## Current Focus
+## Historical External-Readiness Focus (deferred 2026-08-27)
+
+The following release-candidate record is historical and is not current task
+selection authority. At the roadmap reset, the active next task was
+Architecture 024.
 
 The audit backlog remains closed. A new working release gate now lives at
 `.agent/AUTONOMOUS_EXTERNAL_READINESS.md` for autonomous use in external
@@ -5879,7 +5952,8 @@ before/during/after transition seams for supervisor, worker, verification,
 commit, checkpoint, audit, finalization, queue reconciliation, notification,
 and archive publication. Every row binds exact durable replay, quarantine,
 readiness-level continuation, prohibited inference, and operator action.
-The next fresh task remains EXT-20. RC.1 and its remote evidence are immutable
+At that historical point, the next fresh task was EXT-20. RC.1 and its remote
+evidence are immutable
 rejected history after the omitted-work-directory defect. RC.2 and its fresh
 exact-commit CI/artifact attestation are also immutable rejected history after
 its first live operation exposed inconsistent source-lock default authority.
@@ -11090,7 +11164,10 @@ in a local pass. The matching local test and cross-build matrix passes.
 
 - Read `AGENTS.md` and `.agent/HANDOFF.md` first, then `.agent/TASKS.md`,
   `.agent/STATE.md`, and `.agent/DECISIONS.md` before acting.
-- Resume with the exact command recorded in `.agent/HANDOFF.md`; at this
-  boundary it is `./agent-ext20-rc3-attestation.sh`.
+- Start a fresh pass with the exact `codex exec` command recorded in
+  `.agent/HANDOFF.md`; inside that pass, run the exact read-only selector
+  `go run ./cmd/revolvr task list`.
+- Select only `architecture-025-memory-graphiti-phase-gate`; Architecture 024
+  is complete, the PTC chain is superseded, and the EXT backlog is deferred.
 - Do one bounded task, verify it, update durable state, and stop.
 - Do not use `codex resume` or depend on an old session transcript.

@@ -5,27 +5,28 @@
 - The current implementation authority is the numbered sequence under
   `.agent/tasks/architecture-001` through `architecture-025`, with the approved
   compatibility task `architecture-016a` inserted between 016 and 017.
-- Architecture tasks 001-023 and planning task PTC-001 are completed.
-- `architecture-024-ui` was the only dependency-satisfied pending task at the
-  start of its 2026-08-07 gate-revalidation pass. It is now blocked because
-  the Section 23.3 real-project quality threshold remains unset and ordinary
-  canonical `queue start` is deliberately unavailable without an injected
-  executor. A complete file dependency does not satisfy its Phase 9 gate.
-- Architecture 025 remains ordered behind the blocked Architecture 024.
+- Architecture tasks 001-024 and planning task PTC-001 are completed.
+- ADR-025 supersedes the former desktop/Wails/Vue/REST/SSE and custom Python
+  harness directions. Revolvr is terminal-first and uses direct tools by
+  default.
+- `architecture-024-ui` is completed. The Bubble Tea TUI now centers canonical
+  run events and provides the composer, typed responses, compact status,
+  command discovery, and focused diff/evidence/approval views over existing
+  application services and dependencies.
+- Architecture 025 is the next runnable evidence gate. It decides only whether
+  the existing brain has a concrete proven gap; it does not implement Graphiti.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
   reconciliation is complete maintenance, not a new architecture selector. It
   also normalized the two obsolete `complete` task statuses and restored
-  canonical graph loading. It does not satisfy or weaken the Architecture 024
-  phase gate.
+  canonical graph loading. It does not change the terminal-first reset.
 - Architecture 023 was completed without selecting or beginning Architecture
   024 in the same pass.
 - The legacy external-readiness backlog below is deferred while this canonical
   architecture sequence is active; its unchecked entries are not the current
   fresh-pass selector.
-- PTC-101 through PTC-108B are also blocked/deferred and are not fresh-pass
-  selectors. They cannot be changed to pending until architectures 001-025 and
-  initial core-loop dogfooding are complete and the exact phase-gate evidence
-  named by each task exists.
+- PTC-101 through PTC-108B are superseded terminal tasks and are not fresh-pass
+  selectors. Do not revive the chain; a future measured direct-tool failure
+  may justify one separate small prototype task.
 
 ## Rules
 
@@ -58,50 +59,28 @@
   PostgreSQL queue is foreground-only, pins `direct_tools_v1`, admits exactly
   one global source-mutating worker, and remains closed to real-project starts
   while the Section 23.3 measured threshold is unset.
-- [ ] Architecture 024 — add the desktop operator UI. **Blocked at its Phase 9
-  gate: Section 23.3 has no approved measured real-project thresholds, the
-  deterministic baseline explicitly omits live dogfood, and ordinary
-  `revolvr queue start` fails closed without an injected executor. No UI,
-  local API, SSE, dependency, or frontend work has begun.**
-- Architecture 025 — pending behind Architecture 024; do not select a
-  successor in the same pass.
+- [x] Architecture 024 — refine the existing Bubble Tea TUI toward a
+  Codex-like terminal operator workflow: run-event transcript, command
+  composer/operator responses, compact status/footer, command discovery, and
+  focused diff/evidence/approval views. Reuse existing app services and keep
+  business logic outside the TUI. **Completed.**
+- Architecture 025 — pending and dependency-satisfied as the next evidence-only
+  brain sufficiency decision. Missing concrete usage evidence means defer
+  Graphiti. **Next runnable task.**
 
-## Deferred Programmatic Workspace And Continual Harness Sequence
+## Superseded Programmatic Workspace And Continual Harness Sequence
 
-These task specifications are recorded now but have `status: blocked`. They
-remain non-selectable until the complete architecture sequence and initial
-core-loop dogfooding gate are satisfied. A missing dogfood, evaluation,
-operator-approval, runtime-identity, or other required evidence produces an
-explicit deferral; it is never replaced with model-authored or invented
-success.
+PTC-101 through PTC-108B have `status: superseded` under ADR-025 and are
+terminal/non-selectable. Their files retain the former proposals only as
+explicitly labeled history. No replacement speculative chain exists.
 
-1. PTC-101 — append-only trajectory manifest and bounded query service;
-   depends on architecture 025 plus verified initial core-loop dogfooding.
-2. PTC-102 — pinned programmatic workspace protocol and sandbox runtime;
-   depends on PTC-101 and exact rootless runtime/image evidence.
-3. PTC-103 — role-scoped `python_exec` broker integration; depends on PTC-102.
-4. PTC-104 — explicit durable scratch catalog with tombstones; depends on
-   PTC-103.
-5. PTC-107 — externalized context querying, bounded continuation, and
-   compaction provenance; depends on PTC-104 and the PTC-101 foundation.
-6. PTC-108A — paired direct-tools versus base programmatic-workspace
-   evaluation with an exact empty/inactive harness-asset set and no
-   self-authored activated skills; depends on PTC-107.
-7. PTC-105 — versioned, tested, hash-pinned Python skills; depends on exact
-   PTC-108A evidence that the base workspace is both useful and safe.
-8. PTC-106 — evidence-backed refinement proposal, operator approval,
-   activation, rejection, and rollback workflow; depends on PTC-105.
-9. PTC-108B — separate harness-asset evaluation and activation decision;
-   depends on PTC-106.
-
-The entire deferred sequence preserves sequential execution, Python only in
-the existing disposable rootless sandbox, no host/database/runtime/model
-credentials, no runtime package installation, no arbitrary snapshot/pickle
-authority, no worker canonical-state authority, no proposal self-activation,
-operator approval for every initial activation, and `direct_tools_v1` as the
-rollback path. Programmatic-workspace or continual-harness evidence is not
-evidence that Graphiti is needed; architecture 025 remains the decision-only
-Graphiti gate.
+PTC-101 is superseded because the existing PostgreSQL events/artifacts,
+append-only run ledger, run/task event queries, app timeline, receipt
+validation, and artifact projections already provide its proposed durable
+trajectory value; no concrete missing query is evidenced. PTC-102 through
+PTC-108B are superseded because the Python workspace, `python_exec`, scratch,
+skills, refinement, and evaluation chain is speculative. Direct tools remain
+the default.
 
 ## Current Backlog
 
@@ -1173,10 +1152,9 @@ Detailed behavior is captured in `.agent/DECISIONS.md`; current verification
 and readiness evidence is summarized in `.agent/STATE.md`; implementation and
 test history is preserved in Git.
 
-## Blocked
+## Deferred
 
-- Architecture 024 — dependency-satisfied but not phase-gate-satisfied. Resume
-  only after separately authorized real-project evidence establishes and
-  passes approved Section 23.3 thresholds and the canonical production queue
-  is fully operable from the ordinary CLI without test injection. Until then
-  there is no legally selectable task in the active architecture sequence.
+- The legacy EXT external-readiness backlog remains historical/deferred and is
+  not the fresh-pass selector while the active architecture sequence runs.
+- Graphiti remains deferred unless Architecture 025 receives concrete real-
+  usage evidence of an existing-brain gap.

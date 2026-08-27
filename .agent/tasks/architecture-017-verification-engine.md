@@ -27,7 +27,8 @@ source/environment-bound results that models cannot redefine or self-certify.
 - Specification Sections 9.12, 12.4, 17.7, 18,
   29 Phase 5, 37.8, 39.1, 40.8, 44.4, 52-55,
   58, and 60.
-- `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
+- The superseded
+  `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
   and 14 as subordinate fingerprint/reuse requirements.
 
 ## Existing foundations to inspect

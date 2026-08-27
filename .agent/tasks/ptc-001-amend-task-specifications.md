@@ -8,6 +8,12 @@ depends_on: architecture-016-tool-broker-implementer
 
 # Amend the active and deferred task specifications
 
+## Current status note
+
+ADR-025 supersedes the programmatic-workspace roadmap produced by this
+completed planning task. The record below is historical and grants no current
+authority to select PTC-101 through PTC-108B.
+
 ## Sequence and status
 
 - Sequence: supplemental integration planning before `016a` and `017`.
@@ -20,7 +26,8 @@ depends_on: architecture-016-tool-broker-implementer
 
 ## Primary outcome
 
-Integrate the approved contract-level portions of
+Historical outcome: integrate the approved contract-level portions of the
+now-superseded
 `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` into the active
 architecture sequence, and record the implementation portions as explicitly
 deferred, phase-gated work subordinate to the accepted ADRs and canonical

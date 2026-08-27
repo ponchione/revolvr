@@ -8,6 +8,13 @@ depends_on: architecture-021-code-indexing-context-assembly
 
 # Build the deterministic architecture evaluation suite
 
+## Current status note
+
+ADR-025 supersedes the future programmatic-workspace and Graphiti-experiment
+direction below. `programmatic_workspace_v1` remains only a compatibility
+fixture that fails before effects; this completed task grants no implementation
+authority.
+
 ## Sequence and status
 
 - Sequence: `022` of `025`.
@@ -27,7 +34,8 @@ retrieval behavior without live models or network services.
 
 - Specification Sections 9.25, 19, 21.3, 22, 23,
   29 Phase 10 entry concerns, 30, 31, 37-39, 50, 56, 58, and 60.
-- `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
+- The superseded
+  `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
   and 21 only as subordinate execution-mode/metrics compatibility guidance.
 
 ## Existing foundations to inspect

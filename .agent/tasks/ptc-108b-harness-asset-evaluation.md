@@ -1,12 +1,22 @@
 ---
 id: ptc-108b-harness-asset-evaluation
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-106-refinement-proposal-workflow
 ---
 
 # Evaluate harness assets and record the activation decision
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- The custom harness-asset chain it evaluates is not planned; direct tools
+  remain the default unless measured dogfood evidence and a small prototype
+  establish a concrete need.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

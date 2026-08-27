@@ -10,7 +10,9 @@ Project relationships need a canonical representation before a separate graph sy
 
 ## Decision
 
-Store typed project relationships initially in PostgreSQL tables. Defer Graphiti, Neo4j, and FalkorDB to dogfooding experiments.
+Store typed project relationships in PostgreSQL tables. Defer Graphiti, Neo4j,
+and FalkorDB to ADR-025's evidence gate; do not run an experiment merely for
+architectural completeness.
 
 ## Consequences
 

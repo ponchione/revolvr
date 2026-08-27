@@ -1,12 +1,21 @@
 ---
 id: ptc-103-python-exec-broker-integration
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-102-programmatic-workspace-runtime
 ---
 
 # Integrate role-scoped python_exec through the broker
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- The existing direct-tool broker remains the supported harness; `python_exec`
+  is not planned without measured failure evidence and a small prototype.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

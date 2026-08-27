@@ -4,80 +4,66 @@ Updated: 2026-08-27
 
 ## Where We Stopped
 
-- The post-gate attended-runtime patch was reviewed and reconciled as one
-  maintenance change. The embedded single-build Codex allowlist is gone;
-  admission instead freezes configured/resolved paths, SHA-256, and exact safe
-  version output, then rejects identity drift before later effects.
-- Invalid model receipts are preserved byte-for-byte with exact evidence and
-  replaced by a valid `completed_with_concerns` harness receipt. CLI run views,
-  validation, prompts, dogfood/smoke scripts, operator docs, and active
-  readiness policy now describe the same contract.
-- Group/other write permission was removed from the protected `.agent` tree
-  and `.revolvr/config.yaml`, and the two legacy `status: complete` task files
-  were normalized to `completed`. `revolvr task list` now loads the canonical
-  graph successfully.
-- Verification passed: `gofmt` on changed Go files, `bash -n` on changed shell
-  scripts, `go test ./...`, CLI help/config/status/task-list checks,
-  `scripts/smoke-external-attended.sh`, and `git diff --check`. No dependency
-  was added.
-- This maintenance work does not unlock the active architecture sequence.
-- One fresh Architecture 024 pass confirmed that
-  `.agent/tasks/architecture-024-ui.md` was the sole dependency-satisfied
-  pending task at entry, then stopped at its required Phase 9 gate without
-  changing Go or frontend implementation files.
-- The gate is not satisfied. Section 23.3 requires acceptable measured
-  real-project thresholds before sequential queue autonomy is enabled, but
-  `evals/golden/baseline.json` still records `threshold: null`, explicitly
-  omits live dogfood, and says the quality threshold was not set before the
-  deterministic baseline.
-- The bounded queue is deterministically implemented and fail-closed, but is
-  not fully operable from the ordinary CLI: `internal/queue` and migration
-  00013 admit only `deterministic_evaluation_only`, and
-  `internal/app.StartSequentialQueue` rejects a production call without an
-  injected executor before database or worker effects. A focused real CLI
-  invocation returned `sequential queue: Section 23.3 real-project quality
-  gate has no approved measured threshold`.
-- Deterministic fixture and queue evidence cannot be relabeled as the missing
-  real-project evidence. Building a desktop queue/run surface while its
-  CLI-first service is deliberately unavailable would violate ADR-020 and the
-  Architecture 024 phase gate.
-- Architecture 024 is now recorded as blocked, not complete. No `web/` tree,
-  Wails/Vue dependency, lockfile, local API, SSE stream, view, mutation,
-  security behavior, or accessibility behavior was added or claimed.
-- Focused gate checks passed:
-  `go test ./internal/app -run
-  '^TestSequentialQueueRealProjectStartFailsClosedWithoutMeasuredGate$'
-  -count=1` and `go test ./internal/evaluation -run
-  '^TestGoldenBaseline$' -count=1`. Architecture 024 build verification was
-  not run because implementation was forbidden by the failed phase gate.
-- `git diff --check` passed. A read-only `revolvr task list` confirmation
-  attempt failed closed because the existing `.agent` directory mode is 0775;
-  permissions were not changed in this gate-only pass. Task-file frontmatter
-  and the active-sequence record supplied the dependency check instead.
-- No commit was created. Architecture 025, Graphiti, all deferred PTC work,
-  and the legacy external-readiness backlog remain non-selectable.
+- `architecture-024-ui` is complete. The existing Bubble Tea TUI now centers
+  the latest canonical run-event transcript, exposes a `/` command composer
+  and typed `/answer <option-id>` confirmation flow, and provides keyboard-
+  accessible focused diff, evidence, and approval views.
+- The implementation reuses `app.Status`, `app.RunTimeline`, `ShowRun`,
+  `ShowAutonomousTask`, `AnswerAutonomousInput`, canonical ledger events,
+  receipts, artifact identities, queue/run callbacks, and the installed Bubble
+  Tea/Bubbles/Lip Gloss dependencies. No business or lifecycle authority moved
+  into `internal/tui`.
+- Cancellation and refresh are preserved. Transcript and focused views wrap
+  and scroll at narrow widths; focus, selection, recommendation non-selection,
+  confirmation, and return controls are visible and keyboard operable.
+- No dependency, desktop/web surface, Wails/Vue/TypeScript, embedded server,
+  REST/SSE, Graphiti, Python infrastructure, or Codex source was added.
+- The brain is narrowly the existing durable project knowledge,
+  relationships, retrieval, prior evidence, and provenance-bearing context
+  assembly. Canonical truth remains in the Go/PostgreSQL ledger and artifact
+  model.
+- `architecture-025-memory-graphiti-phase-gate` is now the next runnable task.
+  It is an evidence-only brain-sufficiency decision: missing real-usage
+  evidence means defer Graphiti, and task 025 implements nothing.
+- PTC-101 through PTC-108B are terminal `superseded` tasks. PTC-101 duplicates
+  existing ordered events, run/task queries, timeline, receipt, and artifact
+  evidence. The remaining Python workspace/`python_exec`/scratch/skills/
+  refinement chain is speculative and has no replacement task chain.
+- Direct tool execution remains the default harness. A future custom harness
+  needs measured dogfood failure evidence and a separate small prototype.
+- The former Architecture 024 desktop phase-gate record, ADR-020/021 direction,
+  EXT release work, and programmatic-workspace specification remain historical
+  evidence only where explicitly labeled superseded/deferred.
 
-## Exact Blocker And Resume Condition
+## Exact Fresh-Session Resume Command
 
-There is no legal implementation task to select from the active architecture
-sequence. Architecture 024 may return from `blocked` to `pending` only after a
-separately authorized evidence pass:
+Run this exact command from the repository root. It starts a new pass and does
+not resume an old session:
 
-1. records approved numeric Section 23.3 thresholds for false completion,
-   unrecovered crashes, repeated-strategy loops, scope violations, host safety,
-   and task completion from real-project baseline data;
-2. records qualifying real-project bounded-queue results against those
-   thresholds with exact source/model/prompt/sandbox/task/outcome identities;
-3. adds an admitted canonical production executor so ordinary
-   `revolvr queue start` is fully operable without test injection; and
-4. revalidates the CLI-first core loop and queue as trustworthy without
-   weakening their fail-closed authority.
+```bash
+codex exec -C /home/gernsback/source/revolvr - < /home/gernsback/source/revolvr/.agent/LOOP_PROMPT.md
+```
 
-The prior checkout-local path-permission blocker is resolved. No permission or
-task-schema repair remains before repository-path-aware CLI commands can load
-the canonical graph.
+Inside that fresh pass, run the exact read-only selector command
+`go run ./cmd/revolvr task list`. Confirm Architecture 024 is completed and
+`architecture-025-memory-graphiti-phase-gate` is the selected dependency-
+satisfied pending architecture task, then read its task file and perform only
+that evidence decision. Do not revive a PTC task or the legacy EXT backlog.
 
-Do not start Architecture 024 merely because its file dependency is complete,
-and do not start Architecture 025 while Architecture 024 is blocked. Do not
-invent a threshold, treat deterministic fixtures as real-project runs, or add
-the missing evidence/production authority under the UI task.
+## Verification Results For Architecture 024
+
+- `test -z "$(gofmt -l internal/tui)"` — PASS.
+- `go test ./internal/tui ./internal/app` — PASS.
+- `go test ./...` — PASS.
+- `go run ./cmd/revolvr tui --help` — PASS.
+- `git diff --check` — PASS.
+- `go run ./cmd/revolvr task list` — PASS; Architecture 024 is `completed`,
+  Architecture 025 is `pending`, `ready`, and selected, and the PTC chain
+  remains `superseded`.
+- `go run ./cmd/revolvr status` — PASS; 36 total tasks, one pending, zero
+  blocked, 26 completed, and Architecture 025 is `Next task`.
+- `git diff --name-only` and `git status --short` — PASS; the final inventory
+  preserves the intentional roadmap reset and adds only Architecture 024 TUI,
+  focused-test, README, and durable-state changes.
+
+No commit or push was created. Architecture 025 was not executed.

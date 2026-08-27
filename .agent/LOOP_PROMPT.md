@@ -9,13 +9,16 @@ This pass must be treated as a new session. Do not rely on prior chat context. T
 Read these files before making changes:
 
 - `AGENTS.md`
+- `.agent/HANDOFF.md`
 - `.agent/TASKS.md`
 - `.agent/STATE.md`
 - `.agent/DECISIONS.md`
 
 ## Task Selection
 
-1. Pick the first unchecked, unblocked task from `.agent/TASKS.md`.
+1. Run the exact read-only selector command in `.agent/HANDOFF.md` and select
+   the first dependency-satisfied pending task in the active architecture
+   sequence. Do not treat historical/deferred checklist entries as selectors.
 2. If there are no tasks, add a short note to `.agent/STATE.md` and stop.
 3. Do not work on more than one task.
 
@@ -29,6 +32,8 @@ Read these files before making changes:
 6. Do not commit.
 7. Do not use `codex resume`.
 8. Do not start a nested Codex run.
+9. Respect explicit supersession: do not select terminal `superseded` task
+   files or revive a retired roadmap as follow-up work.
 
 ## Verification
 

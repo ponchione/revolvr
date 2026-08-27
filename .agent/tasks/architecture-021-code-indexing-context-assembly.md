@@ -28,7 +28,8 @@ exact sources over fuzzy retrieval.
 - Specification Sections 9.19-9.23, 10.7, 13, 14,
   27.1-27.4, 29 Phase 7 and Phase 8, 37.12-37.13,
   40.9-40.10, 43.5-43.6, 50-53, and NFR-006/NFR-008.
-- `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
+- The superseded
+  `REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md` Sections 2.2
   and 15 only as subordinate external-reference/query compatibility guidance.
 
 ## Existing foundations to inspect

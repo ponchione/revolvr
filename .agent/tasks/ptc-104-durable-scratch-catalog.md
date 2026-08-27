@@ -1,12 +1,22 @@
 ---
 id: ptc-104-durable-scratch-catalog
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-103-python-exec-broker-integration
 ---
 
 # Add an explicit durable scratch catalog with tombstones
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- Existing ledger, artifacts, receipts, project knowledge, and context
+  assembly remain the durable evidence/memory path; no Python scratch runtime
+  is planned.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

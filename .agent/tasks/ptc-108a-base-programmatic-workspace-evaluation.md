@@ -1,12 +1,22 @@
 ---
 id: ptc-108a-base-programmatic-workspace-evaluation
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-107-programmatic-context-continuation
 ---
 
 # Evaluate direct tools against the base programmatic workspace
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- Building a speculative Python workspace in order to evaluate it reverses the
+  evidence gate. Direct tools remain the baseline; only a measured failure may
+  justify a separate small prototype.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

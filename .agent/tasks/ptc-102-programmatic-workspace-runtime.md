@@ -1,12 +1,21 @@
 ---
 id: ptc-102-programmatic-workspace-runtime
-status: blocked
+status: superseded
 workflow: mixed-pass-v1
 phase: implement
 depends_on: ptc-101-trajectory-manifest-query-service
 ---
 
 # Add the pinned programmatic workspace protocol and sandbox runtime
+
+## Supersession
+
+- Superseded on 2026-08-27 by ADR-025. This task is terminal and not runnable.
+- Direct tools remain the default; no measured dogfood failure and small
+  prototype justify a custom Python workspace.
+
+Everything below is retained as historical proposal context, not current
+instruction.
 
 ## Sequence and status
 

@@ -1,8 +1,16 @@
 # Revolvr Programmatic Workspace and Safe Continual Harness Specification
 
-**Status:** Proposed post-core architecture extension
-**Date:** 2026-08-06
-**Applies to:** `ponchione/revolvr` after completion of the canonical architecture sequence
+> **Status: Superseded on 2026-08-27 by
+> [ADR-025](docs/adr/025-terminal-first-simplified-harness.md).** This document
+> is retained only as architectural history. It is not current implementation
+> authority: PTC-101 through PTC-108B are terminal, direct tools remain the
+> default harness, and no custom Python workspace, `python_exec`, scratch
+> runtime, Python skill system, or refinement infrastructure is planned without
+> measured dogfood failure evidence and a separate small prototype.
+
+**Historical status:** Proposed post-core architecture extension
+**Historical date:** 2026-08-06
+**Historical scope:** `ponchione/revolvr` after completion of the canonical architecture sequence
 **Primary inspiration:** Prime Agent's programmatic context management, persistent computational workspace, append-only trajectory, verification-gate deduplication, and continual-harness refinement model
 **Authority:** This document is subordinate to the accepted Revolvr ADRs and `REVOLVR_CANONICAL_ARCHITECTURE_SPEC.md`. Where this document conflicts with an accepted ADR, the ADR controls until deliberately amended.
 

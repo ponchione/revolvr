@@ -8,6 +8,12 @@ depends_on: architecture-016-tool-broker-implementer,ptc-001-amend-task-specific
 
 # Add programmatic-runtime compatibility seams to the direct-tool broker
 
+## Current status note
+
+ADR-025 supersedes the future programmatic-runtime purpose described below.
+This completed task is historical evidence of inert compatibility seams, not
+authority to implement `python_exec` or revive the PTC roadmap.
+
 ## Sequence and status
 
 - Sequence: `016a`, immediately after completed architecture 016 and before
