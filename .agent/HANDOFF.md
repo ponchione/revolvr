@@ -4,50 +4,45 @@ Updated: 2026-08-27
 
 ## Where We Stopped
 
-- `architecture-025-memory-graphiti-phase-gate` completed at `phase: simplify`
-  with decision **defer**. Architecture tasks 001-025 are complete.
-- The checkout-local runtime contains 22 completed runs from 2026-07-08 through
-  2026-07-09. All predate Architecture 021 commit `9fd0de6` and the current
-  Architecture 024 TUI commit `2a4dc6f`, so qualifying current-brain/current-
-  TUI real-usage history is absent.
-- The baseline-metrics gate is supported by the Architecture 021 25-query
-  real-project retrieval comparison and Architecture 022 20-occurrence,
-  30,371-context-byte deterministic baseline.
-- Repeated source-linked entity-alias, temporal-supersession, or cross-document
-  multi-hop failures are absent. Smaller existing-lane insufficiency evidence
-  is therefore also absent. No comparison prototype is authorized.
-- Re-evaluation requires at least ten completed non-fixture current TUI/core-
-  loop tasks, the same qualifying failure in at least two distinct tasks with
-  exact query/source/context/outcome links, an unsuccessful bounded comparison
-  against the smallest applicable existing-lane change, and rerun Architecture
-  021/022 baselines.
-- `docs/architecture/memory-graphiti-phase-gate.md` consolidates the duplicate
-  gate narration while preserving every metric, missing-evidence result,
-  re-evaluation trigger, and authority boundary. README, task metadata, and
-  durable agent records are current.
-- No Go, SQL, dependency, graph/Python implementation, service, database,
-  container, schema, adapter, or runtime configuration changed. Canonical
-  Go/PostgreSQL ledger and artifact authority remains unchanged.
+- Compacted `.agent/STATE.md` from 11,239 lines into a current-state record
+  within the 200-line limit; historical per-task narratives remain available
+  in Git.
+- Preserved only Architecture 001-025 completion, ADR-025 terminal-first and
+  direct-tools authority, Architecture 024 TUI completion, Architecture 025's
+  Graphiti defer result, current verification, blockers, and next-task status.
+- Changed no decision, canonical architecture/evidence, product code,
+  dependency, or runtime configuration and did not revive EXT/PTC work.
+- Run `01a043b5-d3b6-7bd7-999c-d1e164f335e2` completed the implement pass.
+  Revolvr owns the post-pass commit and transition of task
+  `01a043b3-ad2d-7979-8d33-b6875643af8d` to its audit phase.
 
-## Exact Fresh-Session Resume Command
+## Exact Next Command
 
-Run this exact command from the repository root. It starts a new pass and does
-not resume an old session:
+After the harness finalizes this pass, run from the repository root:
 
 ```bash
-codex exec -C /home/gernsback/source/revolvr - < /home/gernsback/source/revolvr/.agent/LOOP_PROMPT.md
+go run ./cmd/revolvr task list
 ```
 
-Inside that fresh pass, run the exact read-only selector command
-`go run ./cmd/revolvr task list`. The active architecture sequence has no
-pending task. Do not reopen Architecture 025, implement a Graphiti prototype,
-revive a PTC task, or select the legacy EXT backlog without new authority.
+Expect the same compaction task at `phase: audit`. Do not select another task,
+revive EXT/PTC work, or reopen Architecture 025 without new authority.
 
-## Verification Results For Architecture 025 Simplify Phase
+## Post-Commit Review
+
+These commands remain valid after the harness auto-commit:
+
+```bash
+git show --check HEAD
+git show --stat --oneline HEAD
+git show HEAD -- .agent/STATE.md .agent/HANDOFF.md
+```
+
+## Verification
 
 - `go test ./...` — PASS.
+- `go run ./cmd/revolvr task list` — PASS.
+- `go run ./cmd/revolvr status` — PASS.
+- `wc -l .agent/STATE.md` — PASS; at most 200 lines.
 - `git diff --check` — PASS.
-- `git diff --name-only` — PASS; documentation and durable metadata only.
-- `go run ./cmd/revolvr task list` — PASS before the slice; Architecture 025
-  was selected and ready at `phase: simplify`. After the slice it is completed
-  and no architecture task is pending.
+- `git diff --name-only` — PASS; tracked changes are `.agent/STATE.md` and
+  `.agent/HANDOFF.md` only.
