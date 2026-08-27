@@ -70,6 +70,23 @@
 - [x] Architecture 025 — record and simplify the **defer** decision with its
   exact future re-evaluation trigger. No Graphiti comparison prototype or
   implementation was authorized. **Completed at `simplify`.**
+- [x] 2026-08-27 TUI maintenance — collapse the Bubble Tea dashboard into a
+  compact transcript-first operator console without changing commands,
+  focused views, application services, ledger events, or `app.RunTimeline`.
+- [x] 2026-08-27 TUI overhaul planning — capture the current console, proposed
+  Codex-shaped transcript application, architectural boundaries, decision
+  gates, epics, bounded tasks, acceptance, and verification in
+  `docs/architecture/tui-overhaul/`. No implementation task was published.
+- [x] 2026-08-27 TUI overhaul task decomposition — replace the two planning
+  monoliths with one design/index, eight epic files, and 34 audited task files.
+  Each task owns one decision, proof, component change, focused-view migration,
+  or verification pass and states dependencies, scope, acceptance, verification,
+  and exclusions. No implementation task was published.
+- [ ] TUI overhaul design review — review the draft tree under
+  `docs/architecture/tui-overhaul/` and resolve D1-D6 before promoting only
+  TUI-010. Do not guess through product semantics or duplicate the draft backlog
+  here. D1 is accepted: emulate the accepted Codex interaction behavior in the
+  existing Go/Bubble Tea TUI; Codex source and snapshots are evidence only.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

@@ -1,5 +1,19 @@
 # Agent Decisions
 
+## TUI Overhaul Reimplements Codex Behavior In Go (2026-08-27)
+
+- Codex source and snapshots are behavioral acceptance evidence only. Revolvr
+  reimplements the accepted interaction behavior in its existing Go/Bubble Tea
+  TUI and does not copy, port, vendor, depend on, or distribute Codex
+  implementation source.
+- Revolvr branding, domain semantics, application-service authority, and the
+  existing terminal dependency set remain authoritative. Codex's Rust runtime
+  and unrelated thread, model, token, attachment, plugin, multi-agent, and
+  provider machinery are out of scope.
+- This accepts TUI-overhaul decision D1 and retains ADR-025 unchanged. No
+  attribution, NOTICE, licensing, Go/Rust-boundary, or upgrade-ownership
+  follow-up is required because no Codex source material may be copied.
+
 ## Architecture 025 Defers Graphiti For Missing Evidence (2026-08-27)
 
 - Architecture 025 records **defer**. No Graphiti comparison prototype is
@@ -5847,7 +5861,7 @@ remains historical; it grants no current implementation authority.
 - The TUI shell uses an explicit view model with number-key navigation: `1` Dashboard, `2` Tasks, `3` Runs, `4` Run Detail, and `?` Help. Switching views must preserve the loaded status snapshot, selected run, and opened run detail unless state is refreshed to uninitialized.
 - TUI layout renders plain text first, wraps header/content/key-help lines to the current terminal width, and only then applies semantic Lip Gloss styles. Status words and markers such as `OK`, `FAIL`, `PASS`, `Status: failed`, and `! blocked` remain in the text so important states are readable without color; recent-run rows switch to a compact layout below 72 columns.
 - The TUI Tasks view derives list rows and selected-task details from `internal/app.StatusResult.Tasks`, uses its own in-memory selection index, and makes blocked tasks visibly distinct with a text marker so the status is clear without relying on terminal color.
-- TUI write actions use explicit model callbacks that are wired by `internal/cli` to `internal/app`; task creation calls `internal/app.AddTask`, then refreshes through `internal/app.Status`, switches to the Tasks view, and selects the added task from the refreshed snapshot when present.
+- TUI write actions use explicit model callbacks that are wired by `internal/cli` to `internal/app`; task creation calls `internal/app.AddTaskAndCommit`, which refuses an already-dirty worktree and path-scoped commits only the new canonical task file before refreshing through `internal/app.Status`, switching to the Tasks view, and selecting the added task. CLI task add/import retains the operator review-and-commit workflow.
 - The TUI Runs and Run Detail views stay read-only and app-boundary-backed: run lists use `internal/app.Status` recent runs, detail opening uses `internal/app.ShowRun`, and detail diagnostics are derived from ledger events into separate Summary, Diagnostics, Changed Files, Artifacts, and Events sections. Missing artifact paths, missing changed-file events, receipt warnings, and long event lists must remain visible inside the TUI without requiring `revolvr show`.
 - TUI receipt validation stays app-boundary-backed and manually triggered from Run Detail with `v`: `internal/cli` wires the callback to `internal/app.ValidateReceipt`, while `internal/tui` stores and renders the latest validation result for the loaded run with explicit `PASS`/`FAIL` check lines and non-crashing error display for missing or unreadable receipts.
 - Doctor/preflight orchestration now belongs to `internal/app.Preflight`: it returns structured readiness checks while preserving the existing doctor check order and detail strings. `internal/cli` renders the established `revolvr doctor` output unchanged, and the TUI uses an app-wired Preflight callback for the `5 Preflight` view plus `p` reruns.

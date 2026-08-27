@@ -347,7 +347,8 @@ func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T)
 	if !called {
 		t.Fatal("tui runner was not called")
 	}
-	if !strings.Contains(out.String(), "State: not initialized") {
+	if !strings.Contains(out.String(), "Revolvr  Dashboard  not initialized") ||
+		!strings.Contains(out.String(), "Run `revolvr init` to initialize this repository.") {
 		t.Fatalf("tui output missing uninitialized state:\n%s", out.String())
 	}
 
@@ -360,7 +361,7 @@ func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T)
 	}
 }
 
-func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
+func TestTUIRendersTranscriptAndFocusedTaskRunViewsFromAppStatus(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -459,21 +460,18 @@ func TestTUIRendersTaskCountsLatestRunAndRecentRunsFromAppStatus(t *testing.T) {
 		t.Fatal("tui runner was not called")
 	}
 	for _, want := range []string{
-		"Total: 3",
-		"Pending: 1",
-		"Blocked: 1",
-		"Completed: 1",
-		"Next task: task-pending - Pending File Task",
-		"Workflow: mixed-pass-v1  Phase: implement  Profile: implementer  Next: audit",
-		"Latest Run",
-		"ID: run-new",
-		"Summary: latest summary",
-		"Recent Runs",
-		"run-new  failed  failed  none  latest summary",
-		"run-old  completed  none  abc123  older summary",
+		"Revolvr  Dashboard  initialized",
+		"× Run failed · verification failed",
+		"× --:--  verification failed",
+		"› / for commands",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("tui output missing %q:\n%s", want, out.String())
+		}
+	}
+	for _, duplicate := range []string{"\nDashboard\n", "\nTasks\n", "\nLatest Run\n", "\nRecent Runs\n", "\nEvents\n"} {
+		if strings.Contains(out.String(), duplicate) {
+			t.Fatalf("tui dashboard unexpectedly contained %q:\n%s", duplicate, out.String())
 		}
 	}
 }
@@ -515,6 +513,7 @@ verification:
 
 	var out bytes.Buffer
 	called := false
+	taskCommitted := false
 	root := NewRootCommand(Options{
 		Version: "test",
 		Out:     &out,
@@ -535,7 +534,19 @@ verification:
 			if command.Name == "codex-test" && reflect.DeepEqual(command.Args, []string{"--version"}) {
 				return runner.Result{ExitCode: 0, Stdout: "codex-test 1.2.3\n"}
 			}
+			if len(command.Args) > 1 && command.Args[0] == "--literal-pathspecs" && command.Args[1] == "add" {
+				return runner.Result{ExitCode: 0}
+			}
+			if len(command.Args) > 1 && command.Args[0] == "--literal-pathspecs" && command.Args[1] == "commit" {
+				taskCommitted = true
+				return runner.Result{ExitCode: 0}
+			}
 			switch strings.Join(command.Args, "\x00") {
+			case "rev-parse\x00--verify\x00HEAD":
+				if taskCommitted {
+					return runner.Result{ExitCode: 0, Stdout: strings.Repeat("b", 40) + "\n"}
+				}
+				return runner.Result{ExitCode: 0, Stdout: strings.Repeat("a", 40) + "\n"}
 			case "rev-parse\x00--is-bare-repository":
 				return runner.Result{ExitCode: 0, Stdout: "false\n"}
 			case "rev-parse\x00--show-toplevel":

@@ -29,15 +29,12 @@ func TestStatusModelRendersAwaitingAndFulfilledOperatorCheckpoints(t *testing.T)
 	}}
 	model := NewStatusModel(status)
 	model.width = 240
-	requireLines(t, normalizedViewLines(model.View()),
-		"Operator checkpoint: manual-acceptance state=awaiting",
-		"  receipt="+awaitingPath,
-		"Operator checkpoint: license-acceptance state=fulfilled",
-		"  receipt="+fulfilledPath,
-	)
+	requireNoLine(t, normalizedViewLines(model.View()), "Operator checkpoint: manual-acceptance state=awaiting  receipt="+awaitingPath)
 
 	tasksView := openTasksView(t, model)
 	requireLines(t, normalizedViewLines(tasksView.View()),
+		"Operator checkpoint: manual-acceptance state=awaiting receipt="+awaitingPath,
+		"Operator checkpoint: license-acceptance state=fulfilled receipt="+fulfilledPath,
 		"> - manual-acceptance pending checkpoint=awaiting receipt="+awaitingPath+" Manual",
 		"  - license-acceptance completed checkpoint=fulfilled receipt="+fulfilledPath+" License",
 		"Workflow: operator-checkpoint-v1",

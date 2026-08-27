@@ -1004,6 +1004,32 @@ func TestTaskAddListAndRetryOperations(t *testing.T) {
 	}
 }
 
+func TestAddTaskAndCommitLeavesWorktreeReady(t *testing.T) {
+	repository := t.TempDir()
+	createSchedulingTask(t, repository, "existing-task", nil)
+	before := runSchedulingGit(t, repository, "rev-parse", "HEAD")
+
+	task, err := AddTaskAndCommit(context.Background(), Config{WorkDir: repository}, AddTaskInput{
+		Task:    "Make task creation compatible with preflight",
+		Summary: "TUI task creation",
+	}, nil)
+	if err != nil {
+		t.Fatalf("add and commit task: %v", err)
+	}
+	if after := runSchedulingGit(t, repository, "rev-parse", "HEAD"); after == before {
+		t.Fatal("task creation did not advance HEAD")
+	}
+	if status := runSchedulingGit(t, repository, "status", "--porcelain=v1", "--untracked-files=all"); status != "" {
+		t.Fatalf("worktree status = %q, want clean", status)
+	}
+	if changed := runSchedulingGit(t, repository, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"); changed != filepath.ToSlash(filepath.Join(taskfile.TasksDir, task.ID+".md")) {
+		t.Fatalf("committed paths = %q, want only created task", changed)
+	}
+	if _, err := admitExternalMode(context.Background(), repository, PreflightModeAttendedTask, 1, nil, false); err != nil {
+		t.Fatalf("preflight after task creation: %v", err)
+	}
+}
+
 func TestRetryTaskPreservesPhaseIdentityBodyAndMetadata(t *testing.T) {
 	ctx := context.Background()
 	workDir := t.TempDir()

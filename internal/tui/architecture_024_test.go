@@ -27,24 +27,47 @@ func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *te
 		}},
 		LatestEvents: []ledger.Event{
 			{ID: 1, RunID: "run-ui", Type: ledger.EventRunStarted, Payload: jsonPayload(t, map[string]any{"run_id": "run-ui", "task_id": "architecture-024-ui"}), CreatedAt: started},
-			{ID: 2, RunID: "run-ui", Type: ledger.EventChangedFilesCaptured, Payload: jsonPayload(t, map[string]any{"changed_files": []string{"internal/tui/model.go"}}), CreatedAt: started.Add(time.Second)},
-			{ID: 3, RunID: "run-ui", Type: ledger.EventRunArtifacts, Payload: jsonPayload(t, map[string]any{"receipt_path": ".revolvr/receipts/run-ui.md"}), CreatedAt: started.Add(2 * time.Second)},
+			{ID: 2, RunID: "run-ui", Type: ledger.EventTaskSelected, Payload: jsonPayload(t, map[string]any{"task_id": "architecture-024-ui", "summary": strings.Repeat("verbose task instructions ", 20), "workflow": "mixed-pass-v1", "phase": "audit", "profile_name": "auditor"}), CreatedAt: started.Add(time.Second)},
+			{ID: 3, RunID: "run-ui", Type: ledger.EventCodexJSONEvent, Payload: jsonPayload(t, map[string]any{"type": "item.started", "item_type": "command_execution"}), CreatedAt: started.Add(2 * time.Second)},
+			{ID: 4, RunID: "run-ui", Type: ledger.EventCodexJSONEvent, Payload: jsonPayload(t, map[string]any{"type": "item.completed", "item_type": "command_execution"}), CreatedAt: started.Add(3 * time.Second)},
+			{ID: 5, RunID: "run-ui", Type: ledger.EventCodexJSONEvent, Payload: jsonPayload(t, map[string]any{"message": "Checking the operator console."}), CreatedAt: started.Add(4 * time.Second)},
+			{ID: 6, RunID: "run-ui", Type: ledger.EventChangedFilesCaptured, Payload: jsonPayload(t, map[string]any{"changed_files": []string{"internal/tui/model.go"}}), CreatedAt: started.Add(5 * time.Second)},
+			{ID: 7, RunID: "run-ui", Type: ledger.EventRunArtifacts, Payload: jsonPayload(t, map[string]any{"receipt_path": ".revolvr/receipts/run-ui.md"}), CreatedAt: started.Add(6 * time.Second)},
+			{ID: 8, RunID: "run-ui", Type: ledger.EventReceiptParsed, Payload: jsonPayload(t, map[string]any{"receipt_path": ".revolvr/receipts/run-ui.md", "verdict": "completed"}), CreatedAt: started.Add(7 * time.Second)},
+			{ID: 9, RunID: "run-ui", Type: ledger.EventCommitStarted, Payload: jsonPayload(t, map[string]any{"changed_files": []string{"internal/tui/model.go"}}), CreatedAt: started.Add(8 * time.Second)},
+			{ID: 10, RunID: "run-ui", Type: ledger.EventReceiptWarning, Payload: jsonPayload(t, map[string]any{"warning_type": "changed_files_mismatch", "message": "receipt changed files differ from harness captured changed files", "receipt_path": ".revolvr/receipts/run-ui.md"}), CreatedAt: started.Add(9 * time.Second)},
 		},
 	}
 	model := NewStatusModel(status)
 	model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 48, Height: 80})
 	requireLines(t, normalizedViewLines(model.View()),
-		"Transcript",
-		"Task: architecture-024-ui | Run: run-ui running",
-		"  | Safety: verification=running",
-		"2 changed_files_captured 2026-08-27T15:00:01Z",
+		"• Run running · verification running",
+		"› 15:00 codex — Checking the operator console.",
+		"✓ 15:00 changes captured — 1 changed file",
+		"• 15:00 receipt parsed — completed",
+		"• 15:00 commit started — 1 changed file",
+		"! 15:00 receipt — changed files differ from",
+		"  captured files",
+		"• --:-- verification running",
+		"› / for commands",
 	)
+	dashboardLines := normalizedViewLines(model.View())
+	for _, noise := range []string{"item.started", "item.completed", "command_execution", "verbose task instructions"} {
+		for _, line := range dashboardLines {
+			if strings.Contains(line, noise) {
+				t.Fatalf("dashboard contains noisy transcript detail %q: %#v", noise, dashboardLines)
+			}
+		}
+	}
+	for _, duplicate := range []string{"Dashboard", "Transcript", "Activity", "State: initialized", "Tasks", "Latest Run", "Recent Runs", "Events", "Task architecture-024-ui", "Run run-ui"} {
+		requireNoLine(t, dashboardLines, duplicate)
+	}
 
 	model, cmd := updateStatusModel(t, model, keyRunes("d"))
 	if cmd != nil || model.view != viewDiff {
 		t.Fatalf("diff navigation view=%v cmd=%v", model.view, cmd)
 	}
-	requireLines(t, normalizedViewLines(model.View()), "Change Summary", "Changed Files", "internal/tui/model.go", "2 changed_files_captured 2026-08-27T15:00:01Z")
+	requireLines(t, normalizedViewLines(model.View()), "Change Summary", "Changed Files", "internal/tui/model.go", "6 changed_files_captured 2026-08-27T15:00:05Z")
 
 	model, cmd = updateStatusModel(t, model, keyRunes("e"))
 	if cmd != nil || model.view != viewEvidence {

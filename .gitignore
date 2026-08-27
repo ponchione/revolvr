@@ -17,6 +17,9 @@ coverage.html
 # Local revolvr runtime state
 /.revolvr/
 
+# Local reference source checkouts
+/.reference/
+
 # Environment and local config
 .env
 .env.*

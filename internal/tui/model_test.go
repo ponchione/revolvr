@@ -32,18 +32,12 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 
 	lines := normalizedViewLines(model.View())
 	want := []string{
-		"Revolvr",
-		"Views: [Dashboard] | Tasks | Runs | Run Detail | Preflight | Help",
-		"State: not initialized",
+		"Revolvr  Dashboard  not initialized",
 		"",
-		"Dashboard",
-		"State: not initialized",
-		"Tasks: unavailable",
-		"Runnable: unavailable",
-		"Runs: unavailable",
+		"Run `revolvr init` to initialize this repository.",
 		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
-		"      a Add Task | R Run Once | n Passes 3 | L Run Loop | r Refresh | q Quit",
+		"› / for commands",
+		"? Help | R Run | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -80,35 +74,14 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 
 	lines := normalizedViewLines(updated.View())
 	want := []string{
-		"Revolvr",
-		"Views: [Dashboard] | Tasks | Runs | Run Detail | Preflight | Help",
-		"State: initialized",
+		"Revolvr  Dashboard  initialized",
 		"",
-		"Dashboard",
-		"State: initialized",
+		"× Run failed · verification failed",
 		"",
-		"Tasks",
-		"Total: 3",
-		"Pending: 1",
-		"Blocked: 1",
-		"Completed: 1",
-		"Runnable: ready to run",
-		"Next task: task-pending",
+		"× --:--  verification failed",
 		"",
-		"Latest Run",
-		"ID: run-new",
-		"Status: failed",
-		"Summary: verification failed",
-		"Verification: failed",
-		"Commit: none",
-		"",
-		"Recent Runs",
-		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
-		"> run-new  failed  failed  none  verification failed",
-		"  run-old  completed  none  abc123  committed change",
-		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
-		"      n Passes 3 | L Run Loop | r Refresh | q Quit",
+		"› / for commands",
+		"? Help | R Run | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -121,7 +94,7 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 
 	lines := normalizedViewLines(tasksView.View())
 	requireLines(t, lines,
-		"Views: Dashboard | [Tasks] | Runs | Run Detail | Preflight | Help",
+		"Revolvr  Tasks  initialized",
 		"Tasks",
 		"Total: 0",
 		"Pending: 0",
@@ -154,11 +127,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 				{ID: "task-later", Status: taskmodel.StatusPending, Task: "later task"},
 			},
 			dashboardWant: []string{
-				"Total: 3",
-				"Pending: 2",
-				"Blocked: 1",
-				"Completed: 0",
-				"Runnable: ready to run",
+				"Idle",
+				"No runs recorded.",
 				"Next task: task-ready - ship change",
 			},
 			tasksWant: []string{
@@ -180,7 +150,7 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 				{ID: "task-priority-first", Status: taskmodel.StatusPending, Summary: "runs first", NextRunnable: true},
 			},
 			dashboardWant: []string{
-				"Runnable: ready to run",
+				"Idle",
 				"Next task: task-priority-first - runs first",
 			},
 			tasksWant: []string{
@@ -197,11 +167,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 				{ID: "task-blocked", Status: taskmodel.StatusBlocked, Summary: "waiting on access"},
 			},
 			dashboardWant: []string{
-				"Total: 1",
-				"Pending: 0",
-				"Blocked: 1",
-				"Completed: 0",
-				"Runnable: nothing runnable",
+				"Idle",
+				"No runs recorded.",
 				"Next task: none",
 			},
 			tasksWant: []string{
@@ -220,11 +187,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 				{ID: "task-completed", Status: taskmodel.StatusCompleted, Summary: "done"},
 			},
 			dashboardWant: []string{
-				"Total: 1",
-				"Pending: 0",
-				"Blocked: 0",
-				"Completed: 1",
-				"Runnable: nothing runnable",
+				"Idle",
+				"No runs recorded.",
 				"Next task: none",
 			},
 			tasksWant: []string{
@@ -241,11 +205,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 			name:  "empty",
 			tasks: nil,
 			dashboardWant: []string{
-				"Total: 0",
-				"Pending: 0",
-				"Blocked: 0",
-				"Completed: 0",
-				"Runnable: nothing runnable",
+				"Idle",
+				"No runs recorded.",
 				"Next task: none",
 			},
 			tasksWant: []string{
@@ -294,7 +255,7 @@ func TestStatusModelDoesNotFallbackToPendingWaitingTask(t *testing.T) {
 	})
 
 	dashboard := normalizedViewLines(model.View())
-	requireLines(t, dashboard, "Runnable: nothing runnable", "Next task: none")
+	requireLines(t, dashboard, "Idle", "Next task: none")
 	requireNoLine(t, dashboard, "Next task: task-dependent")
 
 	tasksView := openTasksView(t, model)
@@ -325,11 +286,9 @@ func TestStatusModelRendersSharedInvalidGraphDiagnostics(t *testing.T) {
 		Schedule: taskscheduler.Result{InvalidGraph: []taskscheduler.Diagnostic{diagnostic}},
 	})
 
-	requireLines(t, normalizedViewLines(model.View()),
-		"Runnable: nothing runnable",
-		"Next task: none",
-		`Scheduling diagnostic: missing_dependency: task-invalid -> task-missing`,
-	)
+	dashboard := normalizedViewLines(model.View())
+	requireLines(t, dashboard, "Idle", "Next task: none")
+	requireNoLine(t, dashboard, `Scheduling diagnostic: missing_dependency: task-invalid -> task-missing`)
 	tasksView := openTasksView(t, model)
 	requireLines(t, normalizedViewLines(tasksView.View()),
 		"Readiness: invalid_graph",
@@ -379,7 +338,6 @@ func TestStatusModelRendersTaskWorkflowState(t *testing.T) {
 
 	requireLines(t, normalizedViewLines(model.View()),
 		"Next task: task-audit - audit task",
-		"Workflow: mixed-pass-v1  Phase: audit  Profile: auditor  Next: document",
 	)
 
 	tasksView := openTasksView(t, model)
@@ -759,7 +717,7 @@ func TestStatusModelTaskEntryRejectsEmptyTaskTextInline(t *testing.T) {
 
 	lines := normalizedViewLines(afterSubmit.View())
 	requireLines(t, lines,
-		"View: Add Task",
+		"Revolvr  Add Task  initialized",
 		"Add Task",
 		"> Task:",
 		"  Summary:",
@@ -815,7 +773,7 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 		t.Fatalf("task entry state = %+v, want cleared", cancelled.taskEntry)
 	}
 	requireLines(t, normalizedViewLines(cancelled.View()),
-		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
+		"Revolvr  Runs  initialized",
 		"> run-one  completed  none  none  done",
 	)
 }
@@ -904,7 +862,7 @@ func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) 
 
 	lines := normalizedViewLines(afterAdd.View())
 	requireLines(t, lines,
-		"Notice: Added task task-new.",
+		"Notice: Added and committed task task-new.",
 		"> - task-new  pending  TUI add",
 		"ID: task-new",
 		"Status: pending",
@@ -962,15 +920,18 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 	lines := normalizedViewLines(afterRefresh.View())
 	for _, want := range []string{
 		"Notice: Refreshed.",
-		"Total: 2",
-		"Pending: 1",
-		"Completed: 1",
-		"ID: run-new",
+		"× Run failed",
+		"No activity recorded.",
 	} {
 		if !containsLine(lines, want) {
 			t.Fatalf("refreshed view missing %q: %#v", want, lines)
 		}
 	}
+	tasksView, cmd := updateStatusModel(t, afterRefresh, keyRunes("2"))
+	if cmd != nil {
+		t.Fatalf("tasks view cmd = %v, want nil", cmd)
+	}
+	requireLines(t, normalizedViewLines(tasksView.View()), "Total: 2", "Pending: 1", "Completed: 1")
 
 	runsView, cmd := updateStatusModel(t, afterRefresh, keyRunes("3"))
 	if cmd != nil {
@@ -1017,7 +978,7 @@ func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
 
 	lines := normalizedViewLines(afterPreflight.View())
 	requireLines(t, lines,
-		"Views: Dashboard | Tasks | Runs | Run Detail | [Preflight] | Help",
+		"Revolvr  Preflight  initialized",
 		"Notice: Preflight ready.",
 		"Preflight",
 		"Status: ready",
@@ -1130,6 +1091,7 @@ func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.
 		"Notice: Run is active; cancel or wait before starting another action.",
 		"Run Progress",
 		"Status: running",
+		"c Cancel Run | ? Help | q Quit",
 	)
 }
 
@@ -1215,8 +1177,8 @@ func TestStatusModelRunOnceStreamsProgressAndRefreshesCompletion(t *testing.T) {
 		"codex: thread started",
 		"codex stderr: checking worktree",
 		"system: terminal state: completed",
-		"Latest Run",
-		"ID: run-success",
+		"✓ Run completed",
+		"✓ 15:01  commit created — abc123",
 	)
 }
 
@@ -1493,9 +1455,11 @@ func TestStatusModelRunLoopCyclesPassCount(t *testing.T) {
 	}
 	requireLines(t, normalizedViewLines(afterFirst.View()),
 		"Notice: Loop max passes set to 5.",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help",
-		"      a Add Task | R Run Once | n Passes 5 | L Run Loop | r Refresh | q Quit",
+		"? Help | R Run | r Refresh | q Quit",
 	)
+	if afterFirst.selectedRunLoopPasses() != 5 {
+		t.Fatalf("loop passes = %d, want 5", afterFirst.selectedRunLoopPasses())
+	}
 
 	afterSecond, cmd := updateStatusModel(t, afterFirst, keyRunes("n"))
 	if cmd != nil {
@@ -1503,8 +1467,10 @@ func TestStatusModelRunLoopCyclesPassCount(t *testing.T) {
 	}
 	requireLines(t, normalizedViewLines(afterSecond.View()),
 		"Notice: Loop max passes set to 2.",
-		"      a Add Task | R Run Once | n Passes 2 | L Run Loop | r Refresh | q Quit",
 	)
+	if afterSecond.selectedRunLoopPasses() != 2 {
+		t.Fatalf("loop passes = %d, want 2", afterSecond.selectedRunLoopPasses())
+	}
 }
 
 func TestStatusModelRunLoopMaxPassCompletionRefreshesAndOpensLatestRun(t *testing.T) {
@@ -1869,7 +1835,7 @@ func TestStatusModelRunsViewNavigatesRecentRunsWithMetadata(t *testing.T) {
 	runsView := openRunsView(t, model)
 
 	requireLines(t, normalizedViewLines(runsView.View()),
-		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
+		"Revolvr  Runs  initialized",
 		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
 		"> run-new  failed  failed  none  verification failed",
 		"  run-mid  completed  passed  abc123  committed change",
@@ -2433,7 +2399,7 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 
 	lines := normalizedViewLines(afterOpen.View())
 	for _, want := range []string{
-		"Views: Dashboard | Tasks | Runs | [Run Detail] | Preflight | Help",
+		"Revolvr  Run Detail  initialized",
 		"Run Detail",
 		"ID: run-old",
 		"Task ID: task-old",
@@ -2500,7 +2466,7 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	}
 	runsLines := normalizedViewLines(runsView.View())
 	for _, want := range []string{
-		"Views: Dashboard | Tasks | [Runs] | Run Detail | Preflight | Help",
+		"Revolvr  Runs  initialized",
 		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
 		"      5 Preflight | ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop",
 		"      r Refresh | q Quit",
@@ -2516,7 +2482,7 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	}
 	helpLines := normalizedViewLines(helpView.View())
 	for _, want := range []string{
-		"Views: Dashboard | Tasks | Runs | Run Detail | Preflight | [Help]",
+		"Revolvr  Help  initialized",
 		"Help",
 		"1  Dashboard",
 		"n  Cycle loop max passes (current 3)",
@@ -2579,35 +2545,15 @@ func TestStatusModelWideRenderSnapshot(t *testing.T) {
 
 	lines := normalizedViewLines(model.View())
 	want := []string{
-		"Revolvr",
-		"Views: [Dashboard] | Tasks | Runs | Run Detail | Preflight | Help",
-		"State: initialized",
+		"Revolvr  Dashboard  initialized",
 		"",
-		"Dashboard",
-		"State: initialized",
+		"✓ Run completed · verification passed",
 		"",
-		"Tasks",
-		"Total: 2",
-		"Pending: 1",
-		"Blocked: 1",
-		"Completed: 0",
-		"Runnable: ready to run",
-		"Next task: task-ready - write focused TUI polish",
+		"✓ --:--  verification passed",
+		"✓ --:--  commit created — abc123",
 		"",
-		"Latest Run",
-		"ID: run-success",
-		"Status: completed",
-		"Summary: committed TUI polish",
-		"Verification: passed",
-		"Commit: abc123",
-		"",
-		"Recent Runs",
-		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
-		"> run-success  completed  passed  abc123  committed TUI polish",
-		"  run-failed  failed  failed  none  verification failed",
-		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
-		"      n Passes 3 | L Run Loop | r Refresh | q Quit",
+		"› / for commands",
+		"? Help | R Run | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("wide view lines = %#v, want %#v", lines, want)
@@ -2638,40 +2584,14 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 
 	lines := normalizedViewLines(model.View())
 	want := []string{
-		"Revolvr",
-		"View: Dashboard",
-		"State: initialized",
+		"Revolvr  Dashboard  initialized",
 		"",
-		"Dashboard",
-		"State: initialized",
+		"× Run failed · verification failed",
 		"",
-		"Tasks",
-		"Total: 2",
-		"Pending: 1",
-		"Blocked: 1",
-		"Completed: 0",
-		"Runnable: ready to run",
-		"Next task: task-pending",
+		"× --:--  verification failed",
 		"",
-		"Latest Run",
-		"ID: 019f4415-40b6-7099-9d68-5f87cea67000",
-		"Status: failed",
-		"Summary: verification failed after",
-		"  running a very long command output",
-		"Verification: failed",
-		"Commit: none",
-		"",
-		"Recent Runs",
-		"ID STATUS SUMMARY",
-		"> 019f4415-40b6-7099-9d68-5f87cea67000",
-		"  failed verification failed after",
-		"  running a very long command output",
-		"",
-		"Keys: 1 Dashboard | 2 Tasks | 3 Runs",
-		"      4 Detail | 5 Preflight | ? Help",
-		"      a Add Task | R Run Once",
-		"      n Passes 3 | L Run Loop",
-		"      r Refresh | q Quit",
+		"› / for commands",
+		"? Help | R Run | r Refresh | q Quit",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("narrow view lines = %#v, want %#v", lines, want)
@@ -2679,36 +2599,51 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 	assertMaxLineWidth(t, lines, 40)
 }
 
-func TestStatusModelResizeUpdatesContentAreaAndWrapsFooter(t *testing.T) {
+func TestStatusModelDashboardChromeAndComposer(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{Initialized: true})
 
-	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 32, Height: 8})
+	wide, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	if resized.viewport.Width != 32 {
-		t.Fatalf("viewport width = %d, want 32", resized.viewport.Width)
+	if got := len(wide.headerDisplayLines()); got != 1 {
+		t.Fatalf("wide header rows = %d, want 1", got)
 	}
-	if resized.viewport.Height != 1 {
-		t.Fatalf("viewport height = %d, want 1", resized.viewport.Height)
+	if wide.viewport.Height < 19 {
+		t.Fatalf("dashboard viewport height = %d, want at least 19", wide.viewport.Height)
 	}
-	lines := normalizedViewLines(resized.View())
-	for _, line := range lines {
-		if len(line) > 32 {
-			t.Fatalf("line %q has len %d, want <= 32", line, len(line))
-		}
+
+	narrow, cmd := updateStatusModel(t, wide, tea.WindowSizeMsg{Width: 40, Height: 24})
+	if cmd != nil {
+		t.Fatalf("narrow window size update cmd = %v, want nil", cmd)
 	}
-	for _, want := range []string{
-		"Keys: 1 Dashboard | 2 Tasks",
-		"      3 Runs | 4 Detail",
-		"      5 Preflight | ? Help",
-		"      a Add Task | R Run Once",
-		"      n Passes 3 | L Run Loop",
-		"      r Refresh | q Quit",
-	} {
-		if !containsLine(lines, want) {
-			t.Fatalf("wrapped footer missing %q: %#v", want, lines)
-		}
+	if got := len(narrow.headerDisplayLines()); got != 1 {
+		t.Fatalf("narrow header rows = %d, want 1", got)
+	}
+	if got := len(narrow.footerLines()); got > 2 {
+		t.Fatalf("narrow dashboard footer rows = %d, want at most 2", got)
+	}
+	lines := normalizedViewLines(narrow.View())
+	requireLines(t, lines, "Revolvr  Dashboard  initialized", "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	assertMaxLineWidth(t, lines, 40)
+
+	composer, cmd := updateStatusModel(t, narrow, keyRunes("/"))
+	if cmd != nil || !composer.composer.Active {
+		t.Fatalf("composer state=%#v cmd=%v", composer.composer, cmd)
+	}
+	requireLines(t, normalizedViewLines(composer.View()), "› /", "enter Run | esc Close | ctrl+c Quit")
+
+	closed, cmd := updateStatusModel(t, composer, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || closed.composer.Active || closed.view != viewDashboard {
+		t.Fatalf("closed composer state=%#v view=%v cmd=%v", closed.composer, closed.view, cmd)
+	}
+	requireLines(t, normalizedViewLines(closed.View()), "› / for commands")
+
+	composer, _ = updateStatusModel(t, closed, keyRunes("/"))
+	composer, _ = updateStatusModel(t, composer, keyRunes("tasks"))
+	submitted, cmd := updateStatusModel(t, composer, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || submitted.composer.Active || submitted.view != viewTasks {
+		t.Fatalf("submitted composer state=%#v view=%v cmd=%v", submitted.composer, submitted.view, cmd)
 	}
 }
 

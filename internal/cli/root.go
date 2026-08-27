@@ -1704,7 +1704,7 @@ func newTUICommand(opts Options) *cobra.Command {
 					return app.ShowRun(ctx, cfg, runID)
 				},
 				AddTask: func(input app.AddTaskInput) (taskmodel.Task, error) {
-					return app.AddTask(ctx, cfg, input)
+					return app.AddTaskAndCommit(ctx, cfg, input, opts.DoctorCommandRunner)
 				},
 				RetryTask: func(taskID string) (taskmodel.Task, error) {
 					return app.RetryTask(ctx, cfg, taskID)

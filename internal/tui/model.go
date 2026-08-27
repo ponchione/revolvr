@@ -33,6 +33,8 @@ const (
 	maxRunLogLines        = 200
 	compactLayoutWidth    = 72
 	defaultRunLoopPasses  = 3
+	maxDashboardEvents    = 8
+	maxDashboardDetail    = 56
 )
 
 var _ tea.Model = StatusModel{}
@@ -40,13 +42,13 @@ var _ tea.Model = StatusModel{}
 var runLoopPassOptions = []int{2, 3, 5}
 
 var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
-	sectionStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	selectedStyle = lipgloss.NewStyle().Bold(true)
-	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
-	warningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
-	dangerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	mutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	titleStyle    = lipgloss.NewStyle().Bold(true)
+	sectionStyle  = lipgloss.NewStyle().Bold(true)
+	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	warningStyle  = lipgloss.NewStyle().Bold(true)
+	dangerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	mutedStyle    = lipgloss.NewStyle().Faint(true)
 )
 
 type TUIView int
@@ -340,7 +342,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.view = viewTasks
 			m.taskEntry = taskEntryState{}
-			m.message = fmt.Sprintf("Added task %s.", optionalValue(msg.task.ID))
+			m.message = fmt.Sprintf("Added and committed task %s.", optionalValue(msg.task.ID))
 		}
 		m.resizeViewport()
 		m.updateViewportContent()
@@ -2189,60 +2191,11 @@ func (m StatusModel) headerLines() []string {
 	if m.status.Initialized {
 		state = "initialized"
 	}
-	views := "Views: " + m.viewTabs()
-	if m.view == viewTaskEntry {
-		views = "View: Add Task"
-	}
-	if m.width > 0 && len(views) > m.width {
-		views = "View: " + m.viewLabel()
-	}
-	return []string{
-		"Revolvr",
-		views,
-		"State: " + state,
-	}
+	return []string{fmt.Sprintf("Revolvr  %s  %s", m.viewLabel(), state)}
 }
 
 func (m StatusModel) headerDisplayLines() []string {
 	return wrapPlainLines(m.headerLines(), m.contentWidth())
-}
-
-func (m StatusModel) viewTabs() string {
-	labels := []struct {
-		view  TUIView
-		label string
-	}{
-		{view: viewDashboard, label: "Dashboard"},
-		{view: viewTasks, label: "Tasks"},
-		{view: viewRuns, label: "Runs"},
-		{view: viewRunDetail, label: "Run Detail"},
-		{view: viewPreflight, label: "Preflight"},
-	}
-	if m.view == viewAutonomous {
-		labels = append(labels, struct {
-			view  TUIView
-			label string
-		}{view: viewAutonomous, label: "Workflow"})
-	}
-	if isFocusedView(m.view) {
-		labels = append(labels, struct {
-			view  TUIView
-			label string
-		}{view: m.view, label: m.viewLabel()})
-	}
-	labels = append(labels, struct {
-		view  TUIView
-		label string
-	}{view: viewHelp, label: "Help"})
-	parts := make([]string, 0, len(labels))
-	for _, item := range labels {
-		if m.view == item.view {
-			parts = append(parts, "["+item.label+"]")
-			continue
-		}
-		parts = append(parts, item.label)
-	}
-	return strings.Join(parts, " | ")
 }
 
 func (m StatusModel) viewLabel() string {
@@ -2274,12 +2227,19 @@ func (m StatusModel) viewLabel() string {
 
 func (m StatusModel) footerLines() []string {
 	if m.composer.Active {
-		composer := wrapPlainLines([]string{"Command> " + m.composer.Text}, m.contentWidth())
+		composer := wrapPlainLines([]string{"› " + m.composer.Text}, m.contentWidth())
 		quit := "ctrl+c Quit"
 		if m.runOnce.Active {
-			quit = "ctrl+c Cancel/Quit"
+			quit = "ctrl+c Cancel"
 		}
-		return append(composer, wrapKeyLines([]string{"enter Run command", "esc Cancel", quit}, m.width)...)
+		return append(composer, wrapPlainLines([]string{"enter Run | esc Close | " + quit}, m.contentWidth())...)
+	}
+	if m.view == viewDashboard {
+		keys := "? Help | R Run | r Refresh | q Quit"
+		if m.runOnce.Active {
+			keys = "c Cancel Run | ? Help | q Quit"
+		}
+		return append([]string{"› / for commands"}, wrapPlainLines([]string{keys}, m.contentWidth())...)
 	}
 	keys := []string{}
 	if m.runOnce.Active {
@@ -2331,46 +2291,26 @@ func (m StatusModel) footerLines() []string {
 
 func (m StatusModel) renderDashboard() string {
 	if !m.status.Initialized {
-		lines := []string{
-			"Dashboard",
-			"State: not initialized",
-			"Tasks: unavailable",
-			"Runnable: unavailable",
-			"Runs: unavailable",
-		}
+		lines := []string{"Run `revolvr init` to initialize this repository."}
 		lines = appendNotice(lines, m.message)
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 
-	counts := countTasks(m.status.Tasks)
-	nextIndex := nextSelectedTaskIndex(m.status.Tasks)
-	lines := []string{
-		"Dashboard",
-		"State: initialized",
-		"",
+	lines := appendNotice(nil, m.message)
+	history, ok := m.latestRunHistory()
+	if !ok {
+		lines = append(lines, "Idle", "No runs recorded.")
+		nextIndex := nextSelectedTaskIndex(m.status.Tasks)
+		if nextIndex >= 0 {
+			lines = append(lines, "Next task: "+taskBrief(m.status.Tasks[nextIndex]))
+		} else {
+			lines = append(lines, "Next task: none")
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
-	if history, ok := m.latestRunHistory(); ok && len(history.Events) != 0 {
-		lines = append(lines, "Transcript", m.operatorStatusLine(history.Run))
-		lines = append(lines, runTimelineLines(history)...)
-		lines = append(lines, runEventLines(history.Events)...)
-		lines = append(lines, "")
-	}
-	lines = append(lines,
-		"Tasks",
-		fmt.Sprintf("Total: %d", counts.total),
-		fmt.Sprintf("Pending: %d", counts.pending),
-		fmt.Sprintf("Blocked: %d", counts.blocked),
-		fmt.Sprintf("Completed: %d", counts.completed),
-	)
-	lines = append(lines, nextRunnableLines(m.status.Tasks, nextIndex)...)
-	lines = append(lines, operatorCheckpointLines(m.status.Tasks)...)
-	lines = append(lines, schedulingDiagnosticLines(m.status.Schedule.InvalidGraph)...)
+	lines = append(lines, operatorStatusLines(history.Run)...)
 	lines = append(lines, "")
-	lines = appendNotice(lines, m.message)
-
-	lines = append(lines, latestRunLines(m.status.RecentRuns)...)
-	lines = append(lines, "")
-	lines = append(lines, m.recentRunLines()...)
+	lines = append(lines, dashboardTimelineLines(history)...)
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
@@ -2497,12 +2437,13 @@ func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
 	return m.latestRunHistory()
 }
 
-func (m StatusModel) operatorStatusLine(run ledger.Run) string {
-	safety := "outcome=" + optionalValue(run.Status)
-	if strings.TrimSpace(run.VerificationStatus) != "" {
-		safety = "verification=" + oneLine(run.VerificationStatus)
+func operatorStatusLines(run ledger.Run) []string {
+	status := optionalValue(run.Status)
+	headline := dashboardTimelineMarker(status) + " Run " + status
+	if verification := oneLine(run.VerificationStatus); verification != "" {
+		headline += " · verification " + verification
 	}
-	return fmt.Sprintf("Task: %s | Run: %s %s | Safety: %s", optionalValue(run.TaskID), optionalValue(run.ID), optionalValue(run.Status), safety)
+	return []string{headline}
 }
 
 func (m StatusModel) renderFocusedDiff() string {
@@ -3293,22 +3234,6 @@ func taskListStatus(status string) string {
 	}
 }
 
-func latestRunLines(runs []ledger.Run) []string {
-	lines := []string{"Latest Run"}
-	if len(runs) == 0 {
-		return append(lines, "None")
-	}
-
-	run := runs[0]
-	return append(lines,
-		fmt.Sprintf("ID: %s", optionalValue(run.ID)),
-		fmt.Sprintf("Status: %s", optionalValue(run.Status)),
-		fmt.Sprintf("Summary: %s", optionalValue(run.Summary)),
-		fmt.Sprintf("Verification: %s", optionalValue(run.VerificationStatus)),
-		fmt.Sprintf("Commit: %s", optionalValue(run.CommitSHA)),
-	)
-}
-
 func (m StatusModel) recentRunLines() []string {
 	lines := []string{"Recent Runs"}
 	if len(m.status.RecentRuns) == 0 {
@@ -3389,6 +3314,96 @@ func runTimelineLines(history ledger.RunWithEvents) []string {
 		))
 	}
 	return lines
+}
+
+func dashboardTimelineLines(history ledger.RunWithEvents) []string {
+	rows := app.RunTimeline(history)
+	visible := make([]app.RunTimelineRow, 0, len(rows))
+	for _, row := range rows {
+		if row.Phase == "run" || row.Phase == "task" {
+			continue
+		}
+		if row.Phase == "codex" && row.Status == "progress" && !strings.HasPrefix(row.Detail, "message: ") {
+			continue
+		}
+		visible = append(visible, row)
+	}
+
+	var lines []string
+	if len(visible) == 0 {
+		return []string{"No activity recorded."}
+	}
+	if omitted := len(visible) - maxDashboardEvents; omitted > 0 {
+		visible = visible[omitted:]
+		lines = append(lines, fmt.Sprintf("… %d earlier · 4 Run Detail", omitted))
+	}
+	for _, row := range visible {
+		label := strings.TrimSpace(row.Phase + " " + row.Status)
+		detail := oneLine(row.Detail)
+		switch {
+		case detail == "from run record",
+			row.Phase == "codex" && row.Status == "started" && detail == "codex":
+			detail = ""
+		case row.Phase == "codex" && row.Status == "progress" && strings.HasPrefix(detail, "message: "):
+			label = "codex"
+			detail = strings.TrimPrefix(detail, "message: ")
+		case (row.Phase == "changes" && row.Status == "captured") ||
+			(row.Phase == "commit" && row.Status == "started"):
+			detail, _, _ = strings.Cut(detail, ": ")
+		case row.Phase == "commit" && row.Status == "created":
+			detail = strings.TrimPrefix(detail, "commit ")
+			if len(detail) > 12 {
+				detail = detail[:12]
+			}
+		case row.Phase == "receipt" && row.Status == "parsed":
+			detail, _, _ = strings.Cut(detail, " (")
+		case row.Phase == "receipt" && row.Status == "warning":
+			label = "receipt"
+			if _, message, ok := strings.Cut(detail, ": "); ok {
+				detail = message
+			}
+			detail = strings.ReplaceAll(detail, "harness ", "")
+			detail = strings.TrimPrefix(detail, "receipt ")
+			detail, _, _ = strings.Cut(detail, " (")
+			detail = strings.ReplaceAll(detail, "captured changed files", "captured files")
+		}
+		line := fmt.Sprintf("%s %s  %s", dashboardTimelineMarker(row.Status), dashboardTimelineTime(row.Timestamp), label)
+		if detail != "" {
+			line += " — " + truncateDashboardDetail(detail)
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func dashboardTimelineMarker(status string) string {
+	switch status {
+	case "completed", "passed", "created", "captured":
+		return "✓"
+	case "failed", "error", "cancelled":
+		return "×"
+	case "warning":
+		return "!"
+	case "selected", "progress":
+		return "›"
+	default:
+		return "•"
+	}
+}
+
+func dashboardTimelineTime(value time.Time) string {
+	if value.IsZero() {
+		return "--:--"
+	}
+	return value.UTC().Format("15:04")
+}
+
+func truncateDashboardDetail(value string) string {
+	runes := []rune(value)
+	if len(runes) <= maxDashboardDetail {
+		return value
+	}
+	return string(runes[:maxDashboardDetail-1]) + "…"
 }
 
 func runArtifactLines(events []ledger.Event) []string {
@@ -4049,7 +4064,11 @@ func styleHeaderLines(lines []string) []string {
 func styleFooterLines(lines []string) []string {
 	styled := append([]string(nil), lines...)
 	for i, line := range styled {
-		styled[i] = mutedStyle.Render(line)
+		if strings.HasPrefix(strings.TrimSpace(line), "›") {
+			styled[i] = selectedStyle.Render(line)
+		} else {
+			styled[i] = mutedStyle.Render(line)
+		}
 	}
 	return styled
 }
@@ -4067,22 +4086,29 @@ func styleContentLine(line string) string {
 	}
 	if strings.HasPrefix(trimmed, "FAIL ") ||
 		strings.HasPrefix(trimmed, "Error:") ||
+		strings.HasPrefix(trimmed, "× ") ||
 		strings.Contains(trimmed, "! blocked") ||
 		lineStatusIn(trimmed, "failed", "error", "blocked", "cancelled") {
 		return dangerStyle.Render(line)
 	}
 	if strings.HasPrefix(trimmed, "OK ") ||
 		strings.HasPrefix(trimmed, "PASS ") ||
+		strings.HasPrefix(trimmed, "✓ ") ||
 		lineStatusIn(trimmed, "ready", "passed", "completed", "initialized") {
 		return successStyle.Render(line)
 	}
 	if lineStatusIn(trimmed, "not run", "running", "not initialized") ||
+		strings.HasPrefix(trimmed, "• ") ||
+		strings.HasPrefix(trimmed, "! ") ||
 		strings.HasPrefix(trimmed, "Cancellation:") ||
 		strings.HasPrefix(trimmed, "Capture error:") {
 		return warningStyle.Render(line)
 	}
-	if strings.HasPrefix(trimmed, ">") {
+	if strings.HasPrefix(trimmed, ">") || strings.HasPrefix(trimmed, "› ") {
 		return selectedStyle.Render(line)
+	}
+	if strings.HasPrefix(trimmed, "… ") {
+		return mutedStyle.Render(line)
 	}
 	return line
 }
@@ -4090,6 +4116,7 @@ func styleContentLine(line string) string {
 func isSectionHeading(value string) bool {
 	switch value {
 	case "Dashboard",
+		"Idle",
 		"Transcript",
 		"Tasks",
 		"Task List",
@@ -4100,6 +4127,7 @@ func isSectionHeading(value string) bool {
 		"Run Detail",
 		"Summary",
 		"Timeline",
+		"Activity",
 		"Diagnostics",
 		"Receipt Validation",
 		"Changed Files",

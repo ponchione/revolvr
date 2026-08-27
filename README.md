@@ -820,6 +820,9 @@ option or recommendation is preselected, and submission requires an explicit
 choice plus confirmation. Press `c` to request cancellation of the active
 TUI-started run, loop, task run, or queue, `v` in Run Detail to validate the
 loaded receipt, `r` to refresh, and `?` for in-app key help.
+TUI task creation requires a clean worktree and commits only the new canonical
+task file, so the following preflight remains clean. CLI task add/import keeps
+the review-and-commit workflow for operator-authored task authority.
 Press `/` to open the command composer. `/diff`, `/evidence`, and `/approval`
 open the focused views; `d`, `e`, and `A` are their keyboard shortcuts. The
 `/diff` compatibility command is labeled `Change Summary`: it renders canonical
