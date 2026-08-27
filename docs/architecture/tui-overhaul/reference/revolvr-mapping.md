@@ -3,8 +3,8 @@
 Codex evidence is pinned to
 `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`; its cited contracts live in the
 [interaction model](interaction-model.md) and
-[terminal mechanics](terminal-mechanics.md). D2, D3, and D5 are accepted; this
-mapping does not resolve D4 or D6.
+[terminal mechanics](terminal-mechanics.md). D2, D3, D4, and D5 are accepted;
+D6 remains open.
 
 ## Current Boundary
 
@@ -43,20 +43,20 @@ the overhaul.
 | [Contextual command discovery and history](interaction-model.md#commands-and-history) | `/` plus enter opens static help; no filtered popup or submission history exists. ([R08]) | `presentation change` | composer-local filtered list over the existing `submitCommand` vocabulary | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) / D2 |
 | One replaceable live operation | `runOnceState` already holds one active operation and rejects overlapping starts. ([R06], [R09]) | `presentation change` | render existing `runOnceState` only in the managed live frame | [TUI-040](../tasks/tui-040-render-live-operation.md) / accepted D3 |
 | [Queued input with explicit categories](interaction-model.md#queued-input-and-interruption) | No application callback or domain projection owns queued composer input. Active-run key routing rejects conflicting actions. ([R02], [R06]) | `skip` | none; accepted D5 rejects steering and queued/deferred messages | No task; TUI-041 removed |
-| [Overlay focus stack](interaction-model.md#overlays-and-focus-transfer) | Focused views replace the current enum view and remember one source; there is no shared stacked overlay shell. ([R10]) | `proof required` | replace `openFocusedView`/`closeFocusedView` ownership with one overlay state | [TUI-050](../tasks/tui-050-add-overlay-shell.md) / D4 |
-| Tasks presentation in overlay | Tasks already render and navigate in the shared viewport. ([R11]) | `presentation change` | route existing Tasks render/key paths through the accepted overlay shell | [TUI-051](../tasks/tui-051-move-tasks-overlay.md) / D4 |
-| Runs and Run Detail in overlay | Both views already use canonical status/history callbacks. ([R02], [R11]) | `presentation change` | retain renderers and move only view/focus ownership | [TUI-052](../tasks/tui-052-move-runs-overlay.md) / D4 |
-| Preflight in overlay | Preflight is callback-backed and guarded against active-run overlap. ([R02], [R06]) | `presentation change` | retain `preflightState` and callback; move presentation ownership | [TUI-053](../tasks/tui-053-move-preflight-overlay.md) / D4 |
-| Workflow in overlay | Autonomous selectors/projection and scrolling already live in `StatusModel`. ([R02], [R12]) | `presentation change` | retain `autonomousState`; move its render/key route | [TUI-054](../tasks/tui-054-move-workflow-overlay.md) / D4 |
-| Change Summary in overlay | Focused diff already renders canonical artifacts and returns to its source at narrow width. ([R04], [R10]) | `presentation change` | `renderFocusedDiff` under the shared overlay shell | [TUI-055](../tasks/tui-055-move-change-summary-overlay.md) / D4 |
-| Evidence in overlay | Focused evidence already reloads canonical history on refresh. ([R04], [R07]) | `presentation change` | `renderFocusedEvidence` under the shared overlay shell | [TUI-056](../tasks/tui-056-move-evidence-overlay.md) / D4 |
-| [Typed approval overlay](interaction-model.md#approvals) | Approval is a focused projection; accepted answers pass typed task/question/revision/hash/option identity to the app callback. ([R04], [R13]) | `presentation change` | keep `autonomousAnswerState` and `AnswerInput`; change only focus/render owner | [TUI-057](../tasks/tui-057-move-approval-overlay.md) / D4 |
-| [Typed question overlay](interaction-model.md#typed-questions) | Needs-input requires a current typed question, explicit option, double confirmation, and stale-question rejection. ([R13]) | `presentation change` | retain the existing answer state machine and expose it through the shared overlay; no free-form route | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) / accepted D2, open D4 |
+| [Overlay focus and explicit children](interaction-model.md#overlays-and-focus-transfer) | Focused views replace the current enum view and remember one source; there is no shared overlay shell. ([R10]) | `accepted; proof required` | TUI-050 adds one root overlay; TUI-052/TUI-058 later add only the accepted Runs-detail and typed-input child states | [TUI-050](../tasks/tui-050-add-overlay-shell.md) / accepted D4 |
+| Tasks presentation in overlay | Tasks already render and navigate in the shared viewport. ([R11]) | `presentation change` | route existing Tasks render/key paths through the accepted overlay shell | [TUI-051](../tasks/tui-051-move-tasks-overlay.md) / accepted D4 |
+| Runs and Run Detail in overlay | Both views already use canonical status/history callbacks. ([R02], [R11]) | `presentation change` | retain renderers and move only view/focus ownership | [TUI-052](../tasks/tui-052-move-runs-overlay.md) / accepted D4 |
+| Preflight in overlay | Preflight is callback-backed and guarded against active-run overlap. ([R02], [R06]) | `presentation change` | retain `preflightState` and callback; move presentation ownership | [TUI-053](../tasks/tui-053-move-preflight-overlay.md) / accepted D4 |
+| Workflow in overlay | Autonomous selectors/projection and scrolling already live in `StatusModel`. ([R02], [R12]) | `presentation change` | retain `autonomousState`; move its render/key route | [TUI-054](../tasks/tui-054-move-workflow-overlay.md) / accepted D4 |
+| Change Summary in overlay | Focused diff already renders canonical artifacts and returns to its source at narrow width. ([R04], [R10]) | `presentation change` | `renderFocusedDiff` under the shared overlay shell | [TUI-055](../tasks/tui-055-move-change-summary-overlay.md) / accepted D4 |
+| Evidence in overlay | Focused evidence already reloads canonical history on refresh. ([R04], [R07]) | `presentation change` | `renderFocusedEvidence` under the shared overlay shell | [TUI-056](../tasks/tui-056-move-evidence-overlay.md) / accepted D4 |
+| [Typed approval overlay](interaction-model.md#approvals) | Approval is a focused projection; accepted answers pass typed task/question/revision/hash/option identity to the app callback. ([R04], [R13]) | `presentation change` | keep `autonomousAnswerState` and `AnswerInput`; change only focus/render owner | [TUI-057](../tasks/tui-057-move-approval-overlay.md) / accepted D4 |
+| [Typed question overlay](interaction-model.md#typed-questions) | Needs-input requires a current typed question, explicit option, double confirmation, and stale-question rejection. ([R13]) | `accepted presentation change` | retain the existing answer state machine and expose it through the shared overlay; no free-form route | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) / accepted D2/D4 |
 | [Width/geometry proof](terminal-mechanics.md#resize-reflow-and-width) | Exact 100-column, 40-column, and 40x24 render tests already bound lines and chrome for the current dashboard. ([R14]) | `proof required` | prove managed-frame reflow and no committed-identity replay | [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) / accepted D3, open D6 |
 | [Terminal-native scrollback](terminal-mechanics.md#history-insertion-and-native-scrollback) | Current code uses one Bubbles viewport and has no project-owned insertion seam. ([R01], [R05]) | `accepted; environment proof required` | installed `tea.Println` plus plain-terminal/tmux matrix; no production escape layer | [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) / accepted D3 |
 | [Suspend/restore/error lifecycle](terminal-mechanics.md#terminal-lifecycle-and-restoration) | Lifecycle is delegated to `tea.NewProgram`; active quit waits for run settlement in model tests. ([R01], [R09]) | `accepted boundary; proof required` | Bubble Tea lifecycle plus existing model settlement | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) / accepted D3 |
 | [Text-first semantic styling](terminal-mechanics.md#styling-and-text-accessibility) | Default text plus bold/dim/cyan/green/red roles exist, and tests strip ANSI before textual assertions. ([R15], [R14]) | `proof required` | existing style functions and styles-disabled test environment | [TUI-063](../tasks/tui-063-verify-text-accessibility.md) / none |
-| Remove dashboard-only presentation | Current dashboard still owns header/status/timeline/footer assembly. ([R05], [R16]) | `presentation change` | delete obsolete dashboard render/chrome and viewport history ownership only after parity | [TUI-070](../tasks/tui-070-remove-dashboard-presentation.md) / accepted D3, open D6 |
+| Remove dashboard-only presentation | Current dashboard still owns header/status/timeline/footer assembly. ([R05], [R16]) | `presentation change` | delete obsolete dashboard render/chrome and viewport history ownership only after parity | [TUI-070](../tasks/tui-070-remove-dashboard-presentation.md) / accepted D3/D4, open D6 |
 | Operator documentation | No useful Codex analog; Revolvr commands and accepted decisions are the authority. | `skip` | current Revolvr docs after behavior lands | [TUI-071](../tasks/tui-071-update-operator-docs.md) / D2–D6 as accepted |
 | Overhaul acceptance | No useful Codex analog; closure depends on Revolvr tests and terminal records. | `proof required` | existing task acceptance record | [TUI-072](../tasks/tui-072-close-overhaul-acceptance.md) / D2–D6 as accepted |
 
@@ -71,7 +71,10 @@ the overhaul.
   settlement identity, and the live/composer/overlay frame. Bubble Tea appends
   finalized renderings once to terminal-owned normal-screen history. The TUI
   never clears or re-emits committed rows on resize; a viewport is overlay-only.
-- **Open product decision D4:** overlay migration order and parity gate.
+- **Accepted D4:** migrate Help, Tasks, Runs/Run Detail, Preflight, Workflow,
+  Change Summary, Evidence, Approval, and typed needs-input in that order.
+  Retain each current key/command entry, exact return state, and page renderer
+  until the accepted parity and removal gates pass.
 - **Open product decision D6:** whether a one-time session header is committed,
   refreshed, or omitted.
 
@@ -87,11 +90,11 @@ the overhaul.
 4. TUI-063 lacks a complete styles-disabled target snapshot; ANSI-normalized
    current tests establish textual content but not final focus/status clarity.
 5. D6 lacks an accepted session-header lifecycle and replay/refresh snapshot.
-6. D4 lacks per-view overlay parity evidence, especially focus return and
-   narrow-height behavior for typed answers.
+6. Accepted D4 still requires its per-view overlay parity evidence, especially
+   exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-003 is the next bounded product-decision task.
+TUI-004 is the next bounded product-decision task.
 
 ## Revolvr Evidence
 

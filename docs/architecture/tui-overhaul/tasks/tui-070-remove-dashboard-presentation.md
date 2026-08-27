@@ -20,13 +20,22 @@ application has one rendering and navigation model.
   behavior.
 - Retain app callbacks, projections, focused renderers, guards, and key routes
   still used by transcript, commands, or overlays.
-- Remove migration aliases only when their E5 parity evidence allows it.
+- Remove a page-only path only when every D4 E5 parity gate has passed, E6
+  geometry covers the replacement, key and command entry reach the same
+  overlay, dismissal/child-back restores exact state, and no page-only fact,
+  action, guard, or error remains.
+- Retain every operator-facing key and command listed by D4; remove only their
+  obsolete page-routing and migration scaffolding.
 
 ## Acceptance
 
 - Launch output contains no Dashboard label or dashboard-only content path.
 - No fact is rendered through duplicate transcript/live/page representations.
 - Every accepted action remains reachable through documented command/key paths.
+- `?`, bare `/`, `/help`, `/commands`, `2`, `/tasks`, `3`, `/runs`, `4`,
+  `/detail`, `5`, `/preflight`, `6`, `/workflow`, `d`, `/diff`, `e`,
+  `/evidence`, `A`, `/approval`, context-specific `a`, and `/answer` still
+  reach their accepted overlays after page deletion.
 - The diff removes more presentation code than it adds and introduces no new
   abstraction.
 - Full tests show no behavior change outside the accepted TUI replacement.

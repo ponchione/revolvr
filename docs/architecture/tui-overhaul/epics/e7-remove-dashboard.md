@@ -26,6 +26,8 @@ the plan. It does not redesign CLI behavior outside `revolvr tui`.
 
 - No obsolete Dashboard label, inactive composer, or page-only navigation path
   remains.
+- Every D4 key and command opens the accepted overlay after page-only
+  presentation is removed.
 - Operator documentation describes the shipped interface.
 - Every whole-overhaul acceptance criterion has recorded evidence.
 - Full tests and the final supported-terminal matrix pass.

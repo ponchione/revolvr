@@ -60,7 +60,9 @@ Updated: 2026-08-27
   and no app/domain prerequisite was added. D3 is accepted as a bounded hybrid:
   `internal/tui` owns semantic source/live state, finalized identities append
   once through installed `tea.Println`, terminal history owns emitted rows and
-  native reflow/copy, and viewports are overlay-only. D4 and D6 remain open.
+  native reflow/copy, and viewports are overlay-only. D4 is accepted as the
+  strict Help, Tasks, Runs/Run Detail, Preflight, Workflow, Change Summary,
+  Evidence, Approval, typed-needs-input migration order. D6 remains open.
 - Committed the task-publication fix, console presentation/test update,
   planning tree, behavioral study, and durable-state snapshot as `24be655`
   (`feat: prepare transcript-first TUI overhaul`) and pushed `main` to
@@ -79,17 +81,30 @@ Updated: 2026-08-27
   app/domain prerequisite, runnable task, terminal backend, or escape layer was
   added.
 - Consumed and removed `docs/architecture/tui-overhaul/TUI_002_DECISION_PROMPT.md`.
-  No product code, runnable task, commit, or push changed in the TUI-002 pass.
+  No product code or runnable task changed in the TUI-002 pass.
+- Committed and pushed the accepted TUI-002 decision as `1f1fc1c`
+  (`docs: choose TUI transcript ownership`) with raw Git.
+- TUI-003 is accepted and closes D4. Each focused workflow migrates only after
+  the preceding parity gate; every current key/command entry is retained and
+  cuts over with its command/key pair. Page presentation remains rollback-only
+  until TUI-070 proves all E5 parity, E6 geometry, exact return/child-back, and
+  no-page-only-behavior criteria.
+- `internal/tui.StatusModel` owns root overlay focus, local state, and saved
+  composer/source return state while transcript/live meaning updates beneath
+  it. Runs detail and typed needs-input are the only explicit child states; no
+  general overlay stack, callback, domain-state, runtime dependency, D6,
+  app/domain prerequisite, product code, runnable task, commit, or push was
+  added.
 
 ## Exact Next Command
 
-Run one fresh Codex pass for TUI-003:
+Run one fresh Codex pass for TUI-004:
 
 ```bash
-codex exec "Execute TUI-003 from docs/architecture/tui-overhaul/tasks/tui-003-accept-overlay-migration.md as one bounded documentation decision pass. Read AGENTS.md, the durable state, and the TUI-overhaul design/reference files first; resolve only D4, do not change product code, publish TUI-010, commit, or continue into TUI-004."
+codex exec "Execute TUI-004 from docs/architecture/tui-overhaul/tasks/tui-004-accept-session-header.md as one bounded documentation decision pass. Read AGENTS.md, the durable state, and the TUI-overhaul design/reference files first; resolve only D6, do not change product code, publish TUI-010, commit, or continue into TUI-005."
 ```
 
-Do not create a separate TUI-003 prompt before that pass.
+Do not create a separate TUI-004 prompt before that pass.
 
 ## Verification
 
@@ -132,5 +147,13 @@ Do not create a separate TUI-003 prompt before that pass.
 - TUI-002 relative Markdown link, changed-path scope, ownership-table,
   accepted-decision consistency, and rejected-owner task audits — PASS.
 - `test ! -e docs/architecture/tui-overhaul/TUI_002_DECISION_PROMPT.md` — PASS.
+- `git show --check --oneline 1f1fc1c` — PASS.
+- `git status --short --branch` after the TUI-002 push — PASS;
+  `main...origin/main` with no worktree changes.
+- TUI-003 path-scoped `git diff --check` and required D4 overlay/migration/
+  parity/return-state/Run-Detail term audit — PASS.
+- TUI-003 relative Markdown link, changed-scope, exact dependency-chain,
+  retained-entry, page-removal, accepted-D4/open-D6, 33-task, no-runnable-task,
+  no-product-code, and status checks — PASS.
 
-Run the exact next command above for TUI-003.
+Run the exact next command above for TUI-004.

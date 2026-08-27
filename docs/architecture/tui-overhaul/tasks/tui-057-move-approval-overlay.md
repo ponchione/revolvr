@@ -2,7 +2,7 @@
 
 - Status: Draft; not canonical or runnable
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
-- Depends on: [TUI-050](tui-050-add-overlay-shell.md)
+- Depends on: [TUI-056](tui-056-move-evidence-overlay.md)
 
 ## Outcome
 
@@ -15,11 +15,14 @@ without weakening approval authority.
   available decisions.
 - Preserve explicit selection/confirmation and existing app callbacks.
 - Preserve refusal, stale request, active-operation, and refresh behavior.
-- Keep old navigation entry during migration and add/retain command entry.
+- Retain `A` and `/approval`; move both from the page to the same overlay only
+  when this task's parity gate passes.
+- Retain the Approval page renderer as the D4 rollback path until TUI-070.
 
 ## Acceptance
 
 - No approval occurs from overlay open, navigation, or unconfirmed selection.
+- Both `A` and `/approval` open that parity-tested path.
 - One confirmed decision targets one exact approval identity.
 - Stale or rejected results remain visible and cannot be rendered as success.
 - Dismissal restores the exact pre-open shell state.
@@ -35,4 +38,5 @@ go test ./internal/tui
 
 ## Not Included
 
-- No approval policy, evidence rule, automatic approval, or old-key removal.
+- No approval policy, evidence rule, automatic approval, old-route removal, or
+  page-renderer deletion.

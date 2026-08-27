@@ -2,7 +2,7 @@
 
 - Status: Draft; not canonical or runnable
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
-- Depends on: [TUI-050](tui-050-add-overlay-shell.md)
+- Depends on: [TUI-054](tui-054-move-workflow-overlay.md)
 
 ## Outcome
 
@@ -15,11 +15,15 @@ selection, scrolling, refresh, and return behavior.
 - Preserve the distinction between canonical metadata and an exact diff
   artifact.
 - Preserve scrolling, refresh, active-operation guards, and current entries.
-- Keep old navigation entry during migration and add/retain command entry.
+- Retain `d` and `/diff`; move both from the page to the same overlay only when
+  this task's parity gate passes.
+- Retain the Change Summary page renderer as the D4 rollback path until
+  TUI-070.
 
 ## Acceptance
 
 - Every current Change Summary fact remains visible and source-traceable.
+- Both `d` and `/diff` open that parity-tested path.
 - Metadata is never relabeled as file-content diff evidence.
 - Narrow rendering is bounded and long paths use the accepted compaction.
 - Dismissal restores the exact pre-open shell state.
@@ -35,4 +39,5 @@ go test ./internal/tui
 
 ## Not Included
 
-- No diff generation, Git query, evidence migration, or old-key removal.
+- No diff generation, Git query, evidence migration, old-route removal, or
+  page-renderer deletion.

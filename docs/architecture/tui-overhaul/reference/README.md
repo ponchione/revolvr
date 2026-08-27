@@ -22,10 +22,11 @@ authority, and installed terminal dependencies remain authoritative. See the
 **Decision status:** D2 accepts reviewed idle task drafts and rejects all other
 plain text; D3 accepts source-backed cells with one-time `tea.Println`
 commitment to terminal-owned history and a managed live/composer/overlay frame;
-D5 rejects active steering and queued/deferred operator messages. D4 and D6
-remain open. This study remains evidence for the accepted ownership split and
-candidate seams; it does not select overlay order or the session-header
-lifecycle.
+D4 accepts the Help-to-typed-needs-input one-view-at-a-time migration, retained
+key/command entries, exact return ownership, and parity-gated page removal; D5
+rejects active steering and queued/deferred operator messages. D6 remains open.
+This study remains behavioral evidence for those accepted seams; it does not
+select the session-header lifecycle.
 
 ## Citation Format
 
@@ -66,7 +67,7 @@ process is the only useful authority.
 | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission); accepted D2/D5 and the existing reviewed task-entry path remain authoritative |
 | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) | [Commands and history](interaction-model.md#commands-and-history) |
 | [TUI-040](../tasks/tui-040-render-live-operation.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) |
-| [TUI-050](../tasks/tui-050-add-overlay-shell.md) | [Overlays and focus transfer](interaction-model.md#overlays-and-focus-transfer) |
+| [TUI-050](../tasks/tui-050-add-overlay-shell.md) | [Accepted D4 overlays and focus transfer](interaction-model.md#overlays-and-focus-transfer) |
 | [TUI-051](../tasks/tui-051-move-tasks-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for task content |
 | [TUI-052](../tasks/tui-052-move-runs-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for run content |
 | [TUI-053](../tasks/tui-053-move-preflight-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for preflight content |

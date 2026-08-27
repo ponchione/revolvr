@@ -2,7 +2,7 @@
 
 - Status: Draft; not canonical or runnable
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
-- Depends on: [TUI-050](tui-050-add-overlay-shell.md)
+- Depends on: [TUI-053](tui-053-move-preflight-overlay.md)
 
 ## Outcome
 
@@ -16,12 +16,15 @@ without changing workflow semantics.
 - Preserve start/continue/cancel/refresh callbacks and operation guards.
 - Show needs-input state but leave typed answer interaction on its current path
   until TUI-058.
-- Keep old navigation entry during migration and add/retain command entry.
+- Retain `6` and `/workflow`; move both from the page to the same overlay only
+  when this task's parity gate passes.
 - Preserve underlying live updates and return state.
+- Retain the Workflow page renderer as the D4 rollback path until TUI-070.
 
 ## Acceptance
 
 - Every workflow state and control exposed before migration remains reachable.
+- Both `6` and `/workflow` open that parity-tested path.
 - Active updates behind the overlay reconcile without duplicating history.
 - Operation guards and app results remain the only source of availability.
 - Needs-input state stays visible and its existing answer path still works.
@@ -37,5 +40,5 @@ go test ./internal/tui
 
 ## Not Included
 
-- No workflow policy, typed-answer migration, queue behavior, or old-key
-  removal.
+- No workflow policy, typed-answer migration, queue behavior, old-route
+  removal, or page-renderer deletion.

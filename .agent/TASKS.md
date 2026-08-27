@@ -95,7 +95,11 @@
   retains semantic source/live state, finalized identities append once through
   installed `tea.Println`, terminal history owns emitted rows and native
   reflow/copy, and viewports are overlay-only. No terminal layer, dependency,
-  or app/domain prerequisite was added. D4 and D6 remain open; TUI-003 is next.
+  or app/domain prerequisite was added. D4 is accepted: migrate Help, Tasks,
+  Runs/Run Detail, Preflight, Workflow, Change Summary, Evidence, Approval,
+  then typed needs-input; retain every current key/command entry and page
+  rollback until per-view parity, return-state, child-back, and removal gates
+  pass. D6 remains open; TUI-004 is next.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

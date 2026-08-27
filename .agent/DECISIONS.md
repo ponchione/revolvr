@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## Focused Views Migrate One At A Time Behind Retained Routes (2026-08-27)
+
+- TUI-overhaul D4 is accepted. The exact order is Help, Tasks, Runs with its
+  Run Detail child, Preflight, Workflow, Change Summary, Evidence, Approval,
+  then typed needs-input. TUI-050 through TUI-058 form that dependency chain;
+  a migration starts only after the preceding view's parity gate passes.
+- Existing operator entries remain throughout E5: `?`, bare `/`, `/help`,
+  `/commands`, `2`, `/tasks`, `3`, `/runs`, `4`, `/detail`, `5`, `/preflight`,
+  `6`, `/workflow`, `d`, `/diff`, `e`, `/evidence`, `A`, `/approval`,
+  context-specific `a`, and `/answer <option-id>`. A view's key and command
+  move together from its current page to the accepted overlay.
+- Every step must prove content and action parity, both retained entry paths,
+  80- and 40-column geometry, exact dismissal return, callback/guard/error
+  behavior, and any stable selection or refresh identity owned by that view.
+  The page renderer remains rollback-only presentation until TUI-070.
+- TUI-070 may delete a page-only path only after all E5 parity gates and E6
+  geometry pass, key and command tests reach the same overlay, child-back and
+  dismissal tests restore exact state, and no fact, action, guard, or error
+  exists only on the page. The retained operator entries, callbacks,
+  projections, guards, and domain authority are not removal candidates.
+- `internal/tui.StatusModel` owns root overlay focus, overlay-local state, and
+  saved composer/source return state. Transcript source, emitted identities,
+  and live operation state continue updating underneath; dismissal emits no
+  history and restores exact composer state against the latest live state.
+  Failed actions stay visible, and stale results cannot dismiss a newer owner.
+- There is no general overlay stack. Runs-to-Run-Detail retains selected run
+  identity and list offset as one explicit child; direct detail entry creates
+  the same parent. Typed needs-input is the other explicit child and retains
+  Workflow or Approval as its parent. No application callback, domain state,
+  runtime dependency, D6 decision, or app/domain prerequisite changes.
+
 ## Transcript Uses Source-Backed Cells And Terminal-Owned History (2026-08-27)
 
 - TUI-overhaul D3 is accepted as a bounded hybrid. Existing app/domain

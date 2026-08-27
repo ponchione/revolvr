@@ -3,7 +3,7 @@
 Evidence pin: `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`.
 Labels in this document are deliberate: observed behavior describes the pin,
 current behavior describes Revolvr today, candidate adaptation is non-binding,
-and decision status distinguishes accepted D2/D3/D5 from open D4/D6.
+and decision status distinguishes accepted D2-D5 from open D6.
 
 ## Shell Composition and Focus
 
@@ -41,8 +41,8 @@ append-above-program boundary; terminal history owns emitted rows while the
 managed frame owns the live cell, composer, and overlay. A viewport may scroll
 overlay content but never owns committed history.
 
-**Decision status:** D3 accepts this bounded hybrid. D4 still decides overlay
-migration order.
+**Decision status:** D3 accepts this bounded hybrid. D4 accepts a parity-gated,
+one-view-at-a-time overlay migration with exact focus return.
 
 ## Live-to-Committed Settlement
 
@@ -159,12 +159,23 @@ streaming answer and completed command activity, then install a modal and reques
 a redraw. The composer is explicitly disabled while a typed question view is
 active. ([I20], [I21])
 
-**Candidate Revolvr adaptation:** TUI-050 needs one shared overlay shell with
-explicit focus return. It need not reproduce Codex’s distinction between
-application overlays and bottom-pane views unless a shell proof shows value.
+**Accepted Revolvr adaptation:** TUI-050 introduces one root overlay shell with
+explicit focus return. The accepted migration order is Help, Tasks, Runs/Run
+Detail, Preflight, Workflow, Change Summary, Evidence, Approval, then typed
+needs-input. Each step retains its current key and command, cuts both entries
+over only after content/action and return-state parity passes, and leaves the
+page renderer as rollback scaffolding until the D4 removal criteria pass.
 
-**Open product decision:** D4 still determines which existing focused view
-moves first and what parity evidence closes each migration.
+Runs-to-Run-Detail and typed needs-input are the only accepted child states,
+not a general overlay stack. A root owns its local selection/scroll/error state
+and saved composer/source return state while current transcript/live meaning
+continues underneath. Root dismissal restores exact composer focus/buffer
+against the latest live state without emitting history. A failed action keeps
+the owner visible, and stale results cannot dismiss a newer overlay.
+
+**Accepted product decision:** D4 fixes that order and the per-view parity,
+retained-entry, child-back, exact-return, and page-removal gates. It changes no
+application callback or domain state.
 
 ## Typed Questions
 

@@ -402,10 +402,59 @@ behavior remains an explicit limitation rather than a reason to add machinery.
 
 ### D4 — Overlay migration
 
-**Status: Proposed.** Keep every existing focused view and key route while the
-new shell lands, then move views behind overlays in small groups. Remove the
-page navigation only after parity tests exist. This makes the migration
-reversible and keeps the domain seam unchanged.
+**Status: Accepted 2026-08-27.** Migrate exactly one focused workflow at a time
+in this order: Help; Tasks; Runs with its Run Detail child; Preflight;
+Workflow; Change Summary; Evidence; Approval; typed needs-input. TUI-050
+through TUI-058 encode that order as a dependency chain. A migration does not
+start until the preceding view's parity gate passes.
+
+The operator-facing entry routes below are retained throughout E5. Before a
+view's migration passes, its key and command continue to open the current page.
+At the accepted cutover, both routes open the same overlay state. The old page
+implementation then remains as a rollback path until TUI-070; D4 does not
+authorize removing any listed key or command.
+
+| Order | Task and focused workflow | Retained key and command entry | View-specific parity gate |
+| --- | --- | --- | --- |
+| 1 | TUI-050 — Help and the shared shell | `?`; Enter on bare `/`; `/help`; `/commands` | All current Help content and action descriptions render in the overlay; every retained entry opens it; Escape restores the exact composer buffer/focus; 80- and 40-column scroll/resize checks pass; a live settlement behind Help is correct on return. |
+| 2 | TUI-051 — Tasks | `2`; `/tasks` | Task list/detail, stable selection across refresh, Add Task, retry, open-Workflow, confirmations, guards, and success/failure presentation match the page path; key and command entry plus exact return are tested. |
+| 3 | TUI-052 — Runs and Run Detail | `3`; `/runs`; `4`; `/detail`; Runs `Enter`/`o` opens detail | Runs selection/scroll survives refresh by run identity; both direct-detail entries and parent selection reach the same child; detail content, scrolling, receipt validation, warnings, artifacts, and raw audit/debug evidence match; child back and root dismissal are tested. |
+| 4 | TUI-053 — Preflight | `5`; `/preflight` | Pass, warning, and refusal projections match; `p`, refresh, run actions, unavailable callbacks, and active-operation guards retain their behavior; both entries and exact dismissal return are tested. |
+| 5 | TUI-054 — Workflow | `6`; `/workflow` | Every current lifecycle, selector, scroll position, control, live update, guard, error, and needs-input indication remains reachable; the existing typed-answer route still works before TUI-058; both entries and return are tested. |
+| 6 | TUI-055 — Change Summary | `d`; `/diff` | Changed-file and commit metadata, exact-diff distinction, scrolling, refresh, compaction, guards, and source traceability match; both entries and return are tested. |
+| 7 | TUI-056 — Evidence | `e`; `/evidence` | Evidence groups, stable selection, statuses, warnings, artifact references, validation/action routes, refresh, compaction, and traceability match; both entries and return are tested. |
+| 8 | TUI-057 — Approval | `A`; `/approval` | Exact request/evidence identity, selection, confirmation, refusal, stale-result, refresh, active-operation, error, and no-unconfirmed-effect behavior match; both entries and return are tested. |
+| 9 | TUI-058 — typed needs-input | context-specific `a` from Workflow or Approval; `/answer <option-id>` | Exact task/question/revision/content/option identity, explicit selection, two-step confirmation, stale-result refusal, failure recovery, cancellation, and no-free-form-answer behavior match; both entries and parent-overlay return are tested at narrow height and width. |
+
+`internal/tui.StatusModel` owns overlay focus and return state. Opening a root
+overlay records its identity and the current composer buffer, cursor/focus,
+and originating live-operation identity. Overlay-local selection, scroll,
+confirmation, and error state belong to that overlay. The committed-cell
+source, emitted identities, and live operation continue to update underneath
+it rather than being snapshotted. Root Escape dismisses without emitting a
+transcript row or moving terminal history and redraws the latest underlying
+live state with the exact saved composer state. A failed action keeps the
+owning overlay visible; a stale result cannot dismiss or replace a newer
+overlay.
+
+There is no general overlay stack. Runs has one explicit child state: opening
+Run Detail retains the selected run identity and Runs list offset; Escape or
+Backspace from detail returns to that exact Runs parent, and a second Escape
+dismisses the root. Direct `4` or `/detail` entry creates the same Runs parent
+state before showing the current detail or existing empty-detail result. Typed
+needs-input is the other explicit modal child: it retains Workflow or Approval
+as its parent. Cancellation returns to that exact parent; a failed or stale
+submission keeps the child visible and leaves the parent unchanged.
+
+A page-only implementation is removable only in TUI-070, after all nine E5
+parity gates pass, E6 geometry checks cover its overlay, tests prove every
+listed key and command reaches the same accepted overlay behavior, dismissal
+and child-back tests prove exact return, and a review finds no fact, action,
+guard, or error path unique to the page. TUI-070 may then delete only page
+selection/rendering and migration scaffolding; the listed operator entries,
+app callbacks, projections, guards, and domain state remain. Until those
+criteria pass, rollback is the small routing change back to the retained page,
+not a second domain or callback path.
 
 ### D5 — Loop and queued-input semantics
 
