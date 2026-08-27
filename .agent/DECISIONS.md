@@ -11,6 +11,9 @@
   interface is planned, and business logic never moves into the TUI.
 - Codex CLI interaction style is inspiration only. Revolvr will not clone,
   vendor, port, or depend on Codex source.
+- The TUI `/diff` compatibility command is labeled `Change Summary` unless an
+  exact diff artifact is present. Changed filenames, commits, and event IDs are
+  canonical metadata, not file-content diffs.
 - The brain means durable project knowledge, typed relationships, retrieval,
   prior evidence, and provenance-bearing context assembly. Canonical truth
   remains in Revolvr's existing Go/PostgreSQL ledger and artifact model.

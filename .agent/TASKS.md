@@ -11,8 +11,9 @@
   default.
 - `architecture-024-ui` is completed. The Bubble Tea TUI now centers canonical
   run events and provides the composer, typed responses, compact status,
-  command discovery, and focused diff/evidence/approval views over existing
-  application services and dependencies.
+  command discovery, and focused change-summary/evidence/approval views over
+  existing application services and dependencies. Its canonical mixed-pass
+  metadata is reconciled at the terminal `simplify` phase.
 - Architecture 025 is the next runnable evidence gate. It decides only whether
   the existing brain has a concrete proven gap; it does not implement Graphiti.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
@@ -62,8 +63,8 @@
 - [x] Architecture 024 — refine the existing Bubble Tea TUI toward a
   Codex-like terminal operator workflow: run-event transcript, command
   composer/operator responses, compact status/footer, command discovery, and
-  focused diff/evidence/approval views. Reuse existing app services and keep
-  business logic outside the TUI. **Completed.**
+  focused change-summary/evidence/approval views. Reuse existing app services
+  and keep business logic outside the TUI. **Completed at `simplify`.**
 - Architecture 025 — pending and dependency-satisfied as the next evidence-only
   brain sufficiency decision. Missing concrete usage evidence means defer
   Graphiti. **Next runnable task.**

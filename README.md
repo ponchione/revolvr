@@ -791,8 +791,8 @@ go run ./cmd/revolvr tui
 This Bubble Tea interface is the operator UI refined by Architecture 024. The
 dashboard centers the latest canonical run-event transcript, with a compact
 task/run/safety status, command composer and typed operator responses, command
-discovery, and focused diff/evidence/approval views over existing app services
-and dependencies.
+discovery, and focused change-summary/evidence/approval views over existing app
+services and dependencies.
 
 The TUI shows the same app-backed state as the CLI: task counts, task details,
 recent runs, run diagnostics, artifacts, receipt validation results, preflight
@@ -818,10 +818,13 @@ choice plus confirmation. Press `c` to request cancellation of the active
 TUI-started run, loop, task run, or queue, `v` in Run Detail to validate the
 loaded receipt, `r` to refresh, and `?` for in-app key help.
 Press `/` to open the command composer. `/diff`, `/evidence`, and `/approval`
-open the focused views; `d`, `e`, and `A` are their keyboard shortcuts. A
-waiting typed question can also be answered with `/answer <option-id>` and the
-explicit confirmation that follows. `esc` returns from a focused view, and all
-focused content remains scrollable at narrow terminal widths.
+open the focused views; `d`, `e`, and `A` are their keyboard shortcuts. The
+`/diff` compatibility command is labeled `Change Summary`: it renders canonical
+changed-file, commit, and event metadata, plus exact diff artifact identities
+only when the underlying projection supplies them. A waiting typed question
+can also be answered with `/answer <option-id>` and the explicit confirmation
+that follows. `esc` returns from a focused view, and all focused content remains
+scrollable at narrow terminal widths.
 
 Current limitations: the TUI is still a local terminal view over the same
 runtime and `.agent/tasks/*.md` task state. It does not verify/create/reopen

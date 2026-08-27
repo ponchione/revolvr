@@ -1,5 +1,35 @@
 # Agent State
 
+## Architecture 024 TUI Debt Closure (2026-08-27)
+
+- Task selected: resolve every issue recorded in `TECH_DEBT.md`, verify the
+  closure, and remove the resolved audit document.
+- Operator-answer confirmation now retains an immutable task, question,
+  revision, content-hash, and option-ID snapshot. A projection reload that
+  changes any bound identity is rejected without indexing replacement options
+  or calling the answer service.
+- Composer `ctrl+c` now uses the existing cancel-and-wait path for run-once,
+  loop, autonomous-task, and queue modes. Standalone terminal spaces are
+  accepted by the composer, so `/answer <option-id>` is typeable normally.
+- Transcript status uses the run's canonical task ID. Refresh reopens focused
+  run history through `OpenRun`, and `/diff` is explicitly labeled `Change
+  Summary` because changed filenames, commits, and event IDs are metadata, not
+  file-content diffs.
+- The duplicated focused/autonomous viewport switch and artifact label/path
+  tables were consolidated, and `focusAutonomous` was renamed to
+  `focusedFromAutonomous` to describe projection provenance.
+- Architecture 024 canonical metadata now records terminal
+  `phase: simplify`; `task list` reports next state `completed` while
+  Architecture 025 remains the sole ready pending architecture task.
+- Files changed: `internal/tui/model.go`, focused TUI tests, `README.md`, the
+  Architecture 024 task and durable agent records; `TECH_DEBT.md` was deleted
+  after verification.
+- Verification passed: `test -z "$(gofmt -l internal/tui)"`,
+  `go test ./internal/tui ./internal/app`, `go test ./...`,
+  `go run ./cmd/revolvr tui --help`, targeted `task list`, and
+  `git diff --check`.
+- What remains: Architecture 025 only. Blockers: none.
+
 ## Architecture 024 Terminal Operator Workflow Complete (2026-08-27)
 
 - Completed `architecture-024-ui` without beginning Architecture 025.

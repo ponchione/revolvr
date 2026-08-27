@@ -1347,11 +1347,13 @@ func TestStatusModelActiveQuitWaitsForMatchingTerminalAcrossRunModes(t *testing.
 		{name: "queue", key: "Q"},
 	}
 	quitKeys := []struct {
-		name string
-		msg  tea.KeyMsg
+		name         string
+		msg          tea.KeyMsg
+		openComposer bool
 	}{
 		{name: "q", msg: keyRunes("q")},
 		{name: "ctrl-c", msg: tea.KeyMsg{Type: tea.KeyCtrlC}},
+		{name: "composer ctrl-c", msg: tea.KeyMsg{Type: tea.KeyCtrlC}, openComposer: true},
 	}
 	for _, mode := range modes {
 		for _, quitKey := range quitKeys {
@@ -1422,6 +1424,13 @@ func TestStatusModelActiveQuitWaitsForMatchingTerminalAcrossRunModes(t *testing.
 					t.Fatal("run action did not start")
 				}
 
+				if quitKey.openComposer {
+					var composerCmd tea.Cmd
+					model, composerCmd = updateStatusModel(t, model, keyRunes("/"))
+					if composerCmd != nil || !model.composer.Active {
+						t.Fatalf("composer state=%#v cmd=%v", model.composer, composerCmd)
+					}
+				}
 				model, quitCmd := updateStatusModel(t, model, quitKey.msg)
 				if quitCmd != nil {
 					t.Fatal("active quit returned a command before settlement")

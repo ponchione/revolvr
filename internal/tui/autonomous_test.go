@@ -150,6 +150,38 @@ func TestAutonomousAnswerRequiresExplicitChoiceAndDoubleConfirmation(t *testing.
 	}
 }
 
+func TestAutonomousAnswerRejectsReloadedQuestionDuringConfirmation(t *testing.T) {
+	view := tuiAutonomousView("input-task", "needs_input")
+	view.Input = autonomousview.OperatorInput{State: "waiting", QuestionID: "deployment-mode", Revision: 2, ContentSHA256: strings.Repeat("c", 64), Options: []autonomousview.InputOption{{ID: "change", Meaning: "Change behavior."}, {ID: "keep", Meaning: "Keep behavior."}}}
+	called := 0
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{AnswerInput: func(app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+		called++
+		return app.AnswerAutonomousInputResult{}, nil
+	}})
+	model.view = viewAutonomous
+	model.autonomous.View = &view
+	model.autonomous.Selector = "input-task"
+	model.autonomous.TaskID = "input-task"
+	model.updateViewportContent()
+
+	model, _ = updateStatusModel(t, model, keyRunes("a"))
+	model, _ = updateStatusModel(t, model, keyRunes("j"))
+	model, _ = updateStatusModel(t, model, keyRunes("j"))
+	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || !model.autonomous.Answer.Confirming || model.autonomous.Answer.Snapshot.OptionID != "keep" {
+		t.Fatalf("confirmation state = %#v cmd=%v", model.autonomous.Answer, cmd)
+	}
+
+	reloaded := view
+	reloaded.Input = autonomousview.OperatorInput{State: "waiting", QuestionID: "replacement", Revision: 1, ContentSHA256: strings.Repeat("d", 64), Options: []autonomousview.InputOption{{ID: "replacement", Meaning: "Use replacement."}}}
+	updated, _ := model.Update(autonomousViewMsg{token: model.autonomous.Request, selector: "input-task", view: reloaded})
+	model = updated.(StatusModel)
+	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || called != 0 || model.autonomous.Answer.Active || !strings.Contains(model.message, "question changed") {
+		t.Fatalf("reloaded confirmation was not rejected: answer=%#v calls=%d message=%q cmd=%v", model.autonomous.Answer, called, model.message, cmd)
+	}
+}
+
 func TestAutonomousQueueProgressAndCancellationUseOneActiveRun(t *testing.T) {
 	refreshCalled := false
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{

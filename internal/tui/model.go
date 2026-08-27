@@ -73,26 +73,26 @@ const (
 )
 
 type StatusModel struct {
-	status          app.StatusResult
-	actions         StatusActions
-	view            TUIView
-	previous        TUIView
-	selectedTask    int
-	selectedRun     int
-	loopPasses      int
-	runDetails      *ledger.RunWithEvents
-	runOnce         runOnceState
-	preflight       preflightState
-	autonomous      autonomousState
-	validation      receiptValidationState
-	taskEntry       taskEntryState
-	composer        commandComposerState
-	focusSource     TUIView
-	focusAutonomous bool
-	message         string
-	width           int
-	height          int
-	viewport        viewport.Model
+	status                app.StatusResult
+	actions               StatusActions
+	view                  TUIView
+	previous              TUIView
+	selectedTask          int
+	selectedRun           int
+	loopPasses            int
+	runDetails            *ledger.RunWithEvents
+	runOnce               runOnceState
+	preflight             preflightState
+	autonomous            autonomousState
+	validation            receiptValidationState
+	taskEntry             taskEntryState
+	composer              commandComposerState
+	focusSource           TUIView
+	focusedFromAutonomous bool
+	message               string
+	width                 int
+	height                int
+	viewport              viewport.Model
 }
 
 type RefreshStatusFunc func() (app.StatusResult, error)
@@ -149,8 +149,17 @@ type autonomousAnswerState struct {
 	Selected   int
 	Confirming bool
 	Submitting bool
+	Snapshot   autonomousAnswerSnapshot
 	Result     app.AnswerAutonomousInputResult
 	Err        string
+}
+
+type autonomousAnswerSnapshot struct {
+	TaskID     string
+	QuestionID string
+	Revision   int64
+	ContentSHA string
+	OptionID   string
 }
 
 type autonomousState struct {
@@ -296,7 +305,10 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = "Refreshed."
 		}
 		m.updateViewportContent()
-		if (m.view == viewAutonomous || isFocusedView(m.view) && m.focusAutonomous) && msg.err == nil {
+		if msg.err == nil && isFocusedView(m.view) && m.focusSource == viewRunDetail && !m.focusedFromAutonomous {
+			return m, m.reloadFocusedRunCmd()
+		}
+		if (m.view == viewAutonomous || isFocusedView(m.view) && m.focusedFromAutonomous) && msg.err == nil {
 			return m, m.loadAutonomousSelectorsCmd()
 		}
 		return m, nil
@@ -306,7 +318,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.runDetails = &msg.history
 			m.validation = receiptValidationState{RunID: strings.TrimSpace(msg.history.Run.ID)}
-			m.view = viewRunDetail
+			if !msg.focused {
+				m.view = viewRunDetail
+			}
 			m.message = ""
 		}
 		m.resizeViewport()
@@ -599,6 +613,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
+		if (m.view == viewAutonomous || isFocusedView(m.view)) && m.scrollViewport(msg) {
+			return m, nil
+		}
 
 		switch m.view {
 		case viewTasks:
@@ -699,33 +716,6 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "a":
 				m.beginAutonomousAnswer()
 				return m, nil
-			case "home":
-				m.viewport.GotoTop()
-				return m, nil
-			case "end":
-				m.viewport.GotoBottom()
-				return m, nil
-			case "pgup":
-				m.viewport.ViewUp()
-				return m, nil
-			case "pgdown":
-				m.viewport.ViewDown()
-				return m, nil
-			}
-		case viewDiff, viewEvidence, viewApproval:
-			switch msg.String() {
-			case "home":
-				m.viewport.GotoTop()
-				return m, nil
-			case "end":
-				m.viewport.GotoBottom()
-				return m, nil
-			case "pgup":
-				m.viewport.ViewUp()
-				return m, nil
-			case "pgdown":
-				m.viewport.ViewDown()
-				return m, nil
 			}
 		}
 	}
@@ -733,6 +723,22 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	return m, cmd
+}
+
+func (m *StatusModel) scrollViewport(msg tea.KeyMsg) bool {
+	switch msg.String() {
+	case "home":
+		m.viewport.GotoTop()
+	case "end":
+		m.viewport.GotoBottom()
+	case "pgup":
+		m.viewport.ViewUp()
+	case "pgdown":
+		m.viewport.ViewDown()
+	default:
+		return false
+	}
+	return true
 }
 
 func (m StatusModel) View() string {
@@ -751,6 +757,7 @@ type refreshStatusMsg struct {
 
 type openRunMsg struct {
 	history ledger.RunWithEvents
+	focused bool
 	err     error
 }
 
@@ -854,6 +861,20 @@ func (m StatusModel) openSelectedRunCmd() tea.Cmd {
 	return func() tea.Msg {
 		history, err := m.actions.OpenRun(runID)
 		return openRunMsg{history: history, err: err}
+	}
+}
+
+func (m StatusModel) reloadFocusedRunCmd() tea.Cmd {
+	if m.actions.OpenRun == nil || m.runDetails == nil {
+		return nil
+	}
+	runID := strings.TrimSpace(m.runDetails.Run.ID)
+	if runID == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		history, err := m.actions.OpenRun(runID)
+		return openRunMsg{history: history, focused: true, err: err}
 	}
 }
 
@@ -1081,17 +1102,24 @@ func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			return m, nil
 		}
 		if !m.autonomous.Answer.Confirming {
-			m.autonomous.Answer.Confirming = true
+			if !m.confirmAutonomousAnswer(m.autonomous.Answer.Selected) {
+				return m, nil
+			}
 			m.message = "Press enter again to persist this answer and resume the task."
 			m.updateViewportContent()
 			return m, nil
 		}
-		view := m.autonomous.View
-		option := view.Input.Options[m.autonomous.Answer.Selected]
+		if !m.autonomousAnswerSnapshotCurrent() {
+			m.autonomous.Answer = autonomousAnswerState{}
+			m.message = "Answer not submitted: the selected question changed; review the current options."
+			m.updateViewportContent()
+			return m, nil
+		}
+		snapshot := m.autonomous.Answer.Snapshot
 		m.autonomous.Answer.Submitting = true
 		m.message = "Persisting answer."
 		m.updateViewportContent()
-		request := app.AnswerAutonomousInputRequest{TaskID: m.autonomous.TaskID, QuestionID: view.Input.QuestionID, Revision: view.Input.Revision, ContentSHA: view.Input.ContentSHA256, OptionID: option.ID, Operator: "tui-operator"}
+		request := app.AnswerAutonomousInputRequest{TaskID: snapshot.TaskID, QuestionID: snapshot.QuestionID, Revision: snapshot.Revision, ContentSHA: snapshot.ContentSHA, OptionID: snapshot.OptionID, Operator: "tui-operator"}
 		return m, func() tea.Msg {
 			result, err := m.actions.AnswerInput(request)
 			return autonomousAnswerMsg{result: result, err: err}
@@ -1120,8 +1148,49 @@ func (m *StatusModel) moveAutonomousAnswerOption(delta int) {
 		}
 	}
 	m.autonomous.Answer.Confirming = false
+	m.autonomous.Answer.Snapshot = autonomousAnswerSnapshot{}
 	m.message = "Option selected; press enter to review confirmation."
 	m.updateViewportContent()
+}
+
+func (m *StatusModel) confirmAutonomousAnswer(selected int) bool {
+	if m.autonomous.View == nil || selected < 0 || selected >= len(m.autonomous.View.Input.Options) {
+		m.autonomous.Answer = autonomousAnswerState{}
+		m.message = "Answer not submitted: the selected question changed; review the current options."
+		m.updateViewportContent()
+		return false
+	}
+	view := m.autonomous.View
+	m.autonomous.Answer.Selected = selected
+	m.autonomous.Answer.Confirming = true
+	m.autonomous.Answer.Snapshot = autonomousAnswerSnapshot{
+		TaskID:     m.autonomous.TaskID,
+		QuestionID: view.Input.QuestionID,
+		Revision:   view.Input.Revision,
+		ContentSHA: view.Input.ContentSHA256,
+		OptionID:   view.Input.Options[selected].ID,
+	}
+	return true
+}
+
+func (m StatusModel) autonomousAnswerSnapshotCurrent() bool {
+	if m.autonomous.View == nil {
+		return false
+	}
+	snapshot := m.autonomous.Answer.Snapshot
+	view := m.autonomous.View
+	if view.Identity.SourceKind != autonomousview.SourceActive || view.Input.State != "waiting" ||
+		m.autonomous.TaskID != snapshot.TaskID || view.Identity.TaskID != snapshot.TaskID ||
+		view.Input.QuestionID != snapshot.QuestionID || view.Input.Revision != snapshot.Revision ||
+		view.Input.ContentSHA256 != snapshot.ContentSHA {
+		return false
+	}
+	for _, option := range view.Input.Options {
+		if option.ID == snapshot.OptionID {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *StatusModel) startRunOnce() tea.Cmd {
@@ -1774,6 +1843,13 @@ func (m StatusModel) updateTaskEntry(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
+		if m.runOnce.Active {
+			m.runOnce.QuitAfterSettlement = true
+			m.requestRunCancel()
+			m.message = "Cancellation requested; waiting for run settlement before exit."
+			m.updateViewportContent()
+			return m, nil
+		}
 		return m, tea.Quit
 	case "esc":
 		m.composer = commandComposerState{}
@@ -1788,6 +1864,9 @@ func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	}
 	if msg.Type == tea.KeyRunes {
 		m.composer.Text += string(msg.Runes)
+		m.resizeViewport()
+	} else if msg.Type == tea.KeySpace {
+		m.composer.Text += " "
 		m.resizeViewport()
 	}
 	return m, nil
@@ -1862,8 +1941,9 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		}
 		for i, option := range m.autonomous.View.Input.Options {
 			if option.ID == fields[1] {
-				m.autonomous.Answer.Selected = i
-				m.autonomous.Answer.Confirming = true
+				if !m.confirmAutonomousAnswer(i) {
+					return m, nil
+				}
 				m.message = "Press enter to persist this answer and resume the task."
 				m.updateViewportContent()
 				return m, nil
@@ -1956,10 +2036,10 @@ func (m *StatusModel) switchView(view TUIView) {
 func (m *StatusModel) openFocusedView(view TUIView) {
 	if !isFocusedView(m.view) {
 		m.focusSource = m.view
-		m.focusAutonomous = m.view == viewAutonomous
+		m.focusedFromAutonomous = m.view == viewAutonomous
 	}
 	if view == viewApproval {
-		m.focusAutonomous = true
+		m.focusedFromAutonomous = true
 	}
 	m.view = view
 	m.resizeViewport()
@@ -1971,7 +2051,7 @@ func (m *StatusModel) closeFocusedView() {
 	if isFocusedView(view) || view == viewTaskEntry {
 		view = viewDashboard
 	}
-	m.focusAutonomous = false
+	m.focusedFromAutonomous = false
 	m.switchView(view)
 }
 
@@ -2182,7 +2262,7 @@ func (m StatusModel) viewLabel() string {
 	case viewTaskEntry:
 		return "Add Task"
 	case viewDiff:
-		return "Diff"
+		return "Change Summary"
 	case viewEvidence:
 		return "Evidence"
 	case viewApproval:
@@ -2234,12 +2314,12 @@ func (m StatusModel) footerLines() []string {
 		}
 		return wrapKeyLines([]string{"j/k Select", "enter Reload", "a Answer", "pgup/pgdown Scroll", "home/end Jump", "U Run Task", "Q Run Queue", "r Refresh", "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "q Quit"}, m.width)
 	case viewDiff, viewEvidence:
-		return wrapKeyLines([]string{"d Diff", "e Evidence", "A Approval", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
+		return wrapKeyLines([]string{"d Changes", "e Evidence", "A Approval", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
 	case viewApproval:
 		if m.autonomous.Answer.Active {
 			return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
 		}
-		return wrapKeyLines([]string{"a Answer", "d Diff", "e Evidence", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
+		return wrapKeyLines([]string{"a Answer", "d Changes", "e Evidence", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
 	case viewHelp:
 		keys = append(keys, "esc Back")
 	case viewTaskEntry:
@@ -2402,7 +2482,7 @@ func (m StatusModel) latestRunHistory() (ledger.RunWithEvents, bool) {
 }
 
 func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
-	if m.focusAutonomous {
+	if m.focusedFromAutonomous {
 		return ledger.RunWithEvents{}, false
 	}
 	if m.focusSource == viewRunDetail && m.runDetails != nil {
@@ -2418,24 +2498,20 @@ func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
 }
 
 func (m StatusModel) operatorStatusLine(run ledger.Run) string {
-	taskID := "none"
-	if index := nextSelectedTaskIndex(m.status.Tasks); index >= 0 && index < len(m.status.Tasks) {
-		taskID = optionalValue(m.status.Tasks[index].ID)
-	}
 	safety := "outcome=" + optionalValue(run.Status)
 	if strings.TrimSpace(run.VerificationStatus) != "" {
 		safety = "verification=" + oneLine(run.VerificationStatus)
 	}
-	return fmt.Sprintf("Task: %s | Run: %s %s | Safety: %s", taskID, optionalValue(run.ID), optionalValue(run.Status), safety)
+	return fmt.Sprintf("Task: %s | Run: %s %s | Safety: %s", optionalValue(run.TaskID), optionalValue(run.ID), optionalValue(run.Status), safety)
 }
 
 func (m StatusModel) renderFocusedDiff() string {
-	lines := []string{"Diff"}
+	lines := []string{"Change Summary"}
 	lines = appendNotice(lines, m.message)
-	if m.focusAutonomous {
+	if m.focusedFromAutonomous {
 		lines = m.appendAutonomousFocusStatus(lines)
 		if m.autonomous.View == nil {
-			return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No autonomous diff projection loaded.")...)
+			return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No autonomous change summary loaded.")...)
 		}
 		view := *m.autonomous.View
 		lines = append(lines,
@@ -2444,7 +2520,7 @@ func (m StatusModel) renderFocusedDiff() string {
 			"Source revision: "+optionalValue(view.Workspace.SourceRevision),
 			"Checkpoint commit: "+optionalValue(view.Workspace.CheckpointCommit),
 			"",
-			"Diff Artifacts",
+			"Exact Diff Artifacts",
 		)
 		found := false
 		for _, reference := range view.Provenance.References {
@@ -2489,7 +2565,7 @@ func (m StatusModel) renderFocusedDiff() string {
 func (m StatusModel) renderFocusedEvidence() string {
 	lines := []string{"Evidence"}
 	lines = appendNotice(lines, m.message)
-	if m.focusAutonomous {
+	if m.focusedFromAutonomous {
 		lines = m.appendAutonomousFocusStatus(lines)
 		if m.autonomous.View == nil {
 			return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No autonomous evidence projection loaded.")...)
@@ -2549,34 +2625,42 @@ func focusedRunArtifactLines(events []ledger.Event) []string {
 	if !found {
 		return []string{"None"}
 	}
+	return runArtifactPathLines(artifacts, false)
+}
+
+func runArtifactPathLines(artifacts ledger.RunArtifacts, includeRequiredMissing bool) []string {
 	values := []struct {
-		label string
-		path  string
+		label    string
+		path     string
+		required bool
 	}{
-		{"context payload", artifacts.ContextPayloadPath},
-		{"context manifest", artifacts.ContextManifestPath},
-		{"dossier", artifacts.DossierPath},
-		{"dossier manifest", artifacts.DossierManifestPath},
-		{"codex stdout", artifacts.CodexStdoutJSONLPath},
-		{"codex stderr", artifacts.CodexStderrPath},
-		{"last message", artifacts.LastMessagePath},
-		{"receipt", artifacts.ReceiptPath},
-		{"invalid receipt", artifacts.InvalidReceiptPath},
-		{"supervisor dossier", artifacts.SupervisorDossierPath},
-		{"supervisor dossier manifest", artifacts.SupervisorDossierManifestPath},
-		{"supervisor prompt", artifacts.SupervisorPromptPath},
-		{"supervisor schema", artifacts.SupervisorSchemaPath},
-		{"supervisor output", artifacts.SupervisorOutputPath},
-		{"supervisor decision", artifacts.SupervisorDecisionPath},
-		{"supervisor provenance", artifacts.SupervisorProvenancePath},
-		{"supervisor source", artifacts.SupervisorSourcePath},
-		{"supervisor diagnostics", artifacts.SupervisorDiagnosticsPath},
-		{"verification", artifacts.VerificationEvidencePath},
+		{"context payload", artifacts.ContextPayloadPath, true},
+		{"context manifest", artifacts.ContextManifestPath, true},
+		{"codex stdout jsonl", artifacts.CodexStdoutJSONLPath, true},
+		{"codex stderr", artifacts.CodexStderrPath, true},
+		{"last message", artifacts.LastMessagePath, true},
+		{"receipt", artifacts.ReceiptPath, true},
+		{"invalid receipt", artifacts.InvalidReceiptPath, false},
+		{"dossier", artifacts.DossierPath, false},
+		{"dossier manifest", artifacts.DossierManifestPath, false},
+		{"supervisor dossier", artifacts.SupervisorDossierPath, false},
+		{"supervisor dossier manifest", artifacts.SupervisorDossierManifestPath, false},
+		{"supervisor prompt", artifacts.SupervisorPromptPath, false},
+		{"supervisor schema", artifacts.SupervisorSchemaPath, false},
+		{"supervisor output", artifacts.SupervisorOutputPath, false},
+		{"supervisor decision", artifacts.SupervisorDecisionPath, false},
+		{"supervisor provenance", artifacts.SupervisorProvenancePath, false},
+		{"supervisor source", artifacts.SupervisorSourcePath, false},
+		{"supervisor diagnostics", artifacts.SupervisorDiagnosticsPath, false},
+		{"verification", artifacts.VerificationEvidencePath, false},
 	}
 	lines := []string{}
 	for _, value := range values {
-		if strings.TrimSpace(value.path) != "" {
-			lines = append(lines, value.label+": "+value.path)
+		path := strings.TrimSpace(value.path)
+		if path != "" {
+			lines = append(lines, value.label+": "+path)
+		} else if includeRequiredMissing && value.required {
+			lines = append(lines, value.label+": missing")
 		}
 	}
 	if len(lines) == 0 {
@@ -2969,7 +3053,7 @@ func (m StatusModel) renderHelp() string {
 		"6  Workflow",
 		"?  Help",
 		"/  Open command composer",
-		"d/e/A  Open diff, evidence, or approval",
+		"d/e/A  Open change summary, evidence, or approval",
 		"a  Add task",
 		"R  Run once",
 		fmt.Sprintf("n  Cycle loop max passes (current %d)", m.selectedRunLoopPasses()),
@@ -3313,25 +3397,7 @@ func runArtifactLines(events []ledger.Event) []string {
 	if !found {
 		return append(lines, "No artifact event found.")
 	}
-	for _, artifact := range []struct {
-		label string
-		path  string
-	}{
-		{label: "context payload", path: artifacts.ContextPayloadPath},
-		{label: "context manifest", path: artifacts.ContextManifestPath},
-		{label: "codex stdout jsonl", path: artifacts.CodexStdoutJSONLPath},
-		{label: "codex stderr", path: artifacts.CodexStderrPath},
-		{label: "last message", path: artifacts.LastMessagePath},
-		{label: "receipt", path: artifacts.ReceiptPath},
-	} {
-		path := strings.TrimSpace(artifact.path)
-		if path == "" {
-			lines = append(lines, fmt.Sprintf("%s: missing", artifact.label))
-			continue
-		}
-		lines = append(lines, fmt.Sprintf("%s: %s", artifact.label, path))
-	}
-	return lines
+	return append(lines, runArtifactPathLines(artifacts, true)...)
 }
 
 type runDetailDiagnostics struct {
@@ -4040,8 +4106,8 @@ func isSectionHeading(value string) bool {
 		"Artifacts",
 		"Events",
 		"Canonical Events",
-		"Diff",
-		"Diff Artifacts",
+		"Change Summary",
+		"Exact Diff Artifacts",
 		"Event Evidence",
 		"Evidence",
 		"Artifact Identities",

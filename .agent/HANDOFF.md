@@ -7,7 +7,8 @@ Updated: 2026-08-27
 - `architecture-024-ui` is complete. The existing Bubble Tea TUI now centers
   the latest canonical run-event transcript, exposes a `/` command composer
   and typed `/answer <option-id>` confirmation flow, and provides keyboard-
-  accessible focused diff, evidence, and approval views.
+  accessible focused change-summary, evidence, and approval views. Its
+  canonical workflow metadata is terminal at `phase: simplify`.
 - The implementation reuses `app.Status`, `app.RunTimeline`, `ShowRun`,
   `ShowAutonomousTask`, `AnswerAutonomousInput`, canonical ledger events,
   receipts, artifact identities, queue/run callbacks, and the installed Bubble
@@ -16,6 +17,10 @@ Updated: 2026-08-27
 - Cancellation and refresh are preserved. Transcript and focused views wrap
   and scroll at narrow widths; focus, selection, recommendation non-selection,
   confirmation, and return controls are visible and keyboard operable.
+- The Architecture 024 debt audit is closed: confirmation is snapshot-bound,
+  active-run composer quit waits for settlement in every run mode, terminal
+  spaces work in commands, transcript task identity and focused refresh are
+  canonical, and the non-diff surface is labeled `Change Summary`.
 - No dependency, desktop/web surface, Wails/Vue/TypeScript, embedded server,
   REST/SSE, Graphiti, Python infrastructure, or Codex source was added.
 - The brain is narrowly the existing durable project knowledge,
@@ -58,12 +63,14 @@ that evidence decision. Do not revive a PTC task or the legacy EXT backlog.
 - `go run ./cmd/revolvr tui --help` — PASS.
 - `git diff --check` — PASS.
 - `go run ./cmd/revolvr task list` — PASS; Architecture 024 is `completed`,
-  Architecture 025 is `pending`, `ready`, and selected, and the PTC chain
-  remains `superseded`.
+  terminal at `phase: simplify`, and has next state `completed`; Architecture
+  025 is `pending`, `ready`, and selected, and the PTC chain remains
+  `superseded`.
 - `go run ./cmd/revolvr status` — PASS; 36 total tasks, one pending, zero
   blocked, 26 completed, and Architecture 025 is `Next task`.
 - `git diff --name-only` and `git status --short` — PASS; the final inventory
-  preserves the intentional roadmap reset and adds only Architecture 024 TUI,
-  focused-test, README, and durable-state changes.
+  contains the TUI debt fixes and tests, operator/durable documentation,
+  Architecture 024 metadata reconciliation, and deletion of the resolved
+  debt report.
 
-No commit or push was created. Architecture 025 was not executed.
+Architecture 025 was not executed.

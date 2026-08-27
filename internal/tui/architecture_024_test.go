@@ -13,11 +13,11 @@ import (
 	"revolvr/internal/taskmodel"
 )
 
-func TestTranscriptNavigatesCanonicalDiffAndEvidenceAtNarrowWidth(t *testing.T) {
+func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *testing.T) {
 	started := time.Date(2026, 8, 27, 15, 0, 0, 0, time.UTC)
 	status := app.StatusResult{
 		Initialized: true,
-		Tasks:       []taskmodel.Task{{ID: "architecture-024-ui", Status: taskmodel.StatusPending, NextRunnable: true}},
+		Tasks:       []taskmodel.Task{{ID: "next-task", Status: taskmodel.StatusPending, NextRunnable: true}},
 		RecentRuns: []ledger.Run{{
 			ID:                 "run-ui",
 			TaskID:             "architecture-024-ui",
@@ -44,7 +44,7 @@ func TestTranscriptNavigatesCanonicalDiffAndEvidenceAtNarrowWidth(t *testing.T) 
 	if cmd != nil || model.view != viewDiff {
 		t.Fatalf("diff navigation view=%v cmd=%v", model.view, cmd)
 	}
-	requireLines(t, normalizedViewLines(model.View()), "Diff", "Changed Files", "internal/tui/model.go", "2 changed_files_captured 2026-08-27T15:00:01Z")
+	requireLines(t, normalizedViewLines(model.View()), "Change Summary", "Changed Files", "internal/tui/model.go", "2 changed_files_captured 2026-08-27T15:00:01Z")
 
 	model, cmd = updateStatusModel(t, model, keyRunes("e"))
 	if cmd != nil || model.view != viewEvidence {
@@ -58,6 +58,42 @@ func TestTranscriptNavigatesCanonicalDiffAndEvidenceAtNarrowWidth(t *testing.T) 
 	if cmd != nil || model.view != viewDashboard {
 		t.Fatalf("focus return view=%v cmd=%v", model.view, cmd)
 	}
+}
+
+func TestFocusedRunRefreshReloadsCanonicalHistory(t *testing.T) {
+	started := time.Date(2026, 8, 27, 16, 0, 0, 0, time.UTC)
+	run := ledger.Run{ID: "run-refresh", TaskID: "run-task", Status: ledger.StatusRunning, StartedAt: started}
+	history := ledger.RunWithEvents{Run: run, Events: []ledger.Event{{ID: 1, RunID: run.ID, Type: ledger.EventRunStarted, CreatedAt: started}}}
+	refreshed := history
+	refreshed.Events = append(refreshed.Events, ledger.Event{ID: 2, RunID: run.ID, Type: ledger.EventChangedFilesCaptured, CreatedAt: started.Add(time.Second)})
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{run}}, StatusActions{
+		RefreshStatus: func() (app.StatusResult, error) {
+			return app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{run}}, nil
+		},
+		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+			if runID != run.ID {
+				t.Fatalf("opened run = %q", runID)
+			}
+			return refreshed, nil
+		},
+	})
+	model.view = viewRunDetail
+	model.runDetails = &history
+	model.openFocusedView(viewEvidence)
+
+	model, cmd := updateStatusModel(t, model, keyRunes("r"))
+	if cmd == nil {
+		t.Fatal("refresh command is nil")
+	}
+	model, cmd = runStatusModelCmd(t, model, cmd)
+	if cmd == nil {
+		t.Fatal("focused run reload command is nil")
+	}
+	model, cmd = runStatusModelCmd(t, model, cmd)
+	if cmd != nil || model.view != viewEvidence || model.runDetails == nil || len(model.runDetails.Events) != 2 {
+		t.Fatalf("focused refresh state: view=%v details=%#v cmd=%v", model.view, model.runDetails, cmd)
+	}
+	requireLines(t, normalizedViewLines(model.View()), "2  changed_files_captured  2026-08-27T16:00:01Z")
 }
 
 func TestApprovalComposerSubmitsTypedNeedsInputResponse(t *testing.T) {
@@ -104,7 +140,9 @@ func TestApprovalComposerSubmitsTypedNeedsInputResponse(t *testing.T) {
 	requireLines(t, normalizedViewLines(model.View()), "Approval", "Acceptance", "Recommendation (not selected): keep |", "  Compatibility.")
 
 	model, _ = updateStatusModel(t, model, keyRunes("/"))
-	model, _ = updateStatusModel(t, model, keyRunes("answer keep"))
+	model, _ = updateStatusModel(t, model, keyRunes("answer"))
+	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeySpace})
+	model, _ = updateStatusModel(t, model, keyRunes("keep"))
 	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil || called != 0 || !model.autonomous.Answer.Active || !model.autonomous.Answer.Confirming {
 		t.Fatalf("typed answer state=%#v calls=%d cmd=%v", model.autonomous.Answer, called, cmd)

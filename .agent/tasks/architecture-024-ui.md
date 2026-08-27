@@ -2,7 +2,7 @@
 id: architecture-024-ui
 status: completed
 workflow: mixed-pass-v1
-phase: implement
+phase: simplify
 depends_on: architecture-023-sequential-queue
 ---
 
@@ -12,6 +12,7 @@ depends_on: architecture-023-sequential-queue
 
 - Sequence: `024` of `025`.
 - Status: completed on 2026-08-27.
+- Final workflow phase: `simplify`.
 - Prerequisite: `architecture-023-sequential-queue`.
 - ADR-025 supersedes the former desktop/Wails/Vue/REST/SSE direction and the
   former Architecture 024 desktop phase gate.
@@ -47,8 +48,8 @@ application services.
 - Use a compact status/footer that keeps active task, run state, controls, and
   safety-relevant outcomes visible without dominating the transcript.
 - Add a command palette or slash-command equivalent for existing actions.
-- Provide focused diff, evidence, and approval views backed by existing
-  application services and artifact identities.
+- Provide focused changed-file summary, evidence, and approval views backed by
+  existing application services and artifact identities.
 - Keep navigation and actions keyboard-accessible, preserve cancellation and
   refresh behavior, and keep narrow-terminal layouts usable.
 - Keep all business, lifecycle, scheduling, verification, approval, and
@@ -68,7 +69,8 @@ application services.
 ## Acceptance criteria
 
 - An operator can follow a run as a transcript/event stream and reach the
-  composer, typed response, diff, evidence, and approval flows by keyboard.
+  composer, typed response, change-summary, evidence, and approval flows by
+  keyboard.
 - Displayed state remains traceable to an existing app projection, ledger
   event, receipt, or artifact; refresh reproduces canonical state.
 - Status/footer and command discovery remain usable at narrow widths.
