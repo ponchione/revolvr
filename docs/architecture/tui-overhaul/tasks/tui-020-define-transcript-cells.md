@@ -11,8 +11,10 @@ the accepted transcript snapshots.
 
 ## Scope
 
-- Define only accepted cell kinds, expected to include session, operator action,
+- Define only accepted cell kinds, including session, operator action,
   status, progress, result, warning, and question when TUI-005 requires them.
+- Keep the session kind limited to the three D6 sources and the typed local
+  identity `session-start`; do not add mutable context fields.
 - Store display source and stable presentation identity, never duplicated
   lifecycle policy.
 - Render every cell within a supplied display width using current text styles.

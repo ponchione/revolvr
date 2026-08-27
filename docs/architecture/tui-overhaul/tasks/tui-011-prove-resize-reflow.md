@@ -18,6 +18,7 @@ re-emitting terminal-owned rows.
 - Verify live-cell replacement and composer placement after reflow.
 - Assert that resize emits no previously committed identity and sends no
   terminal-history clear/replay operation.
+- Assert that wide-to-narrow-to-wide resize never emits `session-start` again.
 - Leave native soft-wrap/reflow measurement to TUI-061.
 
 ## Acceptance

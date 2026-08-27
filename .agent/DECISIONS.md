@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## One Startup-Only Session Cell Replaces Persistent Header Chrome (2026-08-27)
+
+- TUI-overhaul D6 is accepted. Each TUI process emits one committed
+  `session-start` cell before its bounded canonical-history replay. The typed
+  process-local identity is recorded once at the Bubble Tea append boundary;
+  timestamps and rendered prose never participate in deduplication.
+- The cell owns exactly three facts: the package-local `Revolvr` label; the
+  initial `app.StatusResult.ProjectRoot`, projected by `app.Status` from
+  `repositorypath.Inspect(...).Root()`; and the initial
+  `app.StatusResult.Initialized`, derived from
+  `repositorypath.Authority.Initialized()`. The state is explicitly the state
+  at process start.
+- Refresh applies new status to current guards and appends only newly
+  discovered canonical identities; resize changes only the managed frame; and
+  overlay open/dismiss changes only overlay/live/composer focus. None mutates
+  or re-emits the session cell. Restart creates a new process-local emitted set
+  and intentionally emits one new `session-start` before replay.
+- No Revolvr clear key, command, callback, presentation epoch, or terminal-
+  history clearing mechanism is accepted. An external terminal/multiplexer
+  clear is not observed and causes no application replay. A future owned clear
+  requires a separate bounded product decision and task.
+- Stable history belongs to committed transcript cells; unsettled operation
+  context to the live cell; focused workflow state/errors to the overlay;
+  editable input/discovery/refusal to the composer; and focus-appropriate keys
+  plus ephemeral action acknowledgements/errors to the transient footer. No
+  session fact is repeated in persistent chrome.
+- Startup inspection/status failure emits no cell; refresh failure retains the
+  last good projection and reports transiently; Bubble Tea output failure
+  follows normal program failure/restoration and is not presented as a
+  successful header. TUI-010, TUI-011, TUI-013, TUI-060, TUI-062, and TUI-070
+  must prove ordering, deduplication, restart replay, geometry, restoration,
+  and no duplicate header before persistent dashboard chrome is removed.
+
 ## Focused Views Migrate One At A Time Behind Retained Routes (2026-08-27)
 
 - TUI-overhaul D4 is accepted. The exact order is Help, Tasks, Runs with its

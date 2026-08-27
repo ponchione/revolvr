@@ -27,7 +27,11 @@ Updated: 2026-08-27
   terminal-owned history and a managed live/composer/overlay frame. D4 accepts
   a one-view-at-a-time Help-to-typed-needs-input overlay migration with
   retained key/command entries, exact return ownership, and parity-gated page
-  removal. D6 remains open; no implementation task is authorized yet.
+  removal. D6 accepts one startup-only `session-start` cell per TUI process,
+  sourced from the inspected absolute project root and process-start
+  initialization; refresh, resize, and overlays never re-emit it, restart does,
+  and no Revolvr clear action is added. No implementation task is authorized
+  yet.
 
 ## Architecture 024 TUI
 
@@ -115,45 +119,47 @@ Updated: 2026-08-27
   rows and native reflow/copy, and viewports are overlay-only. D4 is accepted:
   Help, Tasks, Runs/Run Detail, Preflight, Workflow, Change Summary, Evidence,
   Approval, and typed needs-input migrate in that order with retained routes
-  and page rollback until their parity/removal gates pass. D6 remains open.
+  and page rollback until their parity/removal gates pass. D6 is accepted with
+  one startup-only session cell, exclusive presentation ownership, typed local
+  identity, and proof gates before persistent dashboard chrome is removed.
 
 ## Latest Documentation Pass
 
-- Task selected: TUI-003, the bounded D4 overlay-migration decision.
-- Files changed: accepted D4 in the design and TUI-003 task; reconciled E5/E7,
-  every TUI-050 through TUI-058 migration task, TUI-070 removal criteria, the
-  affected behavioral references, and all durable state.
-- Result: migrations run in exact Help, Tasks, Runs/Run Detail, Preflight,
-  Workflow, Change Summary, Evidence, Approval, typed-needs-input order. Each
-  current key/command pair cuts over together only after view parity, exact
-  return, and geometry pass; page presentation remains rollback-only until the
-  TUI-070 removal gate. Runs detail and typed needs-input are the only explicit
-  child states. No app callback, domain state, runtime dependency, D6 decision,
-  or app/domain prerequisite changed.
-- Verification: the required path-scoped diff and D4 term audits plus relative-
-  link, changed-scope, dependency-chain, retained-entry, removal-gate, open-D6,
-  task-count, runnable-task, product-code, and status checks pass.
-- Evidence gaps: E5 tasks must collect the accepted per-view parity evidence;
-  E6 must cover final overlay geometry. D6 still needs a session-header
-  lifecycle.
-- What remains: execute TUI-004, then TUI-005 in separate fresh passes before
+- Task selected: TUI-004, the bounded D6 session-header decision.
+- Files changed: accepted D6 in the design and TUI-004 task; reconciled the E0,
+  E1, E2, E6, and E7 gates, affected shell/transcript/geometry/removal tasks,
+  terminal/operator-doc/closeout tasks, all four behavioral references, and
+  durable task/decision/state/handoff. The consumed TUI-004 prompt was deleted.
+- Result: each TUI process emits one typed `session-start` before bounded
+  replay. It owns only the local product label, inspected absolute project
+  root, and process-start initialization. Refresh, resize, and overlay
+  transitions never re-emit it; restart does. No clear action, app/domain
+  capability, callback, runtime dependency, product code, or runnable task was
+  added.
+- Verification: the required path-scoped diff and D6 term audits plus relative-
+  link, changed-scope, accepted-D6, unchanged-D1-D5, task-count, no-TUI-010,
+  no-product-code/dependency, prompt-deletion, and TUI-005 selector checks pass.
+- Evidence gaps: the planned shell and geometry tasks still must prove the D6
+  source, ordering, count, replay, width, and failure/restoration contracts;
+  TUI-005 must accept the experience-state snapshots.
+- What remains: execute TUI-005 as the next separate fresh pass before
   promoting TUI-010.
-- Blockers: none for TUI-004.
+- Blockers: none for TUI-005.
 
 ## Next Decision Pass
 
-- Commit `1f1fc1c` (`docs: choose TUI transcript ownership`) was pushed to
+- Commit `1e57c06` (`docs: accept TUI overlay migration`) was pushed to
   `origin/main`; the branch was clean and synchronized immediately after the
   push.
-- TUI-003 is complete and intentionally uncommitted. TUI-004 in
-  `docs/architecture/tui-overhaul/tasks/tui-004-accept-session-header.md` is the
-  exact next bounded decision pass. No TUI-004 prompt exists.
+- TUI-003 is complete, committed, and pushed. TUI-004 is complete and
+  intentionally uncommitted; its one-pass prompt was consumed and deleted.
+  TUI-005 is the exact next bounded documentation pass.
 
 ## Blockers And Next Task
 
 - The approved task-publication, console, plan, and behavioral-study snapshot
-  and the accepted TUI-001/TUI-002 decisions are committed and pushed through
-  `1f1fc1c`.
-- TUI-003 is complete and uncommitted. Complete E0 decisions and snapshots
-  before publishing TUI-010. Do not revive EXT/PTC work or reopen Architecture
-  025.
+  and the accepted TUI-001/TUI-002/TUI-003 decisions are committed and pushed
+  through `1e57c06`.
+- TUI-004 is complete and uncommitted. Complete TUI-005 and the E0 snapshot
+  gate before publishing TUI-010. Do not revive EXT/PTC work or reopen
+  Architecture 025.

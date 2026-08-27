@@ -12,6 +12,8 @@ the draft plan only if every criterion passes.
 ## Scope
 
 - Evaluate every whole-overhaul criterion in the design authority.
+- Confirm the D6 source/owner table and startup, refresh, resize, restart,
+  overlay, no-clear, failure, and no-duplicate-header proofs all pass.
 - Run the full Go suite and focused CLI help checks.
 - Repeat the accepted E6 terminal scrollback, lifecycle, and accessibility
   matrices against the final build.

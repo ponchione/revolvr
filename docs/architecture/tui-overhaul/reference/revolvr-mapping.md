@@ -3,8 +3,7 @@
 Codex evidence is pinned to
 `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`; its cited contracts live in the
 [interaction model](interaction-model.md) and
-[terminal mechanics](terminal-mechanics.md). D2, D3, D4, and D5 are accepted;
-D6 remains open.
+[terminal mechanics](terminal-mechanics.md). D2-D6 are accepted.
 
 ## Current Boundary
 
@@ -34,9 +33,9 @@ the overhaul.
 | [Committed transcript + replaceable live region](interaction-model.md#shell-composition-and-focus) | One viewport redraw contains all content and chrome. ([R01], [R05]) | `accepted; proof required` | `StatusModel` source/emitted identity plus `tea.Println` and managed-frame composition | [TUI-010](../tasks/tui-010-prove-shell-composition.md) / accepted D3 |
 | [Source-backed resize/reflow](terminal-mechanics.md#resize-reflow-and-width) | Window size regenerates wrapped viewport strings; no retained cell source exists. ([R05]) | `accepted; proof required` | `Update(tea.WindowSizeMsg)` reflows only retained/managed state and never re-emits history | [TUI-011](../tasks/tui-011-prove-resize-reflow.md) / accepted D3 |
 | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) | Run state is mutable and historical status is refreshed afterward, but there is no single cell-settlement boundary. ([R06]) | `accepted; proof required` | existing run completion handlers plus stable identity and one-time append | [TUI-012](../tasks/tui-012-prove-active-settlement.md) / accepted D3 |
-| Proven shell installation | The current program is already one Bubble Tea model without alternate-screen opt-in. ([R01]) | `accepted after proof` | `RunStatus` program options and proven `StatusModel` hybrid | [TUI-013](../tasks/tui-013-install-terminal-shell.md) / accepted D3 |
-| [Semantic cell interface](interaction-model.md#semantic-cell-categories) | Semantic timeline rows and focused projections exist, but presentation is assembled as strings. ([R03], [R04]) | `presentation change` | small TUI-owned cell value/render functions over existing projections | [TUI-020](../tasks/tui-020-define-transcript-cells.md) / D6 only for a session cell |
-| [Replay from durable semantic source](interaction-model.md#session-header-replay-and-refresh) | `app.RunTimeline` deterministically projects ledger history and tests completed/failure/fallback cases. ([R03]) | `presentation change` | replay a bounded source window once at startup and append only new stable identities on refresh | [TUI-021](../tasks/tui-021-project-historical-runs.md) / accepted D3 |
+| Proven shell installation | The current program is already one Bubble Tea model without alternate-screen opt-in. ([R01]) | `accepted after proof` | `StatusResult.ProjectRoot`, `RunStatus`, and the proven `StatusModel` hybrid emit D6's session cell | [TUI-013](../tasks/tui-013-install-terminal-shell.md) / accepted D3/D6 |
+| [Semantic cell interface](interaction-model.md#semantic-cell-categories) | Semantic timeline rows and focused projections exist, but presentation is assembled as strings. ([R03], [R04]) | `presentation change` | small TUI-owned cell value/render functions over existing projections; the session kind has only D6's three sources | [TUI-020](../tasks/tui-020-define-transcript-cells.md) / accepted D6 for `session-start` |
+| [Replay from durable semantic source](interaction-model.md#session-header-replay-and-refresh) | `app.RunTimeline` deterministically projects ledger history and tests completed/failure/fallback cases. ([R03]) | `presentation change` | emit `session-start`, replay a bounded source window once, and append only new stable identities on refresh | [TUI-021](../tasks/tui-021-project-historical-runs.md) / accepted D3/D6 |
 | Live/history identity reconciliation | Refresh preserves selection and focused refresh reloads canonical history. ([R07]) | `proof required` | stable ledger event/run identity plus process-local emitted set | [TUI-022](../tasks/tui-022-reconcile-live-history.md) / accepted D3 |
 | [Normally focused composer](interaction-model.md#composer-ownership-and-submission) | Composer opens only after `/` and closes after submission or escape. ([R08]) | `presentation change` | `commandComposerState`, top-level key routing, footer | [TUI-030](../tasks/tui-030-make-composer-primary.md) / accepted D2 |
 | Plain-text submission | `submitCommand` treats the first field as a slash command; task entry already holds an editable draft and calls reviewed `AddTaskAndCommit` only on Enter. ([R02], [R08], [R17]) | `presentation change` | transfer initialized idle text into existing `taskEntryState`; reject and preserve it otherwise | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) / accepted D2/D5; no app prerequisite |
@@ -52,11 +51,11 @@ the overhaul.
 | Evidence in overlay | Focused evidence already reloads canonical history on refresh. ([R04], [R07]) | `presentation change` | `renderFocusedEvidence` under the shared overlay shell | [TUI-056](../tasks/tui-056-move-evidence-overlay.md) / accepted D4 |
 | [Typed approval overlay](interaction-model.md#approvals) | Approval is a focused projection; accepted answers pass typed task/question/revision/hash/option identity to the app callback. ([R04], [R13]) | `presentation change` | keep `autonomousAnswerState` and `AnswerInput`; change only focus/render owner | [TUI-057](../tasks/tui-057-move-approval-overlay.md) / accepted D4 |
 | [Typed question overlay](interaction-model.md#typed-questions) | Needs-input requires a current typed question, explicit option, double confirmation, and stale-question rejection. ([R13]) | `accepted presentation change` | retain the existing answer state machine and expose it through the shared overlay; no free-form route | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) / accepted D2/D4 |
-| [Width/geometry proof](terminal-mechanics.md#resize-reflow-and-width) | Exact 100-column, 40-column, and 40x24 render tests already bound lines and chrome for the current dashboard. ([R14]) | `proof required` | prove managed-frame reflow and no committed-identity replay | [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) / accepted D3, open D6 |
+| [Width/geometry proof](terminal-mechanics.md#resize-reflow-and-width) | Exact 100-column, 40-column, and 40x24 render tests already bound lines and chrome for the current dashboard. ([R14]) | `proof required` | prove managed-frame reflow, no committed-identity replay, and D6 session counts across startup/restart/refresh/resize/overlays | [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) / accepted D3/D6 |
 | [Terminal-native scrollback](terminal-mechanics.md#history-insertion-and-native-scrollback) | Current code uses one Bubbles viewport and has no project-owned insertion seam. ([R01], [R05]) | `accepted; environment proof required` | installed `tea.Println` plus plain-terminal/tmux matrix; no production escape layer | [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) / accepted D3 |
-| [Suspend/restore/error lifecycle](terminal-mechanics.md#terminal-lifecycle-and-restoration) | Lifecycle is delegated to `tea.NewProgram`; active quit waits for run settlement in model tests. ([R01], [R09]) | `accepted boundary; proof required` | Bubble Tea lifecycle plus existing model settlement | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) / accepted D3 |
+| [Suspend/restore/error lifecycle](terminal-mechanics.md#terminal-lifecycle-and-restoration) | Lifecycle is delegated to `tea.NewProgram`; active quit waits for run settlement in model tests. ([R01], [R09]) | `accepted boundary; proof required` | Bubble Tea lifecycle plus existing model settlement and D6 startup failure/restart checks | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) / accepted D3/D6 |
 | [Text-first semantic styling](terminal-mechanics.md#styling-and-text-accessibility) | Default text plus bold/dim/cyan/green/red roles exist, and tests strip ANSI before textual assertions. ([R15], [R14]) | `proof required` | existing style functions and styles-disabled test environment | [TUI-063](../tasks/tui-063-verify-text-accessibility.md) / none |
-| Remove dashboard-only presentation | Current dashboard still owns header/status/timeline/footer assembly. ([R05], [R16]) | `presentation change` | delete obsolete dashboard render/chrome and viewport history ownership only after parity | [TUI-070](../tasks/tui-070-remove-dashboard-presentation.md) / accepted D3/D4, open D6 |
+| Remove dashboard-only presentation | Current dashboard still owns header/status/timeline/footer assembly. ([R05], [R16]) | `presentation change` | delete obsolete dashboard render/chrome and viewport history ownership only after D4 parity and D6 no-duplicate-header proof | [TUI-070](../tasks/tui-070-remove-dashboard-presentation.md) / accepted D3/D4/D6 |
 | Operator documentation | No useful Codex analog; Revolvr commands and accepted decisions are the authority. | `skip` | current Revolvr docs after behavior lands | [TUI-071](../tasks/tui-071-update-operator-docs.md) / D2–D6 as accepted |
 | Overhaul acceptance | No useful Codex analog; closure depends on Revolvr tests and terminal records. | `proof required` | existing task acceptance record | [TUI-072](../tasks/tui-072-close-overhaul-acceptance.md) / D2–D6 as accepted |
 
@@ -75,8 +74,10 @@ the overhaul.
   Change Summary, Evidence, Approval, and typed needs-input in that order.
   Retain each current key/command entry, exact return state, and page renderer
   until the accepted parity and removal gates pass.
-- **Open product decision D6:** whether a one-time session header is committed,
-  refreshed, or omitted.
+- **Accepted D6:** each TUI process commits one `session-start` before bounded
+  replay, using the local product label, inspected absolute repository root,
+  and initial initialization fact. Refresh, resize, and overlays never emit it;
+  restart emits one for the new process. No Revolvr clear action is added.
 
 ## Prioritized Evidence Gaps
 
@@ -89,12 +90,13 @@ the overhaul.
    and injected-error restoration checks for the target shell.
 4. TUI-063 lacks a complete styles-disabled target snapshot; ANSI-normalized
    current tests establish textual content but not final focus/status clarity.
-5. D6 lacks an accepted session-header lifecycle and replay/refresh snapshot.
+5. Accepted D6 still lacks its startup/restart/refresh/resize/overlay count,
+   ordering, source, and 80/40-column proofs.
 6. Accepted D4 still requires its per-view overlay parity evidence, especially
    exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-004 is the next bounded product-decision task.
+TUI-005 is the next bounded product-decision task.
 
 ## Revolvr Evidence
 

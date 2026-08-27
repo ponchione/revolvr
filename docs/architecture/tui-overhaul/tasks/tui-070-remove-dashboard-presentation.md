@@ -14,6 +14,9 @@ application has one rendering and navigation model.
 - Delete dashboard-only activity compaction, persistent header/footer chrome,
   inactive composer state, and page-only navigation made obsolete by parity
   migrations.
+- Remove persistent header chrome only after D6 proofs show one
+  `session-start` before startup/restart replay, none on refresh, resize, or
+  overlay transitions, deterministic 80/40-column output, and no clear route.
 - Remove the viewport as committed-history owner while retaining it only where
   an accepted overlay still needs bounded scrolling.
 - Delete obsolete tests and replace only those still needed to assert accepted
@@ -30,6 +33,8 @@ application has one rendering and navigation model.
 ## Acceptance
 
 - Launch output contains no Dashboard label or dashboard-only content path.
+- Launch/restart contains one session cell, and no persistent header or footer
+  repeats its product, project, or process-start initialization facts.
 - No fact is rendered through duplicate transcript/live/page representations.
 - Every accepted action remains reachable through documented command/key paths.
 - `?`, bare `/`, `/help`, `/commands`, `2`, `/tasks`, `3`, `/runs`, `4`,

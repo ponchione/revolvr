@@ -26,6 +26,7 @@ the plan. It does not redesign CLI behavior outside `revolvr tui`.
 
 - No obsolete Dashboard label, inactive composer, or page-only navigation path
   remains.
+- No persistent chrome duplicates the accepted one-time session facts.
 - Every D4 key and command opens the accepted overlay after page-only
   presentation is removed.
 - Operator documentation describes the shipped interface.

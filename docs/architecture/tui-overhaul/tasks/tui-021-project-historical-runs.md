@@ -15,8 +15,9 @@ committed transcript cells derived from canonical app projections.
 - Use stable domain identities and canonical order for committed-cell identity.
 - Apply the accepted history window without manufacturing an unbounded memory
   log; preserve Run Detail as the complete audit/debug surface.
-- On startup, replay the accepted bounded source-cell window once for the new
-  process session; on refresh, append only newly discovered stable identities.
+- On startup, replay the accepted bounded source-cell window once after
+  `session-start`; on refresh, append only newly discovered stable identities
+  and never replay the session cell.
 - Preserve current filtering of raw ledger events, duplicated task bodies, and
   low-level Codex lifecycle noise.
 
@@ -25,7 +26,8 @@ committed transcript cells derived from canonical app projections.
 - A completed run reads as the accepted short operator narrative.
 - The same canonical projection yields the same cell identity, order, and text.
 - Refresh neither duplicates nor silently drops cells inside the accepted
-  history window; startup emits each rebuilt identity once for that session.
+  history window; startup emits each rebuilt identity once after the one
+  session cell for that process.
 - No run or task status is inferred from prose, color, or timestamps.
 - Run Detail retains access to complete canonical evidence.
 

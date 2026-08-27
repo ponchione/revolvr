@@ -24,9 +24,10 @@ plain text; D3 accepts source-backed cells with one-time `tea.Println`
 commitment to terminal-owned history and a managed live/composer/overlay frame;
 D4 accepts the Help-to-typed-needs-input one-view-at-a-time migration, retained
 key/command entries, exact return ownership, and parity-gated page removal; D5
-rejects active steering and queued/deferred operator messages. D6 remains open.
-This study remains behavioral evidence for those accepted seams; it does not
-select the session-header lifecycle.
+rejects active steering and queued/deferred operator messages; D6 accepts one
+startup-only `session-start` cell per process and no Revolvr clear action. This
+study remains behavioral evidence for those accepted seams; Revolvr's D6
+decision, not Codex's header lifecycle, is product authority.
 
 ## Citation Format
 
@@ -62,7 +63,7 @@ process is the only useful authority.
 | [TUI-013](../tasks/tui-013-install-terminal-shell.md) | [Bubble Tea boundary](terminal-mechanics.md#bubble-tea-boundary) and [shell seam mapping](revolvr-mapping.md#contract-mapping) |
 | [TUI-020](../tasks/tui-020-define-transcript-cells.md) | [Semantic cell categories](interaction-model.md#semantic-cell-categories) |
 | [TUI-021](../tasks/tui-021-project-historical-runs.md) | Codex replay is relevant to lifecycle only; Revolvr’s [timeline projection mapping](revolvr-mapping.md#contract-mapping) is the content authority |
-| [TUI-022](../tasks/tui-022-reconcile-live-history.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) and [replay](interaction-model.md#session-header-replay-and-refresh) |
+| [TUI-022](../tasks/tui-022-reconcile-live-history.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) and [accepted session replay](interaction-model.md#session-header-replay-and-refresh) |
 | [TUI-030](../tasks/tui-030-make-composer-primary.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission) |
 | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission); accepted D2/D5 and the existing reviewed task-entry path remain authoritative |
 | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) | [Commands and history](interaction-model.md#commands-and-history) |

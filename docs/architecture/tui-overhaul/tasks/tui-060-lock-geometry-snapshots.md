@@ -16,6 +16,8 @@ resize-sequence geometry regressions.
 - Cover wide-to-narrow-to-wide sequences with retained committed source,
   managed live content, and assertions that committed identities are not
   re-emitted.
+- Cover startup, refresh, resize, restart, and overlay open/dismiss session-cell
+  counts and ordering at 80 and 40 columns; assert no Revolvr clear route.
 - Measure ANSI-stripped display width rather than bytes or rune count.
 - Assert required composer, cancellation, safety, and current-state text.
 - Prefer current test helpers and focused assertions over a new snapshot system.
@@ -26,6 +28,8 @@ resize-sequence geometry regressions.
 - Required state/action text remains visible at 40 columns.
 - Resize does not re-emit committed cells, lose the live cell, or corrupt the
   composer buffer/selection.
+- Each startup/restart has one `session-start`; refresh, resize, and overlay
+  transitions have none.
 - Test failures show the offending state and row clearly.
 - No dependency or golden-update framework is added.
 

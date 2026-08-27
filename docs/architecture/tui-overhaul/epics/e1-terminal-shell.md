@@ -29,6 +29,9 @@ backend.
 
 - Append composition, test IO, managed-frame reflow, and active-settlement
   proofs pass without clearing or replaying terminal history.
-- The accepted shell runs in the current program without an app/domain change
-  or new dependency.
+- The `session-start` cell is emitted once before bounded history and is not
+  re-emitted by redraw or resize.
+- The accepted shell runs in the current program without an application
+  callback, domain-authority change, or new dependency; it only adds the
+  inspected root to the existing status projection.
 - Existing commands, focused views, and operation guards remain reachable.

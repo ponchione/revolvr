@@ -62,7 +62,7 @@ Updated: 2026-08-27
   once through installed `tea.Println`, terminal history owns emitted rows and
   native reflow/copy, and viewports are overlay-only. D4 is accepted as the
   strict Help, Tasks, Runs/Run Detail, Preflight, Workflow, Change Summary,
-  Evidence, Approval, typed-needs-input migration order. D6 remains open.
+  Evidence, Approval, typed-needs-input migration order.
 - Committed the task-publication fix, console presentation/test update,
   planning tree, behavioral study, and durable-state snapshot as `24be655`
   (`feat: prepare transcript-first TUI overhaul`) and pushed `main` to
@@ -93,18 +93,36 @@ Updated: 2026-08-27
   composer/source return state while transcript/live meaning updates beneath
   it. Runs detail and typed needs-input are the only explicit child states; no
   general overlay stack, callback, domain-state, runtime dependency, D6,
-  app/domain prerequisite, product code, runnable task, commit, or push was
-  added.
+  app/domain prerequisite, product code, or runnable task was added by the
+  decision pass.
+- Committed and pushed the accepted TUI-003 decision as `1e57c06`
+  (`docs: accept TUI overlay migration`) with raw Git.
+- Created `docs/architecture/tui-overhaul/TUI_004_DECISION_PROMPT.md` as the
+  only next-slice prompt after that push. It limits the next fresh pass to D6,
+  requires reconciliation and verification, deletes itself when consumed, and
+  hands off to TUI-005 without implementing or publishing TUI-010.
+- TUI-004 is accepted and closes D6. Each TUI process emits one committed
+  `session-start` before bounded replay, sourced from the local product label,
+  inspected absolute repository root, and process-start initialization.
+  Refresh, resize, and overlay transitions never re-emit it; restart does.
+- Revolvr adds no clear action: external terminal/multiplexer clearing is not
+  observed and causes no application replay. The accepted presentation-owner,
+  stable-identity, failure, geometry, restoration, and dashboard-removal proof
+  gates are reconciled across the design, epics, tasks, references, and durable
+  state. No product code, callback, domain state, dependency, or runnable task
+  changed.
+- Consumed and removed
+  `docs/architecture/tui-overhaul/TUI_004_DECISION_PROMPT.md`.
 
 ## Exact Next Command
 
-Run one fresh Codex pass for TUI-004:
+Run one fresh Codex pass for TUI-005:
 
 ```bash
-codex exec "Execute TUI-004 from docs/architecture/tui-overhaul/tasks/tui-004-accept-session-header.md as one bounded documentation decision pass. Read AGENTS.md, the durable state, and the TUI-overhaul design/reference files first; resolve only D6, do not change product code, publish TUI-010, commit, or continue into TUI-005."
+codex exec "Execute TUI-005 from docs/architecture/tui-overhaul/tasks/tui-005-accept-experience-states.md as one bounded documentation-only decision pass. Read AGENTS.md, the durable state, and the TUI-overhaul design/reference files first; accept only the experience-state snapshots, do not change product code, publish TUI-010, commit, or continue past TUI-005."
 ```
 
-Do not create a separate TUI-004 prompt before that pass.
+Do not create another TUI-004 prompt or start TUI-010 in that pass.
 
 ## Verification
 
@@ -155,5 +173,17 @@ Do not create a separate TUI-004 prompt before that pass.
 - TUI-003 relative Markdown link, changed-scope, exact dependency-chain,
   retained-entry, page-removal, accepted-D4/open-D6, 33-task, no-runnable-task,
   no-product-code, and status checks — PASS.
+- `git show --check --oneline 1e57c06` — PASS.
+- `git push origin main` — PASS; `1f1fc1c..1e57c06  main -> main`.
+- `git status --short --branch` immediately after push — PASS;
+  `main...origin/main` with no worktree changes.
+- TUI-004 next-slice prompt scope, relative-link, trailing-whitespace, durable-
+  selector, and no-runnable-task checks — PASS.
+- TUI-004 path-scoped `git diff --check` and required D6 session/startup/
+  refresh/resize/restart/clear/overlay/source/owner/identity/failure/removal term
+  audits — PASS.
+- TUI-004 relative-link, changed-scope, accepted-D6, unchanged-D1-D5,
+  33-task, no-published-TUI-010, no-product-code/runtime-dependency,
+  prompt-deletion, and TUI-005-selector checks — PASS.
 
-Run the exact next command above for TUI-004.
+Run the exact next command above for TUI-005.

@@ -19,6 +19,9 @@ Produce the accepted source snapshots that judge all later presentation work.
   and 40-column narrow states.
 - Annotate each state with committed transcript, replaceable live cell,
   composer, overlay, and transient footer ownership.
+- Start each process-state snapshot with the accepted `session-start` facts and
+  point-in-time initialization wording; do not add a clear action or duplicate
+  those facts in persistent chrome.
 - Record the normal width, minimum supported width, wrapping/truncation rules,
   and behavior below the minimum.
 - Settle exact operator-visible wording for safety state, cancellation, current

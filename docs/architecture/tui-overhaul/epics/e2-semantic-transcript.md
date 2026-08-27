@@ -25,5 +25,6 @@ completion authority remain in existing app/domain projections.
 ## Exit Gate
 
 - Historical and live states share tested cell rendering and stable identity.
-- Refresh/restart reproduces committed meaning without duplication.
+- Refresh reproduces only newly discovered committed meaning; restart emits one
+  new `session-start` and replays the bounded canonical window once.
 - The dashboard activity renderer is no longer the primary history surface.

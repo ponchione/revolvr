@@ -11,8 +11,8 @@ installed Bubble Tea stack and Revolvr's program IO.
 
 ## Scope
 
-- Build the smallest proof with two committed source cells, one replaceable
-  live cell, and the accepted bottom composer.
+- Build the smallest proof with `session-start` plus one canonical committed
+  source cell, one replaceable live cell, and the accepted bottom composer.
 - Emit committed cell renderings once through the installed `tea.Println`
   boundary while keeping the live cell and composer in the managed frame.
 - Exercise both Bubble Tea test output buffers and one interactive terminal.
@@ -25,6 +25,7 @@ installed Bubble Tea stack and Revolvr's program IO.
 
 - Each committed identity is appended above the program exactly once; redraw
   does not duplicate either committed cell.
+- `session-start` precedes canonical-history replay in captured output.
 - Replacing live state does not append intermediate rows to history.
 - The composer remains at the bottom, receives keys, and renders at accepted
   normal width.

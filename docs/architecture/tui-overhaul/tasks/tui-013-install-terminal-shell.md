@@ -15,7 +15,9 @@ routes, callbacks, and guards behind it.
 - Replace the persistent header/viewport/footer frame with the proven D3
   hybrid: appended committed history plus a managed live/composer/overlay
   frame.
-- Render the accepted one-time session cell and bottom region.
+- Add `ProjectRoot` to the existing `app.StatusResult` projection from
+  `repositorypath.Inspect(...).Root()` and render it with the initial
+  `Initialized` value in the accepted one-time `session-start` cell.
 - Keep current dashboard content in an explicitly migration-only managed panel
   until E2 replaces it; never append dashboard strings as committed history.
 - Keep current page keys, slash commands, actions, refresh, scrolling, and
@@ -25,8 +27,11 @@ routes, callbacks, and guards behind it.
 ## Acceptance
 
 - Launch no longer depends on a persistent dashboard header row.
+- Startup emits exactly one `session-start` before migration-only content;
+  refresh and overlay navigation do not emit another.
 - Every pre-existing navigation route and command regression still passes.
-- Current dashboard content remains available without app/domain changes.
+- Current dashboard content remains available without callback or domain-
+  authority changes.
 - Shell proof, resize, and settlement checks remain green in the installed path.
 - Installation adds no alternate-screen mode, terminal escape layer, or new
   dependency.
@@ -46,4 +51,5 @@ git diff --check
 ## Not Included
 
 - No semantic cell projection, primary-composer behavior, overlay migration, or
-  dashboard-content deletion.
+  dashboard-content deletion; no clear command, callback, or domain-authority
+  change.

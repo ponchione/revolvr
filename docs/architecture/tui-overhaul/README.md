@@ -4,8 +4,8 @@
 - Baseline date: 2026-08-27
 - Reference implementation: local `openai/codex` checkout at
   `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`
-- Implementation status: blocked until the required decisions below are
-  accepted
+- Implementation status: blocked until TUI-005 accepts the experience
+  snapshots and the E0 exit gate passes
 - Epic and task index: [Implementation plan](#implementation-plan)
 
 ## Purpose
@@ -479,9 +479,80 @@ need for that backend. TUI-041 is removed, and no prerequisite is created.
 
 ### D6 — Session header lifecycle
 
-**Status: Proposed.** Replace the persistent `Revolvr Dashboard initialized`
-row with one compact session transcript cell shown at startup and after an
-explicit clear. The live footer should carry only context needed now.
+**Status: Accepted 2026-08-27.** Replace the persistent
+`Revolvr Dashboard initialized` row with one immutable committed session cell
+at the start of each TUI process. Its process-local presentation identity is
+`session-start`; it is emitted once before the accepted bounded canonical
+history replay. A restarted process has a new emitted-identity set, so it emits
+its own `session-start` cell and then rebuilds the bounded history without
+guessing what an earlier process left in terminal scrollback.
+
+The session cell contains exactly these facts:
+
+| Displayed fact | Exact source | Presentation owner |
+| --- | --- | --- |
+| Product label `Revolvr` | A package-local `internal/tui` presentation constant | Committed session cell |
+| Project identity | Initial `app.StatusResult.ProjectRoot`, projected by `app.Status` from `repositorypath.Inspect(...).Root()` for its `app.Config.WorkDir`; the TUI does not read the ambient working directory, Git remote, or repository basename | Committed session cell |
+| State at process start, `initialized` or `not initialized` | The initial `app.StatusResult.Initialized`, derived by `repositorypath.Authority.Initialized()` from the inspected `.revolvr` directory and ledger presence | Committed session cell |
+
+The state wording must make its point-in-time scope clear; a later refresh
+does not rewrite terminal history. The cell contains no current view, ready or
+safety claim, active mode, task/run identity, workflow, count, timestamp,
+version, command hint, or error. Those values either change during the process
+or have no evidenced operator need in session history.
+
+Presentation ownership for the remaining visible facts is exclusive:
+
+| Fact class | Presentation owner | Source |
+| --- | --- | --- |
+| Stable historical operator/run meaning | Committed transcript cell | Canonical tasks, ledger, `app.RunTimeline`, artifacts, and typed app results under D3 |
+| Active operation identity, mode, progress, cancellation, and unsettled result | Replaceable live cell | Existing typed operation state and callbacks |
+| Focused workflow content, selection, confirmation, and owning error | Overlay | Existing callback-backed projection plus overlay-local state under D4 |
+| Editable input, command discovery, task draft, and input refusal | Composer | Composer/task-entry local state plus existing command guards under D2/D5 |
+| Current focus-appropriate keys and ephemeral refresh/action acknowledgement or failure | Transient footer | `StatusModel` focus/action result state; it repeats no session or lifecycle fact |
+
+The lifecycle is fixed and snapshot-testable:
+
+- **Startup:** after the initial status and repository-root inspection succeed,
+  emit `session-start` once, then emit the accepted bounded canonical history.
+  A startup inspection/status failure prevents TUI launch and emits no cell.
+- **Refresh:** retain the session source and emitted identity. Apply the fresh
+  status to current guards, append only newly discovered canonical identities,
+  and report refresh success/failure transiently. A failed refresh retains the
+  last good projection. It never emits or mutates the session cell.
+- **Resize:** redraw only retained managed state at the new width. Never
+  re-render or re-emit `session-start`; the terminal owns any reflow of its
+  already-emitted rows.
+- **Restart:** create a new process-local emitted set, emit one new
+  `session-start` from the new initial projection, and replay the bounded
+  canonical history once for that process.
+- **Explicit clear:** the overhaul adds no clear key, command, callback, or
+  presentation epoch. If an operator clears terminal or multiplexer scrollback
+  outside Revolvr, the application neither detects it nor emits another
+  session cell. A future Revolvr-owned clear requires a separate bounded
+  product decision and task.
+- **Overlay open/dismiss:** opening or dismissing an overlay changes no session
+  source or emitted identity and emits no history. The overlay restores the
+  latest live/composer frame under D4.
+
+Identity and deduplication use typed source identity, never timestamp or
+rendered prose. The process-local emitted set records `session-start` in a
+session-cell namespace distinct from canonical run/event/operation identities.
+It is recorded only at the append boundary and is not cleared by refresh,
+resize, or overlay transitions. A Bubble Tea output failure fails the program
+through its normal lifecycle and must not be reported as a successful header;
+refresh and resize never attempt a blind retry.
+
+Persistent dashboard header chrome is removable only after the installed path
+proves one `session-start` before replay, zero additional session cells across
+refresh, wide/narrow resize, and overlay open/dismiss, one new cell on process
+restart, deterministic output-buffer ordering, 80- and 40-column geometry, and
+normal/error terminal restoration. The review must also show that the old
+header/footer repeats no surviving session fact. TUI-010, TUI-011, TUI-013,
+TUI-060, TUI-062, and TUI-070 own those gates. No app/domain capability,
+callback, domain authority, runtime dependency, terminal backend, or clear
+action is required; TUI-013 only adds the root to the existing status
+projection.
 
 ## Whole-Overhaul Acceptance
 
@@ -519,7 +590,7 @@ The overhaul is complete only when:
 
 Before the first implementation task is created:
 
-1. Resolve D1, D2, and D3; accept or replace D4 through D6.
+1. Confirm accepted D1-D6 remain consistent with the snapshots.
 2. Complete [TUI-005](tasks/tui-005-accept-experience-states.md) so the idle,
    running, completed, failure, cancellation, needs-input, and narrow-terminal
    snapshots describe the intended product.

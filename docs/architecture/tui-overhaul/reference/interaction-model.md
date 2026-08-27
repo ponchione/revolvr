@@ -3,7 +3,7 @@
 Evidence pin: `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`.
 Labels in this document are deliberate: observed behavior describes the pin,
 current behavior describes Revolvr today, candidate adaptation is non-binding,
-and decision status distinguishes accepted D2-D5 from open D6.
+and decision status records accepted D2-D6.
 
 ## Shell Composition and Focus
 
@@ -79,8 +79,8 @@ results, search, separators, and session information. The interface—not the
 Rust type inventory—is the reusable contract: each category supplies semantic
 source and width-aware display/transcript lines. ([I07], [I12])
 
-**Candidate Revolvr adaptation:** Revolvr needs only domain categories accepted
-by TUI-020: session if D6 accepts it, operator input, run/task status, progress,
+**Accepted Revolvr adaptation:** Revolvr needs only the categories accepted by
+TUI-020: the D6 `session-start` cell, operator input, run/task status, progress,
 result, warning, question, and approval evidence. Codex-specific categories do
 not justify matching Go types one-for-one.
 
@@ -263,13 +263,23 @@ header rather than committing a one-time session cell. (Revolvr
 `internal/tui/model_test.go:873-944`
 (`TestStatusModelRefreshActionReloadsStatusSnapshot`))
 
-**Candidate Revolvr adaptation:** historical ledger projection should be
-idempotent and reconciled by stable run/event identity; a session cell is useful
-only if D6 accepts its lifecycle.
+**Accepted Revolvr adaptation:** D6 uses one committed `session-start` cell per
+TUI process. It is emitted before bounded canonical replay and contains only
+the local `Revolvr` label, the inspected absolute repository root threaded from
+`app.StatusResult.ProjectRoot`, and the initial
+`app.StatusResult.Initialized` value. Its typed process-local identity is not a
+timestamp or rendered string.
 
-**Open product decision:** D6 remains open. The Codex one-time history header is
-evidence against duplicating equivalent persistent dashboard chrome, not a
-selection for Revolvr.
+Refresh, resize, and overlay open/dismiss do not mutate or re-emit the cell.
+Restart creates a new emitted-identity set, emits one new `session-start`, and
+then replays the bounded canonical window once. The initialization wording is
+explicitly a process-start fact; current command guards use refreshed status
+without rewriting terminal history.
+
+D6 rejects adding a Revolvr clear action in this overhaul. Clearing terminal-
+owned scrollback outside Revolvr is not observed and causes no replay. This is
+intentionally smaller than Codex's clear lifecycle and requires no new command,
+callback, presentation epoch, or terminal-history owner.
 
 ## Intentionally Irrelevant Observations
 

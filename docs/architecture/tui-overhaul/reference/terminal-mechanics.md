@@ -92,6 +92,11 @@ reflow. Revolvr never clears or reinserts them. TUI-011/TUI-060 prove the
 managed frame and no-replay invariant; TUI-061 records native behavior and any
 unsupported environment.
 
+Accepted D6 applies the same rule to `session-start`: it is emitted once before
+bounded history for each process, never on refresh, resize, or overlay
+transitions, and once again only when a new process starts. No Revolvr clear
+action or terminal-history clearing mechanism is added.
+
 ## Terminal Lifecycle and Restoration
 
 **Observed Codex behavior:** initialization requires TTY stdin/stdout, enables

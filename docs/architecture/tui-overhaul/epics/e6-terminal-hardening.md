@@ -25,7 +25,8 @@ emulation or claim support for an environment that is not reproducible.
 
 ## Exit Gate
 
-- Automated geometry checks pass.
+- Automated geometry checks prove one session cell at startup/restart and none
+  on refresh, resize, or overlay transitions.
 - The supported-terminal scrollback and lifecycle matrices pass.
 - Remaining limitations are explicit and do not hide safety or action state.
 - Important meaning remains understandable without color.

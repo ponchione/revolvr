@@ -15,6 +15,8 @@ composer, command, overlay, scrollback, cancellation, and loop behavior.
 - Document plain-text behavior, including unavailable states, exactly as shipped.
 - Document command discovery, overlay open/close, history navigation/copy,
   cancellation, quit settlement, needs-input, and known terminal limitations.
+- Document that the session cell records project and initialization at process
+  start, restart emits a new one, and Revolvr has no clear command.
 - Document every retained D4 key/command pair and the Runs-to-Run-Detail and
   typed-needs-input Back/Escape return behavior.
 - Remove instructions for the deleted Dashboard/page/inactive-composer model.

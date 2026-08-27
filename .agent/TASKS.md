@@ -99,7 +99,10 @@
   Runs/Run Detail, Preflight, Workflow, Change Summary, Evidence, Approval,
   then typed needs-input; retain every current key/command entry and page
   rollback until per-view parity, return-state, child-back, and removal gates
-  pass. D6 remains open; TUI-004 is next.
+  pass. D6 is accepted: one startup-only `session-start` cell per TUI process
+  owns product label, inspected absolute project root, and process-start
+  initialization; refresh, resize, and overlays never re-emit it, restart does,
+  and no Revolvr clear action is added. TUI-005 is next.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

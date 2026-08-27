@@ -8,6 +8,8 @@
 
 The operator experience and implementation boundaries are explicit enough that
 the terminal-shell proof can be judged without inventing product semantics.
+D1-D6 are accepted; TUI-005 remains the only E0 task before the experience
+snapshots and E0 exit gate can be accepted.
 
 ## Tasks
 

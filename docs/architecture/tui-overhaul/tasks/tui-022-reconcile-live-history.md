@@ -16,6 +16,8 @@ canonical committed transcript result exactly once.
   progress is replaceable.
 - On settlement or refresh, reconcile live state against the canonical app
   result using domain identity.
+- Preserve the accepted `session-start` source and emitted identity across
+  refresh and live settlement.
 - Append the reconciled final cell only when its stable identity is not already
   in the process-local emitted set.
 - Ignore late/stale messages that target an older operation identity.

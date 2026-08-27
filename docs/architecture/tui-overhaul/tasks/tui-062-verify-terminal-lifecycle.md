@@ -16,6 +16,8 @@ events restore a usable terminal.
 - Exercise a startup/runtime error path that enters Bubble Tea and exits.
 - Confirm appended committed rows remain ordinary terminal history after exit
   while no managed live frame or terminal mode remains active.
+- Confirm a renderer/startup error cannot report a successful session cell and
+  that a clean restart emits one new session cell before replay.
 - Exercise Ctrl-C and suspend/continue only where the current program and
   supported terminal environment define them.
 - Record exact commands, environment, terminal state afterward, and any

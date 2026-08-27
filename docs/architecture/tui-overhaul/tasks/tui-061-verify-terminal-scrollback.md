@@ -17,6 +17,8 @@ copied as designed in each supported real-terminal environment.
 - Verify upward navigation, selection/copy, wrapped-line copying, large-history
   navigation, native resize behavior of already-emitted rows, live-cell
   replacement, and return from overlays.
+- Confirm the one `session-start` row remains ordinary copyable history and is
+  not reinserted by resize or overlay return.
 - Record terminal names/versions, exact commands, D3 mode, observations, and
   limitations in a repository-owned result document.
 - Make only focused fixes required by the accepted supported matrix.
