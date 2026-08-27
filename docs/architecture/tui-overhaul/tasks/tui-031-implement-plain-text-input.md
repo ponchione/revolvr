@@ -1,44 +1,46 @@
-# TUI-031 — Implement Accepted Plain-Text Input
+# TUI-031 — Route Idle Plain Text to Task Review
 
 - Status: Draft; not canonical or runnable
 - Epic: [E3 — Make the composer primary](../epics/e3-primary-composer.md)
-- Depends on: [TUI-030](tui-030-make-composer-primary.md), accepted
-  D2/D5, and every app/domain prerequisite created by TUI-001
+- Depends on: [TUI-030](tui-030-make-composer-primary.md) and accepted D2/D5
 
 ## Outcome
 
-Route a non-command composer submission through the single app service accepted
-in D2 and represent that submission once in the transcript.
+Move initialized idle plain text into the existing reviewed Add Task flow
+without treating it as a command, run instruction, answer, or queued message.
 
 ## Scope
 
-- Classify the current input state using the accepted D2 state table.
-- Submit nonblank text only to the named app service; unavailable states return
-  the accepted readable explanation without a domain effect.
+- Classify the current input state using the accepted D2/D5 state table.
+- In initialized idle state, transfer nonblank text to the existing task-entry
+  state as the editable task body; create no task yet.
+- Keep the current task/summary review and route its explicit confirmation
+  through the existing `AddTask` callback backed by `app.AddTaskAndCommit`.
+- Reject uninitialized, active-operation, unavailable, and error states with no
+  app call, preserving the composer buffer and current domain state.
 - Preserve exact typed needs-input option identity and confirmation behavior.
-- On success, commit one operator transcript cell tied to the returned domain
-  identity.
-- On failure, preserve the editable text and show one non-authoritative error.
 
 ## Acceptance
 
 - Empty and whitespace-only submissions create no visible or durable effect.
-- One successful Enter causes exactly one app action and one operator cell.
-- Submission failure preserves the buffer and creates no success cell.
-- Active input follows the accepted persistence/restart contract; unavailable
-  active input remains unavailable.
+- Idle composer Enter opens one prefilled review and makes no app call.
+- Review Enter causes exactly one existing task-publication action; Escape
+  cancels without a write.
+- Rejected plain text preserves the composer buffer and creates no transcript
+  success cell or durable effect.
+- Active text is never steered, queued, persisted, replayed, or automatically
+  consumed after settlement.
 - Tests prove typed needs-input cannot be bypassed by free-form text.
 
 ## Verification
 
 ```bash
 gofmt -w internal/tui/model.go internal/tui/model_test.go
-go test ./internal/tui -run 'TestPlainTextComposer'
-go test ./internal/app
+go test ./internal/tui -run 'TestPlainTextComposer|TestStatusModelTaskEntry'
 go test ./internal/tui
 ```
 
 ## Not Included
 
-- No new app/domain capability, generalized chat, queue, command discovery, or
-  task-publication shortcut.
+- No new app/domain capability, generalized chat, queue, run instruction,
+  command discovery, or task-publication shortcut.

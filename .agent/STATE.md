@@ -19,11 +19,11 @@ Updated: 2026-08-27
   authorized.
 - Canonical truth remains in the existing Go/PostgreSQL ledger, artifacts,
   verification, audit, and completion model.
-- The TUI overhaul is in documentation review only. D1 is accepted: implement
-  the accepted Codex interaction behavior in the existing Go/Bubble Tea
-  program, treating the pinned Codex source and snapshots as behavioral
-  evidence only. ADR-025's no-clone/no-port boundary remains unchanged, and no
-  implementation task is authorized yet.
+- The TUI overhaul is in documentation review only. D1 accepts a native
+  Go/Bubble Tea behavioral reimplementation. D2 accepts reviewed idle task
+  drafts and rejects plain text elsewhere, including typed needs-input. D5
+  rejects active steering and queued/deferred operator messages. D3, D4, and
+  D6 remain open; no implementation task is authorized yet.
 
 ## Architecture 024 TUI
 
@@ -55,6 +55,9 @@ Updated: 2026-08-27
 - `go run ./cmd/revolvr tui --help` — PASS.
 - `git diff --check` — PASS.
 - `git diff --name-only` — PASS.
+- TUI-001 path-scoped `git diff --check` and required D2/D5 `rg` audit — PASS.
+- TUI-001 relative Markdown link, changed-path scope, task-count, and rejected-
+  behavior task audits — PASS.
 
 ## Current TUI Work
 
@@ -90,7 +93,7 @@ Updated: 2026-08-27
   live cell, always-focused composer, overlays, app-service seam, invariants,
   decisions, and whole-overhaul acceptance.
 - `docs/architecture/tui-overhaul/epics/` contains one file for each of eight
-  gated epics. `docs/architecture/tui-overhaul/tasks/` contains 34 task files,
+  gated epics. `docs/architecture/tui-overhaul/tasks/` contains 33 task files,
   each with one decision, proof, component change, focused-view migration, or
   verification responsibility plus explicit dependencies, acceptance,
   verification, and exclusions.
@@ -100,44 +103,42 @@ Updated: 2026-08-27
 - No draft item was copied into `.agent/tasks/`. Promote only one bounded task
   after the review gate is complete; TUI-010 is the first implementation
   candidate.
-- D1 is accepted: Codex source and snapshots are behavioral evidence only, and
-  Revolvr will reimplement the accepted interaction behavior natively in
-  Go/Bubble Tea. Open decisions remain idle/active plain-text composer meaning,
-  transcript/scrollback ownership, overlay migration, queued input, and the
-  one-time session header.
+- D1, D2, and D5 are accepted. Initialized idle plain text opens the existing
+  reviewed Add Task draft; uninitialized and active text rejects without an app
+  effect; typed needs-input remains option-only; and no steering or queued
+  operator-message contract exists. D3, D4, and D6 remain open.
 
 ## Latest Documentation Pass
 
-- Task selected: execute the bounded Codex TUI behavioral-reference study
-  before TUI-001.
-- Files changed: added exactly four evidence documents under
-  `docs/architecture/tui-overhaul/reference/` (`README.md`,
-  `interaction-model.md`, `terminal-mechanics.md`, and `revolvr-mapping.md`),
-  removed the consumed `CODEX_BEHAVIOR_STUDY_PROMPT.md`, and updated durable
-  state and handoff.
-- Verification: the pinned checkout still resolves to
-  `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`; required path-scoped diff,
-  whitespace, marker, and pin checks pass; every relative Markdown target and
-  cited Codex/Revolvr line range was checked against the local files.
-- Result: all six requested study areas are source-cited, all TUI-010 through
-  TUI-072 proof/implementation tasks have a reference or explicit no-analog
-  entry, and observations, current behavior, candidates, and open decisions
-  are separated. D2-D6 remain open.
-- Evidence gaps: Revolvr still needs D2/D5 application ownership for plain and
-  queued input, a D3 Go/Bubble Tea shell/settlement/reflow proof, real-terminal
-  scrollback and lifecycle records, a styles-disabled target snapshot, a D6
-  session-header lifecycle, and per-view D4 parity evidence.
-- What remains: resolve D2 and D5 in TUI-001, then continue the E0 decisions and
-  accept TUI-005 snapshots before promoting TUI-010.
-- Blockers: none for TUI-001.
+- Task selected: TUI-001, the bounded D2/D5 composer-semantics decision.
+- Files changed: accepted D2/D5 in the design and TUI-001 task, narrowed
+  TUI-031 to reviewed idle task entry, removed TUI-041, reconciled the epic and
+  reference documents, updated durable state, and consumed the decision prompt.
+- Result: initialized idle plain text creates only an ephemeral prefilled task
+  review; all active and unavailable states reject it without an app effect;
+  needs-input remains exact option-only input. No active steering, queued
+  operator-message contract, or app/domain prerequisite was accepted.
+- Verification: every required prompt command passed; all relative Markdown
+  links resolve; 33 task files remain; changed paths are limited to the TUI
+  overhaul and four durable-state files; the consumed prompt is absent.
+- Evidence gaps: D3 still needs the bounded shell/settlement/reflow decision and
+  proof; D4 needs overlay-order parity; D6 needs a session-header lifecycle.
+- What remains: execute TUI-002, then continue E0 one decision task at a time
+  and accept TUI-005 snapshots before promoting TUI-010.
+- Blockers: none for TUI-002.
+
+## Next Decision Pass
+
+- Commit `24be655` (`feat: prepare transcript-first TUI overhaul`) remains the
+  committed baseline; this TUI-001 pass is intentionally uncommitted.
+- TUI-002 in
+  `docs/architecture/tui-overhaul/tasks/tui-002-choose-transcript-ownership.md`
+  is the exact next bounded decision pass. No separate TUI-002 prompt exists.
 
 ## Blockers And Next Task
 
-- The task-publication fix, transcript-first console, planning tree, behavioral
-  study, tests, and durable-state updates form one operator-approved snapshot
-  for raw-Git commit and push.
-- Branch `main` was one commit ahead of `origin/main` before finalizing this
-  snapshot.
-- TUI-001 remains the next product-decision task. Complete E0 decisions and
-  snapshots before publishing TUI-010. Do not revive EXT/PTC work or reopen
+- The approved task-publication, console, plan, and behavioral-study snapshot
+  is committed and pushed at `24be655`.
+- TUI-001 is complete and uncommitted. TUI-002 is next; complete E0 decisions
+  and snapshots before publishing TUI-010. Do not revive EXT/PTC work or reopen
   Architecture 025.

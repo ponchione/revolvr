@@ -19,9 +19,10 @@ authority, and installed terminal dependencies remain authoritative. See the
 [accepted D1 decision](../README.md#d1--codex-fidelity-and-adr-025) and
 [ADR-025](../../../adr/025-terminal-first-simplified-harness.md).
 
-**Open product decision:** D2 through D6 remain open. This study records
-evidence and candidate seams without selecting composer meaning, queued-input
-semantics, transcript ownership, overlay order, or the session-header
+**Decision status:** D2 accepts reviewed idle task drafts and rejects all other
+plain text; D5 rejects active steering and queued/deferred operator messages.
+D3, D4, and D6 remain open. This study records evidence and candidate seams
+without selecting transcript ownership, overlay order, or the session-header
 lifecycle.
 
 ## Citation Format
@@ -46,9 +47,9 @@ are not reproduced.
 
 ## Task Lookup
 
-Every proof or implementation task from TUI-010 through TUI-072 is covered
-below. “No useful Codex analog” means Revolvr’s domain or delivery process is
-the only useful authority.
+Every retained proof or implementation task from TUI-010 through TUI-072 is
+covered below. “No useful Codex analog” means Revolvr’s domain or delivery
+process is the only useful authority.
 
 | Task | Relevant reference |
 |---|---|
@@ -60,10 +61,9 @@ the only useful authority.
 | [TUI-021](../tasks/tui-021-project-historical-runs.md) | Codex replay is relevant to lifecycle only; Revolvr’s [timeline projection mapping](revolvr-mapping.md#contract-mapping) is the content authority |
 | [TUI-022](../tasks/tui-022-reconcile-live-history.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) and [replay](interaction-model.md#session-header-replay-and-refresh) |
 | [TUI-030](../tasks/tui-030-make-composer-primary.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission) |
-| [TUI-031](../tasks/tui-031-implement-plain-text-input.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission); D2/D5 and Revolvr domain prerequisites remain authoritative |
+| [TUI-031](../tasks/tui-031-implement-plain-text-input.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission); accepted D2/D5 and the existing reviewed task-entry path remain authoritative |
 | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) | [Commands and history](interaction-model.md#commands-and-history) |
 | [TUI-040](../tasks/tui-040-render-live-operation.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) |
-| [TUI-041](../tasks/tui-041-render-queued-input.md) | [Queued input and interruption](interaction-model.md#queued-input-and-interruption); Revolvr has no accepted queue contract yet |
 | [TUI-050](../tasks/tui-050-add-overlay-shell.md) | [Overlays and focus transfer](interaction-model.md#overlays-and-focus-transfer) |
 | [TUI-051](../tasks/tui-051-move-tasks-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for task content |
 | [TUI-052](../tasks/tui-052-move-runs-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for run content |

@@ -78,7 +78,7 @@
   gates, epics, bounded tasks, acceptance, and verification in
   `docs/architecture/tui-overhaul/`. No implementation task was published.
 - [x] 2026-08-27 TUI overhaul task decomposition — replace the two planning
-  monoliths with one design/index, eight epic files, and 34 audited task files.
+  monoliths with one design/index, eight epic files, and an audited task set.
   Each task owns one decision, proof, component change, focused-view migration,
   or verification pass and states dependencies, scope, acceptance, verification,
   and exclusions. No implementation task was published.
@@ -86,7 +86,12 @@
   `docs/architecture/tui-overhaul/` and resolve D1-D6 before promoting only
   TUI-010. Do not guess through product semantics or duplicate the draft backlog
   here. D1 is accepted: emulate the accepted Codex interaction behavior in the
-  existing Go/Bubble Tea TUI; Codex source and snapshots are evidence only.
+  existing Go/Bubble Tea TUI; Codex source and snapshots are evidence only. D2
+  is accepted: initialized idle plain text opens the existing reviewed Add Task
+  draft, every other plain-text state rejects, and typed needs-input remains
+  option-only. D5 is accepted: there is no active steering or queued/deferred
+  operator input; TUI-041 was removed, TUI-031 was narrowed, and no app/domain
+  prerequisite was added. D3, D4, and D6 remain open; TUI-002 is next.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

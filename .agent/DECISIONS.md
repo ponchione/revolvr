@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## Composer Text Creates Only Reviewed Idle Task Drafts (2026-08-27)
+
+- TUI-overhaul D2 is accepted. Nonblank plain text has one meaning only when
+  Revolvr is initialized and idle: open the existing Add Task review with the
+  text as an ephemeral, editable task body. Only review confirmation calls
+  `app.AddTaskAndCommit`; Escape cancels without a write, and whitespace does
+  nothing.
+- Uninitialized, active-operation, unavailable, and error states reject plain
+  text, preserve the composer buffer, explain the refusal, and call no app
+  service. Plain text is never a run instruction, approval, or typed answer.
+- TUI-overhaul D5 is accepted. One-pass runs, bounded loops, autonomous task
+  runs, and autonomous task queues accept no current or deferred steering. A
+  local composer buffer has no domain identity, order, persistence, restart,
+  cancellation, consumption, or stale-run lifecycle and is never submitted
+  automatically after settlement.
+- `autonomousqueue` remains a canonical task scheduler, not an operator-message
+  queue. TUI-041 is removed and no app/domain prerequisite is created;
+  TUI-031 is narrowed to the existing reviewed idle task-draft route.
+- Typed needs-input remains option-only and retains exact task, question,
+  revision, content SHA-256, option, and two-step confirmation identity through
+  `app.AnswerAutonomousInput`. No free-form answer path is authorized.
+
 ## TUI Overhaul Reimplements Codex Behavior In Go (2026-08-27)
 
 - Codex source and snapshots are behavioral acceptance evidence only. Revolvr

@@ -47,7 +47,7 @@ smaller change; do not combine them for scheduling convenience.
 | [E0 — Settle the product contract](epics/e0-product-contract.md) | accepted source, input, shell, overlay, and experience decisions | none | D1-D6 resolved and experience snapshots accepted |
 | [E1 — Prove the terminal shell](epics/e1-terminal-shell.md) | the chosen transcript/scrollback technique works in Bubble Tea | E0 | composition, resize/reflow, IO, and settlement proofs pass |
 | [E2 — Build semantic transcript cells](epics/e2-semantic-transcript.md) | historical and live evidence share one presentation vocabulary | E1 | refresh/restart and live completion reconcile |
-| [E3 — Make the composer primary](epics/e3-primary-composer.md) | always-focused input and command discovery have explicit semantics | E1, D2 | slash and accepted text paths work safely |
+| [E3 — Make the composer primary](epics/e3-primary-composer.md) | always-focused input and command discovery have explicit semantics | E1, D2 | slash commands and reviewed idle task drafts work safely |
 | [E4 — Surface runs and loops live](epics/e4-live-operations.md) | one live cell presents progress, passes, cancellation, and terminal state | E2, E3 | active operation never becomes a log wall |
 | [E5 — Move focused work to overlays](epics/e5-overlays.md) | existing focused views remain available without replacing the transcript | E3 | each focused-view parity task passes |
 | [E6 — Harden terminal behavior](epics/e6-terminal-hardening.md) | geometry, scrollback, lifecycle, and text styling work in supported terminals | E1-E5 | automated geometry and manual terminal checks pass |
@@ -156,8 +156,8 @@ The target has four persistent concepts instead of a dashboard and many pages:
 2. **Live cell** — the current run/loop state changes in place and becomes a
    committed transcript entry only when its meaning is stable.
 3. **Composer** — the prompt is always visible and focused when no modal input
-   owns focus. `/` discovers commands; accepted plain-text behavior is still an
-   open product decision.
+   owns focus. `/` discovers commands; initialized idle plain text opens the
+   existing reviewed Add Task flow and is unavailable in every other state.
 4. **Overlay** — Tasks, Runs, Run Detail, Preflight, Workflow, Help, changes,
    evidence, approvals, and typed questions temporarily cover the transcript
    without replacing its identity.
@@ -176,7 +176,7 @@ Revolvr
   Next task  Compact durable agent state
   Workflow   mixed-pass-v1 · audit
 
-› Run the next task
+› /run
   ? for shortcuts                         ready
 ```
 
@@ -191,7 +191,7 @@ Revolvr
 • Working (18s · pass 1/3 · esc to interrupt)
   └ Running go test ./...
 
-› Add an instruction or / for commands
+› / for commands
   ? for shortcuts                         run active
 ```
 
@@ -202,7 +202,7 @@ Revolvr
   Verification passed · commit ff50d9b5cd07
   2 receipt warnings · /run to inspect
 
-› Run the next task
+› /run
   ? for shortcuts                         ready
 ```
 
@@ -314,19 +314,38 @@ upgrade-ownership follow-up.
 
 ### D2 — Plain-text composer meaning
 
-**Status: Open.** Slash commands already map to explicit actions. Plain text
-does not.
+**Status: Accepted 2026-08-27.** Nonblank plain text has exactly one meaning:
+when the repository is initialized and no operation or modal input is active,
+Enter opens the existing Add Task review with the text prefilled as the task
+body. This transition is an ephemeral draft, not a task, instruction, command,
+or transcript commitment. The operator may edit the task and summary, press
+Enter in the review to call `app.AddTaskAndCommit`, or press Escape to cancel
+without a durable effect. Whitespace-only input does nothing.
 
-The design must specify separately:
+Plain-text Enter is rejected everywhere else. Rejection preserves the composer
+buffer, reports why the current state cannot accept it, and calls no application
+service. The text is never interpreted as a run instruction, current-pass
+steer, later-pass input, autonomous queue item, approval, or typed answer.
 
-- idle input: create a task draft, add-and-commit a task, or start a run with
-  an instruction;
-- active input: steer the current pass, queue an instruction for the next fresh
-  pass, or remain unavailable;
-- needs-input state: answer only through the typed option identity contract, or
-  permit a separate free-form path when the domain supports it.
+The current typed needs-input path remains exclusive: the question overlay
+owns focus, requires an offered option and explicit two-step confirmation, and
+submits task ID, question ID, revision, content SHA-256, and option ID through
+`app.AnswerAutonomousInput`. No existing domain contract supports a free-form
+answer.
 
-No UI task may turn prose into control authority by convenience.
+The accepted composer contract is:
+
+| State | Composer focus | Slash commands | Plain-text Enter | Confirmation or rejection | App/domain authority | Durable effect | Recovery |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Uninitialized | Focused when no overlay owns focus | Discovery, Help, navigation, refresh, and quit remain available; domain actions retain their initialization guards | Reject; the text is neither a task nor an instruction | Preserve the buffer and direct the operator to `revolvr init` | Existing command guards and `app.Status` | None | Initialize, refresh, then press Enter again; restart discards the local buffer |
+| Initialized and idle | Focused when no overlay owns focus | All current commands remain discoverable and use their existing view, preflight, safety, and scheduling guards | Move nonblank text into the existing Add Task review as the task body | Review permits editing; review Enter publishes, while Escape cancels with no write | TUI `taskEntryState`, then `app.AddTaskAndCommit` on confirmation | No effect for the draft; confirmation creates one canonical task and commits only its task file | A pre-confirmation restart loses the ephemeral draft; publication errors stay in review for correction, cancellation, or canonical refresh |
+| Active one-pass run | Focused; the live cell remains the operation owner | Read-only navigation/help plus `/cancel` and settlement-safe `/quit`; conflicting actions remain visible but guarded | Reject; never steer the running Codex process | Preserve the buffer and report that active steering is unsupported | `app.RunOnce`, `runonce`, and the existing cancellation context | None from text | Wait or cancel and settle; only a new Enter after the model is idle can open task review |
+| Active bounded loop, autonomous task run, or autonomous task queue | Focused; the live cell remains the operation owner | Read-only navigation/help plus `/cancel` and settlement-safe `/quit`; new run, refresh, validation, answer, and task-publication actions remain guarded | Reject; never target a later fresh pass and never enter the autonomous task queue | Preserve the buffer and report that queued/deferred input is unsupported | `app.RunLoop`, `app.RunTaskUntilTerminal`, and `app.RunQueue`; the autonomous queue orders tasks only | None from text | Wait or cancel and settle; no text is replayed, consumed, or submitted automatically after a pass, task, queue, or restart |
+| Typed needs-input | The typed question overlay owns focus; the normal composer is unavailable | Unavailable until the question overlay closes | Not a composer action; Enter selects/confirms only the offered typed option | Select an option, press Enter to confirm, then Enter again to persist; Escape closes without answering | `app.AnswerAutonomousInput` and `autonomousinput` using exact task/question/revision/content/option identity | Durable answer and separate durable resume transition | Stale identity fails closed and reloads current authority; a persisted answer whose resume failed is retried through the same exact typed path |
+| Required callback unavailable, guard refusal, or app error | Focus stays with the current non-modal owner | Unaffected commands remain available; the affected command is disabled or returns its existing readable error | Reject before dispatch when task review cannot be supported; otherwise publication errors remain in review | Preserve the composer or review buffer and show the authoritative error; never render success | The existing command guard or called app service | None unless the app explicitly reports that its durable step already succeeded | Correct the condition and retry explicitly; refresh canonical state before retry when an outcome is indeterminate |
+
+This reuses the current reviewed task-publication path and creates no new
+application or domain prerequisite.
 
 ### D3 — Transcript and scrollback ownership
 
@@ -351,10 +370,24 @@ reversible and keeps the domain seam unchanged.
 
 ### D5 — Loop and queued-input semantics
 
-**Status: Open.** A live cell should show the existing pass/limit/stop evidence.
-It must not invent queued steering. If active composer input is accepted for a
-future pass, the queue identity, persistence, cancellation, and restart rules
-belong in the app/domain layer before the TUI renders them.
+**Status: Accepted 2026-08-27.** Active plain text is unavailable for a
+one-pass run, bounded loop, autonomous task run, and autonomous task queue.
+Revolvr has no current-process steering channel or operator-message queue, and
+fresh passes derive their authority from canonical tasks rather than carried
+composer prose.
+
+Rejected text creates no item, so it has no queue identity, order,
+persistence, restart, cancellation, editing, consumption, or stale-run
+lifecycle. A preserved composer buffer is local editable UI state only: it is
+discarded on restart, may be cleared by the operator, is never auto-submitted
+after settlement, and is reclassified only when the operator presses Enter
+again in the then-current state. `autonomousqueue.Operation` and its ordered
+selections remain solely an autonomous task scheduler contract; they are not
+reused for messages.
+
+The Codex study proves that steering and queued messages can form a coherent
+chat interaction, but Revolvr has neither the domain authority nor an evidenced
+need for that backend. TUI-041 is removed, and no prerequisite is created.
 
 ### D6 — Session header lifecycle
 
@@ -389,7 +422,7 @@ The overhaul is complete only when:
 - Mirroring Codex branding, models, token counters, plugins, attachments,
   multi-agent UI, or provider-specific features.
 - Changing ledger event schemas or `app.RunTimeline` as a presentation shortcut.
-- Adding a generalized chat backend before plain-text semantics are accepted.
+- Adding a generalized chat backend or operator-message queue.
 - Redesigning domain workflows, verification, evidence, approvals, or task
   lifecycle inside the TUI project.
 - Publishing all draft tasks as one autonomous runnable chain.

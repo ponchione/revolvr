@@ -3,8 +3,8 @@
 Codex evidence is pinned to
 `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`; its cited contracts live in the
 [interaction model](interaction-model.md) and
-[terminal mechanics](terminal-mechanics.md). This mapping does not resolve
-D2–D6.
+[terminal mechanics](terminal-mechanics.md). D2 and D5 are accepted; this
+mapping does not resolve D3, D4, or D6.
 
 ## Current Boundary
 
@@ -35,11 +35,11 @@ the overhaul.
 | [Semantic cell interface](interaction-model.md#semantic-cell-categories) | Semantic timeline rows and focused projections exist, but presentation is assembled as strings. ([R03], [R04]) | `presentation change` | small TUI-owned cell value/render functions over existing projections | [TUI-020](../tasks/tui-020-define-transcript-cells.md) / D6 only for a session cell |
 | [Replay from durable semantic source](interaction-model.md#session-header-replay-and-refresh) | `app.RunTimeline` deterministically projects ledger history and tests completed/failure/fallback cases. ([R03]) | `presentation change` | adapt timeline rows to committed cells in `internal/tui` | [TUI-021](../tasks/tui-021-project-historical-runs.md) / D3 |
 | Live/history identity reconciliation | Refresh preserves selection and focused refresh reloads canonical history. ([R07]) | `proof required` | stable ledger event/run identity at refresh and settlement | [TUI-022](../tasks/tui-022-reconcile-live-history.md) / D3 |
-| [Normally focused composer](interaction-model.md#composer-ownership-and-submission) | Composer opens only after `/` and closes after submission or escape. ([R08]) | `presentation change` | `commandComposerState`, top-level key routing, footer | [TUI-030](../tasks/tui-030-make-composer-primary.md) / D2 |
-| Plain-text submission | `submitCommand` treats the first field as a slash command; no plain-text application action is injected. ([R02], [R08]) | `app/domain prerequisite` | add only the accepted application callback/state named by TUI-001 | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) / D2, D5 |
+| [Normally focused composer](interaction-model.md#composer-ownership-and-submission) | Composer opens only after `/` and closes after submission or escape. ([R08]) | `presentation change` | `commandComposerState`, top-level key routing, footer | [TUI-030](../tasks/tui-030-make-composer-primary.md) / accepted D2 |
+| Plain-text submission | `submitCommand` treats the first field as a slash command; task entry already holds an editable draft and calls reviewed `AddTaskAndCommit` only on Enter. ([R02], [R08], [R17]) | `presentation change` | transfer initialized idle text into existing `taskEntryState`; reject and preserve it otherwise | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) / accepted D2/D5; no app prerequisite |
 | [Contextual command discovery and history](interaction-model.md#commands-and-history) | `/` plus enter opens static help; no filtered popup or submission history exists. ([R08]) | `presentation change` | composer-local filtered list over the existing `submitCommand` vocabulary | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) / D2 |
 | One replaceable live operation | `runOnceState` already holds one active operation and rejects overlapping starts. ([R06], [R09]) | `presentation change` | render existing `runOnceState` as the live cell | [TUI-040](../tasks/tui-040-render-live-operation.md) / D3 |
-| [Queued input with explicit categories](interaction-model.md#queued-input-and-interruption) | No application callback or domain projection owns queued composer input. Active-run key routing rejects conflicting actions. ([R02], [R06]) | `app/domain prerequisite` | none until TUI-001 establishes domain ownership | [TUI-041](../tasks/tui-041-render-queued-input.md) / D2, D5 |
+| [Queued input with explicit categories](interaction-model.md#queued-input-and-interruption) | No application callback or domain projection owns queued composer input. Active-run key routing rejects conflicting actions. ([R02], [R06]) | `skip` | none; accepted D5 rejects steering and queued/deferred messages | No task; TUI-041 removed |
 | [Overlay focus stack](interaction-model.md#overlays-and-focus-transfer) | Focused views replace the current enum view and remember one source; there is no shared stacked overlay shell. ([R10]) | `proof required` | replace `openFocusedView`/`closeFocusedView` ownership with one overlay state | [TUI-050](../tasks/tui-050-add-overlay-shell.md) / D4 |
 | Tasks presentation in overlay | Tasks already render and navigate in the shared viewport. ([R11]) | `presentation change` | route existing Tasks render/key paths through the accepted overlay shell | [TUI-051](../tasks/tui-051-move-tasks-overlay.md) / D4 |
 | Runs and Run Detail in overlay | Both views already use canonical status/history callbacks. ([R02], [R11]) | `presentation change` | retain renderers and move only view/focus ownership | [TUI-052](../tasks/tui-052-move-runs-overlay.md) / D4 |
@@ -48,7 +48,7 @@ the overhaul.
 | Change Summary in overlay | Focused diff already renders canonical artifacts and returns to its source at narrow width. ([R04], [R10]) | `presentation change` | `renderFocusedDiff` under the shared overlay shell | [TUI-055](../tasks/tui-055-move-change-summary-overlay.md) / D4 |
 | Evidence in overlay | Focused evidence already reloads canonical history on refresh. ([R04], [R07]) | `presentation change` | `renderFocusedEvidence` under the shared overlay shell | [TUI-056](../tasks/tui-056-move-evidence-overlay.md) / D4 |
 | [Typed approval overlay](interaction-model.md#approvals) | Approval is a focused projection; accepted answers pass typed task/question/revision/hash/option identity to the app callback. ([R04], [R13]) | `presentation change` | keep `autonomousAnswerState` and `AnswerInput`; change only focus/render owner | [TUI-057](../tasks/tui-057-move-approval-overlay.md) / D4 |
-| [Typed question overlay](interaction-model.md#typed-questions) | Needs-input requires a current typed question, explicit option, double confirmation, and stale-question rejection. ([R13]) | `presentation change` | retain the existing answer state machine and expose it through the shared overlay | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) / D2, D4 |
+| [Typed question overlay](interaction-model.md#typed-questions) | Needs-input requires a current typed question, explicit option, double confirmation, and stale-question rejection. ([R13]) | `presentation change` | retain the existing answer state machine and expose it through the shared overlay; no free-form route | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) / accepted D2, open D4 |
 | [Width/geometry proof](terminal-mechanics.md#resize-reflow-and-width) | Exact 100-column, 40-column, and 40x24 render tests already bound lines and chrome for the current dashboard. ([R14]) | `proof required` | replace/extend those tests with accepted TUI-005 states | [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) / D3, D6 |
 | [Terminal-native scrollback](terminal-mechanics.md#history-insertion-and-native-scrollback) | Current code uses one Bubbles viewport and has no project-owned insertion seam. ([R01], [R05]) | `proof required` | bounded PTY shell proof; no production escape layer first | [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) / D3 |
 | [Suspend/restore/error lifecycle](terminal-mechanics.md#terminal-lifecycle-and-restoration) | Lifecycle is delegated to `tea.NewProgram`; active quit waits for run settlement in model tests. ([R01], [R09]) | `proof required` | real-terminal checks around `RunStatus`; model check for settlement | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) / D3 |
@@ -57,37 +57,35 @@ the overhaul.
 | Operator documentation | No useful Codex analog; Revolvr commands and accepted decisions are the authority. | `skip` | current Revolvr docs after behavior lands | [TUI-071](../tasks/tui-071-update-operator-docs.md) / D2–D6 as accepted |
 | Overhaul acceptance | No useful Codex analog; closure depends on Revolvr tests and terminal records. | `proof required` | existing task acceptance record | [TUI-072](../tasks/tui-072-close-overhaul-acceptance.md) / D2–D6 as accepted |
 
-## Open Decisions Preserved
+## Decision Status
 
-- **Open product decision D2:** what plain text means when idle, active, and
-  waiting for typed input.
+- **Accepted D2:** initialized idle plain text creates only an ephemeral,
+  editable task draft for the existing reviewed Add Task flow. All other plain
+  text is rejected, and typed needs-input remains option-only.
+- **Accepted D5:** active steering and queued/deferred operator messages are
+  unavailable. The autonomous task queue is not a message queue.
 - **Open product decision D3:** whether terminal scrollback, a viewport, or a
   hybrid owns committed presentation and reflow.
 - **Open product decision D4:** overlay migration order and parity gate.
-- **Open product decision D5:** whether active/loop input is rejected, queued,
-  or deferred by an application-owned contract.
 - **Open product decision D6:** whether a one-time session header is committed,
   refreshed, or omitted.
 
 ## Prioritized Evidence Gaps
 
-1. D2/D5 lacks a Revolvr application/domain contract for idle plain text and
-   active queued input. Codex proves a possible interaction, not the workflow
-   authority Revolvr needs.
-2. D3 lacks a minimal Go/Bubble Tea PTY proof showing committed history,
+1. D3 lacks a minimal Go/Bubble Tea PTY proof showing committed history,
    replaceable live content, resize, and settlement without duplicated rows.
-3. D3/TUI-061 lacks real-terminal evidence for the supported terminal and
+2. D3/TUI-061 lacks real-terminal evidence for the supported terminal and
    multiplexer matrix; unit-render strings cannot establish native scrollback.
-4. TUI-062 lacks recorded Ctrl-Z/resume, normal exit, cancellation-settlement,
+3. TUI-062 lacks recorded Ctrl-Z/resume, normal exit, cancellation-settlement,
    and injected-error restoration checks for the target shell.
-5. TUI-063 lacks a complete styles-disabled target snapshot; ANSI-normalized
+4. TUI-063 lacks a complete styles-disabled target snapshot; ANSI-normalized
    current tests establish textual content but not final focus/status clarity.
-6. D6 lacks an accepted session-header lifecycle and replay/refresh snapshot.
-7. D4 lacks per-view overlay parity evidence, especially focus return and
+5. D6 lacks an accepted session-header lifecycle and replay/refresh snapshot.
+6. D4 lacks per-view overlay parity evidence, especially focus return and
    narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-001 remains the next product-decision task.
+TUI-002 is the next bounded product-decision task.
 
 ## Revolvr Evidence
 
@@ -107,3 +105,4 @@ TUI-001 remains the next product-decision task.
 - **R14** — `Revolvr internal/tui/model_test.go:L2509-L2648,L2663-L2680 (wide/narrow/chrome snapshots and ANSI-normalized width checks)`.
 - **R15** — `Revolvr internal/tui/model.go:L44-L52,L4052-L4105 (style roles and semantic application)`.
 - **R16** — `Revolvr internal/tui/model.go:L2189-L2290,L2292-L2315,L3319-L3407 (dashboard chrome and timeline presentation)`.
+- **R17** — `Revolvr internal/tui/model.go:L1790-L1843,L2064-L2112 (reviewed task-entry state)`; `Revolvr internal/cli/root.go:L1706-L1708 (AddTask callback)`; `Revolvr internal/app/task_commit.go:L15-L89 (AddTaskAndCommit)`.

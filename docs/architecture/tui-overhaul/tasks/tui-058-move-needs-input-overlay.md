@@ -22,8 +22,7 @@ and option authority.
 
 ## Acceptance
 
-- Free-form composer text cannot answer a typed question unless D2 explicitly
-  defines a separate domain-supported free-form path.
+- Free-form composer text cannot answer a typed question.
 - One confirmation submits one exact question/option identity.
 - Failure preserves the question and selection with a readable error.
 - Stale results cannot answer or dismiss a newer question.

@@ -3,7 +3,7 @@
 Evidence pin: `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`.
 Labels in this document are deliberate: observed behavior describes the pin,
 current behavior describes Revolvr today, candidate adaptation is non-binding,
-and open product decision preserves D2–D6.
+and decision status distinguishes accepted D2/D5 from open D3/D4/D6.
 
 ## Shell Composition and Focus
 
@@ -99,12 +99,15 @@ slash commands. Plain text has no accepted meaning. (Revolvr
 `internal/tui/model.go:195-198,515-528,1845-1889`
 (`commandComposerState`, `Update`, `updateCommandComposer`, `submitCommand`))
 
-**Candidate Revolvr adaptation:** make the composer the normal focus and reuse
-the existing command dispatch only after D2 defines plain-text behavior.
+**Accepted Revolvr adaptation:** make the composer the normal focus. Initialized
+idle plain text opens the existing reviewed Add Task flow; every other
+plain-text state rejects without dispatch and preserves the buffer. Slash
+commands retain their current app paths and guards.
 
-**Open product decision:** D2 decides idle, active, and needs-input text meaning;
-D5 decides running/loop queue behavior. Codex demonstrates one coherent model
-but does not select Revolvr’s contract.
+**Accepted product decision:** D2 gives plain text only the reviewed idle task-
+draft meaning. D5 rejects current-process steering and later-pass or queue
+input. Codex demonstrates one coherent chat model but does not override
+Revolvr’s narrower authority.
 
 ## Commands and History
 
@@ -133,11 +136,13 @@ cell. ([I17], [I18])
 selected tool lifecycle events are serialized in an interrupt queue and replayed
 in order after the current interrupt. ([I19])
 
-**Candidate Revolvr adaptation:** only render queued input if a Revolvr
-application/domain service owns its lifecycle and identity. A TUI-only queue
-would create a second workflow authority.
+**Accepted Revolvr adaptation:** render no queued operator input. Revolvr has no
+application/domain service for its lifecycle or identity, and a TUI-only queue
+would create a second workflow authority. `autonomousqueue` orders canonical
+tasks, not operator messages.
 
-**Open product decision:** D5 remains open, and TUI-041 stays conditional.
+**Accepted product decision:** D5 rejects active steering and queued/deferred
+input. TUI-041 is removed and no domain prerequisite is created.
 
 ## Overlays and Focus Transfer
 
@@ -183,9 +188,8 @@ and calls an application callback. (Revolvr
 **Candidate Revolvr adaptation:** migrate that typed state machine into the
 shared overlay shell; do not replace it with unstructured composer text.
 
-**Open product decision:** D2 decides whether free-form composer text can ever
-answer a typed question. TUI-058 currently requires an explicit decision before
-allowing that route.
+**Accepted product decision:** D2 rejects free-form answers. TUI-058 retains the
+exact typed option and confirmation path.
 
 ## Approvals
 

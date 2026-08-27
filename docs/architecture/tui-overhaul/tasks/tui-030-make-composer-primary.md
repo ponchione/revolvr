@@ -14,6 +14,8 @@ composer without changing what submitted commands do.
 - Replace `› / for commands` activation with the accepted always-visible prompt.
 - Preserve current slash command names, parsing, validation, guards, and Enter
   dispatch.
+- Preserve non-command text until TUI-031 transfers or rejects it under the
+  accepted D2/D5 state table; never dispatch it through slash-command parsing.
 - Define focus transitions for an empty buffer, populated buffer, command
   popup, overlay, typed question, and active operation.
 - Implement the accepted Escape behavior for each focus state.
@@ -26,7 +28,8 @@ composer without changing what submitted commands do.
 - Escape behavior matches one tested state table and cannot accidentally quit
   or discard populated input.
 - Opening and closing non-composer focus restores the prior composer buffer.
-- No plain text is dispatched as a domain action in this task.
+- Plain text is preserved without dispatch until TUI-031 supplies the accepted
+  reviewed task-draft route.
 
 ## Verification
 

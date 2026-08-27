@@ -14,14 +14,12 @@ live region without reading a progress log or leaving the transcript.
 | Task | Single responsibility | Depends on |
 | --- | --- | --- |
 | [TUI-040](../tasks/tui-040-render-live-operation.md) | render one live operation cell | TUI-022, TUI-030 |
-| [TUI-041](../tasks/tui-041-render-queued-input.md) | render accepted domain-owned queued input | TUI-040 and accepted queue prerequisite |
-
-TUI-041 is conditional. Delete it if D2 rejects queued or deferred input.
 
 ## Boundaries
 
-E4 presents existing progress and terminal outcomes. It does not create a
-steering queue, infer domain state, or persist operator input.
+E4 presents existing progress and terminal outcomes. D5 rejects active
+steering and queued/deferred operator messages, so E4 does not render or create
+them. The autonomous task queue remains a distinct scheduler-owned operation.
 
 ## Exit Gate
 
