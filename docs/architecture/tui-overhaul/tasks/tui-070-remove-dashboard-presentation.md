@@ -14,6 +14,8 @@ application has one rendering and navigation model.
 - Delete dashboard-only activity compaction, persistent header/footer chrome,
   inactive composer state, and page-only navigation made obsolete by parity
   migrations.
+- Remove the viewport as committed-history owner while retaining it only where
+  an accepted overlay still needs bounded scrolling.
 - Delete obsolete tests and replace only those still needed to assert accepted
   behavior.
 - Retain app callbacks, projections, focused renderers, guards, and key routes

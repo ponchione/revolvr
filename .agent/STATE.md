@@ -22,8 +22,10 @@ Updated: 2026-08-27
 - The TUI overhaul is in documentation review only. D1 accepts a native
   Go/Bubble Tea behavioral reimplementation. D2 accepts reviewed idle task
   drafts and rejects plain text elsewhere, including typed needs-input. D5
-  rejects active steering and queued/deferred operator messages. D3, D4, and
-  D6 remain open; no implementation task is authorized yet.
+  rejects active steering and queued/deferred operator messages. D3 accepts
+  source-backed semantic cells with one-time `tea.Println` commitment to
+  terminal-owned history and a managed live/composer/overlay frame. D4 and D6
+  remain open; no implementation task is authorized yet.
 
 ## Architecture 024 TUI
 
@@ -106,39 +108,47 @@ Updated: 2026-08-27
 - D1, D2, and D5 are accepted. Initialized idle plain text opens the existing
   reviewed Add Task draft; uninitialized and active text rejects without an app
   effect; typed needs-input remains option-only; and no steering or queued
-  operator-message contract exists. D3, D4, and D6 remain open.
+  operator-message contract exists. D3 is accepted as a bounded hybrid:
+  `internal/tui` owns semantic source/live state, terminal history owns emitted
+  rows and native reflow/copy, and viewports are overlay-only. D4 and D6 remain
+  open.
 
 ## Latest Documentation Pass
 
-- Task selected: TUI-001, the bounded D2/D5 composer-semantics decision.
-- Files changed: accepted D2/D5 in the design and TUI-001 task, narrowed
-  TUI-031 to reviewed idle task entry, removed TUI-041, reconciled the epic and
-  reference documents, updated durable state, and consumed the decision prompt.
-- Result: initialized idle plain text creates only an ephemeral prefilled task
-  review; all active and unavailable states reject it without an app effect;
-  needs-input remains exact option-only input. No active steering, queued
-  operator-message contract, or app/domain prerequisite was accepted.
-- Verification: every required prompt command passed; all relative Markdown
-  links resolve; 33 task files remain; changed paths are limited to the TUI
-  overhaul and four durable-state files; the consumed prompt is absent.
-- Evidence gaps: D3 still needs the bounded shell/settlement/reflow decision and
-  proof; D4 needs overlay-order parity; D6 needs a session-header lifecycle.
-- What remains: execute TUI-002, then continue E0 one decision task at a time
+- Task selected: TUI-002, the bounded D3 transcript-ownership decision.
+- Files changed: accepted D3 in the design and TUI-002 task, reconciled E1 and
+  affected proof/implementation tasks, updated all four reference documents,
+  updated durable state, and consumed the decision prompt.
+- Result: `internal/tui` retains bounded semantic source cells and the managed
+  live/composer/overlay frame; finalized identities append once through the
+  installed Bubble Tea renderer; terminal history owns emitted rows,
+  scroll/copy, and native reflow. Viewport-owned history and application-driven
+  terminal-history reflow are rejected. No app/domain prerequisite, dependency,
+  terminal backend, or escape layer was accepted.
+- Verification: the required path-scoped diff, D3 term audit, baseline path
+  list, status, prompt deletion, relative-link, changed-scope, owner-table, and
+  rejected-task-path checks pass.
+- Evidence gaps: TUI-010/TUI-011/TUI-012 must prove append composition, test
+  output, managed-frame reflow without replay, and exact-once settlement;
+  TUI-061/TUI-062 must record terminal/tmux scrollback and lifecycle behavior.
+  D4 still needs overlay-order parity, and D6 needs a session-header lifecycle.
+- What remains: execute TUI-003, then continue E0 one decision task at a time
   and accept TUI-005 snapshots before promoting TUI-010.
-- Blockers: none for TUI-002.
+- Blockers: none for TUI-003.
 
 ## Next Decision Pass
 
-- Commit `24be655` (`feat: prepare transcript-first TUI overhaul`) remains the
-  committed baseline; this TUI-001 pass is intentionally uncommitted.
-- TUI-002 in
-  `docs/architecture/tui-overhaul/tasks/tui-002-choose-transcript-ownership.md`
-  is the exact next bounded decision pass. No separate TUI-002 prompt exists.
+- Commit `f4e7ebf` (`docs: resolve TUI composer semantics`) was pushed to
+  `origin/main`; the branch was clean and synchronized immediately after the
+  push.
+- TUI-002 is complete and intentionally uncommitted. TUI-003 in
+  `docs/architecture/tui-overhaul/tasks/tui-003-accept-overlay-migration.md` is
+  the exact next bounded decision pass. No TUI-003 prompt exists.
 
 ## Blockers And Next Task
 
 - The approved task-publication, console, plan, and behavioral-study snapshot
-  is committed and pushed at `24be655`.
-- TUI-001 is complete and uncommitted. TUI-002 is next; complete E0 decisions
-  and snapshots before publishing TUI-010. Do not revive EXT/PTC work or reopen
-  Architecture 025.
+  and the accepted TUI-001 decision are committed and pushed through `f4e7ebf`.
+- TUI-002 is complete and uncommitted. Complete E0 decisions and snapshots
+  before publishing TUI-010. Do not revive EXT/PTC work or reopen Architecture
+  025.

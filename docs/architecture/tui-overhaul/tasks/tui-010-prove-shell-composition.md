@@ -13,6 +13,8 @@ installed Bubble Tea stack and Revolvr's program IO.
 
 - Build the smallest proof with two committed source cells, one replaceable
   live cell, and the accepted bottom composer.
+- Emit committed cell renderings once through the installed `tea.Println`
+  boundary while keeping the live cell and composer in the managed frame.
 - Exercise both Bubble Tea test output buffers and one interactive terminal.
 - Keep the proof in current TUI files/tests unless one package-local proof file
   is materially clearer.
@@ -21,10 +23,13 @@ installed Bubble Tea stack and Revolvr's program IO.
 
 ## Acceptance
 
-- Redraw does not duplicate either committed cell.
+- Each committed identity is appended above the program exactly once; redraw
+  does not duplicate either committed cell.
 - Replacing live state does not append intermediate rows to history.
 - The composer remains at the bottom, receives keys, and renders at accepted
   normal width.
+- Captured test output retains deterministic committed lines without claiming
+  native terminal navigation.
 - Normal quit restores an ordinary usable prompt.
 - The proof fails under the old dashboard composition and passes under the new
   composition.
@@ -43,4 +48,4 @@ task completion evidence.
 ## Not Included
 
 - No semantic run projection, resize proof, cancellation proof, overlay,
-  plain-text dispatch, or Codex terminal-backend reimplementation.
+  plain-text dispatch, terminal-history clearing, or terminal backend.

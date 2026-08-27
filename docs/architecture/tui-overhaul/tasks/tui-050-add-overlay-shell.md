@@ -24,6 +24,8 @@ state beneath it.
 - Escape closes Help and restores the exact prior composer buffer and focus.
 - Opening/closing does not alter committed transcript, live identity, or scroll
   ownership beneath the overlay.
+- Opening/closing emits no committed row and does not move terminal-owned
+  scrollback.
 - Overlay selection, scrolling, and resizing remain bounded at 80 and 40 columns.
 - Active settlement behind an overlay is visible correctly after dismissal.
 - The implementation adds no generalized window manager or public abstraction.

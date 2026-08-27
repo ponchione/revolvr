@@ -15,7 +15,9 @@ while a live operation is unsettled.
 - Verify the cooperative cancellation signal reaches the active operation.
 - Hold the domain result open long enough to prove the program waits for
   settlement instead of erasing the live cell or exiting early.
-- Verify the final terminal outcome is rendered once and the terminal restores
+- Reconcile the matching live operation identity to one final source cell,
+  append it once, and only then clear the live cell.
+- Verify the final terminal outcome is emitted once and the terminal restores
   after settlement.
 
 ## Acceptance
@@ -23,6 +25,7 @@ while a live operation is unsettled.
 - Each accepted cancel/quit key has one observable effect.
 - Quit does not complete before the active domain result settles.
 - Late messages from the settled operation cannot mutate a newer shell state.
+- The per-session emitted-identity set prevents duplicate final rows.
 - Cancellation, failure, and successful completion remain distinct text.
 - Existing operation guards and contexts remain the authority.
 

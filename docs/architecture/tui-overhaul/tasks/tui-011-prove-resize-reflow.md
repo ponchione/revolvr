@@ -6,8 +6,9 @@
 
 ## Outcome
 
-Prove that source-backed committed and live content follows the accepted D3
-behavior across wide-to-narrow and narrow-to-wide resize.
+Prove that retained source cells and the managed live/composer frame follow the
+accepted D3 behavior across wide-to-narrow and narrow-to-wide resize without
+re-emitting terminal-owned rows.
 
 ## Scope
 
@@ -15,15 +16,17 @@ behavior across wide-to-narrow and narrow-to-wide resize.
 - Assert display width after ANSI styling, not byte length.
 - Verify committed source identity, order, and content across each resize.
 - Verify live-cell replacement and composer placement after reflow.
-- Document any intentional terminal-owned history that cannot be reflowed.
+- Assert that resize emits no previously committed identity and sends no
+  terminal-history clear/replay operation.
+- Leave native soft-wrap/reflow measurement to TUI-061.
 
 ## Acceptance
 
 - No tested row exceeds the current terminal width.
 - Resize does not duplicate, reorder, or lose committed source meaning.
 - The active cell remains replaceable and the composer remains reachable.
+- Previously emitted rows remain terminal-owned and are not reinserted.
 - Behavior at and below the accepted minimum width matches TUI-005.
-- Any terminal limitation has an explicit operator behavior, not a silent loss.
 
 ## Verification
 
@@ -35,5 +38,5 @@ go test ./internal/tui
 
 ## Not Included
 
-- No cancellation/quit settlement, semantic projection, or full snapshot
-  matrix.
+- No cancellation/quit settlement, semantic projection, native-scrollback
+  measurement, or full snapshot matrix.

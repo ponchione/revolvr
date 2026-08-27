@@ -12,9 +12,12 @@ routes, callbacks, and guards behind it.
 
 ## Scope
 
-- Replace the persistent header/viewport/footer frame with the accepted shell.
+- Replace the persistent header/viewport/footer frame with the proven D3
+  hybrid: appended committed history plus a managed live/composer/overlay
+  frame.
 - Render the accepted one-time session cell and bottom region.
-- Keep current dashboard content in the committed-content position until E2.
+- Keep current dashboard content in an explicitly migration-only managed panel
+  until E2 replaces it; never append dashboard strings as committed history.
 - Keep current page keys, slash commands, actions, refresh, scrolling, and
   active-operation behavior reachable during migration.
 - Remove only shell code made dead by this installation.
@@ -25,6 +28,8 @@ routes, callbacks, and guards behind it.
 - Every pre-existing navigation route and command regression still passes.
 - Current dashboard content remains available without app/domain changes.
 - Shell proof, resize, and settlement checks remain green in the installed path.
+- Installation adds no alternate-screen mode, terminal escape layer, or new
+  dependency.
 - Reverting this task would require no app/domain rollback.
 
 ## Verification

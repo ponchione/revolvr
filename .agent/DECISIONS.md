@@ -1,5 +1,36 @@
 # Agent Decisions
 
+## Transcript Uses Source-Backed Cells And Terminal-Owned History (2026-08-27)
+
+- TUI-overhaul D3 is accepted as a bounded hybrid. Existing app/domain
+  projections remain canonical. `internal/tui` owns bounded semantic source
+  cells, stable settlement identity, one replaceable live cell, composer and
+  overlay state, and a process-local set of emitted committed identities.
+- Each finalized cell rendering is appended exactly once above the normal
+  inline program through the installed Bubble Tea `tea.Println` boundary.
+  After emission, the terminal or multiplexer owns the row, scroll position,
+  selection/copy behavior, and any native soft reflow. A Bubbles viewport may
+  scroll overlays but never owns committed transcript history.
+- Resize redraws retained source, live, composer, and overlay presentation at
+  the new width. Revolvr never clears, rewraps, or re-emits previously committed
+  terminal rows. Refresh appends only newly discovered stable identities;
+  restart rebuilds and emits the accepted bounded history once for the new
+  program session without guessing what a prior process left in scrollback.
+- Live settlement reconciles by stable run, event, operation, question, or
+  approval identity, never timestamps or prose. Cancellation and quit keep the
+  live cell until the matching domain result is emitted once, then allow
+  Bubble Tea to restore the terminal and exit.
+- Application-driven terminal-history reflow is rejected because it requires
+  an unproven escape/terminal layer. Viewport-owned committed history is
+  rejected because it keeps history behind application scrolling and selection.
+  No app/domain prerequisite, dependency, alternate screen, terminal backend,
+  or escape layer is authorized.
+- TUI-010/TUI-011/TUI-012 must prove append composition, test output,
+  managed-frame reflow without replay, exact-once settlement, and restoration
+  before TUI-013 installs the shell. TUI-061 and TUI-062 retain the recorded
+  plain-terminal/tmux scrollback and lifecycle matrices. A failed append proof
+  reopens D3 rather than silently selecting a rejected owner.
+
 ## Composer Text Creates Only Reviewed Idle Task Drafts (2026-08-27)
 
 - TUI-overhaul D2 is accepted. Nonblank plain text has one meaning only when

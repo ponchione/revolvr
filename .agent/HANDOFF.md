@@ -57,25 +57,39 @@ Updated: 2026-08-27
   only input. Active steering and queued/deferred operator messages are not
   supported.
 - TUI-031 is narrowed to the reviewed idle task-draft route, TUI-041 is removed,
-  and no app/domain prerequisite was added. D3, D4, and D6 remain open; their
-  leading gaps are the Go/Bubble Tea shell/scrollback proof, overlay parity,
-  and session-header lifecycle.
+  and no app/domain prerequisite was added. D3 is accepted as a bounded hybrid:
+  `internal/tui` owns semantic source/live state, finalized identities append
+  once through installed `tea.Println`, terminal history owns emitted rows and
+  native reflow/copy, and viewports are overlay-only. D4 and D6 remain open.
 - Committed the task-publication fix, console presentation/test update,
   planning tree, behavioral study, and durable-state snapshot as `24be655`
   (`feat: prepare transcript-first TUI overhaul`) and pushed `main` to
   `origin/main` with raw Git.
 - Consumed and removed `docs/architecture/tui-overhaul/TUI_001_DECISION_PROMPT.md`.
   No product code, runnable task, or commit changed in the TUI-001 pass.
+- Committed and pushed the accepted TUI-001 decision as `f4e7ebf`
+  (`docs: resolve TUI composer semantics`) with raw Git.
+- Created `docs/architecture/tui-overhaul/TUI_002_DECISION_PROMPT.md` as the
+  only next-task prompt. It constrains the next fresh pass to the D3 ownership
+  decision and deletes itself when consumed.
+- TUI-002 is accepted and closes D3. Terminal-native application reflow and
+  viewport-owned committed history are rejected. TUI-010/TUI-011/TUI-012 retain
+  the append, managed-reflow, and settlement proofs; TUI-061/TUI-062 retain the
+  real-terminal scrollback and lifecycle matrices. No product code, dependency,
+  app/domain prerequisite, runnable task, terminal backend, or escape layer was
+  added.
+- Consumed and removed `docs/architecture/tui-overhaul/TUI_002_DECISION_PROMPT.md`.
+  No product code, runnable task, commit, or push changed in the TUI-002 pass.
 
 ## Exact Next Command
 
-Run one fresh Codex pass for TUI-002:
+Run one fresh Codex pass for TUI-003:
 
 ```bash
-codex exec "Execute TUI-002 from docs/architecture/tui-overhaul/tasks/tui-002-choose-transcript-ownership.md as one bounded documentation decision pass. Read AGENTS.md, the durable state, and the TUI-overhaul design/reference files first; do not implement product code, publish TUI-010, commit, or continue into TUI-003."
+codex exec "Execute TUI-003 from docs/architecture/tui-overhaul/tasks/tui-003-accept-overlay-migration.md as one bounded documentation decision pass. Read AGENTS.md, the durable state, and the TUI-overhaul design/reference files first; resolve only D4, do not change product code, publish TUI-010, commit, or continue into TUI-004."
 ```
 
-Do not create a separate TUI-002 prompt before that pass.
+Do not create a separate TUI-003 prompt before that pass.
 
 ## Verification
 
@@ -109,5 +123,14 @@ Do not create a separate TUI-002 prompt before that pass.
 - TUI-001 relative Markdown link, 33-task count, changed-path scope, accepted-
   decision consistency, and rejected-behavior task audits — PASS.
 - `test ! -e docs/architecture/tui-overhaul/TUI_001_DECISION_PROMPT.md` — PASS.
+- `git show --check --oneline f4e7ebf` — PASS.
+- `git push origin main` — PASS; `24be655..f4e7ebf  main -> main`.
+- `git status --short --branch` immediately after push — PASS;
+  `main...origin/main` with no worktree changes.
+- TUI-002 path-scoped `git diff --check`, required D3 `rg`,
+  `git diff --name-only f4e7ebf`, and `git status --short` — PASS.
+- TUI-002 relative Markdown link, changed-path scope, ownership-table,
+  accepted-decision consistency, and rejected-owner task audits — PASS.
+- `test ! -e docs/architecture/tui-overhaul/TUI_002_DECISION_PROMPT.md` — PASS.
 
-Run the exact next command above for the next bounded product-decision pass.
+Run the exact next command above for TUI-003.

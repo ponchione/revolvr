@@ -20,9 +20,11 @@ authority, and installed terminal dependencies remain authoritative. See the
 [ADR-025](../../../adr/025-terminal-first-simplified-harness.md).
 
 **Decision status:** D2 accepts reviewed idle task drafts and rejects all other
-plain text; D5 rejects active steering and queued/deferred operator messages.
-D3, D4, and D6 remain open. This study records evidence and candidate seams
-without selecting transcript ownership, overlay order, or the session-header
+plain text; D3 accepts source-backed cells with one-time `tea.Println`
+commitment to terminal-owned history and a managed live/composer/overlay frame;
+D5 rejects active steering and queued/deferred operator messages. D4 and D6
+remain open. This study remains evidence for the accepted ownership split and
+candidate seams; it does not select overlay order or the session-header
 lifecycle.
 
 ## Citation Format
@@ -53,9 +55,9 @@ process is the only useful authority.
 
 | Task | Relevant reference |
 |---|---|
-| [TUI-010](../tasks/tui-010-prove-shell-composition.md) | [Shell composition and focus](interaction-model.md#shell-composition-and-focus); [rendering ownership](terminal-mechanics.md#rendering-ownership) |
-| [TUI-011](../tasks/tui-011-prove-resize-reflow.md) | [Resize, reflow, and width](terminal-mechanics.md#resize-reflow-and-width) |
-| [TUI-012](../tasks/tui-012-prove-active-settlement.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) |
+| [TUI-010](../tasks/tui-010-prove-shell-composition.md) | [Accepted hybrid composition and focus](interaction-model.md#shell-composition-and-focus); [rendering ownership](terminal-mechanics.md#rendering-ownership) |
+| [TUI-011](../tasks/tui-011-prove-resize-reflow.md) | [Managed-frame versus terminal-owned reflow](terminal-mechanics.md#resize-reflow-and-width) |
+| [TUI-012](../tasks/tui-012-prove-active-settlement.md) | [One-time live-to-committed settlement](interaction-model.md#live-to-committed-settlement) |
 | [TUI-013](../tasks/tui-013-install-terminal-shell.md) | [Bubble Tea boundary](terminal-mechanics.md#bubble-tea-boundary) and [shell seam mapping](revolvr-mapping.md#contract-mapping) |
 | [TUI-020](../tasks/tui-020-define-transcript-cells.md) | [Semantic cell categories](interaction-model.md#semantic-cell-categories) |
 | [TUI-021](../tasks/tui-021-project-historical-runs.md) | Codex replay is relevant to lifecycle only; Revolvr’s [timeline projection mapping](revolvr-mapping.md#contract-mapping) is the content authority |
@@ -74,7 +76,7 @@ process is the only useful authority.
 | [TUI-057](../tasks/tui-057-move-approval-overlay.md) | [Approvals](interaction-model.md#approvals) plus Revolvr’s typed approval mapping |
 | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) | [Typed questions](interaction-model.md#typed-questions) plus Revolvr’s typed-input mapping |
 | [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) | [Resize, reflow, and width](terminal-mechanics.md#resize-reflow-and-width) and [defining proof](terminal-mechanics.md#defining-tests-and-snapshots) |
-| [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) | [History insertion and native scrollback](terminal-mechanics.md#history-insertion-and-native-scrollback) |
+| [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) | [Accepted terminal-owned history and remaining native-scrollback proof](terminal-mechanics.md#history-insertion-and-native-scrollback) |
 | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) | [Terminal lifecycle and restoration](terminal-mechanics.md#terminal-lifecycle-and-restoration) |
 | [TUI-063](../tasks/tui-063-verify-text-accessibility.md) | [Styling and text accessibility](terminal-mechanics.md#styling-and-text-accessibility) |
 | [TUI-070](../tasks/tui-070-remove-dashboard-presentation.md) | [Current shell mapping](revolvr-mapping.md#contract-mapping); no useful Codex analog for deletion safety |

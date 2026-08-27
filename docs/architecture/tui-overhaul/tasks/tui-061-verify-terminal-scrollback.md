@@ -15,7 +15,8 @@ copied as designed in each supported real-terminal environment.
 - Add SSH or another environment only if support is explicit and the test is
   reproducible.
 - Verify upward navigation, selection/copy, wrapped-line copying, large-history
-  navigation, live-cell replacement, and return from overlays.
+  navigation, native resize behavior of already-emitted rows, live-cell
+  replacement, and return from overlays.
 - Record terminal names/versions, exact commands, D3 mode, observations, and
   limitations in a repository-owned result document.
 - Make only focused fixes required by the accepted supported matrix.
@@ -24,6 +25,8 @@ copied as designed in each supported real-terminal environment.
 
 - Plain-terminal and tmux results are recorded for every scoped behavior.
 - Committed history is copyable without duplicate intermediate live states.
+- Revolvr never clears or reinserts committed rows on resize; each
+  environment's native reflow behavior is recorded.
 - Any terminal-owned reflow limitation matches the accepted D3 contract.
 - Each limitation has an operator workaround or explicit unsupported decision.
 - Results make no untested claim about SSH or other terminals.

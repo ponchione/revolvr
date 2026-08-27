@@ -3,7 +3,7 @@
 Evidence pin: `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`.
 Labels in this document are deliberate: observed behavior describes the pin,
 current behavior describes Revolvr today, candidate adaptation is non-binding,
-and decision status distinguishes accepted D2/D5 from open D3/D4/D6.
+and decision status distinguishes accepted D2/D3/D5 from open D4/D6.
 
 ## Shell Composition and Focus
 
@@ -34,14 +34,15 @@ App event owner
             └── normal pane ────> status + pending preview + composer
 ```
 
-**Candidate Revolvr adaptation:** use the ownership shape as a shell proof, not
-as a mandate to reproduce Codex widgets. Revolvr can keep one Bubble Tea model
-and make committed cells, one live cell, the composer, and an overlay state
-explicit within it.
+**Accepted Revolvr adaptation:** keep one Bubble Tea model with explicit
+committed source cells, one live cell, composer state, and overlay state.
+Finalize each stable committed identity once through Bubble Tea's installed
+append-above-program boundary; terminal history owns emitted rows while the
+managed frame owns the live cell, composer, and overlay. A viewport may scroll
+overlay content but never owns committed history.
 
-**Open product decision:** D3 still decides whether committed cells ultimately
-live in terminal scrollback, a Bubble Tea viewport, or a hybrid. D4 still
-decides overlay migration order.
+**Decision status:** D3 accepts this bounded hybrid. D4 still decides overlay
+migration order.
 
 ## Live-to-Committed Settlement
 
@@ -61,12 +62,14 @@ transcript source, updates the transcript overlay when open, and renders or
 buffers its lines for terminal history. This is the boundary at which mutable
 content becomes durable presentation. ([I10], [I11])
 
-**Candidate Revolvr adaptation:** define a single settlement operation that
-turns one live operation projection into committed semantic cells without
-duplicating it in the transcript.
+**Accepted Revolvr adaptation:** define one settlement operation that matches a
+live operation to canonical meaning by stable domain identity, appends the
+final semantic cell once, records its identity in the process-local emitted
+set, and only then clears the live cell.
 
-**Open product decision:** D3 controls the committed presentation owner. The
-settlement invariant does not choose that owner.
+**Decision status:** D3 assigns semantic source and settlement to `internal/tui`
+and already-emitted rows to terminal history. TUI-012 and TUI-022 still must
+prove the exact-once boundary.
 
 ## Semantic Cell Categories
 

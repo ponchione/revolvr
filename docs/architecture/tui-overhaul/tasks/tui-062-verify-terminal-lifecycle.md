@@ -14,6 +14,8 @@ events restore a usable terminal.
 - Exercise normal quit from idle and overlay states.
 - Exercise cancellation and quit during an active operation through settlement.
 - Exercise a startup/runtime error path that enters Bubble Tea and exits.
+- Confirm appended committed rows remain ordinary terminal history after exit
+  while no managed live frame or terminal mode remains active.
 - Exercise Ctrl-C and suspend/continue only where the current program and
   supported terminal environment define them.
 - Record exact commands, environment, terminal state afterward, and any
@@ -23,6 +25,8 @@ events restore a usable terminal.
 
 - Normal quit, cancellation, and error leave echo, cursor, line mode, and prompt
   usable without a manual terminal reset.
+- Cancellation emits one settled final row before quit and leaves no duplicate
+  live state.
 - Active quit still waits for domain settlement.
 - Supported suspend/continue behavior is explicit and reproducible.
 - Automated settlement regressions remain green.

@@ -349,17 +349,56 @@ application or domain prerequisite.
 
 ### D3 — Transcript and scrollback ownership
 
-**Status: Open.** The desired behavior is copy-friendly continuous history.
-Candidate implementations are:
+**Status: Accepted 2026-08-27.** Use a bounded hybrid. Existing application
+services remain canonical; `internal/tui` retains a bounded set of semantic
+committed source cells and one replaceable live cell. New finalized cell
+renderings are appended exactly once above the inline Bubble Tea program using
+the installed `tea.Println` boundary. The normal managed frame contains only
+the live cell, composer, and any active overlay. A Bubbles viewport may scroll
+an overlay, but it does not own committed transcript history.
 
-- terminal-native scrollback with retained source cells and resize reflow;
-- the existing viewport with a transcript overlay/pager;
-- a small hybrid that commits finalized lines to scrollback and uses a viewport
-  only for overlays.
+Already-emitted rows are a terminal-owned presentation cache. Revolvr does not
+clear or reinsert them on resize and does not add a terminal backend or escape
+layer. Retained source cells, not terminal rows, remain the replay and identity
+source. Stable run, event, operation, question, or approval identity reconciles
+live and committed meaning; timestamps and rendered prose never do.
 
-The decision requires a bounded proof for resize, tmux, narrow widths, test IO,
-and active-cell replacement. Do not assume that one `tea.Println` call solves
-reflow and replay.
+| Concern | Owner | Source of truth | Allowed presentation cache | Rebuild or replay | Failure or fallback | Proof obligation |
+| --- | --- | --- | --- | --- | --- | --- |
+| Canonical application meaning | Existing app/domain services | Tasks, ledger, `app.RunTimeline`, artifacts, and typed operation results | None in the TUI may replace it | Reload through existing callbacks | Retain the last good projection and show the app error | TUI-021, TUI-022 |
+| Semantic committed source cells | `internal/tui` | Bounded TUI projection of canonical meaning plus stable domain identity | Width-keyed rendered lines may be cached | Rebuild deterministically on startup and refresh | Unknown or malformed input remains visible and non-successful | TUI-020, TUI-021 |
+| Rendered committed lines | Normal-screen terminal history, fed by Bubble Tea's standard renderer | The corresponding semantic source cell at the emission width | Terminal rows and a per-session set of emitted cell identities | Emit each identity once; never reconstruct meaning from rows | If append-above-program fails, do not install the shell; reopen D3 | TUI-010 |
+| Replaceable live cell | `internal/tui.StatusModel` | Current typed operation projection and stable operation token/identity | Current width-aware rendered rows only | Redraw from live source on every update and resize | Preserve a textual error/terminal result until canonical reconciliation succeeds | TUI-010, TUI-012, TUI-040 |
+| Composer and overlay focus | `internal/tui.StatusModel` | Explicit composer, typed-input, and overlay state | Local buffer, selection, scroll, and prior-focus state | Redraw in place; restart discards ephemeral input state | Active modal owner keeps focus; failed close leaves the overlay visible | TUI-010, TUI-050 |
+| Scroll position and copy/paste history | Terminal or multiplexer | Its normal-screen history buffer; it is not semantic authority | Native scroll position and selection | Revolvr performs no scroll-offset replay | Canonical evidence remains reachable through focused views; unsupported terminal behavior must be recorded | TUI-061 |
+| Managed-frame wide-to-narrow and narrow-to-wide reflow | `internal/tui` | Retained source cells, current live state, composer/overlay state, and current width | Current rendered frame | Re-render at the new width without changing identity | Clamp to one usable column and follow accepted narrow snapshots | TUI-011, TUI-060 |
+| Previously emitted-row resize/reflow | Terminal or multiplexer | Existing terminal rows | Native soft-wrap/reflow only | Never clear, rewrap, or re-emit from the application | A terminal limitation is documented with a workaround or marked unsupported; no duplicate replay | TUI-061 |
+| Live-to-committed settlement | `internal/tui.StatusModel` | Stable operation identity reconciled with the canonical terminal result | Per-session emitted-identity set | Clear the live cell only as its final semantic cell is emitted once | Keep the settled live result visible if canonical refresh is unavailable | TUI-012, TUI-022 |
+| Refresh reconstruction | `internal/tui.StatusModel` | Fresh canonical projection | Retained source cells and emitted-identity set for this process | Replace source projection and emit only newly discovered identities | On refresh error, retain prior cells and report the error | TUI-021, TUI-022 |
+| Restart reconstruction | `internal/tui.StatusModel` | Fresh canonical projection | A new process-local emitted-identity set | Replay the accepted bounded history once for the new program session | Do not guess what an earlier process left in terminal history; D6 decides the session marker | TUI-004, TUI-021 |
+| Overlay open/close return | `internal/tui.StatusModel` | Explicit prior focus, composer buffer, overlay identity, and live operation identity | Overlay-local selection and viewport offset | Leave terminal history untouched; redraw the latest live/composer frame on close | Keep the overlay open on failed action; Escape restores the exact prior local state | TUI-050, TUI-061 |
+| Plain terminal and tmux behavior | Bubble Tea plus the terminal or tmux | Same semantic cells; environment owns the rendered history | Native normal-screen scrollback | Append once through the installed renderer | Support is claimed only after the recorded plain-terminal/tmux matrix passes | TUI-010, TUI-061 |
+| Non-TTY and test output | Bubble Tea's configured output writer | Same semantic cells and live state | Captured renderer bytes only | Produce deterministic committed lines and a final managed frame without native-navigation claims | A failing buffer proof blocks shell installation; no TTY behavior is inferred | TUI-010 |
+| Initialization, normal exit, and error restoration | `tea.Program` | Installed Bubble Tea lifecycle | Renderer-owned terminal modes | Use existing startup/teardown; add no Revolvr escape layer | Any restoration gap requires a focused fix proven before support is claimed | TUI-010, TUI-062 |
+| Cancellation and quit settlement | `internal/tui.StatusModel` | Existing cancellation context and matching domain result | Replaceable live terminal state | Wait for settlement, emit the final cell once, then return `tea.Quit` | Never erase the live cell or report exit before the matching result | TUI-012, TUI-062 |
+
+Rejected alternatives:
+
+- **Terminal-native ownership with application-driven reflow** would require
+  clearing and reinserting terminal history or a new escape/terminal layer.
+  `tea.Println` proves append-only persistence, not portable reflow, replay, or
+  tmux behavior.
+- **Viewport-owned committed history** keeps redraw and resize simple but hides
+  the transcript behind application scrolling and selection, duplicating the
+  current viewport shell instead of providing native copy-friendly history.
+
+TUI-010 must first prove append-above-program composition in a test output
+buffer and one real terminal. TUI-011 proves source/live reflow without
+re-emitting committed identities; TUI-012 proves settlement and restoration.
+TUI-061 later records native scroll, copy, resize, and tmux behavior, while
+TUI-062 records normal, cancellation, and error restoration. A failed
+append/composition proof reopens D3 before TUI-013; unproven terminal-specific
+behavior remains an explicit limitation rather than a reason to add machinery.
 
 ### D4 — Overlay migration
 

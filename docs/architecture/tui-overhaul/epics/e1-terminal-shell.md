@@ -6,16 +6,17 @@
 
 ## Outcome
 
-One small Bubble Tea proof establishes the accepted transcript, live-region,
-composer, resize, and settlement mechanics before the dashboard is migrated.
+One small Bubble Tea proof establishes the accepted append-only committed
+history plus live/composer/overlay-frame hybrid before the dashboard is
+migrated.
 
 ## Tasks
 
 | Task | Single responsibility | Depends on |
 | --- | --- | --- |
-| [TUI-010](../tasks/tui-010-prove-shell-composition.md) | prove shell composition and test IO | E0 |
-| [TUI-011](../tasks/tui-011-prove-resize-reflow.md) | prove resize and reflow | TUI-010 |
-| [TUI-012](../tasks/tui-012-prove-active-settlement.md) | prove cancellation and quit settlement | TUI-010 |
+| [TUI-010](../tasks/tui-010-prove-shell-composition.md) | prove `tea.Println` history plus managed-frame composition and test IO | E0 |
+| [TUI-011](../tasks/tui-011-prove-resize-reflow.md) | prove managed-frame reflow without history replay | TUI-010 |
+| [TUI-012](../tasks/tui-012-prove-active-settlement.md) | prove one-time final emission, cancellation, and quit settlement | TUI-010 |
 | [TUI-013](../tasks/tui-013-install-terminal-shell.md) | install the proven shell behind current behavior | TUI-011, TUI-012 |
 
 ## Boundaries
@@ -26,7 +27,8 @@ backend.
 
 ## Exit Gate
 
-- Composition, test IO, resize/reflow, and active-settlement proofs pass.
+- Append composition, test IO, managed-frame reflow, and active-settlement
+  proofs pass without clearing or replaying terminal history.
 - The accepted shell runs in the current program without an app/domain change
   or new dependency.
 - Existing commands, focused views, and operation guards remain reachable.

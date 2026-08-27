@@ -91,7 +91,11 @@
   draft, every other plain-text state rejects, and typed needs-input remains
   option-only. D5 is accepted: there is no active steering or queued/deferred
   operator input; TUI-041 was removed, TUI-031 was narrowed, and no app/domain
-  prerequisite was added. D3, D4, and D6 remain open; TUI-002 is next.
+  prerequisite was added. D3 is accepted as a bounded hybrid: `internal/tui`
+  retains semantic source/live state, finalized identities append once through
+  installed `tea.Println`, terminal history owns emitted rows and native
+  reflow/copy, and viewports are overlay-only. No terminal layer, dependency,
+  or app/domain prerequisite was added. D4 and D6 remain open; TUI-003 is next.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

@@ -2,7 +2,9 @@
 
 Evidence pin: `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`.
 This document records observable contracts and proof boundaries; it does not
-select D3 or add terminal machinery to Revolvr.
+make Codex's terminal backend authoritative or add terminal machinery to
+Revolvr. D3 accepts a smaller Bubble Tea hybrid and leaves environment-specific
+behavior to the named proofs below.
 
 ## Rendering Ownership
 
@@ -22,9 +24,11 @@ without `tea.WithAltScreen`; `View` joins a header, one Bubbles viewport, and a
 footer into a complete redraw string. (Revolvr `internal/tui/model.go:255-280,746-752`
 (`RunStatus`, `View`))
 
-**Open product decision:** D3 decides whether the target keeps this current
-viewport ownership, adopts terminal-owned committed history, or proves a
-hybrid.
+**Accepted Revolvr adaptation:** D3 uses a bounded hybrid. `internal/tui` owns
+semantic committed source cells and the live/composer/overlay frame. Bubble Tea
+appends each new finalized rendering above the inline program, after which the
+normal-screen terminal history owns that row. The current viewport remains
+available only for overlay-local scrolling.
 
 ## History Insertion and Native Scrollback
 
@@ -42,9 +46,12 @@ standard terminals, Zellij, and Windows Terminal behavior. ([T07], [T08])
 that full-screen insertion and viewport growth preserve prior terminal history.
 ([T09])
 
-**Candidate Revolvr adaptation:** TUI-010/TUI-061 must prove terminal behavior
-with the installed Go stack before D3 can depend on native scrollback. The Rust
-escape implementation is not portable authority under D1.
+**Accepted Revolvr adaptation:** use the installed `tea.Println` command, which
+queues persistent output above a non-alternate-screen Bubble Tea program. Do
+not reproduce Codex's escape implementation, add a terminal backend, or make
+rendered rows semantic authority. TUI-010 must prove exact-once composition and
+test output before installation; TUI-061 must record plain-terminal and tmux
+scroll/copy behavior before support is claimed.
 
 ## Resize, Reflow, and Width
 
@@ -77,9 +84,13 @@ and verifies composer open/close. (Revolvr
 (`TestStatusModelWideRenderSnapshot`, `TestStatusModelNarrowRenderSnapshot`,
 `TestStatusModelDashboardChromeAndComposer`))
 
-**Open product decision:** D3 must define whether reflow rebuilds source-backed
-cells or leaves older rows to terminal-owned soft wrapping. The pin proves the
-former is possible, not that it is the right Revolvr contract.
+**Accepted Revolvr adaptation:** D3 deliberately splits reflow ownership.
+`internal/tui` redraws retained source, the live cell, composer, and overlay at
+the new width without re-emitting a committed identity. Previously appended
+rows remain terminal-owned and receive only the environment's native soft
+reflow. Revolvr never clears or reinserts them. TUI-011/TUI-060 prove the
+managed frame and no-replay invariant; TUI-061 records native behavior and any
+unsupported environment.
 
 ## Terminal Lifecycle and Restoration
 
@@ -99,9 +110,10 @@ alternate screen, restores terminal/stderr state before `SIGTSTP`, reapplies
 modes on resume, probes cursor position, and later realigns the inline viewport
 or restores the overlay. ([T19], [T20])
 
-**Candidate Revolvr adaptation:** rely on Bubble Tea for its documented program
-lifecycle, then prove any added shell behavior on real terminals. Custom
-restoration code is justified only for behavior Bubble Tea does not cover.
+**Accepted Revolvr adaptation:** rely on Bubble Tea for program lifecycle and
+restoration. `StatusModel` retains only the existing rule that cancellation and
+quit wait for the matching operation result before final emission and
+`tea.Quit`. Add no custom restoration code unless TUI-062 proves a focused gap.
 
 ## Styling and Text Accessibility
 
@@ -146,8 +158,8 @@ Revolvr pins Bubble Tea `v1.3.4`, Bubbles `v0.20.0`, and Lip Gloss `v1.1.0`.
 |---|---|---|
 | Event loop and complete-frame renderer | `tea.NewProgram(...).Run()` already owns input, rendering, signals, and terminal teardown for the current program; Revolvr invokes that path at `internal/tui/model.go:255-280` | No new proof for unchanged behavior; TUI-013 must show the target shell still exits cleanly |
 | Resize delivery | Bubble Tea delivers `tea.WindowSizeMsg`; Revolvr handles it at `internal/tui/model.go:287-294` | TUI-011/TUI-060 must prove semantic-cell reflow and settlement after the ownership change |
-| Inline versus alternate screen | Alternate screen is opt-in; Revolvr does not pass `tea.WithAltScreen` at `internal/tui/model.go:255-280` | TUI-010/TUI-061 must establish committed-history and scrollback behavior; current source does not |
-| Viewport scrolling | Bubbles viewport already powers current focused-view scrolling at `internal/tui/model.go:97,725-743` | It does not by itself prove terminal-native scrollback or source-backed history rebuild |
+| Inline versus alternate screen | Alternate screen is opt-in; Revolvr does not pass `tea.WithAltScreen` at `internal/tui/model.go:255-280`; `tea.Println` persists output above a normal-screen program | TUI-010 must prove exact-once append composition and test output; TUI-061 must establish real scrollback behavior |
+| Viewport scrolling | Bubbles viewport already powers current focused-view scrolling at `internal/tui/model.go:97,725-743` | Accepted D3 limits it to overlay-local scrolling; it does not own committed history |
 | Suspend/resume and failures | Bubble Tea provides its own program lifecycle for the installed version | TUI-062 must exercise Ctrl-Z, resume, normal exit, cancellation settlement, and injected error paths in Revolvr; no custom terminal layer should be assumed necessary first |
 
 ## Defining Tests and Snapshots
