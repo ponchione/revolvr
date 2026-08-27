@@ -1,5 +1,41 @@
 # Agent State
 
+## Architecture 025 Graphiti Evidence Decision Complete (2026-08-27)
+
+- `go run ./cmd/revolvr task list` confirmed
+  `architecture-025-memory-graphiti-phase-gate` as the selected ready
+  `mixed-pass-v1` task at `phase: simplify` with Architecture 024 completed.
+- The checkout-local runtime has 22 completed runs/receipts from 2026-07-08
+  through 2026-07-09. All predate Architecture 021 commit `9fd0de6` and the
+  current Architecture 024 TUI commit `2a4dc6f`, so none is qualifying real
+  usage of the current brain or current TUI workflow.
+- Existing-lane baseline metrics are exact: the Architecture 021 25-query,
+  three-project retrieval comparison records selected Qwen vector Recall@5/10
+  `0.96/0.96`, hybrid `0.96/1.00`, MRR `0.9444`, exact-symbol preservation
+  `1.00`, and hybrid p95 `23.80 ms`. Architecture 022 records 20 deterministic
+  occurrences and 30,371 context bytes, but explicitly omits live dogfood.
+- No run, receipt, source-linked record, or retrieval fixture records a repeated
+  entity-alias, temporal-supersession, or cross-document multi-hop failure.
+  Consequently there is no evidence that a smaller existing relational,
+  retrieval, ranking, or context fix is insufficient.
+- Decision: **defer** Graphiti and authorize no comparison prototype. The exact
+  trigger requires ten current TUI/core-loop real tasks, the same qualifying
+  failure in at least two distinct tasks, source-linked outcomes, a failed
+  bounded comparison against the smallest applicable existing-lane change, and
+  rerun Architecture 021/022 baselines.
+- Simplified `docs/architecture/memory-graphiti-phase-gate.md` by replacing
+  duplicate evidence sections and the repeated result table with four gate
+  bullets. Every recorded metric, missing-evidence result, trigger clause, and
+  authority boundary is unchanged.
+- Completed Architecture 025 at `phase: simplify`; all 25 architecture tasks
+  are complete. Updated the decision document, README, task metadata,
+  `.agent/DECISIONS.md`, `.agent/HANDOFF.md`, `.agent/TASKS.md`, and this state.
+- Verification passed: `go test ./...`, `git diff --check`, and
+  `git diff --name-only`. No blocker or follow-up task remains.
+- No Go, SQL, dependency, graph/Python implementation, container, schema,
+  adapter, service, or runtime configuration changed. Canonical Go/PostgreSQL
+  ledger and artifact authority remains unchanged.
+
 ## Architecture 024 TUI Debt Closure (2026-08-27)
 
 - Task selected: resolve every issue recorded in `TECH_DEBT.md`, verify the

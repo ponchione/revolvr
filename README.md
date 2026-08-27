@@ -198,6 +198,9 @@ admitted artifact ranges, and a reserved trajectory-range boundary.
 - [`docs/architecture/code-indexing-context-assembly.md`](docs/architecture/code-indexing-context-assembly.md)
   records Architecture 021 schema, recovery, retrieval/context contracts, exact
   model evidence, real-project metrics, and the active embedding selection.
+- [`docs/architecture/memory-graphiti-phase-gate.md`](docs/architecture/memory-graphiti-phase-gate.md)
+  records the Architecture 025 evidence review, defer decision, and exact
+  re-evaluation trigger.
 - [ADR-025](docs/adr/025-terminal-first-simplified-harness.md) records the
   terminal-first product and simplified direct-tools harness direction.
 - [`REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md`](REVOLVR_PROGRAMMATIC_WORKSPACE_AND_CONTINUAL_HARNESS_SPEC.md)

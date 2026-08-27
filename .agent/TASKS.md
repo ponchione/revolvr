@@ -5,7 +5,7 @@
 - The current implementation authority is the numbered sequence under
   `.agent/tasks/architecture-001` through `architecture-025`, with the approved
   compatibility task `architecture-016a` inserted between 016 and 017.
-- Architecture tasks 001-024 and planning task PTC-001 are completed.
+- Architecture tasks 001-025 and planning task PTC-001 are completed.
 - ADR-025 supersedes the former desktop/Wails/Vue/REST/SSE and custom Python
   harness directions. Revolvr is terminal-first and uses direct tools by
   default.
@@ -14,8 +14,10 @@
   command discovery, and focused change-summary/evidence/approval views over
   existing application services and dependencies. Its canonical mixed-pass
   metadata is reconciled at the terminal `simplify` phase.
-- Architecture 025 is the next runnable evidence gate. It decides only whether
-  the existing brain has a concrete proven gap; it does not implement Graphiti.
+- Architecture 025 completed with **defer**: baseline metrics exist, but
+  qualifying current-brain usage, repeated source-linked failures, and
+  smaller-fix insufficiency evidence do not. No Graphiti comparison prototype
+  or implementation is authorized.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
   reconciliation is complete maintenance, not a new architecture selector. It
   also normalized the two obsolete `complete` task statuses and restored
@@ -65,9 +67,9 @@
   composer/operator responses, compact status/footer, command discovery, and
   focused change-summary/evidence/approval views. Reuse existing app services
   and keep business logic outside the TUI. **Completed at `simplify`.**
-- Architecture 025 — pending and dependency-satisfied as the next evidence-only
-  brain sufficiency decision. Missing concrete usage evidence means defer
-  Graphiti. **Next runnable task.**
+- [x] Architecture 025 — record and simplify the **defer** decision with its
+  exact future re-evaluation trigger. No Graphiti comparison prototype or
+  implementation was authorized. **Completed at `simplify`.**
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 
@@ -1157,5 +1159,5 @@ test history is preserved in Git.
 
 - The legacy EXT external-readiness backlog remains historical/deferred and is
   not the fresh-pass selector while the active architecture sequence runs.
-- Graphiti remains deferred unless Architecture 025 receives concrete real-
-  usage evidence of an existing-brain gap.
+- Architecture 025 recorded Graphiti deferral. Re-evaluate only on the exact
+  evidence trigger in `docs/architecture/memory-graphiti-phase-gate.md`.

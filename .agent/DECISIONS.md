@@ -1,5 +1,26 @@
 # Agent Decisions
 
+## Architecture 025 Defers Graphiti For Missing Evidence (2026-08-27)
+
+- Architecture 025 records **defer**. No Graphiti comparison prototype is
+  authorized.
+- The baseline-metrics gate is supported by the Architecture 021 25-query
+  real-project retrieval comparison and Architecture 022 20-occurrence
+  deterministic context baseline.
+- The other gates are absent: the checkout has zero real current-brain/current-
+  TUI runs, no repeated source-linked entity-alias, temporal-supersession, or
+  cross-document multi-hop failure, and no evidence that a smaller change to
+  existing relational, retrieval, ranking, or context behavior is insufficient.
+- Re-evaluation requires one repository-owned evidence set with at least ten
+  completed non-fixture tasks through the current TUI/core loop, the same
+  qualifying failure in at least two distinct tasks, exact query/source/
+  context/outcome links, a bounded unsuccessful comparison against the
+  smallest applicable existing-lane change, and rerun Architecture 021/022
+  baselines.
+- Canonical Go/PostgreSQL ledger, artifact, verification, audit, and completion
+  authority is unchanged. Any future graph remains optional, derived,
+  removable, and non-authoritative.
+
 ## Terminal-First Product And Simplified Harness (2026-08-27)
 
 - ADR-025 is current authority and supersedes ADR-020, ADR-021, the former

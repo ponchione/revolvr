@@ -1,8 +1,8 @@
 ---
 id: architecture-025-memory-graphiti-phase-gate
-status: pending
+status: completed
 workflow: mixed-pass-v1
-phase: document
+phase: simplify
 depends_on: architecture-024-ui
 ---
 
@@ -11,8 +11,8 @@ depends_on: architecture-024-ui
 ## Sequence and status
 
 - Sequence: `025` of `025`.
-- Status: pending behind Architecture 024 and evidence-gated.
-- Prerequisite: `architecture-024-ui`.
+- Status: completed at `simplify` with decision `defer`.
+- Prerequisite: completed `architecture-024-ui`.
 - This is a documentation-only decision task, not an implementation or
   prototype task.
 
@@ -58,6 +58,21 @@ insufficient in one concrete, repeated way.
 - Any authorized comparison is a separate bounded task and keeps the existing
   brain as baseline and canonical authority unchanged.
 - The diff contains decision/evidence documentation only.
+
+## Completed result
+
+- Decision: **defer** Graphiti; no comparison prototype is authorized.
+- Gate results: real current-brain usage history absent; baseline retrieval and
+  context metrics supported; repeated source-linked alias, temporal-
+  supersession, or cross-document multi-hop failures absent; smaller-fix
+  insufficiency evidence absent.
+- Evidence and the exact re-evaluation trigger are recorded in
+  `docs/architecture/memory-graphiti-phase-gate.md`.
+- The simplify phase consolidated duplicate gate narration without changing
+  the evidence, trigger, decision, or authority boundaries.
+- Canonical Go/PostgreSQL ledger and artifact authority is unchanged. No graph
+  or Python implementation, dependency, service, schema, adapter, container,
+  or runtime configuration was added.
 
 ## Deterministic verification
 
