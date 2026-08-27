@@ -113,16 +113,24 @@ Updated: 2026-08-27
   changed.
 - Consumed and removed
   `docs/architecture/tui-overhaul/TUI_004_DECISION_PROMPT.md`.
+- Committed and pushed the accepted TUI-004 decision as `3509bb4`
+  (`docs: accept TUI session header lifecycle`) with raw Git.
+- Created `docs/architecture/tui-overhaul/TUI_005_DECISION_PROMPT.md` as the
+  only next-slice prompt after that push. It limits the next fresh pass to the
+  experience-state snapshots, preserves D1-D6, deletes itself when consumed,
+  and hands off to a separate TUI-010 publication pass without implementing or
+  publishing TUI-010.
 
 ## Exact Next Command
 
 Run one fresh Codex pass for TUI-005:
 
 ```bash
-codex exec "Execute TUI-005 from docs/architecture/tui-overhaul/tasks/tui-005-accept-experience-states.md as one bounded documentation-only decision pass. Read AGENTS.md, the durable state, and the TUI-overhaul design/reference files first; accept only the experience-state snapshots, do not change product code, publish TUI-010, commit, or continue past TUI-005."
+codex exec "Execute the one-pass instructions in docs/architecture/tui-overhaul/TUI_005_DECISION_PROMPT.md."
 ```
 
-Do not create another TUI-004 prompt or start TUI-010 in that pass.
+Consume and delete the prompt in that pass; do not create another TUI-005
+prompt or start TUI-010.
 
 ## Verification
 
@@ -185,5 +193,11 @@ Do not create another TUI-004 prompt or start TUI-010 in that pass.
 - TUI-004 relative-link, changed-scope, accepted-D6, unchanged-D1-D5,
   33-task, no-published-TUI-010, no-product-code/runtime-dependency,
   prompt-deletion, and TUI-005-selector checks — PASS.
+- `git show --check --oneline 3509bb4` — PASS.
+- `git push origin main` — PASS; `1e57c06..3509bb4  main -> main`.
+- `git status --short --branch` immediately after push — PASS;
+  `main...origin/main` with no worktree changes.
+- TUI-005 next-slice prompt scope, relative-link, trailing-whitespace, durable-
+  selector, accepted-D1-D6, and no-runnable-task checks — PASS.
 
 Run the exact next command above for TUI-005.

@@ -148,18 +148,19 @@ Updated: 2026-08-27
 
 ## Next Decision Pass
 
-- Commit `1e57c06` (`docs: accept TUI overlay migration`) was pushed to
+- Commit `3509bb4` (`docs: accept TUI session header lifecycle`) was pushed to
   `origin/main`; the branch was clean and synchronized immediately after the
   push.
-- TUI-003 is complete, committed, and pushed. TUI-004 is complete and
-  intentionally uncommitted; its one-pass prompt was consumed and deleted.
-  TUI-005 is the exact next bounded documentation pass.
+- TUI-004 is complete, committed, and pushed. The intentionally uncommitted
+  `docs/architecture/tui-overhaul/TUI_005_DECISION_PROMPT.md` is the sole next-
+  slice prompt; it executes TUI-005 as the exact next bounded documentation
+  pass and deletes itself when consumed.
 
 ## Blockers And Next Task
 
 - The approved task-publication, console, plan, and behavioral-study snapshot
-  and the accepted TUI-001/TUI-002/TUI-003 decisions are committed and pushed
-  through `1e57c06`.
-- TUI-004 is complete and uncommitted. Complete TUI-005 and the E0 snapshot
-  gate before publishing TUI-010. Do not revive EXT/PTC work or reopen
-  Architecture 025.
+  and the accepted TUI-001/TUI-002/TUI-003/TUI-004 decisions are committed and
+  pushed through `3509bb4`.
+- The TUI-005 decision prompt is prepared and uncommitted. Complete the E0
+  snapshot gate before publishing TUI-010. Do not revive EXT/PTC work or
+  reopen Architecture 025.
