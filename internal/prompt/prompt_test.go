@@ -63,6 +63,7 @@ Implement Tasks 7 and 8 only.
 - Do not use codex resume.
 - Do not launch nested Codex runs.
 - Do not push branches or create PRs.
+- Keep durable handoff review commands valid after the harness auto-commits: use the known run ID or ` + "`git show HEAD`" + `, never a bare ` + "`git diff`" + `.
 - Preserve existing internal packages.
 - Do not implement CLI task command wiring.
 
@@ -91,6 +92,15 @@ metrics:
   input_tokens: 0
   output_tokens: 0
   duration_seconds: 0
+` + "```" + `
+
+For example, after actually running ` + "`go test ./...`" + `, record structured verification as:
+
+` + "```yaml" + `
+verification:
+  - command: go test ./...
+    exit_code: 0
+    status: passed
 ` + "```" + `
 
 Use one of these verdict values: completed, completed_with_concerns, blocked, verification_failed, codex_failed, safety_limit, no_changes.
@@ -182,10 +192,13 @@ func TestBuildIncludesDefaultRulesAndRequiredInstructions(t *testing.T) {
 		"Do not use codex resume",
 		"Do not launch nested Codex runs",
 		"Do not push branches or create PRs",
+		"git show HEAD",
+		"never a bare `git diff`",
 		"Work only in this repository and keep changes scoped to the selected task.",
 		"## Artifact Paths",
 		"No additional artifact paths were provided.",
 		"schema_version: revolvr.receipt.v1",
+		"  - command: go test ./...",
 		"## Stop Condition",
 		DefaultStopCondition,
 	}

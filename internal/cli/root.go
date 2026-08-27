@@ -2099,6 +2099,11 @@ func writeRun(out io.Writer, history ledger.RunWithEvents) error {
 			return err
 		}
 	}
+	if identity, ok := codexIdentityFromEvents(history.Events); ok {
+		if _, err := fmt.Fprintf(out, "Codex configured path: %s\nCodex resolved path: %s\nCodex version: %s\nCodex SHA-256: %s\n", identity.Executable.Configured, identity.Executable.Resolved, identity.Version, identity.Executable.SHA256); err != nil {
+			return err
+		}
+	}
 	if err := writeTimeline(out, app.RunTimeline(history)); err != nil {
 		return err
 	}
@@ -2127,6 +2132,32 @@ func writeRun(out io.Writer, history ledger.RunWithEvents) error {
 		}
 	}
 	return nil
+}
+
+func codexIdentityFromEvents(events []ledger.Event) (codexexec.CodexExecutableIdentity, bool) {
+	for _, event := range events {
+		var identity *codexexec.CodexExecutableIdentity
+		switch event.Type {
+		case ledger.EventContextBuilt:
+			var payload struct {
+				Invocation codexexec.InvocationProvenance `json:"invocation"`
+			}
+			if decodePayload(event, &payload) {
+				identity = payload.Invocation.CodexIdentity
+			}
+		case ledger.EventCodexStarted:
+			var payload struct {
+				Provenance codexexec.InvocationProvenance `json:"provenance"`
+			}
+			if decodePayload(event, &payload) {
+				identity = payload.Provenance.CodexIdentity
+			}
+		}
+		if identity != nil && identity.Validate() == nil {
+			return *identity, true
+		}
+	}
+	return codexexec.CodexExecutableIdentity{}, false
 }
 
 func writeTimeline(out io.Writer, rows []app.RunTimelineRow) error {
@@ -2185,6 +2216,7 @@ func writeArtifactPathLines(out io.Writer, artifacts ledger.RunArtifacts) error 
 		{label: "codex stderr", path: artifacts.CodexStderrPath},
 		{label: "last message", path: artifacts.LastMessagePath},
 		{label: "receipt", path: artifacts.ReceiptPath},
+		{label: "invalid receipt", path: artifacts.InvalidReceiptPath},
 	} {
 		if strings.TrimSpace(artifact.path) == "" {
 			continue

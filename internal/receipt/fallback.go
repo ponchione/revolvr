@@ -22,6 +22,7 @@ type FallbackInput struct {
 	Verification       []VerificationEntry
 	Metrics            Metrics
 	FinalText          string
+	InvalidReceipt     bool
 }
 
 func FormatFallbackReceipt(input FallbackInput) (string, Receipt) {
@@ -117,7 +118,11 @@ func fallbackBody(input FallbackInput, r Receipt) string {
 		}
 	}
 	out.WriteString("\n## Concerns\n")
-	out.WriteString("- Codex did not produce a receipt; this fallback was synthesized by the harness.\n")
+	if input.InvalidReceipt {
+		out.WriteString("- Codex produced an invalid receipt; the harness preserved it and replaced it with this synthesized receipt.\n")
+	} else {
+		out.WriteString("- Codex did not produce a receipt; this fallback was synthesized by the harness.\n")
+	}
 	out.WriteString("\n## Next Steps\n")
 	out.WriteString("- Inspect the pass output and decide whether follow-up work is needed.\n")
 	return out.String()

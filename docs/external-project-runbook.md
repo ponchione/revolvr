@@ -42,14 +42,15 @@ Revolvr does not push, merge, rebase, reset, clean, or stash external project
 work. It does not automatically integrate a task commit, remove a task
 workspace, retain/prune evidence, or archive a completed task.
 
-## Install one pinned release
+## Install one pinned Revolvr release
 
 Start from the approved release decision record. It must name the immutable
 tag, source commit, target platform, exact Revolvr artifact SHA-256, patched Go
-toolchain, and the one release-authorized Codex version and executable
-SHA-256. Install by hash into an operator-owned directory that is not writable
-by other users. Keep the prior approved binary until upgrade validation is
-complete.
+toolchain, and tested Codex invocation contract. Install Revolvr by hash into
+an operator-owned directory that is not writable by other users. Keep the
+prior approved Revolvr binary until upgrade validation is complete. Record the
+configured Codex executable and its exact observed identity separately for
+each qualification and operation.
 
 Run these non-destructive checks and compare every value with that decision
 record. `sha256sum` is the Linux spelling; use `shasum -a 256` on macOS or
@@ -59,14 +60,17 @@ record. `sha256sum` is the Linux spelling; use `shasum -a 256` on macOS or
 revolvr --version
 sha256sum "$(command -v revolvr)"
 go version -m "$(command -v revolvr)"
-codex --version
-sha256sum "$(command -v codex)"
+CODEX_EXECUTABLE=/absolute/path/to/installed/codex
+"$CODEX_EXECUTABLE" --version
+sha256sum "$CODEX_EXECUTABLE"
 ```
 
-Reject `revolvr dev`, an unexpected VCS revision/toolchain, a moving symlink,
-an unlisted Codex version, or any digest mismatch. `config check` is diagnostic
-and may display an unlisted Codex identity; only a passing attended `doctor`
-grants current preflight authority.
+Reject `revolvr dev`, an unexpected VCS revision/toolchain, or any Revolvr
+digest mismatch. Record the configured Codex path, exact reported version, and
+digest for operational evidence. Revolvr admits any safely resolved executable
+with valid bounded single-line `--version` output, captures that exact identity,
+and refuses path, byte, or version drift before execution. Only a passing
+attended `doctor` grants current preflight authority.
 
 ## Prepare and initialize the repository
 
@@ -115,13 +119,13 @@ after any permission repair.
 ## Configure attended execution and verification
 
 Create `.revolvr/config.yaml` as an owner-controlled regular file. Use the
-absolute release-authorized Codex path, the intended Git executable, and
-verification commands that are safe to run repeatedly in the isolated task
-workspace. A minimal attended configuration is:
+absolute path to the installed Codex executable, the intended Git executable,
+and verification commands that are safe to run repeatedly in the isolated
+task workspace. A minimal attended configuration is:
 
 ```yaml
 codex:
-  executable: /absolute/path/to/release-authorized/codex
+  executable: /absolute/path/to/installed/codex
   model: gpt-5.6-sol
   reasoning_effort: xhigh
   ephemeral: true
@@ -321,7 +325,10 @@ verification, audit, completion, attempts/budgets, input, terminal state, and
 raw provenance references. The corresponding protected evidence includes:
 
 - `.revolvr/runs/<run-id>/` for exact dossiers, prompts, schemas, Codex JSONL,
-  bounded stderr/output, verification and provenance;
+  bounded stderr/output, verification and provenance; when Codex writes an
+  invalid receipt, the exact original is preserved here as
+  `invalid-receipt.md` with its size, SHA-256, and bounded failure reason in
+  ledger evidence;
 - `.revolvr/receipts/<run-id>.md` for the harness-finalized receipt;
 - `.revolvr/autonomous/task-runs/<operation-id>/` for checkpoint and immutable
   operation history;

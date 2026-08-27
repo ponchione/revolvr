@@ -3,9 +3,7 @@ package codexexec
 import (
 	"context"
 	"crypto/sha256"
-	_ "embed"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,14 +12,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
-const ReleaseManifestSchema = "revolvr-release-executable-manifest-v1"
-
-//go:embed release_manifest.json
-var releaseManifestJSON []byte
-
 type ExecutableLookPath func(string) (string, error)
+
+var ErrExecutableIdentityDrift = errors.New("executable identity drift")
 
 // ExecutableIdentity binds a configured command name to the canonical file
 // whose bytes may be executed.
@@ -34,75 +31,6 @@ type ExecutableIdentity struct {
 type CodexExecutableIdentity struct {
 	Version    string             `json:"version"`
 	Executable ExecutableIdentity `json:"executable"`
-}
-
-type ReleaseCodexBuild struct {
-	Version string `json:"version"`
-	SHA256  string `json:"sha256"`
-}
-
-type ReleaseManifest struct {
-	SchemaVersion string              `json:"schema_version"`
-	Codex         []ReleaseCodexBuild `json:"codex"`
-}
-
-func CurrentReleaseManifest() (ReleaseManifest, error) {
-	var manifest ReleaseManifest
-	decoder := json.NewDecoder(strings.NewReader(string(releaseManifestJSON)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&manifest); err != nil {
-		return ReleaseManifest{}, fmt.Errorf("decode release executable manifest: %w", err)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			err = errors.New("multiple JSON values")
-		}
-		return ReleaseManifest{}, fmt.Errorf("decode release executable manifest: %w", err)
-	}
-	if err := manifest.Validate(); err != nil {
-		return ReleaseManifest{}, err
-	}
-	manifest.Codex = append([]ReleaseCodexBuild(nil), manifest.Codex...)
-	return manifest, nil
-}
-
-func (m ReleaseManifest) Validate() error {
-	if m.SchemaVersion != ReleaseManifestSchema {
-		return fmt.Errorf("release executable manifest: unsupported schema_version %q", m.SchemaVersion)
-	}
-	if len(m.Codex) != 1 {
-		return fmt.Errorf("release executable manifest: exactly one Codex build is required, got %d", len(m.Codex))
-	}
-	seen := make(map[string]struct{}, len(m.Codex))
-	for i, build := range m.Codex {
-		if !exactCodexVersion(build.Version) {
-			return fmt.Errorf("release executable manifest: codex[%d] version must be one exact Codex CLI version string", i)
-		}
-		if !validIdentitySHA256(build.SHA256) {
-			return fmt.Errorf("release executable manifest: codex[%d] SHA-256 must be 64 lowercase hexadecimal characters", i)
-		}
-		key := build.Version + "\x00" + build.SHA256
-		if _, ok := seen[key]; ok {
-			return fmt.Errorf("release executable manifest: duplicate Codex build %q", build.Version)
-		}
-		seen[key] = struct{}{}
-	}
-	return nil
-}
-
-func (m ReleaseManifest) Authorize(identity CodexExecutableIdentity) error {
-	if err := m.Validate(); err != nil {
-		return err
-	}
-	if err := identity.Validate(); err != nil {
-		return err
-	}
-	for _, build := range m.Codex {
-		if identity.Version == build.Version && identity.Executable.SHA256 == build.SHA256 {
-			return nil
-		}
-	}
-	return fmt.Errorf("Codex executable identity is not release-authorized: version=%q sha256=%s", identity.Version, identity.Executable.SHA256)
 }
 
 func (i ExecutableIdentity) Validate() error {
@@ -119,8 +47,8 @@ func (i ExecutableIdentity) Validate() error {
 }
 
 func (i CodexExecutableIdentity) Validate() error {
-	if !exactCodexVersion(i.Version) {
-		return errors.New("Codex executable identity: exact version string is required")
+	if !validCodexVersion(i.Version) {
+		return errors.New("Codex executable identity: a nonempty bounded normalized single-line version without control characters is required")
 	}
 	return i.Executable.Validate()
 }
@@ -185,23 +113,15 @@ func VerifyExecutableIdentity(expected ExecutableIdentity, lookPath ExecutableLo
 	}
 	current, err := InspectExecutable(expected.Configured, lookPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: inspect current executable: %v", ErrExecutableIdentityDrift, err)
 	}
 	if !reflect.DeepEqual(current, expected) {
-		return fmt.Errorf("executable identity drift: admitted resolved=%q sha256=%s current resolved=%q sha256=%s", expected.Resolved, expected.SHA256, current.Resolved, current.SHA256)
+		return fmt.Errorf("%w: admitted resolved=%q sha256=%s current resolved=%q sha256=%s", ErrExecutableIdentityDrift, expected.Resolved, expected.SHA256, current.Resolved, current.SHA256)
 	}
 	return nil
 }
 
-func InspectReleaseCodex(ctx context.Context, configured, workDir string, timeoutConfig VersionConfig, lookPath ExecutableLookPath) (CodexExecutableIdentity, error) {
-	manifest, err := CurrentReleaseManifest()
-	if err != nil {
-		return CodexExecutableIdentity{}, err
-	}
-	return InspectCodexWithManifest(ctx, configured, workDir, timeoutConfig, lookPath, manifest)
-}
-
-func InspectCodexWithManifest(ctx context.Context, configured, workDir string, timeoutConfig VersionConfig, lookPath ExecutableLookPath, manifest ReleaseManifest) (CodexExecutableIdentity, error) {
+func InspectCodex(ctx context.Context, configured, workDir string, timeoutConfig VersionConfig, lookPath ExecutableLookPath) (CodexExecutableIdentity, error) {
 	executable, err := InspectExecutable(configured, lookPath)
 	if err != nil {
 		return CodexExecutableIdentity{}, err
@@ -212,11 +132,28 @@ func InspectCodexWithManifest(ctx context.Context, configured, workDir string, t
 	if err != nil {
 		return CodexExecutableIdentity{}, err
 	}
+	if err := VerifyExecutableIdentity(executable, lookPath); err != nil {
+		return CodexExecutableIdentity{}, fmt.Errorf("inspect Codex executable after version discovery: %w", err)
+	}
 	identity := CodexExecutableIdentity{Version: version, Executable: executable}
-	if err := manifest.Authorize(identity); err != nil {
+	if err := identity.Validate(); err != nil {
 		return CodexExecutableIdentity{}, err
 	}
 	return identity, nil
+}
+
+func VerifyCodexIdentity(ctx context.Context, expected CodexExecutableIdentity, workDir string, timeoutConfig VersionConfig, lookPath ExecutableLookPath) error {
+	if err := expected.Validate(); err != nil {
+		return err
+	}
+	current, err := InspectCodex(ctx, expected.Executable.Configured, workDir, timeoutConfig, lookPath)
+	if err != nil {
+		return fmt.Errorf("Codex %w: inspect current executable: %v", ErrExecutableIdentityDrift, err)
+	}
+	if !reflect.DeepEqual(current, expected) {
+		return fmt.Errorf("Codex %w: admitted version=%q resolved=%q sha256=%s current version=%q resolved=%q sha256=%s", ErrExecutableIdentityDrift, expected.Version, expected.Executable.Resolved, expected.Executable.SHA256, current.Version, current.Executable.Resolved, current.Executable.SHA256)
+	}
+	return nil
 }
 
 func FormatExecutableIdentity(identity ExecutableIdentity) string {
@@ -233,26 +170,12 @@ func FormatCodexExecutableIdentity(identity CodexExecutableIdentity) string {
 	return fmt.Sprintf("version=%q %s", identity.Version, FormatExecutableIdentity(identity.Executable))
 }
 
-func exactCodexVersion(value string) bool {
-	if value != strings.TrimSpace(value) || !strings.HasPrefix(value, "codex-cli ") || strings.ContainsAny(value, "\x00\r\n<>=*^~|") {
-		return false
-	}
-	version := strings.TrimPrefix(value, "codex-cli ")
-	parts := strings.Split(version, ".")
-	if len(parts) != 3 {
-		return false
-	}
-	for _, part := range parts {
-		if part == "" {
-			return false
-		}
-		for _, r := range part {
-			if r < '0' || r > '9' {
-				return false
-			}
-		}
-	}
-	return true
+func validCodexVersion(value string) bool {
+	return value != "" &&
+		len(value) <= DefaultVersionOutputCap &&
+		utf8.ValidString(value) &&
+		value == strings.TrimSpace(value) &&
+		strings.IndexFunc(value, unicode.IsControl) < 0
 }
 
 func validIdentitySHA256(value string) bool {

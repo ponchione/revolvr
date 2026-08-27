@@ -393,14 +393,20 @@ func TestDiscoverVersion(t *testing.T) {
 		want    string
 		wantErr string
 	}{
-		{name: "success", result: runner.Result{ExitCode: 0, Stdout: "codex-cli 1.2.3\n"}, want: "codex-cli 1.2.3"},
+		{name: "safe future version preserved", result: runner.Result{ExitCode: 0, Stdout: "OpenAI Codex future-2099.7+nightly (rev abc_123)\n"}, want: "OpenAI Codex future-2099.7+nightly (rev abc_123)"},
 		{name: "timeout", result: runner.Result{ExitCode: -1, TimedOut: true, Err: context.DeadlineExceeded}, wantErr: "timed out"},
 		{name: "execution failure", result: runner.Result{ExitCode: -1, Err: errors.New("start failed")}, wantErr: "execution failed"},
 		{name: "nonzero", result: runner.Result{ExitCode: 2, Stderr: "bad version\n"}, wantErr: "exited with code 2: bad version"},
 		{name: "stdout truncation", result: runner.Result{ExitCode: 0, Stdout: "codex-cli", StdoutTruncatedBytes: 4}, wantErr: "output was truncated"},
 		{name: "stderr truncation", result: runner.Result{ExitCode: 0, Stdout: "codex-cli", StderrTruncatedBytes: 4}, wantErr: "output was truncated"},
 		{name: "empty", result: runner.Result{ExitCode: 0, Stdout: " \n"}, wantErr: "version output is empty"},
-		{name: "multiple lines", result: runner.Result{ExitCode: 0, Stdout: "codex-cli 1\nextra\n"}, wantErr: "one well-formed line"},
+		{name: "multiple lines", result: runner.Result{ExitCode: 0, Stdout: "codex-cli 1\nextra\n"}, wantErr: "one bounded normalized line"},
+		{name: "multiple trailing lines", result: runner.Result{ExitCode: 0, Stdout: "codex-cli 1\n\n"}, wantErr: "one bounded normalized line"},
+		{name: "leading whitespace", result: runner.Result{ExitCode: 0, Stdout: " codex-cli 1\n"}, wantErr: "one bounded normalized line"},
+		{name: "trailing whitespace", result: runner.Result{ExitCode: 0, Stdout: "codex-cli 1 \n"}, wantErr: "one bounded normalized line"},
+		{name: "control character", result: runner.Result{ExitCode: 0, Stdout: "codex-cli\t2099\n"}, wantErr: "without control characters"},
+		{name: "invalid UTF-8", result: runner.Result{ExitCode: 0, Stdout: string([]byte{'c', 'o', 'd', 'e', 'x', 0xff, '\n'})}, wantErr: "without control characters"},
+		{name: "unreported overflow", result: runner.Result{ExitCode: 0, Stdout: strings.Repeat("v", DefaultVersionOutputCap+1)}, wantErr: "exceeded"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -433,44 +439,81 @@ func TestDiscoverVersion(t *testing.T) {
 	}
 }
 
-func TestReleaseCodexAllowlist(t *testing.T) {
-	manifest, err := CurrentReleaseManifest()
+func TestInspectCodexAcceptsArbitrarySafeVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "codex")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf '%s\\n' 'Codex development build 2099.42-preview+abcdef'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := InspectCodex(context.Background(), path, t.TempDir(), VersionConfig{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.SchemaVersion != ReleaseManifestSchema || len(manifest.Codex) != 1 {
-		t.Fatalf("release manifest = %+v", manifest)
+	if identity.Version != "Codex development build 2099.42-preview+abcdef" || identity.Executable.Configured != path || identity.Executable.Resolved != path || !validIdentitySHA256(identity.Executable.SHA256) {
+		t.Fatalf("captured identity = %+v", identity)
 	}
-	build := manifest.Codex[0]
-	identity := CodexExecutableIdentity{Version: build.Version, Executable: ExecutableIdentity{Configured: "codex", Resolved: "/opt/revolvr/codex", SHA256: build.SHA256}}
-	if err := manifest.Authorize(identity); err != nil {
-		t.Fatalf("authorize exact release identity: %v", err)
+}
+
+func TestInspectCodexRejectsExecutableDriftDuringVersionDiscovery(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "codex")
+	if err := os.WriteFile(path, []byte("original executable bytes\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, err := InspectCodex(context.Background(), path, t.TempDir(), VersionConfig{CommandRunner: func(context.Context, runner.Command) runner.Result {
+		if writeErr := os.WriteFile(path, []byte("changed executable bytes\n"), 0o755); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+		return runner.Result{ExitCode: 0, Stdout: "Codex future 2099.42\n"}
+	}}, nil)
+	if err == nil || !strings.Contains(err.Error(), "identity drift") {
+		t.Fatalf("InspectCodex() drift error = %v", err)
+	}
+}
+
+func TestRunRejectsReportedVersionDriftBeforeExecution(t *testing.T) {
+	workDir := t.TempDir()
+	path := filepath.Join(t.TempDir(), "codex")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nif [ \"${1:-}\" = \"--version\" ]; then\n  cat \"$0.version\"\n  exit 0\nfi\n: > \"$0.executed\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path+".version", []byte("Codex future 2099.1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := InspectCodex(context.Background(), path, workDir, VersionConfig{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provenance, _, err := PrepareInvocation(InvocationConfig{
+		Executable:            path,
+		WorkingDir:            workDir,
+		Model:                 DefaultModel,
+		ReasoningEffort:       DefaultReasoningEffort,
+		Ephemeral:             true,
+		Artifacts:             ArtifactPaths{StdoutJSONL: "codex.jsonl"},
+		CodexVersion:          identity.Version,
+		EffectiveConfigSchema: "test-effective-config-v1",
+		EffectiveConfigSHA256: strings.Repeat("a", 64),
+		CodexIdentity:         identity,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path+".version", []byte("Codex future 2099.2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	currentExecutable, err := InspectExecutable(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if currentExecutable != identity.Executable {
+		t.Fatalf("test changed executable identity: admitted=%+v current=%+v", identity.Executable, currentExecutable)
 	}
 
-	for _, test := range []struct {
-		name     string
-		identity CodexExecutableIdentity
-	}{
-		{name: "unlisted version", identity: CodexExecutableIdentity{Version: "codex-cli 999.0.0", Executable: identity.Executable}},
-		{name: "different bytes", identity: CodexExecutableIdentity{Version: build.Version, Executable: ExecutableIdentity{Configured: "codex", Resolved: "/opt/revolvr/codex", SHA256: strings.Repeat("f", 64)}}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			if err := manifest.Authorize(test.identity); err == nil || !strings.Contains(err.Error(), "not release-authorized") {
-				t.Fatalf("Authorize(%+v) error = %v", test.identity, err)
-			}
-		})
+	_, err = Run(context.Background(), Config{Executable: path, WorkingDir: workDir, Prompt: "must not run", Artifacts: ArtifactPaths{StdoutJSONL: "codex.jsonl"}, Provenance: provenance})
+	if err == nil || !strings.Contains(err.Error(), "identity drift") || !strings.Contains(err.Error(), "Codex future 2099.1") || !strings.Contains(err.Error(), "Codex future 2099.2") {
+		t.Fatalf("Run() version drift error = %v", err)
 	}
-
-	ranged := manifest
-	ranged.Codex = append([]ReleaseCodexBuild(nil), manifest.Codex...)
-	ranged.Codex[0].Version = "codex-cli >=0.144.4"
-	if err := ranged.Validate(); err == nil || !strings.Contains(err.Error(), "exact Codex CLI version") {
-		t.Fatalf("semantic range manifest error = %v", err)
-	}
-	duplicated := manifest
-	duplicated.Codex = append(duplicated.Codex, duplicated.Codex[0])
-	if err := duplicated.Validate(); err == nil || !strings.Contains(err.Error(), "exactly one Codex build") {
-		t.Fatalf("multi-build first manifest error = %v", err)
+	if _, statErr := os.Stat(path + ".executed"); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("Codex exec ran after version drift: %v", statErr)
 	}
 }
 

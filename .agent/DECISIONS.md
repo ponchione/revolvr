@@ -1,5 +1,53 @@
 # Agent Decisions
 
+## Codex Compatibility Uses Captured Identity, Not A Compiled Allowlist (2026-08-27)
+
+- The embedded single-build Codex release manifest is removed. A configured
+  executable is admitted when it resolves to an executable regular file, its
+  bytes can be hashed without identity change, and `--version` returns one
+  nonempty bounded normalized UTF-8 line without control characters.
+- Admission freezes configured path, resolved path, SHA-256, and exact version.
+  Discovery rechecks the executable after version execution; run admission and
+  execution recheck both bytes/path and reported version. Drift fails closed,
+  preserves the selected task's prior state, and starts no later effect.
+- Release compatibility remains an evidence claim, not runtime policy. Dogfood
+  records the exact Codex identity used and must validate the production
+  invocation/output contract. Changing identity invalidates affected evidence
+  but does not require a Revolvr source change.
+- Invalid Codex receipts are preserved byte-for-byte as private run artifacts
+  with size, SHA-256, and bounded reason. The harness writes a valid replacement
+  receipt with `completed_with_concerns`; it never silently overwrites invalid
+  model evidence or reports it as an unqualified completed verdict.
+- This decision supersedes the active-policy parts of the 2026-07-17 EXT-04
+  release-manifest decision. Historical task and state records remain evidence
+  of the contract that existed when EXT-04 completed.
+
+## Architecture 024 Requires An Operable Real-Project Queue Gate (2026-08-07)
+
+- A completed file dependency is necessary but not sufficient for an
+  architecture task with an explicit phase gate. Architecture 023 satisfies
+  Architecture 024's dependency edge, but Architecture 024 remains blocked
+  until the CLI-first core loop and bounded queue are both trustworthy and
+  fully operable.
+- "Trustworthy and fully operable" includes the Section 23.3 real-project
+  autonomy gate. The deterministic Architecture 022/023 evidence proves
+  bounded behavior and fail-closed recovery contracts, but cannot substitute
+  for approved measured thresholds or qualifying real-project queue runs.
+- The current null threshold, explicit live-dogfood omission, closed
+  `deterministic_evaluation_only` schema, and production refusal without an
+  injected executor are positive fail-closed safety evidence. They are also
+  conclusive evidence that ordinary canonical queue execution is not yet
+  operable for a desktop presentation layer.
+- ADR-020 forbids using the desktop to create unique business logic or to
+  compensate for a missing CLI application service. Therefore Architecture
+  024 may not add a frontend-only queue path, infer lifecycle state, weaken the
+  gate, or hide the production refusal behind UI state.
+- The gate may be reconsidered only from exact real-project baseline evidence:
+  approved numeric thresholds for every Section 23.3 category, qualifying
+  bounded-queue results evaluated against them, and an admitted canonical
+  executor reachable through ordinary `revolvr queue start`. This evidence is
+  separate work and must not be invented or smuggled into the UI task.
+
 ## The Canonical Queue Is Foreground, Sequential, Exact, And Gate-Closed (2026-08-07)
 
 - A queue is one operator-started UUIDv7 operation with immutable canonical

@@ -1,6 +1,6 @@
 ---
 id: architecture-013-openai-structured-output-client
-status: complete
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-012-workspace-lifecycle

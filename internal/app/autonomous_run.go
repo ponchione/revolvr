@@ -34,7 +34,6 @@ import (
 	"revolvr/internal/autonomoustaskrun"
 	"revolvr/internal/autonomousverification"
 	"revolvr/internal/autonomousworkspace"
-	"revolvr/internal/codexexec"
 	"revolvr/internal/gitstate"
 	"revolvr/internal/id"
 	"revolvr/internal/ledger"
@@ -56,7 +55,6 @@ type TaskRunInput struct {
 	Notification        NotificationObserver
 	NotificationRuntime NotificationRuntime
 	idGenerator         func() string
-	releaseManifest     *codexexec.ReleaseManifest
 	failureInjector     taskInterruptionInjector
 }
 
@@ -89,7 +87,7 @@ func RunTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 	if input.Unlimited {
 		return autonomoustaskrun.Result{}, errors.New("external attended-task admission: unlimited cycles are not supported")
 	}
-	effective, err := admitExternalModeWithManifest(ctx, cfg.WorkDir, PreflightModeAttendedTask, maxCycles, input.RunConfig, input.Runner == nil, input.releaseManifest)
+	effective, err := admitExternalMode(ctx, cfg.WorkDir, PreflightModeAttendedTask, maxCycles, input.RunConfig, input.Runner == nil)
 	if err != nil {
 		return autonomoustaskrun.Result{}, err
 	}
@@ -119,7 +117,7 @@ func runTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 	if err != nil {
 		return autonomoustaskrun.Result{}, err
 	}
-	if err := recheckExternalExecutableIdentitiesWithManifest(effective, input.Runner == nil, input.releaseManifest); err != nil {
+	if err := recheckExternalExecutableIdentities(ctx, effective, false); err != nil {
 		return autonomoustaskrun.Result{}, err
 	}
 	fingerprint, err := runonce.FingerprintEffectiveConfig(effective)
@@ -192,7 +190,7 @@ func runTaskUntilTerminal(ctx context.Context, cfg Config, input TaskRunInput) (
 			_ = closeLedger()
 			return autonomoustaskrun.Result{}, prepErr
 		}
-		step = productionStepRunner(productionStepConfig{root: paths.WorkDir, taskID: taskID, operationID: operationID, run: effective, configSchema: fingerprint.Schema, configSHA: fingerprint.SHA256, workspace: workspace, stateStore: stateStore, ledger: store, ledgerPath: paths.LedgerDBPath, redactor: redactor, clock: clock, idGenerator: idGenerator, releaseManifest: input.releaseManifest, failureInjector: input.failureInjector})
+		step = productionStepRunner(productionStepConfig{root: paths.WorkDir, taskID: taskID, operationID: operationID, run: effective, configSchema: fingerprint.Schema, configSHA: fingerprint.SHA256, workspace: workspace, stateStore: stateStore, ledger: store, ledgerPath: paths.LedgerDBPath, redactor: redactor, clock: clock, idGenerator: idGenerator, failureInjector: input.failureInjector})
 	}
 	if closeLedger != nil {
 		defer closeLedger()
@@ -529,7 +527,6 @@ type productionStepConfig struct {
 	redactor                                           *redact.Redactor
 	clock                                              func() time.Time
 	idGenerator                                        func() string
-	releaseManifest                                    *codexexec.ReleaseManifest
 	failureInjector                                    taskInterruptionInjector
 }
 
@@ -560,7 +557,7 @@ func productionStepRunner(p productionStepConfig) autonomoustaskrun.StepRunner {
 				}
 			}
 		}
-		cycleCfg := autonomouscycle.Config{RepositoryRoot: p.root, Workspace: &workspace, TaskID: p.taskID, State: snapshot.State, SafetyDeclaration: p.run.SafetyDeclaration, SourceSafety: autonomouspolicy.SourceSafetySafe, LatestMutation: latestMutation, Verification: verificationEvidence, Audit: auditEvidence, LedgerPath: p.run.LedgerPath, Ledger: p.ledger, CodexExecutable: p.run.CodexExecutable, CodexModel: p.run.CodexModel, CodexReasoningEffort: p.run.CodexReasoningEffort, CodexEphemeral: p.run.CodexEphemeral, CodexSandbox: p.run.CodexSandbox, CodexApprovalPolicy: p.run.CodexApprovalPolicy, CodexBypassApprovalsAndSandbox: p.run.CodexBypassApprovalsAndSandbox, CodexVersion: p.run.CodexIdentity.Version, CodexIdentity: p.run.CodexIdentity, CodexReleaseManifest: p.releaseManifest, EffectiveConfigSchema: p.configSchema, EffectiveConfigSHA256: p.configSHA, CodexTimeout: p.run.CodexTimeout, CodexStdoutCap: p.run.CodexStdoutCap, CodexStderrCap: p.run.CodexStderrCap, GitExecutable: p.run.GitExecutable, GitIdentity: p.run.GitIdentity, GitTimeout: p.run.GitTimeout, GitStdoutCap: p.run.GitStdoutCap, GitStderrCap: p.run.GitStderrCap, VerificationCommands: p.run.VerificationCommands, VerificationPlan: p.run.VerificationPlan, MissingVerificationPolicy: p.run.MissingVerificationPolicy, VerificationTimeout: p.run.VerificationTimeout, VerificationStdoutCap: p.run.VerificationStdoutCap, VerificationStderrCap: p.run.VerificationStderrCap, CommitTimeout: p.run.CommitTimeout, CommitStdoutCap: p.run.CommitStdoutCap, CommitStderrCap: p.run.CommitStderrCap, SourceWriterLockTimeout: p.run.SourceWriterLockTimeout, SourceWriterLockHeartbeatInterval: p.run.SourceWriterLockHeartbeatInterval, SourceWriterLockPID: p.run.SourceWriterLockPID, IDGenerator: p.idGenerator, Clock: p.clock, CommandRunner: autonomouscycle.CommandRunner(commandRunner(p.run))}
+		cycleCfg := autonomouscycle.Config{RepositoryRoot: p.root, Workspace: &workspace, TaskID: p.taskID, State: snapshot.State, SafetyDeclaration: p.run.SafetyDeclaration, SourceSafety: autonomouspolicy.SourceSafetySafe, LatestMutation: latestMutation, Verification: verificationEvidence, Audit: auditEvidence, LedgerPath: p.run.LedgerPath, Ledger: p.ledger, CodexExecutable: p.run.CodexExecutable, CodexModel: p.run.CodexModel, CodexReasoningEffort: p.run.CodexReasoningEffort, CodexEphemeral: p.run.CodexEphemeral, CodexSandbox: p.run.CodexSandbox, CodexApprovalPolicy: p.run.CodexApprovalPolicy, CodexBypassApprovalsAndSandbox: p.run.CodexBypassApprovalsAndSandbox, CodexVersion: p.run.CodexIdentity.Version, CodexIdentity: p.run.CodexIdentity, EffectiveConfigSchema: p.configSchema, EffectiveConfigSHA256: p.configSHA, CodexTimeout: p.run.CodexTimeout, CodexStdoutCap: p.run.CodexStdoutCap, CodexStderrCap: p.run.CodexStderrCap, GitExecutable: p.run.GitExecutable, GitIdentity: p.run.GitIdentity, GitTimeout: p.run.GitTimeout, GitStdoutCap: p.run.GitStdoutCap, GitStderrCap: p.run.GitStderrCap, VerificationCommands: p.run.VerificationCommands, VerificationPlan: p.run.VerificationPlan, MissingVerificationPolicy: p.run.MissingVerificationPolicy, VerificationTimeout: p.run.VerificationTimeout, VerificationStdoutCap: p.run.VerificationStdoutCap, VerificationStderrCap: p.run.VerificationStderrCap, CommitTimeout: p.run.CommitTimeout, CommitStdoutCap: p.run.CommitStdoutCap, CommitStderrCap: p.run.CommitStderrCap, SourceWriterLockTimeout: p.run.SourceWriterLockTimeout, SourceWriterLockHeartbeatInterval: p.run.SourceWriterLockHeartbeatInterval, SourceWriterLockPID: p.run.SourceWriterLockPID, IDGenerator: p.idGenerator, Clock: p.clock, CommandRunner: autonomouscycle.CommandRunner(commandRunner(p.run))}
 		cycleCfg.FailureInjector = func(point autonomouscycle.FailurePoint) error {
 			return injectTaskInterruption(p.failureInjector, taskInterruptionPoint(point))
 		}

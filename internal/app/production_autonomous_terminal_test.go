@@ -27,17 +27,6 @@ import (
 
 func TestProductionAutonomousTerminalMatrix(t *testing.T) {
 	executable := buildStrictFakeCodex(t)
-	executableIdentity, err := codexexec.InspectExecutable(executable, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	releaseManifest := codexexec.ReleaseManifest{
-		SchemaVersion: codexexec.ReleaseManifestSchema,
-		Codex:         []codexexec.ReleaseCodexBuild{{Version: strictFakeCodexVersion, SHA256: executableIdentity.SHA256}},
-	}
-	if err := releaseManifest.Validate(); err != nil {
-		t.Fatal(err)
-	}
 
 	tests := []struct {
 		name                 string
@@ -59,19 +48,19 @@ func TestProductionAutonomousTerminalMatrix(t *testing.T) {
 		wantCycles           int64
 		wantReplayed         bool
 	}{
-		{name: "needs_input", kind: productionTerminalNeedsInput, wantStop: autonomoustaskrun.StopNeedsInput, wantInvocations: 1, wantVersionCalls: 1, wantLifecycle: autonomous.LifecycleStateNeedsInput, wantInputQuestions: 1, wantDetail: "clean", wantCycles: 1},
-		{name: "authorized_block", kind: productionTerminalBlock, wantStop: autonomoustaskrun.StopBlocked, wantInvocations: 1, wantVersionCalls: 1, wantControlStatus: "M .agent/tasks/terminal-authorized-block.md", wantLifecycle: autonomous.LifecycleStateBlocked, wantDetail: "The exact external authority required by the task is unavailable.", wantCycles: 1},
-		{name: "verification_failure", kind: productionTerminalVerificationFailure, wantStop: autonomoustaskrun.StopUnsafeAmbiguous, wantError: true, wantInvocations: 2, wantVersionCalls: 1, wantReceipts: []string{"verification-failure-05.md"}, wantVerification: true, wantWorkspaceStatus: "M docs/result.md", wantLifecycle: autonomous.LifecycleStateReady, wantAttempts: 2, wantDetail: "verification", wantCycles: 1},
-		{name: "no_progress", kind: productionTerminalNoProgress, wantStop: autonomoustaskrun.StopNoProgress, wantInvocations: 3, wantVersionCalls: 1, wantReceipts: []string{"no-progress-05.md"}, wantLifecycle: autonomous.LifecycleStateBlocked, wantAttempts: 2, wantBreaker: autonomous.BreakerIdenticalStrategy, wantDetail: "identical_strategy", wantCycles: 2},
-		{name: "trusted_safety_refusal", kind: productionTerminalSafety, wantStop: autonomoustaskrun.StopSafety, wantInvocations: 1, wantVersionCalls: 1, wantWorkspaceStatus: "?? docs/supervisor-mutated.txt", wantLifecycle: autonomous.LifecycleStateReady, wantDetail: "supervisor decision pass changed repository source", wantCycles: 1},
+		{name: "needs_input", kind: productionTerminalNeedsInput, wantStop: autonomoustaskrun.StopNeedsInput, wantInvocations: 1, wantVersionCalls: 2, wantLifecycle: autonomous.LifecycleStateNeedsInput, wantInputQuestions: 1, wantDetail: "clean", wantCycles: 1},
+		{name: "authorized_block", kind: productionTerminalBlock, wantStop: autonomoustaskrun.StopBlocked, wantInvocations: 1, wantVersionCalls: 2, wantControlStatus: "M .agent/tasks/terminal-authorized-block.md", wantLifecycle: autonomous.LifecycleStateBlocked, wantDetail: "The exact external authority required by the task is unavailable.", wantCycles: 1},
+		{name: "verification_failure", kind: productionTerminalVerificationFailure, wantStop: autonomoustaskrun.StopUnsafeAmbiguous, wantError: true, wantInvocations: 2, wantVersionCalls: 3, wantReceipts: []string{"verification-failure-05.md"}, wantVerification: true, wantWorkspaceStatus: "M docs/result.md", wantLifecycle: autonomous.LifecycleStateReady, wantAttempts: 2, wantDetail: "verification", wantCycles: 1},
+		{name: "no_progress", kind: productionTerminalNoProgress, wantStop: autonomoustaskrun.StopNoProgress, wantInvocations: 3, wantVersionCalls: 4, wantReceipts: []string{"no-progress-05.md"}, wantLifecycle: autonomous.LifecycleStateBlocked, wantAttempts: 2, wantBreaker: autonomous.BreakerIdenticalStrategy, wantDetail: "identical_strategy", wantCycles: 2},
+		{name: "trusted_safety_refusal", kind: productionTerminalSafety, wantStop: autonomoustaskrun.StopSafety, wantInvocations: 1, wantVersionCalls: 2, wantWorkspaceStatus: "?? docs/supervisor-mutated.txt", wantLifecycle: autonomous.LifecycleStateReady, wantDetail: "supervisor decision pass changed repository source", wantCycles: 1},
 		{name: "caller_cancellation", kind: productionTerminalCancellation, wantStop: autonomoustaskrun.StopOperationCancelled, wantError: true, wantVersionCalls: 1, wantLifecycle: autonomous.LifecycleStateReady, wantDetail: context.Canceled.Error(), wantCycles: 1},
-		{name: "restart_exact_durable_authority", kind: productionTerminalRestart, wantStop: autonomoustaskrun.StopNeedsInput, wantInvocations: 1, wantVersionCalls: 2, wantLifecycle: autonomous.LifecycleStateNeedsInput, wantInputQuestions: 1, wantDetail: "clean", wantCycles: 1, wantReplayed: true},
-		{name: "maximum_cycle", kind: productionTerminalMaximumCycle, wantStop: autonomoustaskrun.StopMaxCycles, wantInvocations: 2, wantVersionCalls: 1, wantReceipts: []string{"maximum-cycle-05.md"}, wantVerification: true, wantWorkspaceCommits: 1, wantLifecycle: autonomous.LifecycleStateReady, wantAttempts: 2, wantDetail: "caller-owned maximum cycle limit reached", wantCycles: 1},
+		{name: "restart_exact_durable_authority", kind: productionTerminalRestart, wantStop: autonomoustaskrun.StopNeedsInput, wantInvocations: 1, wantVersionCalls: 3, wantLifecycle: autonomous.LifecycleStateNeedsInput, wantInputQuestions: 1, wantDetail: "clean", wantCycles: 1, wantReplayed: true},
+		{name: "maximum_cycle", kind: productionTerminalMaximumCycle, wantStop: autonomoustaskrun.StopMaxCycles, wantInvocations: 2, wantVersionCalls: 3, wantReceipts: []string{"maximum-cycle-05.md"}, wantVerification: true, wantWorkspaceCommits: 1, wantLifecycle: autonomous.LifecycleStateReady, wantAttempts: 2, wantDetail: "caller-owned maximum cycle limit reached", wantCycles: 1},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := newProductionTerminalFixture(t, executable, releaseManifest, test.kind)
+			fixture := newProductionTerminalFixture(t, executable, test.kind)
 			ctx := context.Background()
 			var cancel context.CancelFunc
 			progress := autonomoustaskrun.Progress(nil)
@@ -143,14 +132,13 @@ type productionTerminalFixture struct {
 	repo, workspace, taskID, operationID string
 	baselineHead, taskBytes              string
 	runConfig                            runonce.Config
-	releaseManifest                      codexexec.ReleaseManifest
 	contract                             strictFakeCodexContract
 	fake                                 strictFakeCodexFixture
 	now                                  time.Time
 	idPrefix                             string
 }
 
-func newProductionTerminalFixture(t *testing.T, executable string, manifest codexexec.ReleaseManifest, kind productionTerminalKind) productionTerminalFixture {
+func newProductionTerminalFixture(t *testing.T, executable string, kind productionTerminalKind) productionTerminalFixture {
 	t.Helper()
 	name := string(kind)
 	taskID := "terminal-" + name
@@ -202,10 +190,10 @@ func newProductionTerminalFixture(t *testing.T, executable string, manifest code
 	idPrefix := name
 	contract := productionTerminalCodexContract(t, repo, workspace, executable, effective, taskID, idPrefix, kind)
 	if kind == productionTerminalRestart {
-		contract.VersionInvocationCount = 2
+		contract.VersionInvocationCount++
 	}
 	fake := configureStrictFakeCodex(t, executable, repo, contract)
-	return productionTerminalFixture{repo: repo, workspace: workspace, taskID: taskID, operationID: operationID, baselineHead: baselineHead, taskBytes: string(task.SourceBytes), runConfig: runCfg, releaseManifest: manifest, contract: contract, fake: fake, now: now, idPrefix: idPrefix}
+	return productionTerminalFixture{repo: repo, workspace: workspace, taskID: taskID, operationID: operationID, baselineHead: baselineHead, taskBytes: string(task.SourceBytes), runConfig: runCfg, contract: contract, fake: fake, now: now, idPrefix: idPrefix}
 }
 
 func (fixture productionTerminalFixture) input(progress autonomoustaskrun.Progress) TaskRunInput {
@@ -229,7 +217,6 @@ func (fixture productionTerminalFixture) input(progress autonomoustaskrun.Progre
 			ids++
 			return fixture.idPrefix + "-" + leftPadTwo(ids)
 		},
-		releaseManifest: &fixture.releaseManifest,
 	}
 }
 
@@ -328,6 +315,7 @@ func productionTerminalCodexContract(t *testing.T, root, workspace, executable s
 	for _, invocation := range contract.Invocations {
 		contract.OutputSequence = append(contract.OutputSequence, invocation.Name+":thread.started", invocation.Name+":turn.completed")
 	}
+	contract.VersionInvocationCount = len(contract.Invocations) + 1
 	return contract
 }
 

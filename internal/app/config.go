@@ -222,20 +222,9 @@ func CheckRunConfig(workDir string) (RunConfigCheckResult, error) {
 		return RunConfigCheckResult{}, err
 	}
 	codexIdentityError := ""
-	codexExecutable, err := codexexec.InspectExecutable(effective.CodexExecutable, exec.LookPath)
-	if err == nil {
-		version, versionErr := codexexec.DiscoverVersion(context.Background(), codexexec.VersionConfig{Executable: codexExecutable.Resolved, WorkingDir: workDir, Timeout: codexexec.DefaultVersionTimeout, StdoutCap: effective.CodexStdoutCap, StderrCap: effective.CodexStderrCap, CommandRunner: codexexec.CommandRunner(runner.Run)})
-		if versionErr != nil {
-			err = versionErr
-		} else {
-			effective.CodexIdentity = codexexec.CodexExecutableIdentity{Version: version, Executable: codexExecutable}
-			manifest, manifestErr := codexexec.CurrentReleaseManifest()
-			if manifestErr != nil {
-				err = manifestErr
-			} else {
-				err = manifest.Authorize(effective.CodexIdentity)
-			}
-		}
+	effective.CodexIdentity, err = codexexec.InspectCodex(context.Background(), effective.CodexExecutable, workDir, codexexec.VersionConfig{Timeout: codexexec.DefaultVersionTimeout, StdoutCap: effective.CodexStdoutCap, StderrCap: effective.CodexStderrCap, CommandRunner: codexexec.CommandRunner(runner.Run)}, exec.LookPath)
+	if err != nil {
+		effective.CodexIdentity = codexexec.CodexExecutableIdentity{}
 	}
 	if err != nil {
 		codexIdentityError = err.Error()

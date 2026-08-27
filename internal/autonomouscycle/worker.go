@@ -271,13 +271,12 @@ func runWorker(
 			Stderr:      paths.codexStderr,
 			LastMessage: paths.output,
 		},
-		OutputSchema:    paths.outputSchema,
-		RunID:           workerRunID,
-		Ledger:          n.Ledger,
-		CommandRunner:   codexexec.CommandRunner(n.CommandRunner),
-		Provenance:      invocation,
-		ReleaseManifest: n.CodexReleaseManifest,
-		Redactor:        n.redactor,
+		OutputSchema:  paths.outputSchema,
+		RunID:         workerRunID,
+		Ledger:        n.Ledger,
+		CommandRunner: codexexec.CommandRunner(n.CommandRunner),
+		Provenance:    invocation,
+		Redactor:      n.redactor,
 	})
 	if codexErr != nil {
 		if codexResult.ExitCode == 0 {

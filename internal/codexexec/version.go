@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode"
 
 	"revolvr/internal/runner"
 )
@@ -30,13 +29,13 @@ func DiscoverVersion(ctx context.Context, cfg VersionConfig) (string, error) {
 	if executable == "" {
 		executable = DefaultExecutable
 	}
-	if cfg.Timeout <= 0 {
+	if cfg.Timeout <= 0 || cfg.Timeout > DefaultVersionTimeout {
 		cfg.Timeout = DefaultVersionTimeout
 	}
-	if cfg.StdoutCap <= 0 {
+	if cfg.StdoutCap <= 0 || cfg.StdoutCap > DefaultVersionOutputCap {
 		cfg.StdoutCap = DefaultVersionOutputCap
 	}
-	if cfg.StderrCap <= 0 {
+	if cfg.StderrCap <= 0 || cfg.StderrCap > DefaultVersionOutputCap {
 		cfg.StderrCap = DefaultVersionOutputCap
 	}
 	if cfg.CommandRunner == nil {
@@ -67,16 +66,21 @@ func DiscoverVersion(ctx context.Context, cfg VersionConfig) (string, error) {
 		return "", fmt.Errorf("discover Codex version with %q: command exited with code %d: %s", executable, result.ExitCode, detail)
 	case result.StdoutTruncatedBytes > 0 || result.StderrTruncatedBytes > 0:
 		return "", fmt.Errorf("discover Codex version with %q: output was truncated (stdout=%d bytes, stderr=%d bytes)", executable, result.StdoutTruncatedBytes, result.StderrTruncatedBytes)
+	case len(result.Stdout) > cfg.StdoutCap:
+		return "", fmt.Errorf("discover Codex version with %q: version output exceeded the %d-byte limit", executable, cfg.StdoutCap)
 	}
 
-	version := strings.TrimSpace(result.Stdout)
-	if version == "" {
+	version := result.Stdout
+	if strings.HasSuffix(version, "\r\n") {
+		version = strings.TrimSuffix(version, "\r\n")
+	} else {
+		version = strings.TrimSuffix(version, "\n")
+	}
+	if strings.TrimSpace(version) == "" {
 		return "", fmt.Errorf("discover Codex version with %q: version output is empty", executable)
 	}
-	if strings.ContainsAny(version, "\r\n") || strings.IndexFunc(version, func(r rune) bool {
-		return unicode.IsControl(r) && r != '\t'
-	}) >= 0 {
-		return "", fmt.Errorf("discover Codex version with %q: version output must be one well-formed line", executable)
+	if !validCodexVersion(version) {
+		return "", fmt.Errorf("discover Codex version with %q: version output must be one bounded normalized line without control characters", executable)
 	}
 	return version, nil
 }

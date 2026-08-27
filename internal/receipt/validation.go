@@ -267,9 +267,13 @@ func checkReceiptArtifacts(workDir string, receiptPath string, receiptAbsPath st
 		{label: "codex stderr", path: artifacts.CodexStderrPath},
 		{label: "last message", path: artifacts.LastMessagePath},
 		{label: "receipt", path: artifacts.ReceiptPath},
+		{label: "invalid receipt", path: artifacts.InvalidReceiptPath},
 	} {
 		path := strings.TrimSpace(artifact.path)
 		if path == "" {
+			if artifact.label == "invalid receipt" {
+				continue
+			}
 			details = append(details, fmt.Sprintf("%s artifact path is missing", artifact.label))
 			continue
 		}

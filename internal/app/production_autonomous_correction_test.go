@@ -67,17 +67,6 @@ func TestProductionAutonomousCorrectionAndReaudit(t *testing.T) {
 	}
 
 	executable := buildStrictFakeCodex(t)
-	executableIdentity, err := codexexec.InspectExecutable(executable, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	releaseManifest := codexexec.ReleaseManifest{
-		SchemaVersion: codexexec.ReleaseManifestSchema,
-		Codex:         []codexexec.ReleaseCodexBuild{{Version: strictFakeCodexVersion, SHA256: executableIdentity.SHA256}},
-	}
-	if err := releaseManifest.Validate(); err != nil {
-		t.Fatal(err)
-	}
 	runCfg := DefaultRunOnceConfig(repo)
 	runCfg.CodexExecutable = executable
 	runCfg.CodexTimeout = 10 * time.Second
@@ -113,7 +102,6 @@ func TestProductionAutonomousCorrectionAndReaudit(t *testing.T) {
 			ids++
 			return "correction-" + leftPadTwo(ids)
 		},
-		releaseManifest: &releaseManifest,
 	})
 	if err != nil {
 		t.Fatalf("RunTaskUntilTerminal() error = %v; result=%+v; strict fake=%+v", err, result, fixture.loadState(t))
@@ -130,7 +118,7 @@ func TestProductionAutonomousCorrectionAndReaudit(t *testing.T) {
 	if ids != 24 {
 		t.Fatalf("production ID calls = %d, want 24", ids)
 	}
-	wantFakeState := strictFakeCodexState{SchemaVersion: strictFakeCodexStateSchema, VersionInvocations: 1, NextInvocation: 7, OutputSequence: append([]string(nil), contract.OutputSequence...)}
+	wantFakeState := strictFakeCodexState{SchemaVersion: strictFakeCodexStateSchema, VersionInvocations: contract.VersionInvocationCount, NextInvocation: 7, OutputSequence: append([]string(nil), contract.OutputSequence...)}
 	if got := fixture.loadState(t); !reflect.DeepEqual(got, wantFakeState) {
 		t.Fatalf("strict fake state = %+v, want %+v", got, wantFakeState)
 	}
@@ -369,7 +357,7 @@ func productionCorrectionCodexContract(t *testing.T, root, workspace, executable
 		{name: "clean-reaudit-worker", runID: "correction-18", action: autonomous.ActionAudit, message: cleanAuditOutput},
 		{name: "complete-supervisor", runID: "correction-23", supervisor: true, message: decisionJSON(complete)},
 	}
-	contract := strictFakeCodexContract{VersionInvocationCount: 1}
+	contract := strictFakeCodexContract{}
 	for index, spec := range specs {
 		invocation := strictFakeCodexInvocation{Name: spec.name, WorkingDirectory: workspace, LastMessage: spec.message, Writes: spec.writes}
 		base := filepath.ToSlash(filepath.Join(".revolvr", "runs", spec.runID))
@@ -398,6 +386,7 @@ func productionCorrectionCodexContract(t *testing.T, root, workspace, executable
 		contract.Invocations = append(contract.Invocations, invocation)
 		contract.OutputSequence = append(contract.OutputSequence, spec.name+":thread.started", spec.name+":turn.completed")
 	}
+	contract.VersionInvocationCount = len(contract.Invocations) + 1
 	return contract
 }
 

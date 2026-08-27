@@ -6,9 +6,17 @@
   `.agent/tasks/architecture-001` through `architecture-025`, with the approved
   compatibility task `architecture-016a` inserted between 016 and 017.
 - Architecture tasks 001-023 and planning task PTC-001 are completed.
-- The next and only dependency-satisfied pending task is
-  `architecture-024-ui`; its architecture-023 prerequisite is complete.
-- Architecture 025 remains ordered behind Architecture 024.
+- `architecture-024-ui` was the only dependency-satisfied pending task at the
+  start of its 2026-08-07 gate-revalidation pass. It is now blocked because
+  the Section 23.3 real-project quality threshold remains unset and ordinary
+  canonical `queue start` is deliberately unavailable without an injected
+  executor. A complete file dependency does not satisfy its Phase 9 gate.
+- Architecture 025 remains ordered behind the blocked Architecture 024.
+- The 2026-08-27 attended-runtime compatibility and receipt-evidence
+  reconciliation is complete maintenance, not a new architecture selector. It
+  also normalized the two obsolete `complete` task statuses and restored
+  canonical graph loading. It does not satisfy or weaken the Architecture 024
+  phase gate.
 - Architecture 023 was completed without selecting or beginning Architecture
   024 in the same pass.
 - The legacy external-readiness backlog below is deferred while this canonical
@@ -50,9 +58,11 @@
   PostgreSQL queue is foreground-only, pins `direct_tools_v1`, admits exactly
   one global source-mutating worker, and remains closed to real-project starts
   while the Section 23.3 measured threshold is unset.
-- [ ] Architecture 024 — add the desktop operator UI. **Next and only
-  dependency-satisfied pending task; it was not begun in the Architecture 023
-  pass.**
+- [ ] Architecture 024 — add the desktop operator UI. **Blocked at its Phase 9
+  gate: Section 23.3 has no approved measured real-project thresholds, the
+  deterministic baseline explicitly omits live dogfood, and ordinary
+  `revolvr queue start` fails closed without an injected executor. No UI,
+  local API, SSE, dependency, or frontend work has begun.**
 - Architecture 025 — pending behind Architecture 024; do not select a
   successor in the same pass.
 
@@ -147,6 +157,10 @@ Graphiti gate.
 
 - [x] EXT-04 — Add release-authored executable identity authority for external
   autonomous admission.
+  - Superseded on 2026-08-27: the embedded single-build allowlist was removed.
+    Current admission captures and repeatedly verifies the configured path,
+    resolved path, SHA-256, and bounded single-line version. Exact identities
+    belong in qualification evidence rather than compiled runtime policy.
   - Acceptance: The release manifest lists exact Codex CLI version strings and
     resolved executable SHA-256 values; the first manifest may contain exactly
     one Codex build. Preflight and execution reject an unlisted version,
@@ -1161,4 +1175,8 @@ test history is preserved in Git.
 
 ## Blocked
 
-None.
+- Architecture 024 — dependency-satisfied but not phase-gate-satisfied. Resume
+  only after separately authorized real-project evidence establishes and
+  passes approved Section 23.3 thresholds and the canonical production queue
+  is fully operable from the ordinary CLI without test injection. Until then
+  there is no legally selectable task in the active architecture sequence.

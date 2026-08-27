@@ -27,17 +27,6 @@ import (
 
 func TestProductionTaskInterruptionRecoveryMatrix(t *testing.T) {
 	executable := buildStrictFakeCodex(t)
-	executableIdentity, err := codexexec.InspectExecutable(executable, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	releaseManifest := codexexec.ReleaseManifest{
-		SchemaVersion: codexexec.ReleaseManifestSchema,
-		Codex:         []codexexec.ReleaseCodexBuild{{Version: strictFakeCodexVersion, SHA256: executableIdentity.SHA256}},
-	}
-	if err := releaseManifest.Validate(); err != nil {
-		t.Fatal(err)
-	}
 
 	points := []struct {
 		name  string
@@ -60,7 +49,7 @@ func TestProductionTaskInterruptionRecoveryMatrix(t *testing.T) {
 	}
 	for _, test := range points {
 		t.Run("task_"+test.name, func(t *testing.T) {
-			fixture := newProductionInterruptionFixture(t, executable, releaseManifest)
+			fixture := newProductionInterruptionFixture(t, executable)
 			input := fixture.input
 			input.failureInjector = func(point taskInterruptionPoint) error {
 				if point == test.point {
@@ -116,7 +105,7 @@ func TestProductionTaskInterruptionRecoveryMatrix(t *testing.T) {
 
 	for _, point := range []autonomousarchive.FailurePoint{autonomousarchive.FailureBeforeManifestPublish, autonomousarchive.FailureAfterManifestPublish} {
 		t.Run("archive_"+string(point), func(t *testing.T) {
-			testProductionArchiveInterruption(t, executable, releaseManifest, point)
+			testProductionArchiveInterruption(t, executable, point)
 		})
 	}
 }
@@ -151,7 +140,7 @@ type productionInterruptionFixture struct {
 	fake                                           strictFakeCodexFixture
 }
 
-func newProductionInterruptionFixture(t *testing.T, executable string, releaseManifest codexexec.ReleaseManifest) productionInterruptionFixture {
+func newProductionInterruptionFixture(t *testing.T, executable string) productionInterruptionFixture {
 	t.Helper()
 	const taskID = "production-interruption"
 	const operationID = "production-interruption-operation"
@@ -219,7 +208,6 @@ func newProductionInterruptionFixture(t *testing.T, executable string, releaseMa
 	}
 	workspace := productionHappyWorkspaceRoot(t, root, taskID)
 	contract := productionHappyCodexContract(t, root, workspace, executable, effective, taskID)
-	contract.VersionInvocationCount = 1
 	fake := configureStrictFakeCodex(t, executable, root, contract)
 	ids := 0
 	clockTicks := int64(-1)
@@ -233,7 +221,6 @@ func newProductionInterruptionFixture(t *testing.T, executable string, releaseMa
 			ids++
 			return "happy-" + leftPadTwo(ids)
 		},
-		releaseManifest: &releaseManifest,
 	}
 	return productionInterruptionFixture{root: root, workspace: workspace, taskID: taskID, operationID: operationID, baseline: baseline, now: now, input: input, fake: fake}
 }
@@ -477,9 +464,9 @@ verification:
 	}
 }
 
-func testProductionArchiveInterruption(t *testing.T, executable string, releaseManifest codexexec.ReleaseManifest, point autonomousarchive.FailurePoint) {
+func testProductionArchiveInterruption(t *testing.T, executable string, point autonomousarchive.FailurePoint) {
 	t.Helper()
-	fixture := newProductionInterruptionFixture(t, executable, releaseManifest)
+	fixture := newProductionInterruptionFixture(t, executable)
 	completed, err := RunTaskUntilTerminal(context.Background(), Config{WorkDir: fixture.root}, fixture.input)
 	if err != nil || completed.StopReason != autonomoustaskrun.StopCompleted {
 		t.Fatalf("prepare completed task result=%+v err=%v", completed, err)

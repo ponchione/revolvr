@@ -3,6 +3,7 @@ package runonce
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -124,31 +125,38 @@ type Config struct {
 }
 
 type Result struct {
-	Outcome            Outcome
-	Message            string
-	WorkingDir         string
-	NoTask             bool
-	Task               taskmodel.Task
-	FileTask           taskfile.Task
-	Run                ledger.Run
-	Receipt            receipt.Receipt
-	ReceiptPath        string
-	ReceiptRelPath     string
-	ReceiptSynthesized bool
-	ReceiptError       string
-	PreRunDirty        gitstate.Capture
-	PostRunChanged     gitstate.Capture
-	Codex              codexexec.Result
-	Verification       verification.Result
-	Commit             commit.Result
-	ReceiptWarnings    []ReceiptWarning
-	LedgerError        error
-	Schedule           taskscheduler.Result
+	Outcome                Outcome
+	Message                string
+	WorkingDir             string
+	NoTask                 bool
+	Task                   taskmodel.Task
+	FileTask               taskfile.Task
+	Run                    ledger.Run
+	Receipt                receipt.Receipt
+	ReceiptPath            string
+	ReceiptRelPath         string
+	ReceiptSynthesized     bool
+	ReceiptError           string
+	InvalidReceiptPath     string
+	InvalidReceiptRelPath  string
+	InvalidReceiptByteSize int
+	InvalidReceiptSHA256   string
+	InvalidReceiptReason   string
+	PreRunDirty            gitstate.Capture
+	PostRunChanged         gitstate.Capture
+	Codex                  codexexec.Result
+	Verification           verification.Result
+	Commit                 commit.Result
+	ReceiptWarnings        []ReceiptWarning
+	LedgerError            error
+	Schedule               taskscheduler.Result
 
 	phasePolicy            passpolicy.Policy
 	phaseTransitionApplied bool
 	selectedFileTask       taskfile.Task
 	changedCaptureError    string
+	startedAt              time.Time
+	preserveTaskState      bool
 }
 
 func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
@@ -163,7 +171,7 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	if err != nil {
 		return Result{}, err
 	}
-	result = Result{WorkingDir: workDir}
+	result = Result{WorkingDir: workDir, startedAt: cfg.Clock()}
 	runID := id.New()
 
 	sourceLease, err := cfg.SourceLockAcquirer(ctx, lock.Config{
@@ -279,6 +287,9 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		LastMessagePath:      paths.lastMessageRel,
 		ReceiptPath:          paths.receiptRel,
 	})
+	if err := verifyAdmittedExecutableIdentities(ctx, cfg); err != nil {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "Git state capture", err)
+	}
 
 	preRunDirty, err := cfg.DirtyCapture(ctx, gitConfig(cfg, workDir))
 	if err != nil {
@@ -311,21 +322,24 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		result.Message = "load run profile failed: " + err.Error()
 		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
 	}
-	versionTimeout := codexexec.DefaultVersionTimeout
-	if cfg.CodexTimeout > 0 && cfg.CodexTimeout < versionTimeout {
-		versionTimeout = cfg.CodexTimeout
-	}
-	codexVersion, err := cfg.CodexVersionDiscoverer(ctx, codexexec.VersionConfig{
-		Executable:    cfg.CodexExecutable,
-		WorkingDir:    workDir,
-		Timeout:       versionTimeout,
-		StdoutCap:     cfg.CodexStdoutCap,
-		StderrCap:     cfg.CodexStderrCap,
-		CommandRunner: codexCommandRunner(cfg.CommandRunner),
-	})
-	if err != nil {
-		result.Message = "discover Codex version failed: " + err.Error()
-		return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+	codexVersion := cfg.CodexIdentity.Version
+	if codexVersion == "" {
+		versionTimeout := codexexec.DefaultVersionTimeout
+		if cfg.CodexTimeout > 0 && cfg.CodexTimeout < versionTimeout {
+			versionTimeout = cfg.CodexTimeout
+		}
+		codexVersion, err = cfg.CodexVersionDiscoverer(ctx, codexexec.VersionConfig{
+			Executable:    cfg.CodexExecutable,
+			WorkingDir:    workDir,
+			Timeout:       versionTimeout,
+			StdoutCap:     cfg.CodexStdoutCap,
+			StderrCap:     cfg.CodexStderrCap,
+			CommandRunner: codexCommandRunner(cfg.CommandRunner),
+		})
+		if err != nil {
+			result.Message = "discover Codex version failed: " + err.Error()
+			return finish(ctx, cfg, ledgerStore, &result, OutcomeBlocked, receipt.VerdictBlocked, "not_run", "")
+		}
 	}
 	invocation, _, err := codexexec.PrepareInvocation(codexexec.InvocationConfig{
 		Executable:             cfg.CodexExecutable,
@@ -344,6 +358,8 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		CodexVersion:          codexVersion,
 		EffectiveConfigSchema: effectiveConfig.Schema,
 		EffectiveConfigSHA256: effectiveConfig.SHA256,
+		CodexIdentity:         cfg.CodexIdentity,
+		GitIdentity:           cfg.GitIdentity,
 	})
 	if err != nil {
 		result.Message = "prepare Codex invocation failed: " + err.Error()
@@ -404,6 +420,9 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		"receipt_path":              paths.receiptRel,
 		"invocation":                invocation,
 	})
+	if err := verifyAdmittedExecutableIdentities(ctx, cfg); err != nil {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "Codex execution", err)
+	}
 
 	codexResult, err := cfg.CodexRunner(ctx, codexexec.Config{
 		Executable:                cfg.CodexExecutable,
@@ -436,10 +455,16 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		codexResult.Err = err
 	}
 	result.Codex = codexResult
+	if errors.Is(err, codexexec.ErrExecutableIdentityDrift) {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "Codex execution", err)
+	}
 	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
 		return finishSourceOwnership(cfg, ledgerStore, &result, errors.Join(err, codexResult.Err, ownershipErr))
 	}
 
+	if err := verifyAdmittedExecutableIdentities(ctx, cfg); err != nil {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "changed-file capture", err)
+	}
 	captureAndRecordChangedFiles(ctx, cfg, ledgerStore, &result, workDir)
 
 	ensureRunReceipt(ctx, cfg, ledgerStore, &result, receipt.VerdictCompletedWithConcerns, "not_run", nil, "", codexResult.FinalMessage)
@@ -457,6 +482,9 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	}
 	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
 		return finishSourceOwnership(cfg, ledgerStore, &result, ownershipErr)
+	}
+	if err := verifyAdmittedExecutableIdentities(ctx, cfg); err != nil {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "verification", err)
 	}
 
 	verificationResult, err := cfg.VerificationRunner(ctx, verification.Config{
@@ -512,6 +540,9 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
 		return finishSourceOwnership(cfg, ledgerStore, &result, ownershipErr)
 	}
+	if err := verifyAdmittedExecutableIdentities(ctx, cfg); err != nil {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "task transition", err)
+	}
 
 	updatedFileTask, err := applyPolicyTransition(workDir, result.selectedFileTask, policy)
 	if err != nil {
@@ -521,6 +552,9 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	result.FileTask = updatedFileTask
 	result.Task = taskFromFileTask(updatedFileTask)
 	result.phaseTransitionApplied = true
+	if err := verifyAdmittedExecutableIdentities(ctx, cfg); err != nil {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "post-transition Git state capture", err)
+	}
 	captureAndRecordChangedFiles(ctx, cfg, ledgerStore, &result, workDir)
 	if result.PostRunChanged.CaptureError != "" {
 		result.Commit = gitStateCaptureRefusal(result.PostRunChanged.CaptureError)
@@ -529,6 +563,9 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 	}
 	if ownershipErr := sourceOwnershipError(ctx, cfg); ownershipErr != nil {
 		return finishSourceOwnership(cfg, ledgerStore, &result, ownershipErr)
+	}
+	if err := verifyAdmittedExecutableIdentities(ctx, cfg); err != nil {
+		return finishIdentityFailure(ctx, cfg, ledgerStore, &result, "commit", err)
 	}
 
 	commitResult, err := cfg.CommitRunner(ctx, commit.Config{
@@ -541,7 +578,7 @@ func Run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		PreRunDirty:              &result.PreRunDirty,
 		PostRunChanged:           &result.PostRunChanged,
 		AllowMissingVerification: cfg.AllowMissingVerification,
-		GitExecutable:            cfg.GitExecutable,
+		GitExecutable:            admittedGitExecutable(cfg),
 		Timeout:                  cfg.CommitTimeout,
 		StdoutCap:                cfg.CommitStdoutCap,
 		StderrCap:                cfg.CommitStderrCap,
@@ -960,7 +997,7 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 	var taskUpdateError string
 	var taskRestageError string
 	taskRestageApplied := false
-	if result.selectedFileTask.SourcePath != "" && outcome != OutcomeCommitted {
+	if result.selectedFileTask.SourcePath != "" && outcome != OutcomeCommitted && !result.preserveTaskState {
 		updatedFileTask, err := blockTaskAfterFailedRun(cfg.WorkingDir, result)
 		if err != nil {
 			taskUpdateError = err.Error()
@@ -999,6 +1036,9 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 
 	parsedReceipt := result.Receipt
 	receiptWasSynthesized := result.ReceiptSynthesized
+	if outcome == OutcomeCommitted && result.ReceiptSynthesized {
+		verdict = receipt.VerdictCompletedWithConcerns
+	}
 	entries := verificationEntries(result.Verification)
 	files := changedFiles(result.PostRunChanged)
 	finalizeRunReceipt(ctx, cfg, runs, result, verdict, verificationStatus, entries, commitSHA, result.Message, completedAt)
@@ -1071,6 +1111,45 @@ func finish(ctx context.Context, cfg Config, runs *ledger.Store, result *Result,
 	}
 	appendEvent(ctx, result, runs, result.Run.ID, eventType, payload)
 	return *result, finishErr
+}
+
+func finishIdentityFailure(ctx context.Context, cfg Config, runs *ledger.Store, result *Result, stage string, identityErr error) (Result, error) {
+	result.Message = fmt.Sprintf("executable identity verification before %s failed: %v", stage, identityErr)
+	verificationState := "not_run"
+	if result.Verification.Status != "" || len(result.Verification.Commands) != 0 || result.Verification.MissingCommands {
+		verificationState = verificationStatus(result.Verification)
+	}
+	if result.phaseTransitionApplied {
+		restored, err := taskfile.UpdateMetadataFromSnapshot(cfg.WorkingDir, result.selectedFileTask, taskfile.MetadataUpdate{Status: result.selectedFileTask.Status, Phase: result.selectedFileTask.Phase})
+		if err != nil {
+			result.Message += "; restore selected task after identity failure failed: " + err.Error()
+			return finish(ctx, cfg, runs, result, OutcomeBlocked, receipt.VerdictBlocked, verificationState, "")
+		}
+		result.FileTask = restored
+		result.Task = taskFromFileTask(restored)
+		result.phaseTransitionApplied = false
+	}
+	result.preserveTaskState = true
+	return finish(ctx, cfg, runs, result, OutcomeBlocked, receipt.VerdictBlocked, verificationState, "")
+}
+
+func verifyAdmittedExecutableIdentities(ctx context.Context, cfg Config) error {
+	if cfg.GitIdentity != (codexexec.ExecutableIdentity{}) {
+		if err := codexexec.VerifyExecutableIdentity(cfg.GitIdentity, nil); err != nil {
+			return fmt.Errorf("Git: %w", err)
+		}
+	}
+	if cfg.CodexIdentity != (codexexec.CodexExecutableIdentity{}) {
+		if err := codexexec.VerifyCodexIdentity(ctx, cfg.CodexIdentity, cfg.WorkingDir, codexexec.VersionConfig{
+			Timeout:       cfg.CodexTimeout,
+			StdoutCap:     cfg.CodexStdoutCap,
+			StderrCap:     cfg.CodexStderrCap,
+			CommandRunner: codexCommandRunner(cfg.CommandRunner),
+		}, nil); err != nil {
+			return fmt.Errorf("Codex: %w", err)
+		}
+	}
+	return nil
 }
 
 func sourceOwnershipError(ctx context.Context, cfg Config) error {
@@ -1175,7 +1254,7 @@ func stageRestoredTask(ctx context.Context, cfg Config, sourcePath string) error
 	if commandRunner == nil {
 		commandRunner = runner.Run
 	}
-	executable := strings.TrimSpace(cfg.GitExecutable)
+	executable := admittedGitExecutable(cfg)
 	if executable == "" {
 		executable = "git"
 	}
@@ -1225,7 +1304,7 @@ func ensureRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, resul
 		return
 	}
 	if !result.ReceiptSynthesized {
-		parsed, parseErr := parseReceiptFile(ctx, result.ReceiptPath, result.Codex.Artifacts.StdoutJSONL)
+		parsed, original, parseErr := parseReceiptFile(ctx, result.ReceiptPath, result.Codex.Artifacts.StdoutJSONL)
 		if parseErr == nil && receiptMatches(parsed, result.Run.ID, result.Task.ID) {
 			result.Receipt = parsed
 			appendEvent(ctx, result, runs, result.Run.ID, ledger.EventReceiptParsed, map[string]any{
@@ -1235,10 +1314,16 @@ func ensureRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, resul
 			return
 		}
 		if parseErr != nil && !errors.Is(parseErr, os.ErrNotExist) {
-			result.ReceiptError = parseErr.Error()
+			result.ReceiptError = boundedReceiptReason(parseErr.Error())
 		}
 		if parseErr == nil {
 			result.ReceiptError = "receipt identifiers did not match the selected run"
+		}
+		if original != nil {
+			if err := preserveInvalidReceipt(result, original, result.ReceiptError); err != nil {
+				result.ReceiptError = err.Error()
+				return
+			}
 		}
 	}
 
@@ -1253,6 +1338,7 @@ func finalizeRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, res
 	if result.Codex.UsageFound {
 		metrics = result.Codex.Usage
 	}
+	metrics.DurationSeconds = max(metrics.DurationSeconds, elapsedSeconds(result.startedAt, timestamp))
 
 	content, err := os.ReadFile(result.ReceiptPath)
 	if err == nil {
@@ -1289,6 +1375,17 @@ func finalizeRunReceipt(ctx context.Context, cfg Config, runs *ledger.Store, res
 }
 
 func writeFallbackReceipt(ctx context.Context, runs *ledger.Store, result *Result, verdict receipt.Verdict, verificationStatus string, verificationEntries []receipt.VerificationEntry, commitSHA string, finalText string, timestamp time.Time) {
+	if !result.ReceiptSynthesized && result.InvalidReceiptSHA256 == "" {
+		if _, err := os.Stat(result.ReceiptPath); err == nil {
+			result.ReceiptError = "refusing to replace an unpreserved invalid receipt"
+			return
+		} else if !errors.Is(err, os.ErrNotExist) {
+			result.ReceiptError = err.Error()
+			return
+		}
+	}
+	metrics := result.Codex.Usage
+	metrics.DurationSeconds = max(metrics.DurationSeconds, elapsedSeconds(result.startedAt, timestamp))
 	content, parsed := receipt.FormatFallbackReceipt(receipt.FallbackInput{
 		RunID:              result.Run.ID,
 		PassID:             result.Run.ID,
@@ -1301,8 +1398,9 @@ func writeFallbackReceipt(ctx context.Context, runs *ledger.Store, result *Resul
 		CommitSHA:          commitSHA,
 		ChangedFiles:       changedFiles(result.PostRunChanged),
 		Verification:       verificationEntries,
-		Metrics:            result.Codex.Usage,
+		Metrics:            metrics,
 		FinalText:          finalText,
+		InvalidReceipt:     result.InvalidReceiptSHA256 != "",
 	})
 	if err := writeTextFile(result.ReceiptPath, content, 0o644); err != nil {
 		result.ReceiptError = err.Error()
@@ -1311,34 +1409,70 @@ func writeFallbackReceipt(ctx context.Context, runs *ledger.Store, result *Resul
 	result.Receipt = parsed
 	result.ReceiptSynthesized = true
 	appendEvent(ctx, result, runs, result.Run.ID, ledger.EventReceiptSynthesized, map[string]any{
-		"receipt_path": result.ReceiptRelPath,
-		"verdict":      parsed.Verdict,
-		"reason":       result.ReceiptError,
+		"receipt_path":              result.ReceiptRelPath,
+		"verdict":                   parsed.Verdict,
+		"reason":                    result.ReceiptError,
+		"invalid_receipt_path":      result.InvalidReceiptRelPath,
+		"invalid_receipt_byte_size": result.InvalidReceiptByteSize,
+		"invalid_receipt_sha256":    result.InvalidReceiptSHA256,
+		"invalid_receipt_reason":    result.InvalidReceiptReason,
 	})
 }
 
-func parseReceiptFile(ctx context.Context, path string, codexJSONLPath string) (receipt.Receipt, error) {
+func parseReceiptFile(ctx context.Context, path string, codexJSONLPath string) (receipt.Receipt, []byte, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return receipt.Receipt{}, err
+		return receipt.Receipt{}, nil, err
 	}
 	parsed, err := receipt.Parse(content)
 	if err != nil {
-		return receipt.Receipt{}, err
+		return receipt.Receipt{}, content, err
 	}
 	if strings.TrimSpace(codexJSONLPath) == "" {
-		return parsed, nil
+		return parsed, content, nil
 	}
 	updated, reparsed, changed, err := receipt.RewriteMetricsFromCodexJSONLFile(ctx, content, codexJSONLPath)
 	if err != nil {
-		return parsed, nil
+		return parsed, content, nil
 	}
 	if changed {
 		if writeErr := writeTextFile(path, string(updated), 0o644); writeErr != nil {
-			return receipt.Receipt{}, writeErr
+			return receipt.Receipt{}, content, writeErr
 		}
 	}
-	return reparsed, nil
+	return reparsed, content, nil
+}
+
+func preserveInvalidReceipt(result *Result, content []byte, reason string) error {
+	reason = boundedReceiptReason(reason)
+	if reason == "" {
+		reason = "receipt identifiers did not match the selected run"
+	}
+	result.InvalidReceiptRelPath = newRunPaths(result.Run.ID).invalidReceiptRel
+	result.InvalidReceiptPath = filepath.Join(result.WorkingDir, result.InvalidReceiptRelPath)
+	if err := writeBytesFile(result.InvalidReceiptPath, content, 0o600); err != nil {
+		return fmt.Errorf("preserve invalid receipt: %w", err)
+	}
+	sum := sha256.Sum256(content)
+	result.InvalidReceiptByteSize = len(content)
+	result.InvalidReceiptSHA256 = fmt.Sprintf("%x", sum)
+	result.InvalidReceiptReason = reason
+	return nil
+}
+
+func boundedReceiptReason(reason string) string {
+	return truncateRunes(singleLine(reason), 500)
+}
+
+func elapsedSeconds(startedAt, completedAt time.Time) int {
+	if startedAt.IsZero() || !completedAt.After(startedAt) {
+		return 0
+	}
+	seconds := int(completedAt.Sub(startedAt) / time.Second)
+	if seconds == 0 {
+		return 1
+	}
+	return seconds
 }
 
 func appendEvent(ctx context.Context, result *Result, runs *ledger.Store, runID string, eventType ledger.EventType, payload any) {
@@ -1363,6 +1497,7 @@ type runPaths struct {
 	stderrRel          string
 	lastMessageRel     string
 	receiptRel         string
+	invalidReceiptRel  string
 }
 
 func newRunPaths(runID string) runPaths {
@@ -1375,18 +1510,26 @@ func newRunPaths(runID string) runPaths {
 		stderrRel:          filepath.Join(runDir, "codex.stderr"),
 		lastMessageRel:     filepath.Join(runDir, "last-message.txt"),
 		receiptRel:         filepath.Join(".revolvr", "receipts", runID+".md"),
+		invalidReceiptRel:  filepath.Join(runDir, "invalid-receipt.md"),
 	}
 }
 
 func gitConfig(cfg Config, workDir string) gitstate.Config {
 	return gitstate.Config{
 		WorkingDir:    workDir,
-		GitExecutable: cfg.GitExecutable,
+		GitExecutable: admittedGitExecutable(cfg),
 		Timeout:       cfg.GitTimeout,
 		StdoutCap:     cfg.GitStdoutCap,
 		StderrCap:     cfg.GitStderrCap,
 		CommandRunner: gitCommandRunner(cfg.CommandRunner),
 	}
+}
+
+func admittedGitExecutable(cfg Config) string {
+	if cfg.GitIdentity != (codexexec.ExecutableIdentity{}) {
+		return cfg.GitIdentity.Resolved
+	}
+	return strings.TrimSpace(cfg.GitExecutable)
 }
 
 func defaultVerificationCommands(workDir string) []verification.Command {
@@ -1505,10 +1648,14 @@ func dirtyFileList(capture gitstate.Capture) []string {
 }
 
 func writeTextFile(path string, content string, perm os.FileMode) error {
+	return writeBytesFile(path, []byte(content), perm)
+}
+
+func writeBytesFile(path string, content []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(content), perm)
+	return os.WriteFile(path, content, perm)
 }
 
 func nonEmpty(value string, fallback string) string {

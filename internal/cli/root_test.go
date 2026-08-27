@@ -2750,6 +2750,62 @@ func TestShowRunPrintsPersistedArtifactPaths(t *testing.T) {
 	}
 }
 
+func TestShowRunPrintsExecutableIdentityAndInvalidReceiptEvidence(t *testing.T) {
+	workDir := t.TempDir()
+	if _, err := executeCLI(t, workDir, "init"); err != nil {
+		t.Fatalf("execute init: %v", err)
+	}
+	paths, err := resolveStatePaths(workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	startedAt := time.Date(2026, 6, 26, 13, 30, 0, 0, time.UTC)
+	runs, err := ledger.OpenWithClock(ctx, paths.LedgerDBPath, func() time.Time { return startedAt })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.CreateRun(ctx, ledger.RunSpec{ID: "run-provenance", TaskID: "task-provenance", Task: "Show exact provenance", Status: ledger.StatusCompleted, StartedAt: startedAt}); err != nil {
+		t.Fatal(err)
+	}
+	identity := codexexec.CodexExecutableIdentity{Version: "Codex exact 7", Executable: codexexec.ExecutableIdentity{Configured: "/configured/codex", Resolved: "/resolved/codex", SHA256: strings.Repeat("a", 64)}}
+	invocation := codexexec.InvocationProvenance{
+		Executable: "/configured/codex", Version: identity.Version, Model: codexexec.DefaultModel, ReasoningEffort: codexexec.DefaultReasoningEffort,
+		Ephemeral: true, SessionMode: codexexec.SessionModeEphemeral, EffectiveConfigSchema: "test-config-v1", EffectiveConfigSHA256: strings.Repeat("b", 64),
+		Argv: []string{"exec", "--ephemeral"}, WorkingDir: workDir, CodexIdentity: &identity,
+	}
+	if _, err := runs.AppendEvent(ctx, "run-provenance", ledger.EventContextBuilt, map[string]any{"context_manifest_path": ".revolvr/runs/run-provenance/context.json", "invocation": invocation}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.AppendEvent(ctx, "run-provenance", ledger.EventReceiptSynthesized, map[string]any{
+		"receipt_path": ".revolvr/receipts/run-provenance.md", "verdict": "completed_with_concerns",
+		"invalid_receipt_path": ".revolvr/runs/run-provenance/invalid-receipt.md", "invalid_receipt_byte_size": 17,
+		"invalid_receipt_sha256": strings.Repeat("c", 64), "invalid_receipt_reason": "receipt: missing required field: verification",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runs.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := executeCLI(t, workDir, "show", "run-provenance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Codex configured path: /configured/codex",
+		"Codex resolved path: /resolved/codex",
+		"Codex version: Codex exact 7",
+		"Codex SHA-256: " + strings.Repeat("a", 64),
+		"invalid receipt: .revolvr/runs/run-provenance/invalid-receipt.md",
+		"invalid receipt: .revolvr/runs/run-provenance/invalid-receipt.md (bytes=17, sha256=" + strings.Repeat("c", 64) + ", reason=receipt: missing required field: verification)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("show output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestShowRunPrintsNoneForEmptyArtifactEvent(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {

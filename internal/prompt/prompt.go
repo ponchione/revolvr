@@ -71,6 +71,7 @@ func BuildContextPayload(in Input) (string, error) {
 	out.WriteString("- Do not use codex resume.\n")
 	out.WriteString("- Do not launch nested Codex runs.\n")
 	out.WriteString("- Do not push branches or create PRs.\n")
+	out.WriteString("- Keep durable handoff review commands valid after the harness auto-commits: use the known run ID or `git show HEAD`, never a bare `git diff`.\n")
 	for _, rule := range normalized.RepositoryRules {
 		fmt.Fprintf(&out, "- %s\n", rule)
 	}
@@ -106,6 +107,13 @@ func BuildContextPayload(in Input) (string, error) {
 	out.WriteString("  input_tokens: 0\n")
 	out.WriteString("  output_tokens: 0\n")
 	out.WriteString("  duration_seconds: 0\n")
+	out.WriteString("```\n\n")
+	out.WriteString("For example, after actually running `go test ./...`, record structured verification as:\n\n")
+	out.WriteString("```yaml\n")
+	out.WriteString("verification:\n")
+	out.WriteString("  - command: go test ./...\n")
+	out.WriteString("    exit_code: 0\n")
+	out.WriteString("    status: passed\n")
 	out.WriteString("```\n\n")
 	out.WriteString("Use one of these verdict values: completed, completed_with_concerns, blocked, verification_failed, codex_failed, safety_limit, no_changes.\n")
 	out.WriteString("After the frontmatter, include these body sections exactly once:\n")

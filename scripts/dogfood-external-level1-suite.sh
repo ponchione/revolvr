@@ -7,9 +7,6 @@ readonly SCRIPT_NAME="dogfood-external-level1-suite"
 readonly SUITE_SCHEMA="revolvr-external-level1-suite-v1"
 readonly REPORT_SCHEMA="revolvr-external-level1-suite-report-v1"
 readonly LIVE_CONFIRMATION="EXT20_LIVE_REAL_CODEX_MODEL_CALLS"
-readonly CODEX_PACKAGE_VERSION="0.144.4"
-readonly CODEX_VERSION="codex-cli 0.144.4"
-readonly CODEX_SHA256="134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477"
 
 SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 readonly SOURCE_ROOT
@@ -22,6 +19,9 @@ CANDIDATE_BINARY=""
 CANDIDATE_SHA256=""
 CANDIDATE_SOURCE_COMMIT=""
 CANDIDATE_VERSION=""
+CODEX_EXECUTABLE=""
+CODEX_SHA256=""
+CODEX_VERSION=""
 
 VERIFY_ROWS_TMP=""
 VERIFY_REPORT_TMP=""
@@ -44,7 +44,7 @@ Usage:
     --candidate-authority <file> --candidate-authority-sha256 <sha256>
   scripts/dogfood-external-level1-suite.sh --prepare --run-root <new-dir> \\
     --candidate-authority <file> --candidate-authority-sha256 <sha256> \\
-    (--install-codex | --codex-package-root <isolated-prefix>)
+    --codex-executable <configured-path>
   scripts/dogfood-external-level1-suite.sh --live --run-root <prepared-dir> \\
     --candidate-authority <file> --candidate-authority-sha256 <sha256> \\
     --confirm-live-real-codex $LIVE_CONFIRMATION
@@ -52,9 +52,10 @@ Usage:
     --candidate-authority <file> --candidate-authority-sha256 <sha256>
 
 --static performs no package installation, repository preparation, or model call.
---prepare may install the exact Codex package and creates two disposable external
-repositories, but starts no model. --live is the only mode that can start model
-calls and requires the exact confirmation value shown above.
+--prepare captures the configured Codex executable's resolved path, exact
+reported version, and SHA-256 and creates two disposable external repositories,
+but starts no model. --live is the only mode that can start model calls and
+requires the exact confirmation value shown above.
 EOF
 }
 
@@ -140,24 +141,19 @@ load_candidate_authority() {
 	readonly CANDIDATE_SHA256 CANDIDATE_SOURCE_COMMIT CANDIDATE_VERSION
 }
 
-codex_binary_for_prefix() {
-	printf '%s/node_modules/@openai/codex/bin/codex.js\n' "$1"
-}
-
-verify_codex_prefix() {
-	local prefix="$1" package_json codex_bin recorded_version
-	prefix="$(canonical_dir "$prefix")" || fail "Codex package prefix is not an existing directory"
-	safe_path_spelling "$prefix" || fail "Codex package prefix must use a simple absolute path"
-	package_json="$prefix/node_modules/@openai/codex/package.json"
-	codex_bin="$(codex_binary_for_prefix "$prefix")"
-	[[ -f "$package_json" && ! -L "$package_json" ]] || fail "isolated @openai/codex package.json is missing"
-	codex_bin="$(canonical_file "$codex_bin")" || fail "isolated Codex executable is missing or symlinked"
-	[[ -x "$codex_bin" ]] || fail "isolated Codex executable is not executable"
-	recorded_version="$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$package_json" | head -n 1)"
-	[[ "$recorded_version" == "$CODEX_PACKAGE_VERSION" ]] || fail "isolated package version is $recorded_version, expected $CODEX_PACKAGE_VERSION"
-	[[ "$("$codex_bin" --version)" == "$CODEX_VERSION" ]] || fail "isolated Codex reports the wrong exact version"
-	[[ "$(hash_file "$codex_bin")" == "$CODEX_SHA256" ]] || fail "isolated Codex executable SHA-256 changed"
-	printf '%s\n' "$codex_bin"
+load_codex_identity() {
+	local configured="$1" resolved version
+	[[ "$configured" == /* ]] || fail "Codex executable path must be absolute"
+	resolved="$(readlink -f -- "$configured")" || fail "Codex executable cannot be resolved"
+	[[ -f "$resolved" && -x "$resolved" ]] || fail "resolved Codex executable is not an executable regular file"
+	version="$("$resolved" --version)" || fail "Codex --version failed"
+	[[ -n "$version" && "$version" != *$'\n'* && "$version" != *$'\r'* ]] || fail "Codex version must be one nonempty line"
+	if LC_ALL=C grep -q '[[:cntrl:]]' <<<"$version"; then
+		fail "Codex version contains a control character"
+	fi
+	CODEX_EXECUTABLE="$resolved"
+	CODEX_VERSION="$version"
+	CODEX_SHA256="$(hash_file "$resolved")"
 }
 
 authority_value() {
@@ -354,7 +350,7 @@ EOF
 }
 
 prepare_suite() {
-	local requested_root="$1" install_codex="$2" supplied_prefix="$3" parent root prefix codex_bin suite_id repo_a_hash repo_b_hash
+	local requested_root="$1" configured_codex="$2" parent root suite_id repo_a_hash repo_b_hash
 	[[ "$requested_root" == /* ]] || fail "--run-root must be absolute"
 	parent="$(canonical_dir "$(dirname -- "$requested_root")")" || fail "run-root parent does not exist"
 	root="$parent/$(basename -- "$requested_root")"
@@ -362,17 +358,9 @@ prepare_suite() {
 	[[ ! -e "$root" && ! -L "$root" ]] || fail "run root already exists; choose a new collision-free root"
 	mkdir "$root"
 	mkdir -p "$root/repositories" "$root/sentinels" "$root/evidence/repo-a" "$root/evidence/repo-b" "$root/logs" "$root/aggregate"
-	if [[ "$install_codex" == true ]]; then
-		command -v npm >/dev/null 2>&1 || fail "npm is required for --install-codex"
-		prefix="$root/codex-package"
-		mkdir "$prefix"
-		npm install --prefix "$prefix" --ignore-scripts --no-audit --no-fund --no-package-lock --omit=dev "@openai/codex@$CODEX_PACKAGE_VERSION" >"$root/logs/npm-install.out" 2>"$root/logs/npm-install.err" || fail "isolated Codex installation failed; retained $root"
-	else
-		prefix="$(canonical_dir "$supplied_prefix")" || fail "supplied Codex prefix does not exist"
-	fi
-	codex_bin="$(verify_codex_prefix "$prefix")"
-	prepare_repository "$root" repo-a "$codex_bin"
-	prepare_repository "$root" repo-b "$codex_bin"
+	load_codex_identity "$configured_codex"
+	prepare_repository "$root" repo-a "$CODEX_EXECUTABLE"
+	prepare_repository "$root" repo-b "$CODEX_EXECUTABLE"
 	for repo_name in repo-a repo-b; do
 		mkdir "$root/sentinels/$repo_name"
 		printf 'outside sentinel for %s\n' "$repo_name" >"$root/sentinels/$repo_name/value.txt"
@@ -393,8 +381,7 @@ prepare_suite() {
 		printf 'candidate_sha256\t%s\n' "$CANDIDATE_SHA256"
 		printf 'candidate_source_commit\t%s\n' "$CANDIDATE_SOURCE_COMMIT"
 		printf 'candidate_version\t%s\n' "$CANDIDATE_VERSION"
-		printf 'codex_package_prefix\t%s\n' "$prefix"
-		printf 'codex_binary\t%s\n' "$codex_bin"
+		printf 'codex_binary\t%s\n' "$CODEX_EXECUTABLE"
 		printf 'codex_sha256\t%s\n' "$CODEX_SHA256"
 		printf 'codex_version\t%s\n' "$CODEX_VERSION"
 		printf 'repo_a_config_sha256\t%s\n' "$repo_a_hash"
@@ -407,7 +394,7 @@ prepare_suite() {
 }
 
 verify_prepared() {
-	local root="$1" prefix codex_bin repo_name config_key
+	local root="$1" recorded_codex recorded_version recorded_sha repo_name config_key
 	root="$(canonical_dir "$root")" || fail "prepared run root does not exist"
 	safe_path_spelling "$root" || fail "prepared run root uses an unsafe path spelling"
 	[[ -f "$root/authority.tsv" && -f "$root/operation-plan.tsv" && -f "$root/prepared.sha256" ]] || fail "prepared authority is incomplete"
@@ -419,9 +406,11 @@ verify_prepared() {
 	[[ "$(authority_value "$root" candidate_binary)" == "$CANDIDATE_BINARY" ]] || fail "prepared candidate path changed"
 	[[ "$(authority_value "$root" candidate_sha256)" == "$CANDIDATE_SHA256" ]] || fail "prepared candidate hash changed"
 	[[ "$(authority_value "$root" candidate_source_commit)" == "$CANDIDATE_SOURCE_COMMIT" ]] || fail "prepared candidate source changed"
-	prefix="$(authority_value "$root" codex_package_prefix)"
-	codex_bin="$(verify_codex_prefix "$prefix")"
-	[[ "$codex_bin" == "$(authority_value "$root" codex_binary)" ]] || fail "prepared Codex path changed"
+	recorded_codex="$(authority_value "$root" codex_binary)"
+	recorded_version="$(authority_value "$root" codex_version)"
+	recorded_sha="$(authority_value "$root" codex_sha256)"
+	load_codex_identity "$recorded_codex"
+	[[ "$CODEX_EXECUTABLE" == "$recorded_codex" && "$CODEX_VERSION" == "$recorded_version" && "$CODEX_SHA256" == "$recorded_sha" ]] || fail "prepared Codex identity changed"
 	for repo_name in repo-a repo-b; do
 		[[ -d "$root/repositories/$repo_name" && -d "$root/sentinels/$repo_name" && -d "$root/evidence/$repo_name" ]] || fail "prepared $repo_name layout is incomplete"
 		config_key="${repo_name//-/_}_config_sha256"
@@ -567,7 +556,8 @@ verify_collector_validations() {
 verify_suite() {
 	local root="$1" suite_id operations=0 successes=0 corrections=0 verification_failures=0 needs_input=0 cancellations=0 restarts=0 safety=0
 	local containment=0 duplicate_commits=0 duplicate_charges=0 lost_terminal=0 manual_edits=0 unclassified=0
-	root="$(verify_prepared "$root" | tail -n 1)"
+	root="$(canonical_dir "$root")" || fail "prepared run root does not exist"
+	verify_prepared "$root" >/dev/null
 	suite_id="$(authority_value "$root" suite_id)"
 	VERIFY_ROWS_TMP="$root/aggregate/operations.tsv.tmp.$$"
 	VERIFY_REPORT_TMP="$root/aggregate/report.tsv.tmp.$$"
@@ -708,7 +698,8 @@ verify_suite() {
 run_live_suite() {
 	local root="$1" confirmation="$2" index repo_name task scenario expected mode
 	[[ "$confirmation" == "$LIVE_CONFIRMATION" ]] || fail "live model calls require --confirm-live-real-codex $LIVE_CONFIRMATION"
-	root="$(verify_prepared "$root" | tail -n 1)"
+	root="$(canonical_dir "$root")" || fail "prepared run root does not exist"
+	verify_prepared "$root" >/dev/null
 	while IFS=$'\t' read -r index repo_name task scenario expected mode; do
 		run_collector "$root" "$index" "$repo_name" "$task" "$scenario" "$expected" "$mode"
 	done < <(operation_plan)
@@ -717,8 +708,7 @@ run_live_suite() {
 
 MODE=""
 RUN_ROOT=""
-INSTALL_CODEX=false
-CODEX_PREFIX=""
+CODEX_PATH=""
 CONFIRMATION=""
 while [[ "$#" -gt 0 ]]; do
 	case "$1" in
@@ -730,8 +720,7 @@ while [[ "$#" -gt 0 ]]; do
 	--run-root) RUN_ROOT="${2:-}"; shift 2 ;;
 	--candidate-authority) CANDIDATE_AUTHORITY="${2:-}"; shift 2 ;;
 	--candidate-authority-sha256) CANDIDATE_AUTHORITY_SHA256="${2:-}"; shift 2 ;;
-	--install-codex) INSTALL_CODEX=true; shift ;;
-	--codex-package-root) CODEX_PREFIX="${2:-}"; shift 2 ;;
+	--codex-executable) CODEX_PATH="${2:-}"; shift 2 ;;
 	--confirm-live-real-codex) CONFIRMATION="${2:-}"; shift 2 ;;
 	--help|-h) usage; exit 0 ;;
 	*) fail "unknown argument: $1" ;;
@@ -750,28 +739,24 @@ verify_candidate
 
 case "$MODE" in
 --static)
-	[[ -z "$RUN_ROOT$CODEX_PREFIX$CONFIRMATION" && "$INSTALL_CODEX" == false ]] || fail "--static accepts no preparation or live options"
+	[[ -z "$RUN_ROOT$CODEX_PATH$CONFIRMATION" ]] || fail "--static accepts no preparation or live options"
 	bash -n "$COLLECTOR" "$0"
 	printf 'EXT-20 static verification passed; no model call or fixture preparation occurred.\n'
 	;;
 --prepare)
 	[[ -n "$RUN_ROOT" ]] || fail "--prepare requires --run-root"
 	[[ -z "$CONFIRMATION" ]] || fail "--prepare does not accept live confirmation"
-	if [[ "$INSTALL_CODEX" == true ]]; then
-		[[ -z "$CODEX_PREFIX" ]] || fail "choose --install-codex or --codex-package-root, not both"
-	else
-		[[ -n "$CODEX_PREFIX" ]] || fail "--prepare requires --install-codex or --codex-package-root"
-	fi
-	prepare_suite "$RUN_ROOT" "$INSTALL_CODEX" "$CODEX_PREFIX"
+	[[ -n "$CODEX_PATH" ]] || fail "--prepare requires --codex-executable"
+	prepare_suite "$RUN_ROOT" "$CODEX_PATH"
 	;;
 --live)
 	[[ -n "$RUN_ROOT" ]] || fail "--live requires --run-root"
-	[[ "$INSTALL_CODEX" == false && -z "$CODEX_PREFIX" ]] || fail "install or select Codex during --prepare, not --live"
+	[[ -z "$CODEX_PATH" ]] || fail "select Codex during --prepare, not --live"
 	run_live_suite "$RUN_ROOT" "$CONFIRMATION"
 	;;
 --verify-suite)
 	[[ -n "$RUN_ROOT" ]] || fail "--verify-suite requires --run-root"
-	[[ "$INSTALL_CODEX" == false && -z "$CODEX_PREFIX$CONFIRMATION" ]] || fail "--verify-suite accepts only run-root and candidate authority options"
+	[[ -z "$CODEX_PATH$CONFIRMATION" ]] || fail "--verify-suite accepts only run-root and candidate authority options"
 	verify_suite "$RUN_ROOT"
 	;;
 *) usage >&2; exit 64 ;;

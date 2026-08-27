@@ -33,10 +33,6 @@ type externalScopeResult struct {
 }
 
 func admitExternalMode(ctx context.Context, root string, mode PreflightMode, cycles int64, override *runonce.Config, requireCodexIdentity bool) (runonce.Config, error) {
-	return admitExternalModeWithManifest(ctx, root, mode, cycles, override, requireCodexIdentity, nil)
-}
-
-func admitExternalModeWithManifest(ctx context.Context, root string, mode PreflightMode, cycles int64, override *runonce.Config, requireCodexIdentity bool, releaseManifest *codexexec.ReleaseManifest) (runonce.Config, error) {
 	if _, err := repositorypath.Inspect(root, repositorypath.InspectOptions{}); err != nil {
 		return runonce.Config{}, err
 	}
@@ -52,12 +48,6 @@ func admitExternalModeWithManifest(ctx context.Context, root string, mode Prefli
 		CommandRunner:     PreflightCommandRunner(commandRunner(cfg)),
 		LookPath:          exec.LookPath,
 		SkipCodexIdentity: !requireCodexIdentity,
-	}
-	if releaseManifest != nil {
-		manifest := *releaseManifest
-		input.CodexIdentityInspector = func(ctx context.Context, configured, workDir string, cfg codexexec.VersionConfig, lookPath codexexec.ExecutableLookPath) (codexexec.CodexExecutableIdentity, error) {
-			return codexexec.InspectCodexWithManifest(ctx, configured, workDir, cfg, lookPath, manifest)
-		}
 	}
 	scope := inspectExternalScope(ctx, input)
 	for _, check := range scope.Checks {
@@ -84,32 +74,15 @@ func loadEffectiveExternalConfig(root string, cycles int64, override *runonce.Co
 	return runonce.EffectiveConfig(cfg)
 }
 
-func recheckExternalExecutableIdentities(cfg runonce.Config, requireCodex bool) error {
-	return recheckExternalExecutableIdentitiesWithManifest(cfg, requireCodex, nil)
-}
-
-func recheckExternalExecutableIdentitiesWithManifest(cfg runonce.Config, requireCodex bool, releaseManifest *codexexec.ReleaseManifest) error {
+func recheckExternalExecutableIdentities(ctx context.Context, cfg runonce.Config, requireCodex bool) error {
 	if err := codexexec.VerifyExecutableIdentity(cfg.GitIdentity, nil); err != nil {
 		return fmt.Errorf("external executable admission: Git: %w", err)
 	}
 	if !requireCodex {
 		return nil
 	}
-	if err := codexexec.VerifyExecutableIdentity(cfg.CodexIdentity.Executable, nil); err != nil {
+	if err := codexexec.VerifyCodexIdentity(ctx, cfg.CodexIdentity, cfg.WorkingDir, codexexec.VersionConfig{Timeout: cfg.CodexTimeout, StdoutCap: cfg.CodexStdoutCap, StderrCap: cfg.CodexStderrCap, CommandRunner: codexexec.CommandRunner(commandRunner(cfg))}, nil); err != nil {
 		return fmt.Errorf("external executable admission: Codex: %w", err)
-	}
-	var manifest codexexec.ReleaseManifest
-	var err error
-	if releaseManifest != nil {
-		manifest = *releaseManifest
-	} else {
-		manifest, err = codexexec.CurrentReleaseManifest()
-		if err != nil {
-			return err
-		}
-	}
-	if err := manifest.Authorize(cfg.CodexIdentity); err != nil {
-		return fmt.Errorf("external executable admission: %w", err)
 	}
 	return nil
 }
@@ -129,7 +102,7 @@ func inspectExternalScope(ctx context.Context, input externalScopeInput) externa
 	}
 	codexIdentityInspector := input.CodexIdentityInspector
 	if codexIdentityInspector == nil {
-		codexIdentityInspector = codexexec.InspectReleaseCodex
+		codexIdentityInspector = codexexec.InspectCodex
 	}
 	platform := input.Platform
 	if platform == "" {
@@ -152,7 +125,7 @@ func inspectExternalScope(ctx context.Context, input externalScopeInput) externa
 		} else {
 			cfg.CodexIdentity = identity
 			add(PreflightOK, "codex executable", codexexec.FormatExecutableIdentity(identity.Executable))
-			add(PreflightOK, "codex version", identity.Version+" (release-authorized exact identity)")
+			add(PreflightOK, "codex version", identity.Version+" (captured exact executable identity)")
 		}
 	}
 

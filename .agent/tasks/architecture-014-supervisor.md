@@ -1,6 +1,6 @@
 ---
 id: architecture-014-supervisor
-status: complete
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-013-openai-structured-output-client

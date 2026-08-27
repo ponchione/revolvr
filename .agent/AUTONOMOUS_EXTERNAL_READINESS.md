@@ -3,7 +3,7 @@
 Status: working draft
 
 Decision: **not yet approved for autonomous use in external projects**
-Last updated: 2026-07-15
+Last updated: 2026-08-27
 
 ## Purpose
 
@@ -124,13 +124,15 @@ evidence is discovered.
 
 ### Codex and build compatibility
 
-- Each Revolvr release supports an explicit allowlist of tested Codex CLI
-  version strings and resolved executable SHA-256 identities. Autonomous
-  external-project admission refuses an unlisted version or executable.
-- The first release may list exactly one Codex CLI build. Adding a version
-  requires the production fake-Codex contract suite plus one isolated live
-  dogfood scenario; semantic version-range assumptions are not sufficient for
-  a pre-1.0 CLI.
+- External-project admission captures the configured Codex path, resolved
+  executable path, SHA-256, and exact bounded single-line `--version` output.
+  It rechecks that complete identity before execution and at later mutation
+  boundaries; path, byte, or reported-version drift fails closed.
+- Revolvr does not embed a Codex release allowlist. A syntactically valid
+  identity is execution authority, not a compatibility claim. Release evidence
+  must record the exact identity used and pass the production fake-Codex
+  contract suite plus isolated live dogfood against that invocation/output
+  contract. Changing the identity invalidates the affected evidence.
 - Go 1.22 remains the source-language compatibility floor and is tested in CI.
   Release binaries are built with a currently supported, patched Go toolchain,
   record that exact toolchain version, and have no reachable standard-library
@@ -301,8 +303,9 @@ operator-attended use is approved.
   from reachable vulnerabilities. A reachable vulnerability blocks release.
 - [ ] Publish a versioned build or reproducible build procedure that records
   Revolvr version, Go version, target platform, and source commit.
-- [ ] Publish the exact tested Codex CLI version/executable allowlist and test
-  invocation/output-schema behavior against every listed identity.
+- [ ] Publish the exact Codex CLI identities used for qualification and test
+  invocation/output-schema behavior against each recorded identity; the
+  runtime does not convert this evidence list into a hard-coded allowlist.
 - [ ] Tag the first approved external-use release. An untagged moving `main`
   branch is not sufficient authority for unattended installation.
 

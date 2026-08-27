@@ -1,5 +1,114 @@
 # Agent State
 
+## Attended Runtime Compatibility And Receipt Evidence Reconciled (2026-08-27)
+
+- Reviewed and completed the post-Architecture-024 uncommitted patch as one
+  maintenance task. It does not change architecture ordering or satisfy the
+  desktop UI phase gate.
+- Removed the embedded one-build Codex release manifest. Preflight now accepts
+  any executable with a safely captured configured path, resolved path,
+  SHA-256, and bounded normalized single-line version, while discovery,
+  admission, and execution reject exact path, byte, or reported-version drift.
+- Run-once execution now carries admitted Codex and Git identities through
+  provenance and rechecks them before source/effect boundaries. Identity drift
+  blocks without Codex/verification/commit work and restores the selected task
+  metadata when a transition had already occurred.
+- Invalid model receipts are preserved byte-for-byte at the private run path
+  with exact size/SHA-256/reason evidence. The harness-finalized replacement
+  records `completed_with_concerns`, includes elapsed duration, and is exposed
+  by run display and receipt validation.
+- Prompts now show structured verification evidence and require post-commit
+  review commands that remain meaningful after harness auto-commit. External
+  smoke/dogfood scripts accept an explicit Codex executable, capture its exact
+  identity, and no longer install or require one hard-coded npm package build.
+- Reconciled the operator docs and external-readiness policy with the runtime
+  contract. Historical EXT-04 state remains historical; the new decision
+  explicitly supersedes its compiled-allowlist policy.
+- Removed group/other write permission from the protected `.agent` tree and
+  `.revolvr/config.yaml`. Normalized the only two obsolete task frontmatter
+  values from `complete` to `completed`; `revolvr task list` now loads the
+  canonical graph successfully.
+- Verification: `gofmt` on all changed Go files; `bash -n` on all changed shell
+  scripts; `go test ./...`; CLI help/config/status/task-list checks;
+  `scripts/smoke-external-attended.sh`; and `git diff --check` all pass. No
+  dependency was added.
+- Result: **PASS**. The active architecture sequence remains blocked at
+  Architecture 024's Section 23.3 evidence/production-executor gate.
+
+## Architecture 024 Desktop UI Blocked At Phase Gate (2026-08-07)
+
+- Task selected: `architecture-024-ui`. At pass entry it was the sole
+  dependency-satisfied pending task: Architecture 023 is complete,
+  Architecture 025 depends on 024, every deferred PTC task remains blocked,
+  and the unchecked legacy external-readiness backlog is not an active
+  architecture selector.
+- Phase-gate decision: **BLOCKED**. Architecture 024 requires the CLI-first
+  core loop and bounded queue to be trustworthy and fully operable. Section
+  23.3 separately requires acceptable measured real-project thresholds before
+  enabling sequential queue autonomy. That evidence and production authority
+  do not exist in the current repository state.
+- Canonical evidence: `evals/golden/baseline.json` has
+  `retrieval_quality.threshold: null`, lists
+  `quality_threshold/not_set_before_measured_baseline`, and records live
+  dogfood as omitted. Architecture 022's deterministic fixtures are valid
+  regression evidence, but they are not real-project queue evidence and do
+  not establish thresholds for false completion, unrecovered crashes,
+  repeated-strategy loops, scope violations, host safety, or task completion.
+- Queue operability evidence: migration 00013 and `internal/queue` accept only
+  `deterministic_evaluation_only`. The ordinary CLI supplies no executor, and
+  `internal/app.StartSequentialQueue` therefore returns
+  `ErrSequentialQueueQualityGate` before opening PostgreSQL or starting a
+  worker. A focused CLI invocation with exact UUIDv7 and finite task/cycle/
+  token/cost/duration bounds exited 1 with `sequential queue: Section 23.3
+  real-project quality gate has no approved measured threshold`.
+- Reconciliation: Architecture 023 genuinely completed its narrower contract
+  by implementing and testing an exact fail-closed deterministic queue while
+  preserving the real-project gate. That is not evidence that the queue is
+  fully operable for the Phase 9 desktop surface. Adding UI controls over an
+  intentionally unavailable CLI-first service would violate ADR-020 and the
+  Architecture 024 gate; no evidence was invented and the gate was not
+  bypassed.
+- Files changed in this pass: durable records only — `.agent/HANDOFF.md`,
+  `.agent/TASKS.md`, `.agent/STATE.md`, `.agent/DECISIONS.md`, and
+  `.agent/tasks/architecture-024-ui.md`.
+- Go/frontend files and dependencies: none. No `web/` tree, Wails/Vue 3/
+  TypeScript dependency, `package.json`, lockfile, generated binding, or Go
+  implementation file was added or changed.
+- Shared services/API, views, canonical-state/SSE, security, and accessibility:
+  none implemented or claimed. There is no new REST projection or mutation,
+  event stream, resume behavior, installation-secret handling, loopback/origin
+  enforcement, artifact renderer, accessible view, focus behavior, or
+  keyboard-only needs-input flow to verify.
+- Verification run:
+  - `go test ./internal/app -run
+    '^TestSequentialQueueRealProjectStartFailsClosedWithoutMeasuredGate$'
+    -count=1` — PASS.
+  - `go test ./internal/evaluation -run '^TestGoldenBaseline$' -count=1` —
+    PASS, preserving the checked-in null-threshold/live-dogfood omission.
+  - focused real `go run ./cmd/revolvr queue start ...` — expected fail-closed
+    result, exit 1 with the exact Section 23.3 diagnostic before database or
+    worker effects.
+  - `git diff --check` — PASS.
+  - read-only `go run ./cmd/revolvr task list` — failed closed before graph
+    rendering because the existing `.agent` directory mode is 0775. This pass
+    did not change environment permissions; dependency satisfaction was
+    confirmed directly from every task file's canonical frontmatter and the
+    active architecture sequence.
+  - Architecture 024 Go/frontend/production-build verification — not run,
+    because the failed phase gate prohibited implementation and no `web/`
+    project exists to install, test, or build.
+- Result: **BLOCKED, NOT COMPLETE**. No commit was created. There is no next
+  legal architecture task. Resume Architecture 024 only after a separately
+  authorized pass records approved numeric Section 23.3 thresholds from
+  real-project baseline data, records qualifying exact queue evidence against
+  them, and makes the canonical production queue fully operable through the
+  ordinary CLI without injected test authority. Architecture 025, Graphiti,
+  programmatic workspace work, Python execution, skills, refinement,
+  continual-harness work, daemon controls, deployment, automatic Git export,
+  accounts, teams, and remote hosting remain out of scope and blocked.
+  Repository-path-aware CLI use in this checkout also requires a separately
+  authorized correction of the existing unsafe `.agent` mode 0775.
+
 ## Architecture 023 Bounded Sequential Queue Complete (2026-08-07)
 
 - Task selected: `architecture-023-sequential-queue`, confirmed as the sole

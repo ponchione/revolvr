@@ -26,6 +26,8 @@ import (
 	"revolvr/internal/verification"
 )
 
+const testPreflightCodexVersion = "Codex future 2099.42-preview+abcdef"
+
 func TestStatusUninitializedDoesNotCreateState(t *testing.T) {
 	workDir := t.TempDir()
 
@@ -718,10 +720,6 @@ verification:
 	if !result.Ready {
 		t.Fatalf("preflight ready = false, checks = %#v", result.Checks)
 	}
-	manifest, err := codexexec.CurrentReleaseManifest()
-	if err != nil {
-		t.Fatal(err)
-	}
 	want := []PreflightCheck{
 		{Status: PreflightOK, Name: "state", Detail: "initialized at " + filepath.Join(workDir, ".revolvr")},
 		{Status: PreflightOK, Name: "config", Detail: "loaded " + filepath.Join(workDir, ".revolvr", "config.yaml")},
@@ -738,11 +736,11 @@ verification:
 		{Status: PreflightOK, Name: "autonomous queue", Detail: "schema=autonomous-queue-policy-v1 maximum_workers=1"},
 		{Status: PreflightOK, Name: "artifact retention", Detail: "schema=revolvr-artifact-retention-policy-v1 mutation_enabled=false recent_runs=20"},
 		{Status: PreflightOK, Name: "notification hooks", Detail: "disabled; no executable lookup, environment load, outbox write, or process start"},
-		{Status: PreflightOK, Name: "codex executable", Detail: "configured=\"codex-test\" resolved=\"/fake/bin/codex-test\" sha256=" + manifest.Codex[0].SHA256},
+		{Status: PreflightOK, Name: "codex executable", Detail: "configured=\"codex-test\" resolved=\"/fake/bin/codex-test\" sha256=" + strings.Repeat("a", 64)},
 		{Status: PreflightOK, Name: "codex model", Detail: "gpt-5.6-sol"},
 		{Status: PreflightOK, Name: "codex reasoning effort", Detail: "xhigh"},
 		{Status: PreflightOK, Name: "codex session", Detail: "ephemeral (ephemeral=true)"},
-		{Status: PreflightOK, Name: "codex version", Detail: manifest.Codex[0].Version + " (release-authorized exact identity)"},
+		{Status: PreflightOK, Name: "codex version", Detail: testPreflightCodexVersion + " (captured exact executable identity)"},
 		{Status: PreflightOK, Name: "git identity", Detail: "Revolvr Doctor <doctor@example.invalid>"},
 		{Status: PreflightOK, Name: "runtime state ignored", Detail: ".revolvr/ ignored by Git"},
 	}
@@ -876,7 +874,7 @@ func TestPreflightCodexVersionFailuresAreNotReady(t *testing.T) {
 		{name: "execution", result: runner.Result{ExitCode: -1, Err: errors.New("start failed")}, want: "execution failed"},
 		{name: "nonzero", result: runner.Result{ExitCode: 2, Stderr: "unsupported\n"}, want: "exited with code 2"},
 		{name: "truncated", result: runner.Result{ExitCode: 0, Stdout: "codex-test", StdoutTruncatedBytes: 1}, want: "output was truncated"},
-		{name: "malformed", result: runner.Result{ExitCode: 0, Stdout: "first\nsecond\n"}, want: "one well-formed line"},
+		{name: "malformed", result: runner.Result{ExitCode: 0, Stdout: "first\nsecond\n"}, want: "one bounded normalized line"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1344,6 +1342,9 @@ output:
 	}
 	if got.GitExecutable != "git-custom" || got.GitTimeout != 12*time.Second {
 		t.Fatalf("git config = %+v, want config overrides", got)
+	}
+	if got.CodexIdentity != (codexexec.CodexExecutableIdentity{}) || got.GitIdentity != (codexexec.ExecutableIdentity{}) {
+		t.Fatalf("injected runner unexpectedly required ambient executable identities: codex=%+v git=%+v", got.CodexIdentity, got.GitIdentity)
 	}
 	if got.MissingVerificationPolicy != verification.MissingCommandsPass {
 		t.Fatalf("missing policy = %q, want pass", got.MissingVerificationPolicy)
@@ -2052,11 +2053,7 @@ func preflightLookPath(paths map[string]string) ExecutableLookPath {
 
 func readyPreflightCommandRunner(t *testing.T) PreflightCommandRunner {
 	t.Helper()
-	manifest, err := codexexec.CurrentReleaseManifest()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return preflightCommandRunnerWithVersion(t, runner.Result{ExitCode: 0, Stdout: manifest.Codex[0].Version + "\n"})
+	return preflightCommandRunnerWithVersion(t, runner.Result{ExitCode: 0, Stdout: testPreflightCodexVersion + "\n"})
 }
 
 func testPreflightExecutableInspector(configured string, lookPath codexexec.ExecutableLookPath) (codexexec.ExecutableIdentity, error) {
@@ -2072,21 +2069,13 @@ func testPreflightCodexIdentityInspector(ctx context.Context, configured, workDi
 	if err != nil {
 		return codexexec.CodexExecutableIdentity{}, fmt.Errorf("%q not found: %w", configured, err)
 	}
-	manifest, err := codexexec.CurrentReleaseManifest()
-	if err != nil {
-		return codexexec.CodexExecutableIdentity{}, err
-	}
 	cfg.Executable = path
 	cfg.WorkingDir = workDir
 	version, err := codexexec.DiscoverVersion(ctx, cfg)
 	if err != nil {
 		return codexexec.CodexExecutableIdentity{}, err
 	}
-	identity := codexexec.CodexExecutableIdentity{Version: version, Executable: codexexec.ExecutableIdentity{Configured: configured, Resolved: path, SHA256: manifest.Codex[0].SHA256}}
-	if err := manifest.Authorize(identity); err != nil {
-		return codexexec.CodexExecutableIdentity{}, err
-	}
-	return identity, nil
+	return codexexec.CodexExecutableIdentity{Version: version, Executable: codexexec.ExecutableIdentity{Configured: configured, Resolved: path, SHA256: strings.Repeat("a", 64)}}, nil
 }
 
 func preflightCommandRunnerWithVersion(t *testing.T, version runner.Result) PreflightCommandRunner {

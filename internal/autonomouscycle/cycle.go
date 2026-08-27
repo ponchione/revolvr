@@ -192,7 +192,6 @@ func run(ctx context.Context, cfg Config) (result Result, runErr error) {
 		CodexBypassApprovalsAndSandbox: n.CodexBypassApprovalsAndSandbox,
 		CodexVersion:                   n.CodexVersion,
 		CodexIdentity:                  n.CodexIdentity,
-		CodexReleaseManifest:           n.CodexReleaseManifest,
 		EffectiveConfigSchema:          n.EffectiveConfigSchema,
 		EffectiveConfigSHA256:          n.EffectiveConfigSHA256,
 		GitIdentity:                    n.GitIdentity,

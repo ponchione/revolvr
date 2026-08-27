@@ -33,37 +33,42 @@ type externalPathFixture struct {
 }
 
 func TestExternalExecutableIdentityAdmission(t *testing.T) {
-	writeCodex := func(t *testing.T, path, version, suffix string) {
+	const futureVersion = "Codex future channel 2099.42-preview+abcdef"
+	writeCodex := func(t *testing.T, path, suffix string) {
 		t.Helper()
-		content := "#!/bin/sh\nif [ \"${1:-}\" = \"--version\" ]; then\n  printf '%s\\n' " + fmt.Sprintf("%q", version) + "\n  exit 0\nfi\nexit 64\n" + suffix
+		content := "#!/bin/sh\nif [ \"${1:-}\" = \"--version\" ]; then\n  cat \"$0.version\"\n  exit 0\nfi\nexit 64\n" + suffix
 		if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	newFixture := func(t *testing.T) (string, string, codexexec.ReleaseManifest, codexexec.CodexExecutableIdentity) {
+	newFixture := func(t *testing.T) (string, string, string, string, codexexec.CodexExecutableIdentity) {
 		t.Helper()
 		repository := t.TempDir()
 		createSchedulingTask(t, repository, "identity-task", nil)
 		createAppPreflightState(t, repository)
-		codexPath := filepath.Join(t.TempDir(), "codex")
-		writeCodex(t, codexPath, "codex-cli 1.2.3", "")
-		executable, err := codexexec.InspectExecutable(codexPath, exec.LookPath)
+		executableDir := t.TempDir()
+		codexPath := filepath.Join(executableDir, "codex")
+		codexTarget := filepath.Join(executableDir, "codex-target")
+		writeCodex(t, codexTarget, "")
+		if err := os.Symlink(codexTarget, codexPath); err != nil {
+			t.Fatal(err)
+		}
+		versionPath := codexTarget + ".version"
+		if err := os.WriteFile(versionPath, []byte(futureVersion+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		identity, err := codexexec.InspectCodex(context.Background(), codexPath, repository, codexexec.VersionConfig{}, exec.LookPath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		manifest := codexexec.ReleaseManifest{SchemaVersion: codexexec.ReleaseManifestSchema, Codex: []codexexec.ReleaseCodexBuild{{Version: "codex-cli 1.2.3", SHA256: executable.SHA256}}}
-		identity := codexexec.CodexExecutableIdentity{Version: manifest.Codex[0].Version, Executable: executable}
 		mustWriteExternalPath(t, filepath.Join(repository, ".revolvr", "config.yaml"), "codex:\n  executable: "+fmt.Sprintf("%q", codexPath)+"\nverification:\n  commands: [{name: go}]\n", 0o644)
-		return repository, codexPath, manifest, identity
+		return repository, codexPath, codexTarget, versionPath, identity
 	}
-	preflight := func(t *testing.T, repository string, manifest codexexec.ReleaseManifest) PreflightResult {
+	preflight := func(t *testing.T, repository string) PreflightResult {
 		t.Helper()
 		result, err := Preflight(context.Background(), Config{WorkDir: repository}, PreflightInput{
 			CommandRunner: runner.Run,
 			LookPath:      exec.LookPath,
-			CodexIdentityInspector: func(ctx context.Context, configured, workDir string, cfg codexexec.VersionConfig, lookPath codexexec.ExecutableLookPath) (codexexec.CodexExecutableIdentity, error) {
-				return codexexec.InspectCodexWithManifest(ctx, configured, workDir, cfg, lookPath, manifest)
-			},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -71,22 +76,24 @@ func TestExternalExecutableIdentityAdmission(t *testing.T) {
 		return result
 	}
 
-	repository, _, manifest, identity := newFixture(t)
-	ready := preflight(t, repository, manifest)
+	repository, _, _, versionPath, identity := newFixture(t)
+	ready := preflight(t, repository)
 	if !ready.Ready {
-		t.Fatalf("authorized preflight = %+v", ready.Checks)
+		t.Fatalf("future-version preflight = %+v", ready.Checks)
 	}
-	var codexDetail, gitDetail string
+	var codexDetail, codexVersionDetail, gitDetail string
 	for _, check := range ready.Checks {
 		switch check.Name {
 		case "codex executable":
 			codexDetail = check.Detail
+		case "codex version":
+			codexVersionDetail = check.Detail
 		case "git executable":
 			gitDetail = check.Detail
 		}
 	}
-	if !strings.Contains(codexDetail, identity.Executable.Resolved) || !strings.Contains(codexDetail, identity.Executable.SHA256) || !strings.Contains(gitDetail, "sha256=") {
-		t.Fatalf("identity details: codex=%q git=%q", codexDetail, gitDetail)
+	if !strings.Contains(codexDetail, identity.Executable.Resolved) || !strings.Contains(codexDetail, identity.Executable.SHA256) || codexVersionDetail != futureVersion+" (captured exact executable identity)" || !strings.Contains(gitDetail, "sha256=") {
+		t.Fatalf("identity details: codex=%q version=%q git=%q", codexDetail, codexVersionDetail, gitDetail)
 	}
 	checked, err := CheckRunConfig(repository)
 	if err != nil {
@@ -94,6 +101,10 @@ func TestExternalExecutableIdentityAdmission(t *testing.T) {
 	}
 	if checked.Effective.CodexIdentity != identity || checked.Effective.GitIdentity == (codexexec.ExecutableIdentity{}) {
 		t.Fatalf("config-check identities: codex=%+v git=%+v errors=%q/%q", checked.Effective.CodexIdentity, checked.Effective.GitIdentity, checked.CodexIdentityError, checked.GitIdentityError)
+	}
+	mixedPassConfig, err := loadConfiguredRunOnce(context.Background(), Config{WorkDir: repository}, nil, true)
+	if err != nil || mixedPassConfig.CodexIdentity != identity || mixedPassConfig.GitIdentity == (codexexec.ExecutableIdentity{}) {
+		t.Fatalf("mixed-pass admission identities: codex=%+v git=%+v err=%v", mixedPassConfig.CodexIdentity, mixedPassConfig.GitIdentity, err)
 	}
 	fingerprint := mustFingerprintEffectiveConfig(t, checked.Effective)
 	for _, value := range []string{identity.Version, identity.Executable.Resolved, identity.Executable.SHA256, checked.Effective.GitIdentity.Resolved, checked.Effective.GitIdentity.SHA256} {
@@ -106,83 +117,66 @@ func TestExternalExecutableIdentityAdmission(t *testing.T) {
 		t.Fatalf("run provenance identities = %+v err=%v", invocation, err)
 	}
 
+	if err := os.WriteFile(versionPath, []byte("Codex upgraded 2100-dev+next\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := recheckExternalExecutableIdentities(context.Background(), checked.Effective, true); err == nil || !strings.Contains(err.Error(), "identity drift") || !strings.Contains(err.Error(), futureVersion) || !strings.Contains(err.Error(), "Codex upgraded 2100-dev+next") {
+		t.Fatalf("same-bytes version drift error = %v", err)
+	}
+	upgraded := preflight(t, repository)
+	if !upgraded.Ready {
+		t.Fatalf("fresh upgraded preflight = %+v", upgraded.Checks)
+	}
+	upgradedConfig, err := CheckRunConfig(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if upgradedConfig.Effective.CodexIdentity.Version != "Codex upgraded 2100-dev+next" || upgradedConfig.Effective.CodexIdentity.Executable != identity.Executable {
+		t.Fatalf("fresh upgraded identity = %+v", upgradedConfig.Effective.CodexIdentity)
+	}
+	refreshedMixedPass, err := loadConfiguredRunOnce(context.Background(), Config{WorkDir: repository}, nil, true)
+	if err != nil || refreshedMixedPass.CodexIdentity.Version != "Codex upgraded 2100-dev+next" {
+		t.Fatalf("refreshed mixed-pass admission = %+v err=%v", refreshedMixedPass.CodexIdentity, err)
+	}
+
 	for _, test := range []struct {
 		name   string
-		mutate func(*testing.T, string)
+		mutate func(*testing.T, string, string)
 		want   string
 	}{
-		{name: "unlisted version", mutate: func(t *testing.T, path string) { writeCodex(t, path, "codex-cli 1.2.4", "") }, want: "not release-authorized"},
-		{name: "listed version different bytes", mutate: func(t *testing.T, path string) { writeCodex(t, path, "codex-cli 1.2.3", "# different bytes\n") }, want: "not release-authorized"},
-		{name: "unresolved executable", mutate: func(t *testing.T, path string) {
+		{name: "execution unresolved", mutate: func(t *testing.T, path, _ string) {
 			if err := os.Remove(path); err != nil {
 				t.Fatal(err)
 			}
 		}, want: "resolve executable"},
-	} {
-		t.Run("preflight "+test.name, func(t *testing.T) {
-			repository, codexPath, manifest, _ := newFixture(t)
-			test.mutate(t, codexPath)
-			beforeRuntime := snapshotExternalTree(t, filepath.Join(repository, ".revolvr"))
-			beforeTasks := snapshotExternalTree(t, filepath.Join(repository, ".agent"))
-			result := preflight(t, repository, manifest)
-			if result.Ready {
-				t.Fatalf("preflight unexpectedly ready: %+v", result.Checks)
+		{name: "execution non-executable", mutate: func(t *testing.T, _, target string) {
+			if err := os.Chmod(target, 0o644); err != nil {
+				t.Fatal(err)
 			}
-			found := false
-			for _, check := range result.Checks {
-				if check.Name == "codex executable" && check.Status == PreflightFail && strings.Contains(check.Detail, test.want) {
-					found = true
-				}
+		}, want: "permission denied"},
+		{name: "execution byte drift", mutate: func(t *testing.T, _, target string) { writeCodex(t, target, "# changed bytes\n") }, want: "identity drift"},
+		{name: "execution path drift", mutate: func(t *testing.T, path, target string) {
+			replacement := target + "-replacement"
+			writeCodex(t, replacement, "")
+			if err := os.WriteFile(replacement+".version", []byte(futureVersion+"\n"), 0o644); err != nil {
+				t.Fatal(err)
 			}
-			if !found {
-				t.Fatalf("preflight checks = %+v, want %q", result.Checks, test.want)
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
 			}
-			if after := snapshotExternalTree(t, filepath.Join(repository, ".revolvr")); !reflect.DeepEqual(after, beforeRuntime) {
-				t.Fatalf("identity refusal mutated runtime authority\nbefore=%v\nafter=%v", beforeRuntime, after)
+			if err := os.Symlink(replacement, path); err != nil {
+				t.Fatal(err)
 			}
-			if after := snapshotExternalTree(t, filepath.Join(repository, ".agent")); !reflect.DeepEqual(after, beforeTasks) {
-				t.Fatalf("identity refusal mutated task authority\nbefore=%v\nafter=%v", beforeTasks, after)
-			}
-		})
-	}
-
-	gitIdentity, err := codexexec.InspectExecutable("git", exec.LookPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	release, err := codexexec.CurrentReleaseManifest()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, test := range []struct {
-		name    string
-		version string
-		mutate  bool
-		remove  bool
-		want    string
-	}{
-		{name: "execution unlisted version", version: "codex-cli 1.2.3", want: "not release-authorized"},
-		{name: "execution listed version different bytes", version: release.Codex[0].Version, want: "not release-authorized"},
-		{name: "execution unresolved", version: release.Codex[0].Version, remove: true, want: "resolve executable"},
-		{name: "execution identity drift", version: release.Codex[0].Version, mutate: true, want: "identity drift"},
+		}, want: "identity drift"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "codex")
-			writeCodex(t, path, "codex-cli 1.2.3", "")
-			executable, inspectErr := codexexec.InspectExecutable(path, exec.LookPath)
-			if inspectErr != nil {
-				t.Fatal(inspectErr)
+			repository, path, target, _, _ := newFixture(t)
+			cfg, checkErr := CheckRunConfig(repository)
+			if checkErr != nil {
+				t.Fatal(checkErr)
 			}
-			if test.remove {
-				if err := os.Remove(path); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if test.mutate {
-				writeCodex(t, path, "codex-cli 1.2.3", "# drift\n")
-			}
-			cfg := runonce.Config{GitIdentity: gitIdentity, CodexIdentity: codexexec.CodexExecutableIdentity{Version: test.version, Executable: executable}}
-			err := recheckExternalExecutableIdentities(cfg, true)
+			test.mutate(t, path, target)
+			err := recheckExternalExecutableIdentities(context.Background(), cfg.Effective, true)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("execution recheck error = %v, want %q", err, test.want)
 			}
@@ -200,11 +194,7 @@ func TestExternalRepositoryShapeAndPlatformMatrix(t *testing.T) {
 	}
 	hybridRunner := func(ctx context.Context, command runner.Command) runner.Result {
 		if reflect.DeepEqual(command.Args, []string{"--version"}) {
-			manifest, err := codexexec.CurrentReleaseManifest()
-			if err != nil {
-				t.Fatal(err)
-			}
-			return runner.Result{ExitCode: 0, Stdout: manifest.Codex[0].Version + "\n"}
+			return runner.Result{ExitCode: 0, Stdout: testPreflightCodexVersion + "\n"}
 		}
 		return runner.Run(ctx, command)
 	}
@@ -375,11 +365,7 @@ verification:
 
 	hybridRunner := func(ctx context.Context, command runner.Command) runner.Result {
 		if reflect.DeepEqual(command.Args, []string{"--version"}) {
-			manifest, err := codexexec.CurrentReleaseManifest()
-			if err != nil {
-				t.Fatal(err)
-			}
-			return runner.Result{ExitCode: 0, Stdout: manifest.Codex[0].Version + "\n"}
+			return runner.Result{ExitCode: 0, Stdout: testPreflightCodexVersion + "\n"}
 		}
 		return runner.Run(ctx, command)
 	}

@@ -137,7 +137,6 @@ type Config struct {
 	CodexBypassApprovalsAndSandbox bool
 	CodexVersion                   string
 	CodexIdentity                  codexexec.CodexExecutableIdentity
-	CodexReleaseManifest           *codexexec.ReleaseManifest
 	EffectiveConfigSchema          string
 	EffectiveConfigSHA256          string
 	CodexTimeout                   time.Duration

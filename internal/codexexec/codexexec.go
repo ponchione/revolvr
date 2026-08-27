@@ -62,7 +62,6 @@ type Config struct {
 	LookPath                   ExecutableLookPath
 	OnProgress                 func(ProgressEvent)
 	Provenance                 InvocationProvenance
-	ReleaseManifest            *ReleaseManifest
 	Redactor                   *redact.Redactor
 	LastMessageFailureInjector LastMessageFailureInjector
 }
@@ -146,19 +145,14 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 	}
 	commandName := cfg.Executable
 	if provenance.CodexIdentity != nil {
-		if err := VerifyExecutableIdentity(provenance.CodexIdentity.Executable, cfg.LookPath); err != nil {
-			return Result{}, fmt.Errorf("run codex exec: %w", err)
-		}
-		var manifest ReleaseManifest
-		if cfg.ReleaseManifest != nil {
-			manifest = *cfg.ReleaseManifest
-		} else {
-			manifest, err = CurrentReleaseManifest()
+		identityWorkDir := workDir
+		if strings.TrimSpace(cfg.ArtifactRoot) != "" {
+			identityWorkDir, err = absoluteWorkingDir(cfg.ArtifactRoot)
 			if err != nil {
-				return Result{}, err
+				return Result{}, fmt.Errorf("run codex exec: resolve identity working directory: %w", err)
 			}
 		}
-		if err := manifest.Authorize(*provenance.CodexIdentity); err != nil {
+		if err := VerifyCodexIdentity(ctx, *provenance.CodexIdentity, identityWorkDir, VersionConfig{Timeout: cfg.Timeout, StdoutCap: cfg.StdoutCap, StderrCap: cfg.StderrCap, CommandRunner: cfg.CommandRunner}, cfg.LookPath); err != nil {
 			return Result{}, fmt.Errorf("run codex exec: %w", err)
 		}
 		commandName = provenance.CodexIdentity.Executable.Resolved

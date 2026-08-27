@@ -45,7 +45,7 @@ Real-operation options (all required unless noted):
   --candidate-binary-sha256 <sha256>   Expected candidate binary identity
   --candidate-source-commit <oid>      Expected vcs.revision in Go build metadata
   --candidate-version-output <text>    Exact single-line `revolvr --version` output
-  --codex-executable <path>             Exact release-listed Codex executable
+  --codex-executable <path>             Configured Codex executable
   --codex-sha256 <sha256>              Expected Codex executable identity
   --codex-version <text>               Exact single-line Codex version
   --approved-config-sha256 <sha256>    Exact .revolvr/config.yaml identity
@@ -469,7 +469,7 @@ func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "doctor" {
 		fmt.Println("Dogfood preflight:")
 		fmt.Println("OK mode: attended-task")
-		fmt.Println("OK codex version: fixture release-authorized exact identity")
+		fmt.Println("OK codex version: fixture captured exact executable identity")
 		fmt.Println("OK operational bounds: task_attempts=16 model_tokens=1000000 retained_disk_bytes=1073741824")
 		fmt.Println("Ready: true")
 		return

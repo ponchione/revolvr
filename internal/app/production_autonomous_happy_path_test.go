@@ -86,17 +86,6 @@ func runProductionAutonomousHappyPath(t *testing.T, proveRepositoryContainment b
 	}
 
 	executable := buildStrictFakeCodex(t)
-	executableIdentity, err := codexexec.InspectExecutable(executable, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	releaseManifest := codexexec.ReleaseManifest{
-		SchemaVersion: codexexec.ReleaseManifestSchema,
-		Codex:         []codexexec.ReleaseCodexBuild{{Version: strictFakeCodexVersion, SHA256: executableIdentity.SHA256}},
-	}
-	if err := releaseManifest.Validate(); err != nil {
-		t.Fatal(err)
-	}
 	runCfg := DefaultRunOnceConfig(repo)
 	runCfg.CodexExecutable = executable
 	runCfg.CodexTimeout = 10 * time.Second
@@ -137,7 +126,6 @@ func runProductionAutonomousHappyPath(t *testing.T, proveRepositoryContainment b
 			ids++
 			return "happy-" + leftPadTwo(ids)
 		},
-		releaseManifest: &releaseManifest,
 	})
 	if err != nil {
 		stderr, _ := os.ReadFile(filepath.Join(repo, ".revolvr", "runs", "happy-04", "codex.stderr"))
@@ -155,7 +143,7 @@ func runProductionAutonomousHappyPath(t *testing.T, proveRepositoryContainment b
 	if ids != 17 {
 		t.Fatalf("production ID calls = %d, want 17", ids)
 	}
-	wantFakeState := strictFakeCodexState{SchemaVersion: strictFakeCodexStateSchema, VersionInvocations: 1, NextInvocation: 5, OutputSequence: append([]string(nil), contract.OutputSequence...)}
+	wantFakeState := strictFakeCodexState{SchemaVersion: strictFakeCodexStateSchema, VersionInvocations: contract.VersionInvocationCount, NextInvocation: 5, OutputSequence: append([]string(nil), contract.OutputSequence...)}
 	if got := fixture.loadState(t); !reflect.DeepEqual(got, wantFakeState) {
 		t.Fatalf("strict fake state = %+v, want %+v", got, wantFakeState)
 	}
@@ -376,7 +364,7 @@ func productionHappyCodexContract(t *testing.T, root, workspace, executable stri
 		{name: "audit-worker", runID: "happy-11", action: autonomous.ActionAudit, message: `{"schema_version":"autonomous-audit-output-v1","task_id":"` + taskID + `","report":{"task_id":"` + taskID + `","disposition":"clean","rationale":"The exact verified documentation change is correct and complete.","inputs":@@INPUTS@@},"provenance":@@PROVENANCE@@}` + "\n"},
 		{name: "complete-supervisor", runID: "happy-16", supervisor: true, message: decisionJSON(complete)},
 	}
-	contract := strictFakeCodexContract{VersionInvocationCount: 1}
+	contract := strictFakeCodexContract{}
 	for index, spec := range specs {
 		invocation := strictFakeCodexInvocation{Name: spec.name, WorkingDirectory: workspace, LastMessage: spec.message}
 		if spec.supervisor {
@@ -404,6 +392,7 @@ func productionHappyCodexContract(t *testing.T, root, workspace, executable stri
 		contract.Invocations = append(contract.Invocations, invocation)
 		contract.OutputSequence = append(contract.OutputSequence, spec.name+":thread.started", spec.name+":turn.completed")
 	}
+	contract.VersionInvocationCount = len(contract.Invocations) + 1
 	return contract
 }
 

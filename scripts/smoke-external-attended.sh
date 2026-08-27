@@ -189,14 +189,15 @@ run_capture task-why revolvr task why "$TASK_ID"
 assert_contains "$OUTPUT/task-show.out" "Task ID: $TASK_ID"
 assert_contains "$OUTPUT/task-show-json.out" '"source_kind": "active"'
 
-# The fake has a valid version grammar but is deliberately absent from the
-# release allowlist. Doctor must inspect it, refuse it, and start no model.
-expect_failure doctor-bare revolvr doctor
-expect_failure doctor-attended revolvr doctor --for attended-task
+# The fake has safe bounded single-line version output. Doctor must capture its
+# exact executable identity, admit it without a release list, and start no model.
+run_capture doctor-bare revolvr doctor
+run_capture doctor-attended revolvr doctor --for attended-task
 cmp "$OUTPUT/doctor-bare.out" "$OUTPUT/doctor-attended.out" || fail "bare and attended doctor output differ"
-assert_contains "$OUTPUT/doctor-attended.out" "Ready: false"
-expect_failure doctor-task revolvr doctor --for attended-task --task "$TASK_ID"
-assert_contains "$OUTPUT/doctor-task.out" "Ready: false"
+assert_contains "$OUTPUT/doctor-attended.out" "captured exact executable identity"
+assert_contains "$OUTPUT/doctor-attended.out" "Ready: true"
+run_capture doctor-task revolvr doctor --for attended-task --task "$TASK_ID"
+assert_contains "$OUTPUT/doctor-task.out" "Ready: true"
 
 # Read-only evidence surfaces. Missing selectors exercise safe, non-mutating
 # refusals; the export commands exercise positive immutable evidence reads.

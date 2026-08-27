@@ -59,7 +59,6 @@ type Config struct {
 	CodexBypassApprovalsAndSandbox bool
 	CodexVersion                   string
 	CodexIdentity                  codexexec.CodexExecutableIdentity
-	CodexReleaseManifest           *codexexec.ReleaseManifest
 	EffectiveConfigSchema          string
 	EffectiveConfigSHA256          string
 	SafetyPolicySHA256             string
@@ -420,7 +419,6 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		Ledger:                    normalized.Ledger,
 		CommandRunner:             normalized.CodexCommandRunner,
 		Provenance:                invocation,
-		ReleaseManifest:           normalized.CodexReleaseManifest,
 		Redactor:                  normalized.Redactor,
 	})
 	result.Codex = codexResult

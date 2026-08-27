@@ -1,6 +1,6 @@
 ---
 id: architecture-024-ui
-status: pending
+status: blocked
 workflow: mixed-pass-v1
 phase: implement
 depends_on: architecture-023-sequential-queue
@@ -11,10 +11,54 @@ depends_on: architecture-023-sequential-queue
 ## Sequence and status
 
 - Sequence: `024` of `025`.
-- Status: pending.
+- Status: blocked at the Phase 9 gate as of 2026-08-07.
 - Prerequisite: `architecture-023-sequential-queue`.
 - Phase gate: the CLI-first core loop and bounded queue must be trustworthy and
   fully operable before Phase 9 desktop views are added.
+
+## Phase-gate revalidation
+
+- At the start of the 2026-08-07 pass, this was the sole
+  dependency-satisfied pending architecture task. Architecture 023 is
+  complete, but dependency satisfaction did not establish this task's separate
+  phase gate.
+- Section 23.3 requires acceptable measured thresholds before sequential queue
+  autonomy is enabled on real projects. `evals/golden/baseline.json` still
+  records a null quality threshold, says it was not set before baseline
+  measurement, and explicitly omits live dogfood.
+- The canonical queue remains deliberately gate-closed:
+  `deterministic_evaluation_only` is its only schema value, and ordinary
+  `revolvr queue start` reaches `internal/app.StartSequentialQueue` without an
+  injected executor and fails before database or worker effects with
+  `ErrSequentialQueueQualityGate`.
+- Decision: **blocked, not complete**. Deterministic fixture success cannot be
+  relabeled as the missing real-project evidence, and a desktop surface cannot
+  compensate for a CLI-first application service that is intentionally not
+  operable. No phase-gate bypass was made.
+- Implementation result: no Go/frontend file, dependency, lockfile, Wails
+  shell, Vue view, shared REST service, canonical mutation, SSE stream,
+  security behavior, artifact rendering, or accessibility behavior was added
+  or claimed.
+- Focused verification passed:
+  `go test ./internal/app -run
+  '^TestSequentialQueueRealProjectStartFailsClosedWithoutMeasuredGate$'
+  -count=1`; `go test ./internal/evaluation -run '^TestGoldenBaseline$'
+  -count=1`; and a focused real CLI start returned the exact expected Section
+  23.3 refusal with exit 1. Architecture 024 build verification was not run
+  because the failed gate prohibited creating the implementation.
+- `git diff --check` passed. A read-only `revolvr task list` check additionally
+  failed closed on the checkout's existing unsafe `.agent` mode 0775; this
+  gate-only pass did not change filesystem permissions. Direct inspection of
+  all canonical task frontmatter confirmed the dependency ordering.
+- Resume condition: a separately authorized evidence pass must approve numeric
+  thresholds for all Section 23.3 categories from real-project data, record
+  qualifying exact bounded-queue results against them, and admit the canonical
+  production executor through ordinary CLI operation. Until then there is no
+  next legal architecture task; Architecture 025 remains dependency-blocked.
+- Checkout follow-up: the unrelated `.agent` permission and legacy task-status
+  issues found during this gate pass were corrected on 2026-08-27, and
+  `revolvr task list` now loads the graph. That repair does not satisfy the
+  Section 23.3 gate.
 
 ## Primary outcome
 

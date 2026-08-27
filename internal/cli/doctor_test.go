@@ -23,6 +23,8 @@ import (
 	"revolvr/internal/taskfile"
 )
 
+const cliTestCodexVersion = "Codex future 2099.42-preview+abcdef"
+
 func TestDoctorStatusAdmissionAgreeOnUnsafeAgent(t *testing.T) {
 	workDir := t.TempDir()
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
@@ -168,7 +170,6 @@ func TestDoctorForModesAndTaskSelector(t *testing.T) {
 func TestDoctorReportsReadyForDogfood(t *testing.T) {
 	workDir := newDoctorGitRepo(t)
 	fakeCodex := writeDoctorFakeExecutable(t, "codex-test")
-	releaseVersion := currentReleaseCodexVersion(t)
 
 	if _, err := executeCLI(t, workDir, "init"); err != nil {
 		t.Fatalf("execute init: %v", err)
@@ -203,7 +204,7 @@ verification:
 		"OK codex model: gpt-doctor",
 		"OK codex reasoning effort: high",
 		"OK codex session: ephemeral (ephemeral=true)",
-		"OK codex version: " + releaseVersion + " (release-authorized exact identity)",
+		"OK codex version: " + cliTestCodexVersion + " (captured exact executable identity)",
 		"OK git executable:",
 		"OK git identity: Revolvr Doctor <doctor@example.invalid>",
 		"OK worktree clean: no changes",
@@ -279,10 +280,6 @@ verification:
 	if err := root.Execute(); err != nil {
 		t.Fatalf("execute doctor: %v\n%s", err, out.String())
 	}
-	manifest, err := codexexec.CurrentReleaseManifest()
-	if err != nil {
-		t.Fatal(err)
-	}
 	want := "Dogfood preflight:\n" +
 		"OK state: initialized at " + filepath.Join(workDir, ".revolvr") + "\n" +
 		"OK config: loaded " + filepath.Join(workDir, ".revolvr", "config.yaml") + "\n" +
@@ -299,11 +296,11 @@ verification:
 		"OK autonomous queue: schema=autonomous-queue-policy-v1 maximum_workers=1\n" +
 		"OK artifact retention: schema=revolvr-artifact-retention-policy-v1 mutation_enabled=false recent_runs=20\n" +
 		"OK notification hooks: disabled; no executable lookup, environment load, outbox write, or process start\n" +
-		"OK codex executable: configured=\"codex-test\" resolved=\"/fake/bin/codex-test\" sha256=" + manifest.Codex[0].SHA256 + "\n" +
+		"OK codex executable: configured=\"codex-test\" resolved=\"/fake/bin/codex-test\" sha256=" + strings.Repeat("a", 64) + "\n" +
 		"OK codex model: gpt-5.6-sol\n" +
 		"OK codex reasoning effort: xhigh\n" +
 		"OK codex session: ephemeral (ephemeral=true)\n" +
-		"OK codex version: " + manifest.Codex[0].Version + " (release-authorized exact identity)\n" +
+		"OK codex version: codex-test 1.2.3 (captured exact executable identity)\n" +
 		"OK git identity: Revolvr Doctor <doctor@example.invalid>\n" +
 		"OK runtime state ignored: .revolvr/ ignored by Git\n" +
 		"Ready: true\n"
@@ -415,14 +412,11 @@ func cliTestCodexIdentityInspector(ctx context.Context, configured, workDir stri
 	}
 	cfg.Executable = configured
 	cfg.WorkingDir = workDir
-	if _, err := codexexec.DiscoverVersion(ctx, cfg); err != nil {
-		return codexexec.CodexExecutableIdentity{}, err
-	}
-	manifest, err := codexexec.CurrentReleaseManifest()
+	version, err := codexexec.DiscoverVersion(ctx, cfg)
 	if err != nil {
 		return codexexec.CodexExecutableIdentity{}, err
 	}
-	return codexexec.CodexExecutableIdentity{Version: manifest.Codex[0].Version, Executable: codexexec.ExecutableIdentity{Configured: configured, Resolved: path, SHA256: manifest.Codex[0].SHA256}}, nil
+	return codexexec.CodexExecutableIdentity{Version: version, Executable: codexexec.ExecutableIdentity{Configured: configured, Resolved: path, SHA256: strings.Repeat("a", 64)}}, nil
 }
 
 func newDoctorGitRepo(t *testing.T) string {
@@ -457,18 +451,9 @@ func commitDoctorProfiles(t *testing.T, workDir string) {
 func writeDoctorFakeExecutable(t *testing.T, name string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
-	content := "#!/usr/bin/env sh\nif [ \"${1:-}\" = \"--version\" ]; then\n  printf '%s\\n' " + strconv.Quote(currentReleaseCodexVersion(t)) + "\n  exit 0\nfi\nexit 64\n"
+	content := "#!/usr/bin/env sh\nif [ \"${1:-}\" = \"--version\" ]; then\n  printf '%s\\n' " + strconv.Quote(cliTestCodexVersion) + "\n  exit 0\nfi\nexit 64\n"
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write fake executable: %v", err)
 	}
 	return path
-}
-
-func currentReleaseCodexVersion(t *testing.T) string {
-	t.Helper()
-	manifest, err := codexexec.CurrentReleaseManifest()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return manifest.Codex[0].Version
 }

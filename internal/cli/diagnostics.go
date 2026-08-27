@@ -25,6 +25,10 @@ type runDiagnostics struct {
 	CommitMessage              string
 	ReceiptVerdict             string
 	ReceiptPath                string
+	InvalidReceiptPath         string
+	InvalidReceiptByteSize     int
+	InvalidReceiptSHA256       string
+	InvalidReceiptReason       string
 	ChangedFiles               []string
 	Warnings                   []diagnosticWarning
 	commitSHAFromRun           string
@@ -77,6 +81,7 @@ func (d runDiagnostics) usefulWithoutRunCommit() bool {
 		strings.TrimSpace(d.CommitMessage) != "" ||
 		strings.TrimSpace(d.ReceiptVerdict) != "" ||
 		strings.TrimSpace(d.ReceiptPath) != "" ||
+		strings.TrimSpace(d.InvalidReceiptPath) != "" ||
 		len(d.ChangedFiles) > 0 ||
 		len(d.Warnings) > 0
 }
@@ -193,8 +198,12 @@ func (d *runDiagnostics) applyCommitCreated(event ledger.Event) {
 
 func (d *runDiagnostics) applyReceipt(event ledger.Event) {
 	var payload struct {
-		ReceiptPath string `json:"receipt_path"`
-		Verdict     string `json:"verdict"`
+		ReceiptPath            string `json:"receipt_path"`
+		Verdict                string `json:"verdict"`
+		InvalidReceiptPath     string `json:"invalid_receipt_path"`
+		InvalidReceiptByteSize int    `json:"invalid_receipt_byte_size"`
+		InvalidReceiptSHA256   string `json:"invalid_receipt_sha256"`
+		InvalidReceiptReason   string `json:"invalid_receipt_reason"`
 	}
 	if !decodePayload(event, &payload) {
 		return
@@ -204,6 +213,12 @@ func (d *runDiagnostics) applyReceipt(event ledger.Event) {
 	}
 	if value := strings.TrimSpace(payload.Verdict); value != "" {
 		d.ReceiptVerdict = value
+	}
+	if value := strings.TrimSpace(payload.InvalidReceiptPath); value != "" {
+		d.InvalidReceiptPath = value
+		d.InvalidReceiptByteSize = payload.InvalidReceiptByteSize
+		d.InvalidReceiptSHA256 = strings.TrimSpace(payload.InvalidReceiptSHA256)
+		d.InvalidReceiptReason = oneLine(payload.InvalidReceiptReason)
 	}
 }
 
@@ -287,6 +302,9 @@ func diagnosticLines(d runDiagnostics) []string {
 	}
 	if line := receiptDiagnosticLine(d); line != "" {
 		lines = append(lines, line)
+	}
+	if value := oneLine(d.InvalidReceiptPath); value != "" {
+		lines = append(lines, fmt.Sprintf("invalid receipt: %s (bytes=%d, sha256=%s, reason=%s)", value, d.InvalidReceiptByteSize, oneLine(d.InvalidReceiptSHA256), oneLine(d.InvalidReceiptReason)))
 	}
 	for _, warning := range d.Warnings {
 		if line := warningDiagnosticLine(warning); line != "" {

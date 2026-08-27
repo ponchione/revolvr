@@ -61,12 +61,13 @@ recovery plan even though it is not committed.
 
 Create `.revolvr/config.yaml` using the minimal attended configuration in
 [the attended external-project runbook](external-project-runbook.md#configure-attended-execution-and-verification).
-Use an absolute Codex path whose exact version and executable hash match
-`internal/codexexec/release_manifest.json`, replace the example verification
-command with the project's deterministic bounded check, keep
-`autonomy.mode: operator_attended`, and keep verification and dirty-worktree
-refusals enabled. The configured Codex timeout and each verification timeout
-must be finite. Do not put secret values in the file.
+Use the absolute path to the installed Codex executable the operator intends
+to run. Revolvr captures its resolved path, reported version, and executable
+SHA-256 during preflight and refuses drift before execution. Replace the
+example verification command with the project's deterministic bounded check,
+keep `autonomy.mode: operator_attended`, and keep verification and
+dirty-worktree refusals enabled. The configured Codex timeout and each
+verification timeout must be finite. Do not put secret values in the file.
 
 Validate the effective configuration before authoring a run:
 
@@ -135,6 +136,12 @@ After the command settles, inspect the summary and durable evidence:
 "$REVOLVR_BIN" show "$RUN_ID"
 "$REVOLVR_BIN" receipt validate "$RUN_ID"
 ```
+
+`show` prints the admitted Codex configured path, resolved path, reported
+version, and SHA-256. If Codex produced an invalid receipt, it also names the
+preserved original artifact; the harness-finalized replacement is marked
+`completed_with_concerns` rather than silently presenting the invalid receipt
+as successful evidence.
 
 Take `RUN_ID`, the task workspace, and the generated commit from the terminal
 summary and task JSON. Review the complete receipt, verification/audit

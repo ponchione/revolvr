@@ -167,6 +167,35 @@ func TestFingerprintEffectiveConfigChangesForMaterialSettings(t *testing.T) {
 	}
 }
 
+func TestFingerprintEffectiveConfigChangesWithExecutableIdentities(t *testing.T) {
+	base := Config{
+		WorkingDir:           t.TempDir(),
+		CodexExecutable:      "codex",
+		CodexIdentity:        codexexec.CodexExecutableIdentity{Version: "Codex 1", Executable: codexexec.ExecutableIdentity{Configured: "codex", Resolved: "/tools/codex", SHA256: strings.Repeat("a", 64)}},
+		GitExecutable:        "git",
+		GitIdentity:          codexexec.ExecutableIdentity{Configured: "git", Resolved: "/tools/git", SHA256: strings.Repeat("b", 64)},
+		VerificationCommands: []verification.Command{},
+	}
+	baseline, err := FingerprintEffectiveConfig(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	changedCodex := base
+	changedCodex.CodexIdentity.Executable.SHA256 = strings.Repeat("c", 64)
+	changedGit := base
+	changedGit.GitIdentity.Resolved = "/tools/git-next"
+	for name, cfg := range map[string]Config{"codex": changedCodex, "git": changedGit} {
+		got, err := FingerprintEffectiveConfig(cfg)
+		if err != nil {
+			t.Fatalf("%s fingerprint: %v", name, err)
+		}
+		if got.SHA256 == baseline.SHA256 {
+			t.Fatalf("%s identity change did not change fingerprint", name)
+		}
+	}
+}
+
 func TestFingerprintEffectiveConfigRejectsRemovedDirtyWorktreeOption(t *testing.T) {
 	_, err := FingerprintEffectiveConfig(Config{
 		WorkingDir:            t.TempDir(),

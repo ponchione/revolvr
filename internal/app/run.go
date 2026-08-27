@@ -43,7 +43,7 @@ type RunLoopStats struct {
 }
 
 func RunOnce(ctx context.Context, cfg Config, input RunOnceInput) (runonce.Result, error) {
-	runCfg, err := loadConfiguredRunOnce(cfg, input.Progress)
+	runCfg, err := loadConfiguredRunOnce(ctx, cfg, input.Progress, input.Runner == nil)
 	if err != nil {
 		return runonce.Result{}, err
 	}
@@ -62,7 +62,7 @@ func RunLoop(ctx context.Context, cfg Config, input RunLoopInput) (RunLoopResult
 			return RunLoopResult{Stats: stats}, err
 		}
 
-		runCfg, err := loadConfiguredRunOnce(cfg, input.Progress)
+		runCfg, err := loadConfiguredRunOnce(ctx, cfg, input.Progress, input.Runner == nil)
 		if err != nil {
 			stats.StopReason = "config_error"
 			return RunLoopResult{Stats: stats}, err
@@ -122,10 +122,16 @@ func RunLoop(ctx context.Context, cfg Config, input RunLoopInput) (RunLoopResult
 	return RunLoopResult{Stats: stats}, runLoopFailureError(stats)
 }
 
-func loadConfiguredRunOnce(cfg Config, progress RunProgress) (runonce.Config, error) {
+func loadConfiguredRunOnce(ctx context.Context, cfg Config, progress RunProgress, admitIdentities bool) (runonce.Config, error) {
 	runCfg, err := LoadRunOnceConfig(cfg.WorkDir, DefaultRunOnceConfig(cfg.WorkDir))
 	if err != nil {
 		return runonce.Config{}, err
+	}
+	if admitIdentities {
+		runCfg, err = admitExternalMode(ctx, runCfg.WorkingDir, PreflightModeAttendedTask, 0, &runCfg, true)
+		if err != nil {
+			return runonce.Config{}, err
+		}
 	}
 	if progress != nil {
 		runCfg.CodexProgress = progress

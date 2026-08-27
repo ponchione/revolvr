@@ -12,6 +12,7 @@ type RunArtifacts struct {
 	CodexStderrPath               string `json:"codex_stderr_path"`
 	LastMessagePath               string `json:"last_message_path"`
 	ReceiptPath                   string `json:"receipt_path"`
+	InvalidReceiptPath            string `json:"invalid_receipt_path"`
 	DossierPath                   string `json:"dossier_path"`
 	DossierManifestPath           string `json:"dossier_manifest_path"`
 	SupervisorDossierPath         string `json:"supervisor_dossier_path"`
@@ -33,6 +34,7 @@ func (a RunArtifacts) Empty() bool {
 		strings.TrimSpace(a.CodexStderrPath) == "" &&
 		strings.TrimSpace(a.LastMessagePath) == "" &&
 		strings.TrimSpace(a.ReceiptPath) == "" &&
+		strings.TrimSpace(a.InvalidReceiptPath) == "" &&
 		strings.TrimSpace(a.DossierPath) == "" &&
 		strings.TrimSpace(a.DossierManifestPath) == "" &&
 		strings.TrimSpace(a.SupervisorDossierPath) == "" &&
@@ -79,6 +81,9 @@ func (a *RunArtifacts) mergeMissing(other RunArtifacts) {
 	}
 	if strings.TrimSpace(a.ReceiptPath) == "" {
 		a.ReceiptPath = strings.TrimSpace(other.ReceiptPath)
+	}
+	if strings.TrimSpace(a.InvalidReceiptPath) == "" {
+		a.InvalidReceiptPath = strings.TrimSpace(other.InvalidReceiptPath)
 	}
 	if strings.TrimSpace(a.DossierPath) == "" {
 		a.DossierPath = strings.TrimSpace(other.DossierPath)
@@ -131,10 +136,11 @@ func artifactsFromEvent(event Event) (RunArtifacts, bool) {
 		return paths, ok
 	case EventReceiptParsed, EventReceiptSynthesized:
 		receiptPath := stringField(event.Payload, "receipt_path")
-		if receiptPath == "" {
+		invalidReceiptPath := stringField(event.Payload, "invalid_receipt_path")
+		if receiptPath == "" && invalidReceiptPath == "" {
 			return RunArtifacts{}, false
 		}
-		return RunArtifacts{ReceiptPath: receiptPath}, true
+		return RunArtifacts{ReceiptPath: receiptPath, InvalidReceiptPath: invalidReceiptPath}, true
 	case EventSupervisorPrepared, EventSupervisorValidated, EventSupervisorRejected, EventSupervisorMutation:
 		paths, ok := decodeSupervisorArtifacts(event.Payload)
 		return paths, ok
@@ -199,6 +205,7 @@ func decodeRunArtifacts(payload json.RawMessage) (RunArtifacts, bool) {
 		CodexStderrPath:      stringField(payload, "codex_stderr_path"),
 		LastMessagePath:      stringField(payload, "last_message_path"),
 		ReceiptPath:          stringField(payload, "receipt_path"),
+		InvalidReceiptPath:   stringField(payload, "invalid_receipt_path"),
 		DossierPath:          stringField(payload, "dossier_path"),
 		DossierManifestPath:  stringField(payload, "dossier_manifest_path"),
 	}

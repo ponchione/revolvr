@@ -1,6 +1,7 @@
 package runonce
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -37,6 +38,23 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	ctx := context.Background()
 	env := newTestEnv(t)
 	selected := writeRunTask(t, env, "task-1", "Implement selected task")
+	executableDir := t.TempDir()
+	codexPath := filepath.Join(executableDir, "codex-test")
+	gitPath := filepath.Join(executableDir, "git-test")
+	for _, path := range []string{codexPath, gitPath} {
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 99\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	codexExecutable, err := codexexec.InspectExecutable(codexPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codexIdentity := codexexec.CodexExecutableIdentity{Version: "codex-test 1.2.3", Executable: codexExecutable}
+	gitIdentity, err := codexexec.InspectExecutable(gitPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	state := &fakeCommandState{
 		t:                 t,
@@ -51,8 +69,10 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	result, err := Run(ctx, Config{
 		WorkingDir:           env.workDir,
 		LedgerStore:          env.ledger,
-		CodexExecutable:      "codex-test",
-		GitExecutable:        "git-test",
+		CodexExecutable:      codexPath,
+		CodexIdentity:        codexIdentity,
+		GitExecutable:        gitPath,
+		GitIdentity:          gitIdentity,
 		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
 		CommandRunner:        state.run,
 		Clock:                env.clock,
@@ -169,7 +189,7 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 	if !reflect.DeepEqual(manifest.Invocation, contextBuilt.Invocation) || !reflect.DeepEqual(manifest.Invocation, codexStarted.Invocation) {
 		t.Fatalf("invocation provenance disagrees:\nmanifest=%+v\ncontext=%+v\nstarted=%+v", manifest.Invocation, contextBuilt.Invocation, codexStarted.Invocation)
 	}
-	if got := manifest.Invocation; got.Executable != "codex-test" || got.Version != "codex-test 1.2.3" || got.Model != codexexec.DefaultModel || got.ReasoningEffort != codexexec.DefaultReasoningEffort || !got.Ephemeral || got.SessionMode != codexexec.SessionModeEphemeral || got.EffectiveConfigSchema != EffectiveConfigSchema || got.EffectiveConfigSHA256 == "" || !reflect.DeepEqual(got.Argv, state.codexArgs) {
+	if got := manifest.Invocation; got.Executable != codexPath || got.Version != codexIdentity.Version || !reflect.DeepEqual(got.CodexIdentity, &codexIdentity) || !reflect.DeepEqual(got.GitIdentity, &gitIdentity) || got.Model != codexexec.DefaultModel || got.ReasoningEffort != codexexec.DefaultReasoningEffort || !got.Ephemeral || got.SessionMode != codexexec.SessionModeEphemeral || got.EffectiveConfigSchema != EffectiveConfigSchema || got.EffectiveConfigSHA256 == "" || !reflect.DeepEqual(got.Argv, state.codexArgs) {
 		t.Fatalf("invocation provenance = %+v, args=%#v", got, state.codexArgs)
 	}
 	assertRunEvents(t, env.ledger, result.Run.ID, []ledger.EventType{
@@ -189,6 +209,151 @@ func TestRunCommitsVerifiedCodexChanges(t *testing.T) {
 		ledger.EventCommitCreated,
 		ledger.EventRunCompleted,
 	})
+}
+
+func TestRunIdentityDriftBeforeExecutionPreservesTaskAndSkipsCodex(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	selected := writeRunTask(t, env, "task-identity-drift", "Do not run after identity drift")
+	originalTask := append([]byte(nil), selected.SourceBytes...)
+	codexPath := filepath.Join(t.TempDir(), "codex")
+	if err := os.WriteFile(codexPath, []byte("#!/bin/sh\ncat \"$0.version\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(codexPath+".version", []byte("Codex admitted 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := codexexec.InspectCodex(ctx, codexPath, env.workDir, codexexec.VersionConfig{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	codexCalled := false
+	verificationCalled := false
+	commitCalled := false
+	result, err := Run(ctx, Config{
+		WorkingDir:      env.workDir,
+		LedgerStore:     env.ledger,
+		CodexExecutable: codexPath,
+		CodexIdentity:   identity,
+		DirtyCapture: func(context.Context, gitstate.Config) (gitstate.Capture, error) {
+			if writeErr := os.WriteFile(codexPath+".version", []byte("Codex drifted 2\n"), 0o644); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			return gitstate.Capture{Kind: gitstate.CaptureKindDirty}, nil
+		},
+		CodexRunner: func(context.Context, codexexec.Config) (codexexec.Result, error) {
+			codexCalled = true
+			return codexexec.Result{}, nil
+		},
+		VerificationRunner: func(context.Context, verification.Config) (verification.Result, error) {
+			verificationCalled = true
+			return verification.Result{}, nil
+		},
+		CommitRunner: func(context.Context, commit.Config) (commit.Result, error) {
+			commitCalled = true
+			return commit.Result{}, nil
+		},
+		Clock: env.clock,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeBlocked || !strings.Contains(result.Message, "identity drift") {
+		t.Fatalf("outcome/message = %s / %q, want blocked identity drift", result.Outcome, result.Message)
+	}
+	if codexCalled || verificationCalled || commitCalled {
+		t.Fatalf("called codex=%v verification=%v commit=%v, want none", codexCalled, verificationCalled, commitCalled)
+	}
+	current, err := os.ReadFile(filepath.Join(env.workDir, selected.SourcePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(current, originalTask) || result.Task.Status != taskmodel.StatusPending {
+		t.Fatalf("task changed after drift: status=%s bytes_equal=%v", result.Task.Status, bytes.Equal(current, originalTask))
+	}
+}
+
+func TestRunPreservesInvalidReceiptAndCommitsWithConcerns(t *testing.T) {
+	ctx := context.Background()
+	env := newTestEnv(t)
+	writeRunTask(t, env, "task-invalid-receipt", "Replace an invalid receipt truthfully")
+	invalid := []byte("not a receipt\nexact worker bytes\x00\n")
+	clock := &advancingClock{current: time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC), step: 2 * time.Second}
+	state := &fakeCommandState{
+		t:                t,
+		workDir:          env.workDir,
+		writeReceipt:     true,
+		postStatus:       " M internal/feature.go\x00",
+		verificationExit: 0,
+		commitSHA:        "concern123",
+		receiptContent: func(string, string, string) string {
+			return string(invalid)
+		},
+	}
+
+	result, err := Run(ctx, Config{
+		WorkingDir:           env.workDir,
+		LedgerStore:          env.ledger,
+		CodexExecutable:      "codex-test",
+		GitExecutable:        "git-test",
+		VerificationCommands: []verification.Command{{Name: "go", Args: []string{"test", "./..."}}},
+		CommandRunner:        state.run,
+		Clock:                clock.now,
+	})
+	if err != nil {
+		t.Fatalf("run once: %v", err)
+	}
+	if result.Outcome != OutcomeCommitted || !result.ReceiptSynthesized || result.Receipt.Verdict != receipt.VerdictCompletedWithConcerns {
+		t.Fatalf("outcome=%s synthesized=%v verdict=%q", result.Outcome, result.ReceiptSynthesized, result.Receipt.Verdict)
+	}
+	preserved, err := os.ReadFile(result.InvalidReceiptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(preserved, invalid) {
+		t.Fatalf("invalid receipt artifact = %q, want exact %q", preserved, invalid)
+	}
+	wantHash := sha256.Sum256(invalid)
+	if result.InvalidReceiptByteSize != len(invalid) || result.InvalidReceiptSHA256 != fmt.Sprintf("%x", wantHash) || result.InvalidReceiptReason == "" || len([]rune(result.InvalidReceiptReason)) > 500 {
+		t.Fatalf("invalid receipt evidence = path=%s bytes=%d sha=%s reason=%q", result.InvalidReceiptRelPath, result.InvalidReceiptByteSize, result.InvalidReceiptSHA256, result.InvalidReceiptReason)
+	}
+	finalBytes, err := os.ReadFile(result.ReceiptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(finalBytes), "Codex produced an invalid receipt; the harness preserved it and replaced it") {
+		t.Fatalf("synthesized receipt wording is not truthful:\n%s", finalBytes)
+	}
+	if result.Receipt.Metrics.DurationSeconds < 2 {
+		t.Fatalf("duration_seconds = %d, want measured multi-second duration", result.Receipt.Metrics.DurationSeconds)
+	}
+
+	history, ok, err := env.ledger.GetRunWithEvents(ctx, result.Run.ID)
+	if err != nil || !ok {
+		t.Fatalf("get run history ok=%v err=%v", ok, err)
+	}
+	var synthesized struct {
+		Verdict  receipt.Verdict `json:"verdict"`
+		Path     string          `json:"invalid_receipt_path"`
+		ByteSize int             `json:"invalid_receipt_byte_size"`
+		SHA256   string          `json:"invalid_receipt_sha256"`
+		Reason   string          `json:"invalid_receipt_reason"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventReceiptSynthesized, &synthesized) || synthesized.Verdict != receipt.VerdictCompletedWithConcerns || synthesized.Path != result.InvalidReceiptRelPath || synthesized.ByteSize != len(invalid) || synthesized.SHA256 != result.InvalidReceiptSHA256 || synthesized.Reason != result.InvalidReceiptReason {
+		t.Fatalf("receipt synthesis ledger evidence = %+v", synthesized)
+	}
+	var terminal struct {
+		ReceiptVerdict       receipt.Verdict `json:"receipt_verdict"`
+		ReceiptActualVerdict receipt.Verdict `json:"receipt_actual_verdict"`
+	}
+	if !decodeTestEventPayload(t, history.Events, ledger.EventRunCompleted, &terminal) || terminal.ReceiptVerdict != receipt.VerdictCompletedWithConcerns || terminal.ReceiptActualVerdict != receipt.VerdictCompletedWithConcerns {
+		t.Fatalf("terminal receipt verdicts = %+v", terminal)
+	}
+	validation, err := receipt.ValidateRunReceipt(receipt.ValidationInput{WorkDir: env.workDir, History: history})
+	if err != nil || !validation.Passed() {
+		t.Fatalf("receipt validation passed=%v err=%v checks=%+v", validation.Passed(), err, validation.Checks)
+	}
 }
 
 func TestRunSuccessfulCommitChangedFilesIncludeAdvancedTaskFile(t *testing.T) {
@@ -399,8 +564,8 @@ func TestRunPolicyPermittedNoChangePhaseAdvancement(t *testing.T) {
 			if result.Run.Status != ledger.StatusCompleted || result.Run.CommitSHA != "abc123" {
 				t.Fatalf("run status/commit = %s/%s, want completed/abc123", result.Run.Status, result.Run.CommitSHA)
 			}
-			if result.Receipt.Verdict != receipt.VerdictCompleted {
-				t.Fatalf("receipt verdict = %q, want completed", result.Receipt.Verdict)
+			if result.Receipt.Verdict != receipt.VerdictCompletedWithConcerns {
+				t.Fatalf("receipt verdict = %q, want completed_with_concerns", result.Receipt.Verdict)
 			}
 			if result.Receipt.VerificationStatus != "passed" || result.Receipt.CommitSHA != "abc123" {
 				t.Fatalf("receipt verification/commit = %q/%q, want passed/abc123", result.Receipt.VerificationStatus, result.Receipt.CommitSHA)
@@ -3203,7 +3368,7 @@ type fakeCommandState struct {
 
 func (s *fakeCommandState) run(_ context.Context, command runner.Command) runner.Result {
 	s.commands = append(s.commands, command)
-	switch command.Name {
+	switch filepath.Base(command.Name) {
 	case "codex-test", "codex":
 		return s.runCodex(command)
 	case "git-test", "git":
