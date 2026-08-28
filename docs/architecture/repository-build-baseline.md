@@ -9,7 +9,7 @@ is a direction for that work, not a description of the repository today.
 ## Go and CLI
 
 - Module: `revolvr`
-- Go version: Go 1.26.5
+- Go version: Go 1.27.0
 - CLI entry point: `cmd/revolvr/main.go`
 
 The canonical repository-root commands are:

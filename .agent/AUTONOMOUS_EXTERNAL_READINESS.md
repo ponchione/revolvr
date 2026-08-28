@@ -133,7 +133,7 @@ evidence is discovered.
   must record the exact identity used and pass the production fake-Codex
   contract suite plus isolated live dogfood against that invocation/output
   contract. Changing the identity invalidates the affected evidence.
-- Go 1.22 remains the source-language compatibility floor and is tested in CI.
+- Go 1.27 remains the source-language compatibility floor and is tested in CI.
   Release binaries are built with a currently supported, patched Go toolchain,
   record that exact toolchain version, and have no reachable standard-library
   or module vulnerability reported by the release scan.

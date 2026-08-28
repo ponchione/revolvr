@@ -32,7 +32,7 @@ Usage:
     --candidate-authority <candidate-authority.tsv> \
     --candidate-authority-sha256 <sha256>
 
---build runs the Go 1.26 source-floor tests, current-toolchain ordinary and
+--build runs the Go 1.27 source-floor tests, current-toolchain ordinary and
 race tests, module verification, vet, ordinary and verbose vulnerability
 scans, and two isolated builds for Linux, macOS, and FreeBSD amd64. The output
 root must not exist. A failed build retains its output root and status.
@@ -224,7 +224,7 @@ build_candidate() {
 	valid_release_version "$release_version" || fail "release version is malformed"
 	valid_git_oid "$source_commit" || fail "source commit must be a full SHA-1 or SHA-256 object ID"
 	valid_git_oid "$source_tree" || fail "source tree must be a full SHA-1 or SHA-256 object ID"
-	[[ "$floor_go_version" =~ ^go1\.26\.[0-9]+$ ]] || fail "floor Go version must be an exact patched Go 1.26 version"
+	[[ "$floor_go_version" =~ ^go1\.27\.[0-9]+$ ]] || fail "floor Go version must be an exact patched Go 1.27 version"
 	[[ "$current_go_version" =~ ^go[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "current Go version must be exact"
 	source_repository="$(canonical_dir "$source_repository")" || fail "source repository does not exist"
 	git_executable="$(canonical_executable "$(command -v git)")" || fail "git executable is unavailable"

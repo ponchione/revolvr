@@ -26,7 +26,7 @@ unless real usage proves a concrete gap in that brain.
 Requirements:
 
 - Linux, macOS, or FreeBSD
-- Go 1.26.5 or newer
+- Go 1.27 or newer
 - Git
 - Codex CLI available as `codex`
 
