@@ -70,6 +70,7 @@ type ImportedTask struct {
 
 type StatusResult struct {
 	Initialized  bool
+	ProjectRoot  string
 	Tasks        []taskmodel.Task
 	Schedule     taskscheduler.Result
 	RecentRuns   []ledger.Run
@@ -201,7 +202,7 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 		return StatusResult{}, err
 	}
 	if !authority.Initialized() {
-		return StatusResult{Initialized: false}, nil
+		return StatusResult{Initialized: false, ProjectRoot: authority.Root()}, nil
 	}
 
 	runs, err := openReadOnlyLedger(ctx, paths)
@@ -236,6 +237,7 @@ func Status(ctx context.Context, cfg Config) (StatusResult, error) {
 
 	return StatusResult{
 		Initialized:  true,
+		ProjectRoot:  authority.Root(),
 		Tasks:        taskList,
 		Schedule:     schedule,
 		RecentRuns:   recentRuns,

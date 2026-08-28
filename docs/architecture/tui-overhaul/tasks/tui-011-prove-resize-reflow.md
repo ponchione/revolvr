@@ -1,6 +1,7 @@
 # TUI-011 — Prove Resize and Reflow
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-08-27 as
+  [the canonical task](../../../../.agent/tasks/tui-011-prove-resize-reflow.md)
 - Epic: [E1 — Prove the terminal shell](../epics/e1-terminal-shell.md)
 - Depends on: [TUI-010](tui-010-prove-shell-composition.md)
 
@@ -41,3 +42,10 @@ go test ./internal/tui
 
 - No cancellation/quit settlement, semantic projection, native-scrollback
   measurement, or full snapshot matrix.
+
+## Result
+
+The test-only shell proof reflows the managed live/composer frame through
+explicit 80-to-40-to-24-to-80 resize messages while ANSI display-cell widths
+stay bounded. Committed source and emitted identities remain unchanged, so
+resize cannot clear, replay, or re-emit `session-start`.

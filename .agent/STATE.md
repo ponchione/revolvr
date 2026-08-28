@@ -1,6 +1,6 @@
 # Agent State
 
-Updated: 2026-08-27
+Updated: 2026-08-28
 
 ## Architecture Status
 
@@ -22,8 +22,11 @@ Updated: 2026-08-27
   reimplementation, terminal-owned committed history, managed live/composer/
   overlay state, reviewed idle task drafts, no active steering or deferred
   operator messages, parity-gated focused-view migration, and one startup-only
-  session cell. TUI-010's composition proof is complete; later TUI tasks remain
-  unpublished drafts.
+  session cell. TUI-010's composition proof, TUI-011's managed-resize proof,
+  TUI-012's active-settlement proof, TUI-013's installed terminal shell,
+  TUI-020's semantic cell vocabulary, and TUI-021's bounded historical
+  projection are complete. TUI-022 is the only pending canonical task, and
+  later TUI tasks remain unpublished drafts.
 
 ## Architecture 024 TUI
 
@@ -46,18 +49,43 @@ Updated: 2026-08-27
 ## Current Verification
 
 - `go test ./...` — PASS.
-- `go run ./cmd/revolvr task list` — PASS; all canonical tasks are terminal.
-- `go run ./cmd/revolvr status` — PASS; no pending canonical task is selected.
+- `go test ./internal/tui -run
+  'Test(TranscriptShellProof|TranscriptShellResize|TranscriptShellSettlement|StatusModelInstallsTranscriptShell)'`
+  — PASS.
+- `go test ./internal/tui -run 'TestTranscriptShellSettlement'` — PASS.
+- `go test ./internal/tui -run 'TestTranscriptCell'` — PASS.
+- `go test ./internal/tui -run 'TestHistoricalTranscript'` — PASS.
+- `go test ./internal/app` — PASS.
+- `go test ./internal/tui` — PASS.
+- Compiled settlement proof on a pseudo-terminal — PASS; modes restored and
+  the returned prompt accepted `printf 'PROMPT_OK\n'`.
+- `go run ./cmd/revolvr tui --help` — PASS.
 - `.agent/STATE.md` line limit — PASS; fewer than 200 lines.
 - `git diff --check` — PASS.
-- `git diff --name-only 1d959ad` — PASS; only `.agent/STATE.md`, the canonical
-  compaction task, `.agent/TASKS.md`, and `.agent/HANDOFF.md` differ.
-- `.agent/DECISIONS.md`, canonical architecture/evidence, product code,
-  dependencies, and `.revolvr/` runtime state are unchanged from `1d959ad`.
+- TUI-021 bounded-window, canonical-order/typed-identity, accepted completed
+  narrative, filtering, restart, refresh, no-duplicate-dashboard, and complete
+  Run Detail gates — PASS.
+- `.agent/DECISIONS.md`, application/domain callbacks and authority,
+  dependencies, and `.revolvr/` runtime state are unchanged from `f12690b`.
 
 ## Blockers And Next Task
 
 - Blockers: none.
-- The current-state compaction task is complete. No canonical task is pending.
-- Do not revive deferred EXT/PTC work, publish a later TUI task, or reopen
-  Architecture 025 without a separately authorized task.
+- TUI-021 is complete. TUI-022 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-021.
+- Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
+  TUI tasks, or reopen Architecture 025.
+
+## Latest Pass
+
+- Task selected: `tui-021-project-historical-runs`.
+- Files changed: the TUI historical projection and tests, one affected CLI
+  integration test, TUI-021 completion and TUI-022 publication metadata, and
+  affected planning, state, task-list, and handoff records.
+- Verification commands run: required `gofmt`, focused historical-transcript,
+  app, TUI, and full Go tests, TUI help, task list/status selectors, state line
+  limit, publication/status audits, and `git diff --check`.
+- Verification result: PASS.
+- What remains: TUI-022 is pending for the next fresh pass; later tasks remain
+  unpublished drafts.
+- Blockers: none.

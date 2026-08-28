@@ -16,6 +16,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"revolvr/internal/app"
 	"revolvr/internal/autonomousqueue"
@@ -98,6 +99,386 @@ func TestTranscriptShellProof(t *testing.T) {
 	})
 }
 
+func TestStatusModelInstallsTranscriptShell(t *testing.T) {
+	status := app.StatusResult{Initialized: true, ProjectRoot: "/work/revolvr"}
+	model := NewStatusModelWithActions(status, StatusActions{
+		RefreshStatus: func() (app.StatusResult, error) {
+			return app.StatusResult{ProjectRoot: "/work/revolvr"}, nil
+		},
+	})
+	if cmd := model.Init(); cmd == nil {
+		t.Fatal("session start returned no append command")
+	}
+	if got := len(model.emitted); got != 1 {
+		t.Fatalf("emitted identities = %d, want 1", got)
+	}
+	if cmd := model.appendCommitted(); cmd != nil {
+		t.Fatal("second append command replayed session start")
+	}
+	requireNoLine(t, normalizedViewLines(model.View()), "Revolvr  Dashboard  initialized")
+	requireLines(t, normalizedViewLines(model.View()), "Idle", "No runs recorded.", "› / for commands")
+
+	model, cmd := updateStatusModel(t, model, keyRunes("r"))
+	if cmd == nil {
+		t.Fatal("refresh command is nil")
+	}
+	model, cmd = runStatusModelCmd(t, model, cmd)
+	if cmd != nil || model.appendCommitted() != nil {
+		t.Fatalf("refresh replayed session start: cmd=%v", cmd)
+	}
+	model, cmd = updateStatusModel(t, model, keyRunes("2"))
+	if cmd != nil || model.appendCommitted() != nil {
+		t.Fatalf("navigation replayed session start: cmd=%v", cmd)
+	}
+	model, cmd = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 40, Height: 24})
+	if cmd != nil || model.appendCommitted() != nil {
+		t.Fatalf("resize replayed session start: cmd=%v", cmd)
+	}
+
+	var output bytes.Buffer
+	input, inputWriter := io.Pipe()
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		_, _ = inputWriter.Write([]byte("q"))
+		_ = inputWriter.Close()
+	}()
+	if err := RunStatus(context.Background(), status, RunOptions{
+		Input:  input,
+		Output: &output,
+	}); err != nil {
+		t.Fatalf("run installed transcript shell: %v", err)
+	}
+	rendered := output.String()
+	for _, line := range []string{"Revolvr", "Project: /work/revolvr", "At start: initialized"} {
+		if got := strings.Count(rendered, line); got != 1 {
+			t.Fatalf("session line %q count = %d, want 1 in %q", line, got, rendered)
+		}
+	}
+	if session, panel := strings.Index(rendered, "Revolvr"), strings.Index(rendered, "Idle"); session < 0 || panel < 0 || session >= panel {
+		t.Fatalf("session start did not precede migration panel in %q", rendered)
+	}
+	if strings.Contains(rendered, "Revolvr  Dashboard  initialized") {
+		t.Fatalf("installed shell retained persistent header in %q", rendered)
+	}
+}
+
+func TestTranscriptCellKindsRenderDeterministically(t *testing.T) {
+	cells := []transcriptCell{
+		newSessionTranscriptCell("/home/alex/source/revolvr", true),
+		{kind: transcriptCellOperatorAction, identity: "operator-run-1", source: []string{"› /run"}},
+		{kind: transcriptCellStatus, identity: "status-ready-1", source: []string{"Ready", "Next: /run"}},
+		{kind: transcriptCellProgress, identity: "progress-run-1", source: []string{"Current: Running go test ./..."}},
+		{kind: transcriptCellResult, identity: "result-run-1", source: []string{"Completed: Compact durable agent state", "Verification: passed"}},
+		{kind: transcriptCellWarning, identity: "warning-run-1", source: []string{"Warning: working tree changed; run stopped before Codex."}},
+		{kind: transcriptCellQuestion, identity: "question-task-017", source: []string{"Needs input: task-017", "Question: Choose the verification scope"}},
+	}
+
+	for _, cell := range cells {
+		t.Run(string(cell.kind), func(t *testing.T) {
+			first := cell.render(24)
+			second := cell.render(24)
+			if !reflect.DeepEqual(first, second) {
+				t.Fatalf("render is not deterministic: first=%q second=%q", first, second)
+			}
+			assertMaxLineWidth(t, first, 24)
+			plain := strings.Join(strings.Fields(strings.Join(normalizedViewLines(strings.Join(first, "\n")), " ")), "")
+			want := strings.Join(strings.Fields(strings.Join(cell.source, " ")), "")
+			if plain != want {
+				t.Fatalf("text-only rendering = %q, want %q", plain, want)
+			}
+		})
+	}
+}
+
+func TestTranscriptCellUnknownAndMalformedInputRemainVisible(t *testing.T) {
+	tests := []transcriptCell{
+		{kind: "future-kind", identity: "future-1", source: []string{"opaque future evidence"}},
+		{kind: transcriptCellResult, source: []string{"Completed: missing identity"}},
+		{kind: transcriptCellWarning, identity: "warning-empty"},
+		{kind: transcriptCellSession, identity: "wrong-session", source: []string{"Revolvr"}},
+	}
+	for i, cell := range tests {
+		lines := normalizedViewLines(strings.Join(cell.render(18), "\n"))
+		assertMaxLineWidth(t, lines, 18)
+		plain := strings.Join(strings.Fields(strings.Join(lines, " ")), " ")
+		if !strings.HasPrefix(plain, "Warning: unrecognized transcript evidence") {
+			t.Fatalf("case %d rendered as %q, want visible warning", i, lines)
+		}
+		if len(cell.source) > 0 && !strings.Contains(strings.Join(strings.Fields(plain), ""), strings.Join(strings.Fields(cell.source[0]), "")) {
+			t.Fatalf("case %d hid source evidence in %q", i, lines)
+		}
+		for _, line := range lines {
+			if strings.HasPrefix(line, "Completed:") {
+				t.Fatalf("case %d exposed malformed evidence as success in %q", i, lines)
+			}
+		}
+	}
+}
+
+func TestTranscriptCellWrapsByDisplayWidth(t *testing.T) {
+	tests := []struct {
+		width  int
+		source string
+	}{
+		{width: 8, source: "Status: 世界 ready"},
+		{width: 3, source: "世界"},
+	}
+	for _, test := range tests {
+		cell := transcriptCell{
+			kind:     transcriptCellStatus,
+			identity: "status-wide-1",
+			source:   []string{test.source},
+		}
+		lines := cell.render(test.width)
+		assertMaxLineWidth(t, lines, test.width)
+		if got := strings.Join(strings.Fields(strings.Join(normalizedViewLines(strings.Join(lines, "\n")), " ")), ""); got != strings.Join(strings.Fields(test.source), "") {
+			t.Fatalf("wrapped meaning = %q", got)
+		}
+	}
+}
+
+func TestHistoricalTranscriptProjectsCompletedRun(t *testing.T) {
+	status := app.StatusResult{
+		Initialized: true,
+		ProjectRoot: "/home/alex/source/revolvr",
+		RecentRuns: []ledger.Run{{
+			ID:                 "run-complete",
+			TaskID:             "task-complete",
+			Task:               "Compact durable agent state",
+			Status:             ledger.StatusCompleted,
+			VerificationStatus: "passed",
+			CommitSHA:          "ff50d9b5cd07ae91ef7f91ed131dfbb5f5e3e845",
+		}},
+	}
+
+	first := historicalTranscriptCells(status)
+	second := historicalTranscriptCells(status)
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("historical projection changed: first=%#v second=%#v", first, second)
+	}
+	if got, want := len(first), 1; got != want {
+		t.Fatalf("historical cells = %d, want %d: %#v", got, want, first)
+	}
+	wantSource := []string{
+		"Completed: Compact durable agent state",
+		"Verification: passed",
+		"Commit: ff50d9b5cd07",
+		"Next: /run to continue",
+	}
+	if first[0].kind != transcriptCellResult || first[0].identity != "run:run-complete:status:completed" || !reflect.DeepEqual(first[0].source, wantSource) {
+		t.Fatalf("completed cell = %#v, want source %#v", first[0], wantSource)
+	}
+
+	model := NewStatusModel(status)
+	if len(model.committed) != 2 || model.committed[0].identity != "session-start" || model.committed[1].identity != first[0].identity {
+		t.Fatalf("startup committed order = %#v", model.committed)
+	}
+	if model.Init() == nil || len(model.emitted) != len(model.committed) {
+		t.Fatalf("startup did not emit each committed identity once: %#v", model.emitted)
+	}
+	if model.appendCommitted() != nil {
+		t.Fatal("startup replayed an already emitted historical cell")
+	}
+}
+
+func TestHistoricalTranscriptBoundsAndFiltersTimeline(t *testing.T) {
+	events := []ledger.Event{
+		{ID: 1, RunID: "run-window", Type: ledger.EventRunStarted, Payload: jsonPayload(t, map[string]any{"run_id": "run-window", "task_id": "task-window"})},
+		{ID: 2, RunID: "run-window", Type: ledger.EventTaskSelected, Payload: jsonPayload(t, map[string]any{"task_id": "task-window", "summary": "duplicated task body"})},
+		{ID: 3, RunID: "run-window", Type: ledger.EventCodexStarted, Payload: jsonPayload(t, map[string]any{"executable": "codex"})},
+		{ID: 4, RunID: "run-window", Type: ledger.EventCodexJSONEvent, Payload: jsonPayload(t, map[string]any{"type": "turn.started"})},
+	}
+	for i := 1; i <= 10; i++ {
+		events = append(events, ledger.Event{
+			ID:      int64(4 + i),
+			RunID:   "run-window",
+			Type:    ledger.EventCodexJSONEvent,
+			Payload: jsonPayload(t, map[string]any{"message": fmt.Sprintf("operator message %d", i)}),
+		})
+	}
+	status := app.StatusResult{
+		Initialized: true,
+		RecentRuns: []ledger.Run{{
+			ID:     "run-window",
+			TaskID: "task-window",
+			Task:   "Bound history",
+			Status: ledger.StatusCompleted,
+		}},
+		LatestEvents: events,
+	}
+
+	cells := historicalTranscriptCells(status)
+	if got, want := len(cells), maxDashboardEvents+2; got != want {
+		t.Fatalf("bounded cells = %d, want %d: %#v", got, want, cells)
+	}
+	if got, want := cells[0].source, []string{"… 3 earlier · 4 Run Detail"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("window notice = %#v, want %#v", got, want)
+	}
+	if got := cells[len(cells)-1].identity; got != "run:run-window:status:completed" {
+		t.Fatalf("terminal identity = %q", got)
+	}
+	joined := transcriptCellSource(cells)
+	for _, hidden := range []string{"duplicated task body", "turn.started", "operator message 1\n", "operator message 2\n"} {
+		if strings.Contains(joined, hidden) {
+			t.Fatalf("bounded transcript retained filtered/omitted %q in %q", hidden, joined)
+		}
+	}
+	for i := 3; i <= 10; i++ {
+		if want := fmt.Sprintf("operator message %d", i); !strings.Contains(joined, want) {
+			t.Fatalf("bounded transcript dropped %q from %q", want, joined)
+		}
+	}
+	if !reflect.DeepEqual(cells, historicalTranscriptCells(status)) {
+		t.Fatal("same canonical timeline did not reproduce the same cells")
+	}
+}
+
+func TestHistoricalTranscriptRefreshAppendsOnlyNewIdentities(t *testing.T) {
+	status := app.StatusResult{
+		Initialized: true,
+		RecentRuns:  []ledger.Run{{ID: "run-refresh", Task: "Refresh history", Status: ledger.StatusCompleted}},
+		LatestEvents: []ledger.Event{{
+			ID:      1,
+			RunID:   "run-refresh",
+			Type:    ledger.EventCodexJSONEvent,
+			Payload: jsonPayload(t, map[string]any{"message": "first"}),
+		}},
+	}
+	model := NewStatusModel(status)
+	if model.Init() == nil {
+		t.Fatal("startup returned no committed append")
+	}
+	before := len(model.emitted)
+	status.LatestEvents = append(status.LatestEvents, ledger.Event{
+		ID:      2,
+		RunID:   "run-refresh",
+		Type:    ledger.EventCodexJSONEvent,
+		Payload: jsonPayload(t, map[string]any{"message": "second"}),
+	})
+
+	model, cmd := updateStatusModel(t, model, refreshStatusMsg{status: status})
+	if cmd == nil || len(model.emitted) != before+1 {
+		t.Fatalf("refresh append: cmd=%v emitted=%d, want %d", cmd, len(model.emitted), before+1)
+	}
+	if countTranscriptCells(model.committed, "session-start") != 1 {
+		t.Fatalf("refresh session cells = %#v", model.committed)
+	}
+	for _, cell := range model.committed {
+		if _, ok := model.emitted[cell.identity]; !ok {
+			t.Fatalf("refresh silently dropped identity %q from emitted set", cell.identity)
+		}
+	}
+
+	model, cmd = updateStatusModel(t, model, refreshStatusMsg{status: status})
+	if cmd != nil || len(model.emitted) != before+1 {
+		t.Fatalf("identical refresh replayed history: cmd=%v emitted=%d", cmd, len(model.emitted))
+	}
+}
+
+func transcriptCellSource(cells []transcriptCell) string {
+	var lines []string
+	for _, cell := range cells {
+		lines = append(lines, cell.source...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func countTranscriptCells(cells []transcriptCell, identity string) int {
+	count := 0
+	for _, cell := range cells {
+		if cell.identity == identity {
+			count++
+		}
+	}
+	return count
+}
+
+func TestTranscriptShellResize(t *testing.T) {
+	model := newTranscriptShellProofModel(false)
+	if model.Init() == nil {
+		t.Fatal("initial committed cells returned no append command")
+	}
+	wantCommitted := make([]transcriptShellProofCell, len(model.committed))
+	for i, cell := range model.committed {
+		wantCommitted[i] = transcriptShellProofCell{identity: cell.identity, lines: slices.Clone(cell.lines)}
+	}
+
+	updated, cmd := model.Update(transcriptShellProofLiveMsg{lines: []string{
+		"Running: Compact durable agent state",
+		"Mode: loop · pass 1 of 3",
+		"Safety: admitted",
+		"Current: Running go test ./...",
+		"Next: wait, or press c or Esc to cancel",
+	}})
+	if cmd != nil {
+		t.Fatalf("live replacement command = %v, want nil", cmd)
+	}
+	model = updated.(*transcriptShellProofModel)
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	if cmd != nil {
+		t.Fatalf("composer key command = %v, want nil", cmd)
+	}
+	model = updated.(*transcriptShellProofModel)
+	wantFrameMeaning := strings.Join(strings.Fields(strings.ReplaceAll(strings.Join(slices.Concat(
+		model.live,
+		[]string{"› x", "Enter submit · / commands · ? shortcuts"},
+	), "\n"), "·", "")), " ")
+
+	for _, width := range []int{80, 40, 24, 80} {
+		updated, cmd = model.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+		if cmd != nil {
+			t.Fatalf("resize to %d returned history command %v, want nil", width, cmd)
+		}
+		model = updated.(*transcriptShellProofModel)
+		if !reflect.DeepEqual(model.committed, wantCommitted) {
+			t.Fatalf("resize to %d changed committed source to %#v, want %#v", width, model.committed, wantCommitted)
+		}
+		if got, want := len(model.emitted), len(wantCommitted); got != want {
+			t.Fatalf("resize to %d changed emitted identities to %d, want %d", width, got, want)
+		}
+		if _, ok := model.emitted["session-start"]; !ok {
+			t.Fatalf("resize to %d lost session-start identity", width)
+		}
+		if cmd := model.appendCommitted(); cmd != nil {
+			t.Fatalf("resize to %d replayed committed history", width)
+		}
+		view := model.View()
+		assertMaxLineWidth(t, strings.Split(view, "\n"), width)
+		lines := normalizedViewLines(view)
+		if got := strings.Join(strings.Fields(strings.ReplaceAll(strings.Join(lines, "\n"), "·", "")), " "); got != wantFrameMeaning {
+			t.Fatalf("resize to %d changed managed-frame meaning to %q, want %q", width, got, wantFrameMeaning)
+		}
+		requireLines(t, lines, "› x")
+		switch width {
+		case 80:
+			requireLines(t, lines,
+				"Running: Compact durable agent state",
+				"Current: Running go test ./...",
+				"Enter submit · / commands · ? shortcuts",
+			)
+		case 40:
+			requireLines(t, lines,
+				"Next: wait, or press c or Esc to cancel",
+				"Enter submit · / commands",
+				"? shortcuts",
+			)
+		}
+	}
+
+	updated, cmd = model.Update(transcriptShellProofLiveMsg{lines: []string{
+		"Ready",
+		"Next task: Compact durable agent state",
+		"Next: type a task or use /run",
+	}})
+	if cmd != nil {
+		t.Fatalf("second live replacement command = %v, want nil", cmd)
+	}
+	model = updated.(*transcriptShellProofModel)
+	lines := normalizedViewLines(model.View())
+	requireLines(t, lines, "Ready", "› x")
+	requireNoLine(t, lines, "Running: Compact durable agent state")
+}
+
 func TestTranscriptShellProofInteractive(t *testing.T) {
 	if os.Getenv("REVOLVR_TUI_INTERACTIVE_PROOF") != "1" {
 		t.Skip("set REVOLVR_TUI_INTERACTIVE_PROOF=1 and press q to run the terminal proof")
@@ -108,6 +489,19 @@ func TestTranscriptShellProofInteractive(t *testing.T) {
 		tea.WithOutput(os.Stdout),
 	).Run(); err != nil {
 		t.Fatalf("run interactive transcript shell proof: %v", err)
+	}
+}
+
+func TestTranscriptShellSettlementInteractive(t *testing.T) {
+	if os.Getenv("REVOLVR_TUI_INTERACTIVE_SETTLEMENT_PROOF") != "1" {
+		t.Skip("set REVOLVR_TUI_INTERACTIVE_SETTLEMENT_PROOF=1 to run the terminal settlement proof")
+	}
+	if _, err := tea.NewProgram(
+		newTranscriptShellSettlementProofModel(),
+		tea.WithInput(os.Stdin),
+		tea.WithOutput(os.Stdout),
+	).Run(); err != nil {
+		t.Fatalf("run interactive transcript shell settlement proof: %v", err)
 	}
 }
 
@@ -156,12 +550,27 @@ type transcriptShellProofLiveMsg struct {
 	lines []string
 }
 
+type transcriptShellProofSettledMsg struct {
+	token int
+	cell  transcriptShellProofCell
+}
+
+type transcriptShellProofCommittedMsg struct {
+	token    int
+	identity string
+}
+
 type transcriptShellProofModel struct {
-	committed []transcriptShellProofCell
-	emitted   map[string]struct{}
-	live      []string
-	composer  string
-	autoQuit  bool
+	committed           []transcriptShellProofCell
+	emitted             map[string]struct{}
+	live                []string
+	composer            string
+	width               int
+	activeToken         int
+	settling            *transcriptShellProofCell
+	quitAfterSettlement bool
+	autoSettlement      *transcriptShellProofSettledMsg
+	autoQuit            bool
 }
 
 func newTranscriptShellProofModel(autoQuit bool) *transcriptShellProofModel {
@@ -185,12 +594,38 @@ func newTranscriptShellProofModel(autoQuit bool) *transcriptShellProofModel {
 			"Next task: Compact durable agent state",
 			"Next: type a task or use /run",
 		},
+		width:    80,
 		autoQuit: autoQuit,
 	}
 }
 
+func newTranscriptShellSettlementProofModel() *transcriptShellProofModel {
+	model := newTranscriptShellProofModel(false)
+	model.activeToken = 9
+	model.quitAfterSettlement = true
+	model.live = []string{"Running: Compact durable agent state"}
+	model.autoSettlement = &transcriptShellProofSettledMsg{
+		token: 9,
+		cell: transcriptShellProofCell{
+			identity: "run-cancelled-9",
+			lines:    []string{"Cancelled: Compact durable agent state", "Next: /run to retry"},
+		},
+	}
+	return model
+}
+
 func (m *transcriptShellProofModel) Init() tea.Cmd {
 	cmds := m.pendingCommittedCommands()
+	if m.autoSettlement != nil {
+		settlement := transcriptShellProofSettledMsg{
+			token: m.autoSettlement.token,
+			cell: transcriptShellProofCell{
+				identity: m.autoSettlement.cell.identity,
+				lines:    slices.Clone(m.autoSettlement.cell.lines),
+			},
+		}
+		cmds = append(cmds, func() tea.Msg { return settlement })
+	}
 	if m.autoQuit {
 		cmds = append(cmds, tea.Quit)
 	}
@@ -224,6 +659,34 @@ func (m *transcriptShellProofModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case transcriptShellProofLiveMsg:
 		m.live = slices.Clone(msg.lines)
+	case transcriptShellProofSettledMsg:
+		if msg.token == 0 || msg.token != m.activeToken || m.settling != nil {
+			return m, nil
+		}
+		if _, ok := m.emitted[msg.cell.identity]; ok {
+			return m, nil
+		}
+		cell := transcriptShellProofCell{identity: msg.cell.identity, lines: slices.Clone(msg.cell.lines)}
+		m.settling = &cell
+		return m, tea.Sequence(
+			tea.Println(strings.Join(cell.lines, "\n")),
+			func() tea.Msg { return transcriptShellProofCommittedMsg{token: msg.token, identity: cell.identity} },
+		)
+	case transcriptShellProofCommittedMsg:
+		if msg.token != m.activeToken || m.settling == nil || msg.identity != m.settling.identity {
+			return m, nil
+		}
+		m.emitted[msg.identity] = struct{}{}
+		m.committed = append(m.committed, *m.settling)
+		m.settling = nil
+		m.activeToken = 0
+		m.live = nil
+		if m.quitAfterSettlement {
+			m.quitAfterSettlement = false
+			return m, tea.Quit
+		}
+	case tea.WindowSizeMsg:
+		m.width = max(msg.Width, 1)
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -236,13 +699,40 @@ func (m *transcriptShellProofModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *transcriptShellProofModel) View() string {
-	lines := slices.Clone(m.live)
+	lines := wrapPlainLines(m.live, m.width)
 	composer := "›"
 	if m.composer != "" {
 		composer += " " + m.composer
 	}
-	lines = append(lines, composer, "Enter submit · / commands · ? shortcuts")
+	lines = append(lines, selectedStyle.Render(composer))
+	footer := []string{"Enter submit · / commands · ? shortcuts"}
+	if m.width <= 40 {
+		footer = []string{"Enter submit · / commands", "? shortcuts"}
+	}
+	for _, line := range wrapPlainLines(footer, m.width) {
+		lines = append(lines, mutedStyle.Render(line))
+	}
 	return strings.Join(lines, "\n")
+}
+
+func countProofCells(cells []transcriptShellProofCell, identity string) int {
+	count := 0
+	for _, cell := range cells {
+		if cell.identity == identity {
+			count++
+		}
+	}
+	return count
+}
+
+func countExact(values []string, want string) int {
+	count := 0
+	for _, value := range values {
+		if value == want {
+			count++
+		}
+	}
+	return count
 }
 
 func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
@@ -250,8 +740,6 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 
 	lines := normalizedViewLines(model.View())
 	want := []string{
-		"Revolvr  Dashboard  not initialized",
-		"",
 		"Run `revolvr init` to initialize this repository.",
 		"",
 		"› / for commands",
@@ -291,18 +779,10 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 	}
 
 	lines := normalizedViewLines(updated.View())
-	want := []string{
-		"Revolvr  Dashboard  initialized",
-		"",
-		"× Run failed · verification failed",
-		"",
-		"× --:--  verification failed",
-		"",
-		"› / for commands",
-		"? Help | R Run | r Refresh | q Quit",
-	}
-	if !reflect.DeepEqual(lines, want) {
-		t.Fatalf("view lines = %#v, want %#v", lines, want)
+	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	requireNoLine(t, lines, "× Run failed · verification failed")
+	if got := transcriptCellSource(updated.(StatusModel).committed); !strings.Contains(got, "Failed: run-new") || !strings.Contains(got, "Reason: verification failed") {
+		t.Fatalf("committed failure narrative = %q", got)
 	}
 }
 
@@ -312,7 +792,6 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 
 	lines := normalizedViewLines(tasksView.View())
 	requireLines(t, lines,
-		"Revolvr  Tasks  initialized",
 		"Tasks",
 		"Total: 0",
 		"Pending: 0",
@@ -935,7 +1414,6 @@ func TestStatusModelTaskEntryRejectsEmptyTaskTextInline(t *testing.T) {
 
 	lines := normalizedViewLines(afterSubmit.View())
 	requireLines(t, lines,
-		"Revolvr  Add Task  initialized",
 		"Add Task",
 		"> Task:",
 		"  Summary:",
@@ -991,7 +1469,6 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 		t.Fatalf("task entry state = %+v, want cleared", cancelled.taskEntry)
 	}
 	requireLines(t, normalizedViewLines(cancelled.View()),
-		"Revolvr  Runs  initialized",
 		"> run-one  completed  none  none  done",
 	)
 }
@@ -1114,6 +1591,7 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 			}, nil
 		},
 	})
+	model.Init()
 	resized, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
@@ -1128,22 +1606,25 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 	}
 
 	afterRefresh, cmd := runStatusModelCmd(t, afterKey, cmd)
+	if cmd == nil {
+		t.Fatal("refresh message did not append the new run identity")
+	}
+	afterRefresh, cmd = runStatusModelCmd(t, afterRefresh, cmd)
 	if cmd != nil {
-		t.Fatalf("refresh message cmd = %v, want nil", cmd)
+		t.Fatalf("historical append command returned %v, want nil", cmd)
 	}
 	if !refreshed {
 		t.Fatal("refresh callback was not called")
 	}
 
 	lines := normalizedViewLines(afterRefresh.View())
-	for _, want := range []string{
-		"Notice: Refreshed.",
-		"× Run failed",
-		"No activity recorded.",
-	} {
+	for _, want := range []string{"Notice: Refreshed."} {
 		if !containsLine(lines, want) {
 			t.Fatalf("refreshed view missing %q: %#v", want, lines)
 		}
+	}
+	if got := transcriptCellSource(afterRefresh.committed); !strings.Contains(got, "Failed: run-new") || !strings.Contains(got, "Reason: new summary") {
+		t.Fatalf("refreshed committed narrative = %q", got)
 	}
 	tasksView, cmd := updateStatusModel(t, afterRefresh, keyRunes("2"))
 	if cmd != nil {
@@ -1196,7 +1677,6 @@ func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
 
 	lines := normalizedViewLines(afterPreflight.View())
 	requireLines(t, lines,
-		"Revolvr  Preflight  initialized",
 		"Notice: Preflight ready.",
 		"Preflight",
 		"Status: ready",
@@ -1395,8 +1875,6 @@ func TestStatusModelRunOnceStreamsProgressAndRefreshesCompletion(t *testing.T) {
 		"codex: thread started",
 		"codex stderr: checking worktree",
 		"system: terminal state: completed",
-		"✓ Run completed",
-		"✓ 15:01  commit created — abc123",
 	)
 }
 
@@ -1516,7 +1994,129 @@ func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
 	)
 }
 
-func TestStatusModelActiveQuitWaitsForMatchingTerminalAcrossRunModes(t *testing.T) {
+func TestTranscriptShellSettlement(t *testing.T) {
+	t.Run("escape closes composer without cancelling", func(t *testing.T) {
+		cancelCalls := 0
+		model := NewStatusModel(app.StatusResult{Initialized: true})
+		model.composer = commandComposerState{Active: true, Text: "/"}
+		model.runOnce = runOnceState{
+			Active:  true,
+			Started: true,
+			Token:   1,
+			Cancel:  func() { cancelCalls++ },
+		}
+
+		model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if cmd != nil || model.composer.Active || !model.runOnce.Active || model.runOnce.CancelRequested || cancelCalls != 0 {
+			t.Fatalf("escape state: composer=%#v run=%#v cancel calls=%d cmd=%v", model.composer, model.runOnce, cancelCalls, cmd)
+		}
+	})
+
+	t.Run("cancel key has one effect", func(t *testing.T) {
+		cancelCalls := 0
+		model := NewStatusModel(app.StatusResult{Initialized: true})
+		model.runOnce = runOnceState{
+			Active:  true,
+			Started: true,
+			Token:   1,
+			Cancel:  func() { cancelCalls++ },
+			Logs:    []string{"system: run started"},
+		}
+
+		model, cmd := updateStatusModel(t, model, keyRunes("c"))
+		if cmd != nil || !model.runOnce.CancelRequested || cancelCalls != 1 {
+			t.Fatalf("first cancel state=%#v calls=%d cmd=%v", model.runOnce, cancelCalls, cmd)
+		}
+		model, cmd = updateStatusModel(t, model, keyRunes("c"))
+		if cmd != nil || cancelCalls != 1 || countExact(model.runOnce.Logs, "system: cancellation requested") != 1 {
+			t.Fatalf("repeated cancel state=%#v calls=%d cmd=%v", model.runOnce, cancelCalls, cmd)
+		}
+	})
+
+	for _, outcome := range []struct {
+		name string
+		line string
+	}{
+		{name: "cancelled", line: "Cancelled: Compact durable agent state"},
+		{name: "failed", line: "Failed: Compact durable agent state"},
+		{name: "completed", line: "Completed: Compact durable agent state"},
+	} {
+		t.Run("final cell/"+outcome.name, func(t *testing.T) {
+			model := newTranscriptShellProofModel(false)
+			if model.Init() == nil {
+				t.Fatal("initial committed cells returned no append command")
+			}
+			model.activeToken = 7
+			model.quitAfterSettlement = true
+			model.live = []string{"Running: Compact durable agent state"}
+			cell := transcriptShellProofCell{
+				identity: "run-final-7",
+				lines:    []string{outcome.line, "Next: /run to continue"},
+			}
+
+			updated, cmd := model.Update(transcriptShellProofSettledMsg{token: 7, cell: cell})
+			model = updated.(*transcriptShellProofModel)
+			if cmd == nil || model.settling == nil || len(model.live) == 0 {
+				t.Fatalf("settlement began without retaining live state: model=%#v cmd=%v", model, cmd)
+			}
+			if _, ok := model.emitted[cell.identity]; ok {
+				t.Fatal("final identity recorded before append acknowledgement")
+			}
+			updated, duplicateCmd := model.Update(transcriptShellProofSettledMsg{token: 7, cell: cell})
+			model = updated.(*transcriptShellProofModel)
+			if duplicateCmd != nil {
+				t.Fatalf("duplicate settlement command = %v, want nil", duplicateCmd)
+			}
+
+			updated, quitCmd := model.Update(transcriptShellProofCommittedMsg{token: 7, identity: cell.identity})
+			model = updated.(*transcriptShellProofModel)
+			if quitCmd == nil {
+				t.Fatal("append acknowledgement did not release delayed quit")
+			}
+			if _, ok := quitCmd().(tea.QuitMsg); !ok {
+				t.Fatal("append acknowledgement command is not tea.Quit")
+			}
+			if model.activeToken != 0 || model.settling != nil || len(model.live) != 0 {
+				t.Fatalf("settled live state = %#v", model)
+			}
+			if _, ok := model.emitted[cell.identity]; !ok {
+				t.Fatal("settled identity was not recorded")
+			}
+			if countProofCells(model.committed, cell.identity) != 1 || model.appendCommitted() != nil {
+				t.Fatalf("final cell was not committed exactly once: %#v", model.committed)
+			}
+
+			model.activeToken = 8
+			model.live = []string{"Running: newer operation"}
+			updated, lateCmd := model.Update(transcriptShellProofSettledMsg{token: 7, cell: cell})
+			model = updated.(*transcriptShellProofModel)
+			if lateCmd != nil || !reflect.DeepEqual(model.live, []string{"Running: newer operation"}) || model.activeToken != 8 {
+				t.Fatalf("late settlement changed newer state: model=%#v cmd=%v", model, lateCmd)
+			}
+		})
+	}
+
+	t.Run("program exits after final append", func(t *testing.T) {
+		var output bytes.Buffer
+		model := newTranscriptShellSettlementProofModel()
+		final, err := tea.NewProgram(
+			model,
+			tea.WithInput(nil),
+			tea.WithOutput(&output),
+			tea.WithoutSignals(),
+		).Run()
+		if err != nil {
+			t.Fatalf("run settlement proof: %v", err)
+		}
+		model = final.(*transcriptShellProofModel)
+		if got := strings.Count(output.String(), "Cancelled: Compact durable agent state"); got != 1 {
+			t.Fatalf("final output count = %d, want 1 in %q", got, output.String())
+		}
+		if model.activeToken != 0 || len(model.live) != 0 {
+			t.Fatalf("program returned before settlement: %#v", model)
+		}
+	})
+
 	modes := []struct {
 		name string
 		key  string
@@ -2053,7 +2653,6 @@ func TestStatusModelRunsViewNavigatesRecentRunsWithMetadata(t *testing.T) {
 	runsView := openRunsView(t, model)
 
 	requireLines(t, normalizedViewLines(runsView.View()),
-		"Revolvr  Runs  initialized",
 		"ID  STATUS  VERIFICATION  COMMIT  SUMMARY",
 		"> run-new  failed  failed  none  verification failed",
 		"  run-mid  completed  passed  abc123  committed change",
@@ -2617,7 +3216,6 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 
 	lines := normalizedViewLines(afterOpen.View())
 	for _, want := range []string{
-		"Revolvr  Run Detail  initialized",
 		"Run Detail",
 		"ID: run-old",
 		"Task ID: task-old",
@@ -2684,7 +3282,6 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	}
 	runsLines := normalizedViewLines(runsView.View())
 	for _, want := range []string{
-		"Revolvr  Runs  initialized",
 		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
 		"      5 Preflight | ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop",
 		"      r Refresh | q Quit",
@@ -2700,7 +3297,6 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	}
 	helpLines := normalizedViewLines(helpView.View())
 	for _, want := range []string{
-		"Revolvr  Help  initialized",
 		"Help",
 		"1  Dashboard",
 		"n  Cycle loop max passes (current 3)",
@@ -2762,21 +3358,10 @@ func TestStatusModelWideRenderSnapshot(t *testing.T) {
 	}
 
 	lines := normalizedViewLines(model.View())
-	want := []string{
-		"Revolvr  Dashboard  initialized",
-		"",
-		"✓ Run completed · verification passed",
-		"",
-		"✓ --:--  verification passed",
-		"✓ --:--  commit created — abc123",
-		"",
-		"› / for commands",
-		"? Help | R Run | r Refresh | q Quit",
-	}
-	if !reflect.DeepEqual(lines, want) {
-		t.Fatalf("wide view lines = %#v, want %#v", lines, want)
-	}
-	assertMaxLineWidth(t, lines, 100)
+	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	committed := normalizedViewLines(strings.Join(model.committed[len(model.committed)-1].render(100), "\n"))
+	requireLines(t, committed, "Completed: run-success", "Verification: passed", "Commit: abc123", "Next: /run to continue")
+	assertMaxLineWidth(t, append(lines, committed...), 100)
 }
 
 func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
@@ -2801,48 +3386,35 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 	}
 
 	lines := normalizedViewLines(model.View())
-	want := []string{
-		"Revolvr  Dashboard  initialized",
-		"",
-		"× Run failed · verification failed",
-		"",
-		"× --:--  verification failed",
-		"",
-		"› / for commands",
-		"? Help | R Run | r Refresh | q Quit",
+	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	committed := normalizedViewLines(strings.Join(model.committed[len(model.committed)-1].render(40), "\n"))
+	if got := strings.Join(committed, "\n"); !strings.Contains(got, "Failed:") || !strings.Contains(got, "Reason: verification failed") || !strings.Contains(got, "Next: /detail to inspect the failure") {
+		t.Fatalf("narrow committed narrative = %q", got)
 	}
-	if !reflect.DeepEqual(lines, want) {
-		t.Fatalf("narrow view lines = %#v, want %#v", lines, want)
-	}
-	assertMaxLineWidth(t, lines, 40)
+	assertMaxLineWidth(t, append(lines, committed...), 40)
 }
 
-func TestStatusModelDashboardChromeAndComposer(t *testing.T) {
+func TestStatusModelManagedPanelAndComposer(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{Initialized: true})
 
 	wide, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	if got := len(wide.headerDisplayLines()); got != 1 {
-		t.Fatalf("wide header rows = %d, want 1", got)
-	}
-	if wide.viewport.Height < 19 {
-		t.Fatalf("dashboard viewport height = %d, want at least 19", wide.viewport.Height)
+	if wide.viewport.Height < 20 {
+		t.Fatalf("dashboard viewport height = %d, want at least 20", wide.viewport.Height)
 	}
 
 	narrow, cmd := updateStatusModel(t, wide, tea.WindowSizeMsg{Width: 40, Height: 24})
 	if cmd != nil {
 		t.Fatalf("narrow window size update cmd = %v, want nil", cmd)
 	}
-	if got := len(narrow.headerDisplayLines()); got != 1 {
-		t.Fatalf("narrow header rows = %d, want 1", got)
-	}
 	if got := len(narrow.footerLines()); got > 2 {
 		t.Fatalf("narrow dashboard footer rows = %d, want at most 2", got)
 	}
 	lines := normalizedViewLines(narrow.View())
-	requireLines(t, lines, "Revolvr  Dashboard  initialized", "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	requireNoLine(t, lines, "Revolvr  Dashboard  initialized")
+	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
 	assertMaxLineWidth(t, lines, 40)
 
 	composer, cmd := updateStatusModel(t, narrow, keyRunes("/"))
@@ -2896,8 +3468,8 @@ func normalizedViewLines(view string) []string {
 func assertMaxLineWidth(t *testing.T, lines []string, maxWidth int) {
 	t.Helper()
 	for _, line := range lines {
-		if len([]rune(line)) > maxWidth {
-			t.Fatalf("line %q has width %d, want <= %d", line, len([]rune(line)), maxWidth)
+		if width := ansi.StringWidth(line); width > maxWidth {
+			t.Fatalf("line %q has width %d, want <= %d", line, width, maxWidth)
 		}
 	}
 }

@@ -42,7 +42,6 @@ var _ tea.Model = StatusModel{}
 var runLoopPassOptions = []int{2, 3, 5}
 
 var (
-	titleStyle    = lipgloss.NewStyle().Bold(true)
 	sectionStyle  = lipgloss.NewStyle().Bold(true)
 	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
@@ -77,6 +76,8 @@ const (
 type StatusModel struct {
 	status                app.StatusResult
 	actions               StatusActions
+	committed             []transcriptCell
+	emitted               map[string]struct{}
 	view                  TUIView
 	previous              TUIView
 	selectedTask          int
@@ -95,6 +96,189 @@ type StatusModel struct {
 	width                 int
 	height                int
 	viewport              viewport.Model
+}
+
+type transcriptCell struct {
+	kind     transcriptCellKind
+	identity string
+	source   []string
+}
+
+type transcriptCellKind string
+
+const (
+	transcriptCellSession        transcriptCellKind = "session"
+	transcriptCellOperatorAction transcriptCellKind = "operator-action"
+	transcriptCellStatus         transcriptCellKind = "status"
+	transcriptCellProgress       transcriptCellKind = "progress"
+	transcriptCellResult         transcriptCellKind = "result"
+	transcriptCellWarning        transcriptCellKind = "warning"
+	transcriptCellQuestion       transcriptCellKind = "question"
+)
+
+func newSessionTranscriptCell(projectRoot string, initialized bool) transcriptCell {
+	initialState := "not initialized"
+	if initialized {
+		initialState = "initialized"
+	}
+	return transcriptCell{
+		kind:     transcriptCellSession,
+		identity: "session-start",
+		source: []string{
+			"Revolvr",
+			"Project: " + projectRoot,
+			"At start: " + initialState,
+		},
+	}
+}
+
+func historicalTranscriptCells(status app.StatusResult) []transcriptCell {
+	if !status.Initialized || len(status.RecentRuns) == 0 {
+		return nil
+	}
+
+	history := ledger.RunWithEvents{Run: status.RecentRuns[0], Events: status.LatestEvents}
+	type timelineRow struct {
+		index int
+		row   app.RunTimelineRow
+	}
+	visible := make([]timelineRow, 0, len(history.Events))
+	for index, row := range app.RunTimeline(history) {
+		if row.Phase == "run" || row.Phase == "task" ||
+			row.Phase == "codex" && row.Status == "progress" && !strings.HasPrefix(row.Detail, "message: ") ||
+			row.Phase == "verification" && row.Detail == "from run record" ||
+			row.Phase == "commit" && row.Status == "created" && strings.TrimPrefix(strings.TrimSpace(row.Detail), "commit ") == strings.TrimSpace(history.Run.CommitSHA) {
+			continue
+		}
+		visible = append(visible, timelineRow{index: index, row: row})
+	}
+
+	start := max(len(visible)-maxDashboardEvents, 0)
+	cells := make([]transcriptCell, 0, len(visible)-start+2)
+	if start > 0 {
+		cells = append(cells, transcriptCell{
+			kind:     transcriptCellStatus,
+			identity: fmt.Sprintf("run:%s:window:%d", history.Run.ID, visible[start].index),
+			source:   []string{fmt.Sprintf("… %d earlier · 4 Run Detail", start)},
+		})
+	}
+	for _, item := range visible[start:] {
+		kind := transcriptCellStatus
+		switch item.row.Status {
+		case "started", "selected", "progress":
+			kind = transcriptCellProgress
+		case "warning", "failed", "error", "cancelled":
+			kind = transcriptCellWarning
+		}
+		cells = append(cells, transcriptCell{
+			kind:     kind,
+			identity: fmt.Sprintf("run:%s:timeline:%d:%s:%s", history.Run.ID, item.index, item.row.Phase, item.row.Status),
+			source:   []string{dashboardTimelineLine(item.row)},
+		})
+	}
+	if cell, ok := historicalRunResultCell(history.Run); ok {
+		cells = append(cells, cell)
+	}
+	return cells
+}
+
+func historicalRunResultCell(run ledger.Run) (transcriptCell, bool) {
+	runID := strings.TrimSpace(run.ID)
+	status := strings.TrimSpace(run.Status)
+	if runID == "" || status == "" {
+		return transcriptCell{}, false
+	}
+	name := oneLine(run.Task)
+	if name == "" {
+		name = strings.TrimSpace(run.TaskID)
+	}
+	if name == "" {
+		name = runID
+	}
+
+	cell := transcriptCell{identity: "run:" + runID + ":status:" + status}
+	switch status {
+	case ledger.StatusCompleted:
+		cell.kind = transcriptCellResult
+		cell.source = []string{"Completed: " + name}
+		if verification := oneLine(run.VerificationStatus); verification != "" {
+			cell.source = append(cell.source, "Verification: "+verification)
+		}
+		if commit := strings.TrimSpace(run.CommitSHA); commit != "" {
+			if len(commit) > 12 {
+				commit = commit[:12]
+			}
+			cell.source = append(cell.source, "Commit: "+commit)
+		}
+		cell.source = append(cell.source, "Next: /run to continue")
+	case ledger.StatusFailed:
+		cell.kind = transcriptCellWarning
+		cell.source = []string{"Failed: " + name}
+		reason := oneLine(run.Summary)
+		if run.VerificationStatus == "failed" {
+			reason = "verification failed"
+		}
+		if reason == "" {
+			reason = "run failed"
+		}
+		cell.source = append(cell.source, "Reason: "+reason)
+		if detail := oneLine(run.Summary); detail != "" && detail != reason {
+			cell.source = append(cell.source, "Detail: "+detail)
+		}
+		cell.source = append(cell.source, "Next: /detail to inspect the failure")
+	default:
+		cell.kind = transcriptCellStatus
+		cell.source = []string{"Run " + status + ": " + name, "Next: /detail to inspect the run"}
+	}
+	return cell, true
+}
+
+func (c transcriptCell) render(width int) []string {
+	source := make([]string, 0, len(c.source))
+	for _, line := range c.source {
+		line = strings.ReplaceAll(strings.ReplaceAll(line, "\r\n", "\n"), "\r", "\n")
+		source = append(source, strings.Split(line, "\n")...)
+	}
+	if !c.valid() {
+		generic := []string{fmt.Sprintf("Warning: unrecognized transcript evidence (%q, %q).", c.kind, c.identity)}
+		for _, line := range source {
+			generic = append(generic, "Evidence: "+line)
+		}
+		source = generic
+	}
+	lines := wrapPlainLines(source, width)
+	for i := range lines {
+		lines[i] = styleContentLine(lines[i])
+	}
+	return lines
+}
+
+func (c transcriptCell) valid() bool {
+	if strings.TrimSpace(c.identity) == "" || len(c.source) == 0 {
+		return false
+	}
+	for _, line := range c.source {
+		if strings.TrimSpace(line) == "" || strings.ContainsAny(line, "\r\n") {
+			return false
+		}
+	}
+	switch c.kind {
+	case transcriptCellSession:
+		return c.identity == "session-start" &&
+			len(c.source) == 3 &&
+			c.source[0] == "Revolvr" &&
+			strings.HasPrefix(c.source[1], "Project: ") &&
+			(c.source[2] == "At start: initialized" || c.source[2] == "At start: not initialized")
+	case transcriptCellOperatorAction,
+		transcriptCellStatus,
+		transcriptCellProgress,
+		transcriptCellResult,
+		transcriptCellWarning,
+		transcriptCellQuestion:
+		return true
+	default:
+		return false
+	}
 }
 
 type RefreshStatusFunc func() (app.StatusResult, error)
@@ -234,9 +418,12 @@ func NewStatusModel(status app.StatusResult) StatusModel {
 }
 
 func NewStatusModelWithActions(status app.StatusResult, actions StatusActions) StatusModel {
+	committed := append([]transcriptCell{newSessionTranscriptCell(status.ProjectRoot, status.Initialized)}, historicalTranscriptCells(status)...)
 	model := StatusModel{
 		status:       status,
 		actions:      actions,
+		committed:    committed,
+		emitted:      make(map[string]struct{}),
 		view:         viewDashboard,
 		previous:     viewDashboard,
 		selectedTask: clampTaskIndex(status.Tasks, 0),
@@ -281,7 +468,22 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 }
 
 func (m StatusModel) Init() tea.Cmd {
-	return nil
+	return m.appendCommitted()
+}
+
+func (m StatusModel) appendCommitted() tea.Cmd {
+	cmds := make([]tea.Cmd, 0, len(m.committed))
+	for _, cell := range m.committed {
+		if _, ok := m.emitted[cell.identity]; ok {
+			continue
+		}
+		m.emitted[cell.identity] = struct{}{}
+		cmds = append(cmds, tea.Println(strings.Join(cell.render(m.width), "\n")))
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Sequence(cmds...)
 }
 
 func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -292,6 +494,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeViewport()
 		m.refreshViewportContent()
 	case refreshStatusMsg:
+		var appendCmd tea.Cmd
 		if msg.err != nil {
 			m.message = fmt.Sprintf("Refresh failed: %s", msg.err)
 		} else {
@@ -304,16 +507,31 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
 			}
+			m.committed = append(m.committed[:1], historicalTranscriptCells(m.status)...)
+			appendCmd = m.appendCommitted()
 			m.message = "Refreshed."
 		}
 		m.updateViewportContent()
 		if msg.err == nil && isFocusedView(m.view) && m.focusSource == viewRunDetail && !m.focusedFromAutonomous {
-			return m, m.reloadFocusedRunCmd()
+			reloadCmd := m.reloadFocusedRunCmd()
+			if appendCmd != nil && reloadCmd != nil {
+				return m, tea.Sequence(appendCmd, reloadCmd)
+			}
+			if reloadCmd != nil {
+				return m, reloadCmd
+			}
+			return m, appendCmd
 		}
 		if (m.view == viewAutonomous || isFocusedView(m.view) && m.focusedFromAutonomous) && msg.err == nil {
-			return m, m.loadAutonomousSelectorsCmd()
+			loadCmd := m.loadAutonomousSelectorsCmd()
+			if appendCmd != nil && loadCmd != nil {
+				return m, tea.Sequence(appendCmd, loadCmd)
+			}
+			if loadCmd != nil {
+				return m, loadCmd
+			}
 		}
-		return m, nil
+		return m, appendCmd
 	case openRunMsg:
 		if msg.err != nil {
 			m.message = fmt.Sprintf("Open failed: %s", msg.err)
@@ -744,9 +962,7 @@ func (m *StatusModel) scrollViewport(msg tea.KeyMsg) bool {
 }
 
 func (m StatusModel) View() string {
-	sections := append([]string{}, styleHeaderLines(m.headerDisplayLines())...)
-	sections = append(sections, "")
-	sections = append(sections, trimTrailingBlankLines(m.viewport.View()))
+	sections := []string{trimTrailingBlankLines(m.viewport.View())}
 	sections = append(sections, "")
 	sections = append(sections, styleFooterLines(m.footerLines())...)
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -2121,7 +2337,7 @@ func (m *StatusModel) resizeViewport() {
 	if height <= 0 {
 		height = defaultViewportHeight
 	}
-	chromeHeight := len(m.headerDisplayLines()) + len(m.footerLines()) + 2
+	chromeHeight := len(m.footerLines()) + 1
 	contentHeight := max(height-chromeHeight, 1)
 	m.viewport.Width = width
 	m.viewport.Height = contentHeight
@@ -2184,45 +2400,6 @@ func (m StatusModel) renderContent() string {
 		return lipgloss.JoinVertical(lipgloss.Left, m.renderRunProgress(), "", content)
 	}
 	return content
-}
-
-func (m StatusModel) headerLines() []string {
-	state := "not initialized"
-	if m.status.Initialized {
-		state = "initialized"
-	}
-	return []string{fmt.Sprintf("Revolvr  %s  %s", m.viewLabel(), state)}
-}
-
-func (m StatusModel) headerDisplayLines() []string {
-	return wrapPlainLines(m.headerLines(), m.contentWidth())
-}
-
-func (m StatusModel) viewLabel() string {
-	switch m.view {
-	case viewTasks:
-		return "Tasks"
-	case viewRuns:
-		return "Runs"
-	case viewRunDetail:
-		return "Run Detail"
-	case viewPreflight:
-		return "Preflight"
-	case viewAutonomous:
-		return "Workflow"
-	case viewHelp:
-		return "Help"
-	case viewTaskEntry:
-		return "Add Task"
-	case viewDiff:
-		return "Change Summary"
-	case viewEvidence:
-		return "Evidence"
-	case viewApproval:
-		return "Approval"
-	default:
-		return "Dashboard"
-	}
 }
 
 func (m StatusModel) footerLines() []string {
@@ -2297,7 +2474,7 @@ func (m StatusModel) renderDashboard() string {
 	}
 
 	lines := appendNotice(nil, m.message)
-	history, ok := m.latestRunHistory()
+	_, ok := m.latestRunHistory()
 	if !ok {
 		lines = append(lines, "Idle", "No runs recorded.")
 		nextIndex := nextSelectedTaskIndex(m.status.Tasks)
@@ -2308,10 +2485,6 @@ func (m StatusModel) renderDashboard() string {
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
-	lines = append(lines, operatorStatusLines(history.Run)...)
-	lines = append(lines, "")
-	lines = append(lines, dashboardTimelineLines(history)...)
-
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
@@ -2435,15 +2608,6 @@ func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
 		return ledger.RunWithEvents{}, false
 	}
 	return m.latestRunHistory()
-}
-
-func operatorStatusLines(run ledger.Run) []string {
-	status := optionalValue(run.Status)
-	headline := dashboardTimelineMarker(status) + " Run " + status
-	if verification := oneLine(run.VerificationStatus); verification != "" {
-		headline += " · verification " + verification
-	}
-	return []string{headline}
 }
 
 func (m StatusModel) renderFocusedDiff() string {
@@ -3316,64 +3480,41 @@ func runTimelineLines(history ledger.RunWithEvents) []string {
 	return lines
 }
 
-func dashboardTimelineLines(history ledger.RunWithEvents) []string {
-	rows := app.RunTimeline(history)
-	visible := make([]app.RunTimelineRow, 0, len(rows))
-	for _, row := range rows {
-		if row.Phase == "run" || row.Phase == "task" {
-			continue
+func dashboardTimelineLine(row app.RunTimelineRow) string {
+	label := strings.TrimSpace(row.Phase + " " + row.Status)
+	detail := oneLine(row.Detail)
+	switch {
+	case detail == "from run record",
+		row.Phase == "codex" && row.Status == "started" && detail == "codex":
+		detail = ""
+	case row.Phase == "codex" && row.Status == "progress" && strings.HasPrefix(detail, "message: "):
+		label = "codex"
+		detail = strings.TrimPrefix(detail, "message: ")
+	case (row.Phase == "changes" && row.Status == "captured") ||
+		(row.Phase == "commit" && row.Status == "started"):
+		detail, _, _ = strings.Cut(detail, ": ")
+	case row.Phase == "commit" && row.Status == "created":
+		detail = strings.TrimPrefix(detail, "commit ")
+		if len(detail) > 12 {
+			detail = detail[:12]
 		}
-		if row.Phase == "codex" && row.Status == "progress" && !strings.HasPrefix(row.Detail, "message: ") {
-			continue
+	case row.Phase == "receipt" && row.Status == "parsed":
+		detail, _, _ = strings.Cut(detail, " (")
+	case row.Phase == "receipt" && row.Status == "warning":
+		label = "receipt"
+		if _, message, ok := strings.Cut(detail, ": "); ok {
+			detail = message
 		}
-		visible = append(visible, row)
+		detail = strings.ReplaceAll(detail, "harness ", "")
+		detail = strings.TrimPrefix(detail, "receipt ")
+		detail, _, _ = strings.Cut(detail, " (")
+		detail = strings.ReplaceAll(detail, "captured changed files", "captured files")
 	}
-
-	var lines []string
-	if len(visible) == 0 {
-		return []string{"No activity recorded."}
+	line := fmt.Sprintf("%s %s  %s", dashboardTimelineMarker(row.Status), dashboardTimelineTime(row.Timestamp), label)
+	if detail != "" {
+		line += " — " + truncateDashboardDetail(detail)
 	}
-	if omitted := len(visible) - maxDashboardEvents; omitted > 0 {
-		visible = visible[omitted:]
-		lines = append(lines, fmt.Sprintf("… %d earlier · 4 Run Detail", omitted))
-	}
-	for _, row := range visible {
-		label := strings.TrimSpace(row.Phase + " " + row.Status)
-		detail := oneLine(row.Detail)
-		switch {
-		case detail == "from run record",
-			row.Phase == "codex" && row.Status == "started" && detail == "codex":
-			detail = ""
-		case row.Phase == "codex" && row.Status == "progress" && strings.HasPrefix(detail, "message: "):
-			label = "codex"
-			detail = strings.TrimPrefix(detail, "message: ")
-		case (row.Phase == "changes" && row.Status == "captured") ||
-			(row.Phase == "commit" && row.Status == "started"):
-			detail, _, _ = strings.Cut(detail, ": ")
-		case row.Phase == "commit" && row.Status == "created":
-			detail = strings.TrimPrefix(detail, "commit ")
-			if len(detail) > 12 {
-				detail = detail[:12]
-			}
-		case row.Phase == "receipt" && row.Status == "parsed":
-			detail, _, _ = strings.Cut(detail, " (")
-		case row.Phase == "receipt" && row.Status == "warning":
-			label = "receipt"
-			if _, message, ok := strings.Cut(detail, ": "); ok {
-				detail = message
-			}
-			detail = strings.ReplaceAll(detail, "harness ", "")
-			detail = strings.TrimPrefix(detail, "receipt ")
-			detail, _, _ = strings.Cut(detail, " (")
-			detail = strings.ReplaceAll(detail, "captured changed files", "captured files")
-		}
-		line := fmt.Sprintf("%s %s  %s", dashboardTimelineMarker(row.Status), dashboardTimelineTime(row.Timestamp), label)
-		if detail != "" {
-			line += " — " + truncateDashboardDetail(detail)
-		}
-		lines = append(lines, line)
-	}
-	return lines
+	return line
 }
 
 func dashboardTimelineMarker(status string) string {
@@ -4030,6 +4171,10 @@ func wrapPlainLine(line string, width int) []string {
 			}
 			part, rest := splitRunePrefix(word, available)
 			if part == "" {
+				if current != "" {
+					current = ""
+					continue
+				}
 				break
 			}
 			out = append(out, current+part)
@@ -4047,18 +4192,6 @@ func wrapPlainLine(line string, width int) []string {
 		return []string{""}
 	}
 	return out
-}
-
-func styleHeaderLines(lines []string) []string {
-	styled := append([]string(nil), lines...)
-	if len(styled) == 0 {
-		return styled
-	}
-	styled[0] = titleStyle.Render(styled[0])
-	for i := 1; i < len(styled); i++ {
-		styled[i] = mutedStyle.Render(styled[i])
-	}
-	return styled
 }
 
 func styleFooterLines(lines []string) []string {
@@ -4081,7 +4214,7 @@ func styleContentLine(line string) string {
 	if isSectionHeading(trimmed) {
 		return sectionStyle.Render(line)
 	}
-	if strings.HasPrefix(trimmed, "Notice:") {
+	if strings.HasPrefix(trimmed, "Notice:") || strings.HasPrefix(trimmed, "Warning:") {
 		return warningStyle.Render(line)
 	}
 	if strings.HasPrefix(trimmed, "FAIL ") ||
@@ -4184,15 +4317,18 @@ func splitRunePrefix(value string, n int) (string, string) {
 	if n <= 0 {
 		return "", value
 	}
-	runes := []rune(value)
-	if n >= len(runes) {
-		return value, ""
+	width := 0
+	for i, r := range value {
+		if width+textWidth(string(r)) > n {
+			return value[:i], value[i:]
+		}
+		width += textWidth(string(r))
 	}
-	return string(runes[:n]), string(runes[n:])
+	return value, ""
 }
 
 func textWidth(value string) int {
-	return len([]rune(value))
+	return lipgloss.Width(value)
 }
 
 func trimTrailingBlankLines(value string) string {

@@ -1,9 +1,27 @@
+---
+id: tui-013-install-terminal-shell
+status: completed
+workflow: mixed-pass-v1
+phase: implement
+priority: 0
+depends_on: tui-011-prove-resize-reflow,tui-012-prove-active-settlement
+---
+
 # TUI-013 — Install the Proven Terminal Shell
 
 - Status: Completed 2026-08-28
-- Epic: [E1 — Prove the terminal shell](../epics/e1-terminal-shell.md)
-- Depends on: [TUI-011](tui-011-prove-resize-reflow.md) and
-  [TUI-012](tui-012-prove-active-settlement.md)
+- Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
+- Accepted source:
+  [TUI-013 draft](../../docs/architecture/tui-overhaul/tasks/tui-013-install-terminal-shell.md)
+- Epic:
+  [E1 — Prove the terminal shell](../../docs/architecture/tui-overhaul/epics/e1-terminal-shell.md)
+- Depends on:
+  [completed TUI-011](tui-011-prove-resize-reflow.md) and
+  [completed TUI-012](tui-012-prove-active-settlement.md)
+- Design authority:
+  [D3 transcript ownership](../../docs/architecture/tui-overhaul/README.md#d3--transcript-and-scrollback-ownership)
+  and
+  [D6 session lifecycle](../../docs/architecture/tui-overhaul/README.md#d6--session-header-lifecycle)
 
 ## Outcome
 
@@ -56,11 +74,17 @@ git diff --check
 
 ## Completion Evidence
 
-- The existing status projection now carries the inspected absolute project
-  root for both initialized and uninitialized repositories.
-- The installed `StatusModel` appends `session-start` once through
-  `tea.Println`; refresh, navigation, resize, and repeated append checks do not
-  replay it.
-- The old persistent header and its dead layout/style code are removed. The
-  dashboard remains only as the managed migration panel, and all routes,
-  commands, callbacks, guards, shell proofs, and package/full tests pass.
+- `app.StatusResult.ProjectRoot` carries the inspected absolute repository root
+  for initialized and uninitialized repositories.
+- `StatusModel.Init` appends one source-backed `session-start` through
+  `tea.Println`; refresh, navigation, resize, and a second append cannot replay
+  its process-local identity.
+- `StatusModel.View` now owns only the migration panel plus footer. The former
+  persistent header and its dead styling/layout code were removed while every
+  current page, command, callback, guard, and dashboard projection remains.
+- `TestStatusModelInstallsTranscriptShell` runs the installed Bubble Tea model
+  through test IO and proves session ordering, exact-once output, retained
+  migration content, and absence of the old header.
+- Required formatting, focused shell/resize/settlement tests, TUI package tests,
+  `go test ./...`, `go run ./cmd/revolvr tui --help`, and `git diff --check` —
+  PASS.

@@ -4,8 +4,9 @@
 - Baseline date: 2026-08-27
 - Reference implementation: local `openai/codex` checkout at
   `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`
-- Implementation status: E0 accepted; TUI-010 is the sole published TUI task
-  and its transcript-shell composition proof is complete
+- Implementation status: E0 and E1 are complete; TUI-020 and TUI-021 are
+  complete, TUI-022 is the only pending canonical task, and later tasks remain
+  unpublished drafts
 - Epic and task index: [Implementation plan](#implementation-plan)
 
 ## Purpose
@@ -18,11 +19,11 @@ This is a TUI architecture and interaction change, not a replacement runtime.
 Revolvr's Go application services, safety policy, scheduler, ledger, receipts,
 artifacts, and task lifecycle remain authoritative.
 
-The implementation epics and tasks remain drafts until separately published.
-TUI-010 is the sole published exception and is complete; all later tasks remain
-drafts. This document captures the current system, the accepted product
-decisions and source snapshots, and a bounded implementation sequence before
-product code changes.
+The implementation epics and tasks remain drafts until published by a
+completion handoff. TUI-010 through TUI-021 are complete and TUI-022 is the
+only pending canonical task; all later tasks remain drafts. This document
+captures the current system, the accepted product decisions and source
+snapshots, and a bounded implementation sequence.
 
 ## Plan Use and Task Contract
 
@@ -36,10 +37,20 @@ of its definition of done, not separate work. If implementation exposes a
 missing app/domain capability, add one bounded prerequisite task rather than
 absorbing that capability into a TUI task.
 
-After the design is accepted, promote only the first dependency-satisfied task.
-Each fresh pass completes that one task, verifies it, updates durable state,
-and stops. Combine adjacent draft tasks only when the code proves they are one
-smaller change; do not combine them for scheduling convenience.
+Each fresh pass executes one bounded decision, proof, or implementation task.
+After it is terminally complete and verified, its completion handoff may
+promote exactly one accepted, dependency-satisfied next draft as pending. That
+publication is metadata for the completed pass, never a standalone pass; the
+next fresh pass implements the pending task instead of republishing it.
+
+Recovery only: when the canonical selector is empty and `.agent/HANDOFF.md`
+names one exact accepted, dependency-satisfied draft, publish it and continue
+directly into that task in the same pass. If the next draft is ambiguous,
+blocked, or needs an unresolved product decision, record the blocker and
+publish nothing. The canonical selector and dependency checks remain
+authoritative. Never bulk-publish the draft backlog or execute more than one
+product task per pass. Combine adjacent draft tasks only when the code proves
+they are one smaller change; do not combine them for scheduling convenience.
 
 ## Implementation Plan
 
@@ -59,7 +70,7 @@ smaller change; do not combine them for scheduling convenience.
 The compact dashboard maintenance pass removed the worst duplication, but the
 underlying interaction model did not change:
 
-- the whole screen is still a persistent header, a Bubbles viewport, and a
+- the old dashboard is still a Bubbles viewport migration panel above a
   footer;
 - the dashboard reconstructs the latest run into a fixed page on every draw;
 - the composer is an inactive footer affordance until `/` is pressed;
@@ -67,7 +78,7 @@ underlying interaction model did not change:
   and Approval are page-like views selected in the main model;
 - live progress is prepended to the selected page rather than being one live
   transcript cell;
-- terminal scrollback is not the primary history/navigation surface.
+- only the startup session cell currently uses terminal-owned history.
 
 The result is more readable than the earlier event wall, but it still feels
 like a status screen with a command entry mode. Codex feels like an application
@@ -83,18 +94,20 @@ presentation and task-publication changes present on 2026-08-27.
 
 - `internal/tui.RunStatus` starts the existing Bubble Tea program in inline
   mode. It does not request the alternate screen.
-- `StatusModel.View` renders the complete visible frame as:
-  one-line header, blank row, viewport, blank row, footer.
+- `StatusModel.Init` appends one source-backed `session-start` through
+  `tea.Println` before managed content.
+- `StatusModel.View` renders the migration viewport, a blank row, and the
+  existing footer; it has no persistent header.
 - Bubbles `viewport.Model` owns the central content area's dimensions and
-  scrolling. The viewport height is derived from the current header/footer
-  row count.
+  scrolling. The viewport height is derived from the current footer row count.
 - Lip Gloss is applied after plain-text wrapping. Primary text uses the
   terminal default, headings are bold, secondary text is faint, selection is
   ANSI cyan, success is ANSI green, and failure is ANSI red.
 
 ### Dashboard
 
-- The header is `Revolvr  <view>  <initialized state>`.
+- The one-time session cell owns `Revolvr`, the inspected project root, and the
+  initialization fact at process start.
 - An initialized dashboard projects the latest run's compact operator status
   and `app.RunTimeline` history.
 - Dashboard history filters run/task duplication and low-level Codex lifecycle
@@ -727,15 +740,13 @@ resize, or overlay transitions. A Bubble Tea output failure fails the program
 through its normal lifecycle and must not be reported as a successful header;
 refresh and resize never attempt a blind retry.
 
-Persistent dashboard header chrome is removable only after the installed path
-proves one `session-start` before replay, zero additional session cells across
-refresh, wide/narrow resize, and overlay open/dismiss, one new cell on process
-restart, deterministic output-buffer ordering, 80- and 40-column geometry, and
-normal/error terminal restoration. The review must also show that the old
-header/footer repeats no surviving session fact. TUI-010, TUI-011, TUI-013,
-TUI-060, TUI-062, and TUI-070 own those gates. No app/domain capability,
+TUI-013 removed persistent header chrome after the installed path proved one
+`session-start` before managed content and zero additional session cells across
+refresh, navigation, and resize. TUI-060 and TUI-062 retain the broader
+restart, final-geometry, and terminal-restoration gates before TUI-070 removes
+the remaining dashboard/footer presentation. No app/domain capability,
 callback, domain authority, runtime dependency, terminal backend, or clear
-action is required; TUI-013 only adds the root to the existing status
+action was added; TUI-013 only added the root to the existing status
 projection.
 
 ## Whole-Overhaul Acceptance
@@ -776,6 +787,6 @@ The overhaul is complete only when:
 consistent, the 33-task epic index remains bounded, and E0 has exited. No
 implementation task was published or started by the review.
 
-A separate publication pass promoted only
-[TUI-010](tasks/tui-010-prove-shell-composition.md) into `.agent/tasks/` and
-the active selector. Its proof is complete; no later TUI task is published.
+TUI-010 through TUI-021 are complete. TUI-021's completion handoff published
+only [TUI-022](tasks/tui-022-reconcile-live-history.md); every later TUI task
+remains an unpublished draft.

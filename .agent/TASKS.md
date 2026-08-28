@@ -18,9 +18,11 @@
   qualifying current-brain usage, repeated source-linked failures, and
   smaller-fix insufficiency evidence do not. No Graphiti comparison prototype
   or implementation is authorized.
-- E0 is accepted. `tui-010-prove-shell-composition` is the sole published TUI
-  implementation task and is complete. All later TUI tasks remain unpublished
-  drafts.
+- E0 and E1 are complete. `tui-010-prove-shell-composition`,
+  `tui-011-prove-resize-reflow`, `tui-012-prove-active-settlement`, and
+  `tui-013-install-terminal-shell` are complete. TUI-020 and TUI-021 are
+  complete, TUI-022 is the only pending canonical task, and all later TUI tasks
+  remain unpublished drafts.
 - The bounded current-state compaction audit is complete. No canonical task is
   pending; deferred EXT and superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
@@ -39,7 +41,8 @@
 ## Rules
 
 - Work on the canonical task selected by `go run ./cmd/revolvr status`.
-- Do exactly one task per fresh loop pass.
+- Do exactly one product task per fresh loop pass; one next-task publication
+  may occur only in its completion handoff.
 - Mark a task complete only after verification passes.
 - If blocked, record the blocker and stop.
 - Add only small, specific, directly discovered follow-up tasks.
@@ -126,6 +129,35 @@
   Architecture 001-025, ADR-025, verification, blocker, and selector facts.
   No product, architecture, evidence, dependency, runtime, or task-selection
   authority changed.
+- [x] TUI-011 publication pass — promoted only the accepted resize/reflow proof
+  into one dependency-satisfied pending canonical task. TUI-011 remains
+  unstarted; no product code, test, dependency, or terminal behavior changed,
+  and all later TUI tasks remain unpublished drafts.
+- [x] TUI-011 implementation — proved explicit 80-to-40-to-24-to-80 managed-
+  frame reflow, ANSI display-cell bounds, immutable committed source, exact-
+  once `session-start`, replaceable live state, and reachable composer state in
+  `internal/tui/model_test.go`. Its completion handoff published only TUI-012;
+  TUI-013 and later remain unpublished.
+- [x] TUI-012 implementation — proved existing Escape/`c` guards, cooperative
+  cancellation and delayed `q`/Ctrl-C quit across every active run mode,
+  stale-token isolation, distinct terminal outcomes, and append-once final-cell
+  settlement in `internal/tui/model_test.go`.
+- [x] TUI-013 implementation — installed the proven inline transcript shell,
+  added the inspected project root to the status projection, emitted one
+  source-backed `session-start`, removed persistent header chrome, and retained
+  the dashboard as a managed migration panel without changing current routes,
+  callbacks, or guards. Its completion handoff published only TUI-020.
+- [x] TUI-020 implementation — defined the seven package-local transcript-cell
+  kinds, stable identity and source storage, deterministic styled rendering,
+  display-cell width wrapping, and warning-prefixed fallback evidence. Its
+  completion handoff published only TUI-021.
+- [x] TUI-021 implementation — projected the accepted latest-eight canonical
+  run timeline window and typed run result into committed cells, removed the
+  duplicated managed-dashboard history, and preserved exact-once startup and
+  refresh emission. Its completion handoff published only TUI-022.
+- [ ] TUI-022 implementation — reconcile replaceable live state with canonical
+  committed history exactly once. This is the only pending canonical task;
+  later TUI tasks remain unpublished.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

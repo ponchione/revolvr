@@ -1,6 +1,7 @@
 # TUI-012 — Prove Active-Operation Settlement
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-08-27 as
+  [the canonical task](../../../../.agent/tasks/tui-012-prove-active-settlement.md)
 - Epic: [E1 — Prove the terminal shell](../epics/e1-terminal-shell.md)
 - Depends on: [TUI-010](tui-010-prove-shell-composition.md)
 
@@ -41,3 +42,13 @@ go test ./internal/tui
 
 - No resize/reflow, new cancellation mechanism, live semantic cell, or queued
   operator input.
+
+## Result
+
+`TestTranscriptShellSettlement` proves current Escape/`c` guards and `q`/
+Ctrl-C settlement across every active run mode. Matching terminal results wait
+for cancellation cleanup and refresh; stale identities cannot mutate newer
+state. Cancelled, failed, and completed source cells append once before live
+state clears and delayed quit is released. The focused, package, and full Go
+test suites pass, and a compiled proof binary restores a pseudo-terminal after
+settlement, without a production or dependency change.

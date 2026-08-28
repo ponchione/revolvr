@@ -11,12 +11,12 @@ application has one rendering and navigation model.
 
 ## Scope
 
-- Delete dashboard-only activity compaction, persistent header/footer chrome,
-  inactive composer state, and page-only navigation made obsolete by parity
-  migrations.
-- Remove persistent header chrome only after D6 proofs show one
-  `session-start` before startup/restart replay, none on refresh, resize, or
-  overlay transitions, deterministic 80/40-column output, and no clear route.
+- Delete dashboard-only activity compaction, remaining persistent footer
+  chrome, inactive composer state, and page-only navigation made obsolete by
+  parity migrations.
+- Retain TUI-013's removal of persistent header chrome after D6 proofs cover
+  startup/restart replay, refresh, resize, overlay transitions, deterministic
+  80/40-column output, and the absence of a clear route.
 - Remove the viewport as committed-history owner while retaining it only where
   an accepted overlay still needs bounded scrolling.
 - Delete obsolete tests and replace only those still needed to assert accepted

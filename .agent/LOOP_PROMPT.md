@@ -19,8 +19,12 @@ Read these files before making changes:
 1. Run the exact read-only selector command in `.agent/HANDOFF.md` and select
    the first dependency-satisfied pending task in the active architecture
    sequence. Do not treat historical/deferred checklist entries as selectors.
-2. If there are no tasks, add a short note to `.agent/STATE.md` and stop.
-3. Do not work on more than one task.
+2. Recovery only: if the selector is empty and `.agent/HANDOFF.md` names one
+   exact accepted, dependency-satisfied draft, publish that draft and continue
+   directly into it in this same pass.
+3. If there is no exact recovery draft, record the empty selector or blocker in
+   `.agent/STATE.md`, publish nothing, and stop.
+4. Do not execute more than one decision, proof, or implementation task.
 
 ## Work Rules
 
@@ -38,7 +42,8 @@ Read these files before making changes:
 ## Verification
 
 1. Run the relevant verification commands from `AGENTS.md`.
-2. If verification passes, mark the task complete in `.agent/TASKS.md`.
+2. If verification passes, mark the canonical task complete and update its
+   concise completion evidence and `.agent/TASKS.md`.
 3. If verification fails, make one reasonable repair attempt.
 4. If verification still fails, record the blocker in `.agent/STATE.md` and stop.
 5. If no automated verification is available, record what manual check was performed and note the verification gap.
@@ -58,9 +63,22 @@ Update `.agent/DECISIONS.md` only if a durable implementation or architecture de
 
 If you discover follow-up work directly related to the task, add it to the bottom of `.agent/TASKS.md` as a small, specific, verifiable task.
 
+## Completion Handoff
+
+After the selected task is terminally complete and verified, publish exactly
+one accepted, dependency-satisfied next draft as pending when the plan names an
+unambiguous next task. This is completion metadata for the task just finished,
+not a second product task or a standalone publication pass. Do not create a
+`*_PUBLICATION_PROMPT.md` file.
+
+If the next draft is ambiguous, blocked, or requires an unresolved product
+decision, record that blocker and publish nothing. Never bulk-publish the draft
+backlog or start the newly pending task in this pass.
+
 ## Stop Condition
 
-Stop after one task. Do not continue to the next backlog item.
+Stop after one product task and its normal completion handoff. The next fresh
+pass implements the newly pending task; it does not republish it.
 
 ## Final Response Format
 

@@ -347,7 +347,7 @@ func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T)
 	if !called {
 		t.Fatal("tui runner was not called")
 	}
-	if !strings.Contains(out.String(), "Revolvr  Dashboard  not initialized") ||
+	if strings.Contains(out.String(), "Revolvr  Dashboard  not initialized") ||
 		!strings.Contains(out.String(), "Run `revolvr init` to initialize this repository.") {
 		t.Fatalf("tui output missing uninitialized state:\n%s", out.String())
 	}
@@ -427,6 +427,9 @@ func TestTUIRendersTranscriptAndFocusedTaskRunViewsFromAppStatus(t *testing.T) {
 				t.Fatalf("tui recent runs = %#v, want %#v", got, want)
 			}
 			model := tuiapp.NewStatusModel(status)
+			if model.Init() == nil {
+				t.Fatal("tui model returned no committed transcript command")
+			}
 			updated, cmd := model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 			if cmd != nil {
 				t.Fatalf("window size update cmd = %v, want nil", cmd)
@@ -459,14 +462,14 @@ func TestTUIRendersTranscriptAndFocusedTaskRunViewsFromAppStatus(t *testing.T) {
 	if !called {
 		t.Fatal("tui runner was not called")
 	}
-	for _, want := range []string{
-		"Revolvr  Dashboard  initialized",
-		"× Run failed · verification failed",
-		"× --:--  verification failed",
-		"› / for commands",
-	} {
+	for _, want := range []string{"› / for commands"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("tui output missing %q:\n%s", want, out.String())
+		}
+	}
+	for _, committed := range []string{"× Run failed · verification failed", "× --:--  verification failed"} {
+		if strings.Contains(out.String(), committed) {
+			t.Fatalf("managed tui output duplicated committed history %q:\n%s", committed, out.String())
 		}
 	}
 	for _, duplicate := range []string{"\nDashboard\n", "\nTasks\n", "\nLatest Run\n", "\nRecent Runs\n", "\nEvents\n"} {

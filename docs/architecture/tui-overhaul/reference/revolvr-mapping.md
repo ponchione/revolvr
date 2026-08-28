@@ -7,10 +7,11 @@ Codex evidence is pinned to
 
 ## Current Boundary
 
-**Current Revolvr behavior:** one `StatusModel` owns view selection, one Bubbles
-viewport, command-composer state, live-run state, typed-answer state, and
-application callbacks. The CLI injects application functions; the TUI does not
-own ledger or workflow persistence. ([R01], [R02])
+**Current Revolvr behavior:** one `StatusModel` owns source-backed committed
+cells and process-local emitted identities alongside view selection, one
+Bubbles migration viewport, command-composer state, live-run state,
+typed-answer state, and application callbacks. The CLI injects application
+functions; the TUI does not own ledger or workflow persistence. ([R01], [R02])
 
 **Current Revolvr behavior:** the dashboard and run detail consume the
 application’s semantic `RunTimeline` projection, while focused views consume
@@ -30,10 +31,10 @@ the overhaul.
 
 | Referenced contract | Current Revolvr evidence | Classification | Smallest likely seam | Task / decision |
 |---|---|---|---|---|
-| [Committed transcript + replaceable live region](interaction-model.md#shell-composition-and-focus) | One viewport redraw contains all content and chrome. ([R01], [R05]) | `accepted; proof required` | `StatusModel` source/emitted identity plus `tea.Println` and managed-frame composition | [TUI-010](../tasks/tui-010-prove-shell-composition.md) / accepted D3 |
-| [Source-backed resize/reflow](terminal-mechanics.md#resize-reflow-and-width) | Window size regenerates wrapped viewport strings; no retained cell source exists. ([R05]) | `accepted; proof required` | `Update(tea.WindowSizeMsg)` reflows only retained/managed state and never re-emits history | [TUI-011](../tasks/tui-011-prove-resize-reflow.md) / accepted D3 |
-| [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) | Run state is mutable and historical status is refreshed afterward, but there is no single cell-settlement boundary. ([R06]) | `accepted; proof required` | existing run completion handlers plus stable identity and one-time append | [TUI-012](../tasks/tui-012-prove-active-settlement.md) / accepted D3 |
-| Proven shell installation | The current program is already one Bubble Tea model without alternate-screen opt-in. ([R01]) | `accepted after proof` | `StatusResult.ProjectRoot`, `RunStatus`, and the proven `StatusModel` hybrid emit D6's session cell | [TUI-013](../tasks/tui-013-install-terminal-shell.md) / accepted D3/D6 |
+| [Committed transcript + replaceable live region](interaction-model.md#shell-composition-and-focus) | `session-start` appends once above the managed migration viewport/footer. ([R01], [R05]) | `accepted; installed` | `StatusModel` source/emitted identity plus `tea.Println` and managed-frame composition | [TUI-010](../tasks/tui-010-prove-shell-composition.md), [TUI-013](../tasks/tui-013-install-terminal-shell.md) / accepted D3 |
+| [Source-backed resize/reflow](terminal-mechanics.md#resize-reflow-and-width) | Window size regenerates wrapped viewport strings; no retained cell source exists. ([R05]) | `accepted; proven` | `Update(tea.WindowSizeMsg)` reflows only retained/managed state and never re-emits history | [TUI-011](../tasks/tui-011-prove-resize-reflow.md) / accepted D3 |
+| [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) | Run state is mutable and historical status is refreshed afterward, but there is no single cell-settlement boundary. ([R06]) | `accepted; proven` | existing run completion handlers plus stable identity and one-time append | [TUI-012](../tasks/tui-012-prove-active-settlement.md) / accepted D3 |
+| Proven shell installation | The inline program emits D6's one-time session cell and keeps existing content in a managed migration panel. ([R01]) | `accepted; complete` | `StatusResult.ProjectRoot`, `RunStatus`, and the installed `StatusModel` hybrid | [TUI-013](../tasks/tui-013-install-terminal-shell.md) / accepted D3/D6 |
 | [Semantic cell interface](interaction-model.md#semantic-cell-categories) | Semantic timeline rows and focused projections exist, but presentation is assembled as strings. ([R03], [R04]) | `presentation change` | small TUI-owned cell value/render functions over existing projections; the session kind has only D6's three sources | [TUI-020](../tasks/tui-020-define-transcript-cells.md) / accepted D6 for `session-start` |
 | [Replay from durable semantic source](interaction-model.md#session-header-replay-and-refresh) | `app.RunTimeline` deterministically projects ledger history and tests completed/failure/fallback cases. ([R03]) | `presentation change` | emit `session-start`, replay a bounded source window once, and append only new stable identities on refresh | [TUI-021](../tasks/tui-021-project-historical-runs.md) / accepted D3/D6 |
 | Live/history identity reconciliation | Refresh preserves selection and focused refresh reloads canonical history. ([R07]) | `proof required` | stable ledger event/run identity plus process-local emitted set | [TUI-022](../tasks/tui-022-reconcile-live-history.md) / accepted D3 |
@@ -55,7 +56,7 @@ the overhaul.
 | [Terminal-native scrollback](terminal-mechanics.md#history-insertion-and-native-scrollback) | Current code uses one Bubbles viewport and has no project-owned insertion seam. ([R01], [R05]) | `accepted; environment proof required` | installed `tea.Println` plus plain-terminal/tmux matrix; no production escape layer | [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) / accepted D3 |
 | [Suspend/restore/error lifecycle](terminal-mechanics.md#terminal-lifecycle-and-restoration) | Lifecycle is delegated to `tea.NewProgram`; active quit waits for run settlement in model tests. ([R01], [R09]) | `accepted boundary; proof required` | Bubble Tea lifecycle plus existing model settlement and D6 startup failure/restart checks | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) / accepted D3/D6 |
 | [Text-first semantic styling](terminal-mechanics.md#styling-and-text-accessibility) | Default text plus bold/dim/cyan/green/red roles exist, and tests strip ANSI before textual assertions. ([R15], [R14]) | `proof required` | existing style functions and styles-disabled test environment | [TUI-063](../tasks/tui-063-verify-text-accessibility.md) / none |
-| Remove dashboard-only presentation | Current dashboard still owns header/status/timeline/footer assembly. ([R05], [R16]) | `presentation change` | delete obsolete dashboard render/chrome and viewport history ownership only after D4 parity and D6 no-duplicate-header proof | [TUI-070](../tasks/tui-070-remove-dashboard-presentation.md) / accepted D3/D4/D6 |
+| Remove dashboard-only presentation | Current dashboard still owns status/timeline/footer assembly in the managed migration panel; its persistent header is gone. ([R05], [R16]) | `presentation change` | delete obsolete dashboard render/chrome and viewport history ownership only after D4 parity and final D6 proofs | [TUI-070](../tasks/tui-070-remove-dashboard-presentation.md) / accepted D3/D4/D6 |
 | Operator documentation | No useful Codex analog; Revolvr commands and accepted decisions are the authority. | `skip` | current Revolvr docs after behavior lands | [TUI-071](../tasks/tui-071-update-operator-docs.md) / D2–D6 as accepted |
 | Overhaul acceptance | No useful Codex analog; closure depends on Revolvr tests and terminal records. | `proof required` | existing task acceptance record | [TUI-072](../tasks/tui-072-close-overhaul-acceptance.md) / D2–D6 as accepted |
 
@@ -87,8 +88,9 @@ the overhaul.
 ## Prioritized Evidence Gaps
 
 1. TUI-010 proves D3's `tea.Println` commitment, replaceable live content,
-   test output, and normal quit without duplicated rows. Managed resize and
-   live-to-committed settlement still require TUI-011 and TUI-012.
+   test output, and normal quit without duplicated rows. TUI-011 proves
+   managed resize without replay; TUI-012 proves live-to-committed settlement;
+   TUI-013 installs the shell and D6 session cell.
 2. D3/TUI-061 still lacks real-terminal evidence for the supported terminal and
    multiplexer matrix; unit-render strings cannot establish native scrollback.
 3. TUI-062 lacks recorded Ctrl-Z/resume, normal exit, cancellation-settlement,
@@ -101,16 +103,16 @@ the overhaul.
    exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-005 closes the product-decision gate. TUI-010 is the sole published TUI
-implementation task and is complete; later tasks remain unpublished drafts.
+TUI-005 closes the product-decision gate. TUI-010 through TUI-013 are complete,
+TUI-020 is pending, and later tasks remain unpublished drafts.
 
 ## Revolvr Evidence
 
-- **R01** — `Revolvr internal/tui/model.go:L77-L98,L232-L280 (StatusModel; RunStatus)`.
-- **R02** — `Revolvr internal/tui/model.go:L100-L147 (callback types; StatusActions; RunOptions)`; `Revolvr internal/cli/root.go:L1681-L1727 (newTUICommand injection seam)`.
+- **R01** — `Revolvr internal/tui/model.go:L76-L106,L237-L317 (StatusModel; transcriptCell; RunStatus; appendCommitted)`.
+- **R02** — `Revolvr internal/tui/model.go:L107-L152 (callback types; StatusActions; RunOptions)`; `Revolvr internal/cli/root.go:L1681-L1727 (newTUICommand injection seam)`.
 - **R03** — `Revolvr internal/app/timeline.go:L14-L84,L86-L153 (RunTimeline)`; `Revolvr internal/app/timeline_test.go:L12-L73 (TestRunTimelineCompletedRun)`.
 - **R04** — `Revolvr internal/tui/model.go:L2449-L2683 (focused change, evidence, and approval renderers)`; `Revolvr internal/tui/architecture_024_test.go:L16-L120 (narrow navigation and focused refresh tests)`.
-- **R05** — `Revolvr internal/tui/model.go:L287-L294,L746-L752,L2017-L2024,L2115-L2150 (resize and viewport redraw)`.
+- **R05** — `Revolvr internal/tui/model.go:L320-L327,L777-L782,L2046-L2054,L2144-L2179 (resize and managed-frame redraw)`.
 - **R06** — `Revolvr internal/tui/model.go:L1198-L1370,L1501-L1577 (run state, admission, active keys, cancellation)`.
 - **R07** — `Revolvr internal/tui/model.go:L294-L315 (refresh identity handling)`; `Revolvr internal/tui/architecture_024_test.go:L86-L120 (TestFocusedRunRefreshReloadsCanonicalHistory)`.
 - **R08** — `Revolvr internal/tui/model.go:L195-L198,L515-L528,L1845-L2014 (composer activation and command dispatch)`; `Revolvr internal/tui/model_test.go:L2602-L2648 (TestStatusModelDashboardChromeAndComposer)`.
@@ -119,7 +121,7 @@ implementation task and is complete; later tasks remain unpublished drafts.
 - **R11** — `Revolvr internal/tui/model.go:L2153-L2187,L2318-L2439 (view dispatch; Tasks/Runs/Run Detail)`.
 - **R12** — `Revolvr internal/tui/model.go:L959-L1197,L2714-L2908 (autonomous projection, input, and rendering)`; `Revolvr internal/tui/autonomous_test.go:L75-L99 (plain narrow scrollable lifecycle test)`.
 - **R13** — `Revolvr internal/tui/model.go:L1050-L1128 (typed answer state machine)`; `Revolvr internal/tui/autonomous_test.go:L101-L181 (explicit selection and stale-question tests)`; `Revolvr internal/tui/architecture_024_test.go:L122-L188 (approval answer integration)`.
-- **R14** — `Revolvr internal/tui/model_test.go:L2509-L2648,L2663-L2680 (wide/narrow/chrome snapshots and ANSI-normalized width checks)`.
-- **R15** — `Revolvr internal/tui/model.go:L44-L52,L4052-L4105 (style roles and semantic application)`.
-- **R16** — `Revolvr internal/tui/model.go:L2189-L2290,L2292-L2315,L3319-L3407 (dashboard chrome and timeline presentation)`.
+- **R14** — `Revolvr internal/tui/model_test.go:L3090-L3257 (wide/narrow/managed-panel snapshots and ANSI-normalized display-width checks)`.
+- **R15** — `Revolvr internal/tui/model.go:L44-L51,L4042-L4095 (style roles and semantic application)`.
+- **R16** — `Revolvr internal/tui/model.go:L2282-L2306,L3309-L3397 (dashboard migration panel and timeline presentation)`.
 - **R17** — `Revolvr internal/tui/model.go:L1790-L1843,L2064-L2112 (reviewed task-entry state)`; `Revolvr internal/cli/root.go:L1706-L1708 (AddTask callback)`; `Revolvr internal/app/task_commit.go:L15-L89 (AddTaskAndCommit)`.

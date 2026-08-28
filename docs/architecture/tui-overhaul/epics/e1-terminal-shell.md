@@ -1,6 +1,6 @@
 # E1 — Prove the Terminal Shell
 
-- Status: Planning record; TUI-010 is complete, later tasks remain draft
+- Status: Completed; TUI-010 through TUI-013 are complete
 - Design authority: [TUI overhaul](../README.md)
 - Depends on: [E0](e0-product-contract.md)
 

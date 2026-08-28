@@ -56,4 +56,17 @@ Do not use:
 - `codex exec resume`
 - old session transcripts as required context
 
-Each pass must read the durable state files, do one bounded task, update the durable state files, and stop.
+Each pass must read the durable state files, execute one bounded decision,
+proof, or implementation task, update the durable state files, and stop.
+
+After that task is terminally complete and verified, its completion handoff may
+publish exactly one accepted, dependency-satisfied next draft as pending. That
+publication is metadata for the completed pass, never a standalone pass. The
+next fresh pass implements the pending task instead of republishing it.
+
+Recovery only: if the canonical selector is empty and `.agent/HANDOFF.md`
+names one exact accepted, dependency-satisfied draft, publish it and continue
+directly into that task in the same pass. If the draft is ambiguous, blocked,
+or needs an unresolved product decision, record the blocker and publish
+nothing. The canonical selector and dependency checks remain authoritative.
+Never bulk-publish drafts or execute more than one product task.

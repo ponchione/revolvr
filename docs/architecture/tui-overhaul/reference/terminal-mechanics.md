@@ -20,9 +20,10 @@ when it exceeds its allotted area, preventing stale glyphs after stream or
 width changes. ([T04], [T05])
 
 **Current Revolvr behavior:** `RunStatus` starts a normal Bubble Tea program
-without `tea.WithAltScreen`; `View` joins a header, one Bubbles viewport, and a
-footer into a complete redraw string. (Revolvr `internal/tui/model.go:255-280,746-752`
-(`RunStatus`, `View`))
+without `tea.WithAltScreen`; `Init` appends one `session-start` through
+`tea.Println`, and `View` joins one managed migration viewport and footer.
+(Revolvr `internal/tui/model.go:271-317,777-782` (`RunStatus`, `Init`,
+`appendCommitted`, `View`))
 
 **Accepted Revolvr adaptation:** D3 uses a bounded hybrid. `internal/tui` owns
 semantic committed source cells and the live/composer/overlay frame. Bubble Tea
@@ -74,15 +75,15 @@ truncation cases. ([T13], [T14], [T15])
 **Current Revolvr behavior:** `tea.WindowSizeMsg` updates stored geometry,
 resizes the single viewport, and regenerates wrapped presentation strings.
 Content width never falls below one; widths below the compact threshold use
-the compact presentation. (Revolvr `internal/tui/model.go:287-294,2115-2150`
+the compact presentation. (Revolvr `internal/tui/model.go:320-327,2144-2179`
 (`Update`, `resizeViewport`, `formatContent`))
 
 **Current Revolvr behavior:** 100-column and 40-column render tests assert exact
-dashboard rows and a maximum line width; a 40x24 test bounds dashboard chrome
-and verifies composer open/close. (Revolvr
-`internal/tui/model_test.go:2509-2648`
+dashboard rows and a maximum display width; a 40x24 test bounds the managed
+panel/footer and verifies composer open/close. (Revolvr
+`internal/tui/model_test.go:3090-3235`
 (`TestStatusModelWideRenderSnapshot`, `TestStatusModelNarrowRenderSnapshot`,
-`TestStatusModelDashboardChromeAndComposer`))
+`TestStatusModelManagedPanelAndComposer`))
 
 **Accepted Revolvr adaptation:** D3 deliberately splits reflow ownership.
 `internal/tui` redraws retained source, the live cell, composer, and overlay at
@@ -141,10 +142,10 @@ terminal case. ([T17], [T22], [T23])
 
 **Current Revolvr behavior:** the TUI already uses default, bold, dim, cyan,
 green, and red semantic roles, while geometry tests normalize ANSI before
-asserting textual rows. (Revolvr `internal/tui/model.go:44-52,4052-4105`
-(`styleHeaderLines`, `styleFooterLines`, `styleContentLine`);
-`internal/tui/model_test.go:2663-2675`
-(`normalizedViewLines`))
+asserting textual rows. (Revolvr `internal/tui/model.go:44-51,4042-4095`
+(`styleFooterLines`, `styleContentLine`);
+`internal/tui/model_test.go:3237-3257` (`normalizedViewLines`,
+`assertMaxLineWidth`))
 
 **Candidate Revolvr adaptation:** keep state and actions legible from words and
 symbols after ANSI removal; use color only as redundant emphasis.
@@ -168,9 +169,9 @@ Revolvr pins Bubble Tea `v1.3.4`, Bubbles `v0.20.0`, and Lip Gloss `v1.1.0`.
 
 | Concern | Installed Bubble Tea boundary | Revolvr proof still required |
 |---|---|---|
-| Event loop and complete-frame renderer | `tea.NewProgram(...).Run()` already owns input, rendering, signals, and terminal teardown for the current program; Revolvr invokes that path at `internal/tui/model.go:255-280` | No new proof for unchanged behavior; TUI-013 must show the target shell still exits cleanly |
-| Resize delivery | Bubble Tea delivers `tea.WindowSizeMsg`; Revolvr handles it at `internal/tui/model.go:287-294` | TUI-011/TUI-060 must prove semantic-cell reflow and settlement after the ownership change |
-| Inline versus alternate screen | Alternate screen is opt-in; Revolvr does not pass `tea.WithAltScreen` at `internal/tui/model.go:255-280`; `tea.Println` persists output above a normal-screen program | TUI-010 must prove exact-once append composition and test output; TUI-061 must establish real scrollback behavior |
+| Event loop and complete-frame renderer | `tea.NewProgram(...).Run()` already owns input, rendering, signals, and terminal teardown for the current program; Revolvr invokes that path at `internal/tui/model.go:271-297` | TUI-013 proves the installed shell exits cleanly; no custom lifecycle code was needed |
+| Resize delivery | Bubble Tea delivers `tea.WindowSizeMsg`; Revolvr handles it at `internal/tui/model.go:320-327` | TUI-011 proves managed-frame reflow without replay; TUI-060 must lock final semantic-cell geometry |
+| Inline versus alternate screen | Alternate screen is opt-in; Revolvr does not pass `tea.WithAltScreen` at `internal/tui/model.go:271-297`; `tea.Println` persists output above a normal-screen program | TUI-010/TUI-013 prove exact-once append composition and installed test output; TUI-061 must establish real scrollback behavior |
 | Viewport scrolling | Bubbles viewport already powers current focused-view scrolling at `internal/tui/model.go:97,725-743` | Accepted D3 limits it to overlay-local scrolling; it does not own committed history |
 | Suspend/resume and failures | Bubble Tea provides its own program lifecycle for the installed version | TUI-062 must exercise Ctrl-Z, resume, normal exit, cancellation settlement, and injected error paths in Revolvr; no custom terminal layer should be assumed necessary first |
 
@@ -180,7 +181,7 @@ Revolvr pins Bubble Tea `v1.3.4`, Bubbles `v0.20.0`, and Lip Gloss `v1.1.0`.
 |---|---|
 | Full-screen insertion preserves scrollback | `full_screen_history_insertion_preserves_terminal_scrollback` and `full_screen_viewport_growth_preserves_terminal_scrollback` ([T09]) |
 | Reflow retains more than the visible viewport and honors caps | `resize_reflow_preserves_configured_scrollback_beyond_the_visible_viewport`, `initial_resume_replay_retains_scrollback_beyond_the_visible_viewport`, and capped/narrow notice tests ([T12]) |
-| Active transcript does not leave stale glyphs | `HistoryCell` render clears the active area before painting ([T05]); target Revolvr still needs a settlement snapshot |
+| Active transcript does not leave stale glyphs | `HistoryCell` render clears the active area before painting ([T05]); TUI-012 proves Revolvr's final-cell append-before-clear settlement |
 | Composer geometry and palette | `empty`, `large`, `light_terminal_palette_composer`, and footer-mode snapshots are generated through the common composer snapshot helper ([T23], [T24]) |
 | Session header narrow width | `session_header_clamps_to_narrow_width.snap`, identified by its test/snapshot path ([T15]) |
 | Typed question width behavior | `request_user_input_tight_height`, `request_user_input_wrapped_options`, `request_user_input_long_option_text`, and `request_user_input_footer_wrap` ([T15]) |

@@ -1,6 +1,6 @@
 # Agent Handoff
 
-Updated: 2026-08-27
+Updated: 2026-08-28
 
 ## Where We Stopped
 
@@ -168,6 +168,87 @@ Updated: 2026-08-27
 - Marked only task `01a043b3-ad2d-7979-8d33-b6875643af8d` complete. No
   canonical task is pending; deferred EXT and superseded PTC work remain
   non-selectable, and no later TUI task was published.
+- Committed and pushed the current-state compaction as `f12690b`
+  (`docs: compact durable agent state`) with raw Git. `main` and `origin/main`
+  both resolved to `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5` immediately
+  after the push.
+- Prepared
+  `docs/architecture/tui-overhaul/TUI_011_PUBLICATION_PROMPT.md` as the sole
+  next-slice prompt, pinned to that exact accepted source. It permits only the
+  publication of TUI-011 and does not publish or implement the proof itself.
+- Published only `.agent/tasks/tui-011-prove-resize-reflow.md` as the pending
+  mixed-pass proof from the accepted draft. TUI-010 remains complete, TUI-011
+  remains unstarted, and no later TUI task was published.
+- Reconciled only affected TUI planning and durable status, then consumed and
+  deleted the TUI-011 publication prompt. No product code, Go test, dependency,
+  fixture, callback, domain state, runtime state, or terminal behavior changed.
+- Repaired the fresh-pass contract across `AGENTS.md`, `.agent/LOOP_PROMPT.md`,
+  and the TUI plan: a pass executes one bounded product task, and exactly one
+  accepted next draft may be published only in its completion handoff or the
+  explicit empty-selector recovery path. No future publication-only prompt or
+  pass is scheduled.
+- Completed TUI-011 with a test-only extension of the TUI-010 proof. Explicit
+  80-to-40-to-24-to-80 resize messages preserve committed source and emitted
+  identities, bound styled rows by terminal display width, retain replaceable
+  live state and composer access, and emit no clear, replay, or second
+  `session-start` command.
+- TUI-011's completion handoff published only
+  `.agent/tasks/tui-012-prove-active-settlement.md`. Its dependency on
+  completed TUI-010 was preserved; TUI-012 was pending and unstarted at that
+  handoff, while TUI-013 and every later task remained unpublished.
+- Consumed and deleted
+  `docs/architecture/tui-overhaul/TUI_EXECUTION_FLOW_PROMPT.md`.
+- Completed TUI-012 with a test-only active-settlement proof. Existing Escape
+  and `c` guards remain authoritative; `q` and Ctrl-C wait for cooperative
+  cancellation, cleanup, refresh, and a matching terminal token across every
+  active run mode. Distinct cancelled, failed, and completed final cells append
+  once before live state clears and delayed quit is released.
+- No production code, dependency, app/domain authority, or later canonical TUI
+  task changed. TUI-013 and every later task remain unpublished drafts.
+- Completed TUI-013 by installing the proven inline transcript shell in
+  `StatusModel`. `app.StatusResult` now carries the inspected absolute project
+  root, and `Init` appends one `session-start` with the initial initialization
+  fact through `tea.Println`.
+- Removed the persistent dashboard header and its dead style/layout path. The
+  current dashboard remains a managed migration panel with every existing
+  page, key, slash command, callback, refresh path, scroll route, and active-run
+  guard intact.
+- Added installed-path coverage proving session output precedes managed
+  content, appears once, is not replayed by refresh/navigation/resize, and does
+  not coexist with the old header. Focused proof, resize, settlement, TUI,
+  app, CLI, and full tests pass.
+- TUI-013's completion handoff published only
+  `.agent/tasks/tui-020-define-transcript-cells.md`. TUI-020 is pending and
+  unstarted; TUI-021 and every later task remain unpublished drafts.
+- Completed TUI-020 with the seven accepted package-local cell kinds and the
+  existing exact-once identity seam. Cells retain only kind, stable identity,
+  and display source; `session-start` retains only the D6 product label,
+  inspected project root, and initialization-state sources.
+- Added deterministic width-aware rendering through the current text styles.
+  Unknown or malformed cells remain visible as warning-prefixed generic
+  evidence, and terminal display-cell width now handles wide characters.
+- Focused transcript-cell, TUI package, and full Go tests pass. No app/domain
+  service, lifecycle policy, public type, interface, factory, or dependency was
+  added.
+- TUI-020's completion handoff published only
+  `.agent/tasks/tui-021-project-historical-runs.md`. TUI-021 is pending and
+  unstarted; TUI-022 and every later task remain unpublished drafts.
+- Completed TUI-021 by projecting the latest run's typed result and accepted
+  latest-eight `app.RunTimeline` window into package-local committed cells.
+  Stable identities use canonical run identity, timeline order, phase, and
+  status; rendered prose, timestamps, and color never choose identity or
+  domain status.
+- Startup rebuilds `session-start` followed by the bounded history once.
+  Successful refresh retains that session source, replaces the bounded source
+  window, and appends only newly discovered identities; refresh failure keeps
+  the last good projection.
+- Removed the duplicated latest-run status/activity copy from the managed
+  dashboard. Runs and Run Detail still expose the full canonical timeline,
+  artifacts, and raw ledger evidence, and every existing focused route remains
+  intact.
+- TUI-021's completion handoff published only
+  `.agent/tasks/tui-022-reconcile-live-history.md`. TUI-022 is pending and
+  unstarted; every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -175,20 +256,19 @@ Updated: 2026-08-27
 go run ./cmd/revolvr status
 ```
 
-It must report no pending canonical task and must not select deferred EXT or
-superseded PTC work.
+It must report TUI-022 as the only pending and next task, without selecting
+deferred EXT or superseded PTC work.
 
 ## Exact Next Command
 
-No next task is authorized. Confirm the empty canonical selector before
-publishing any separately approved work:
+Run one fresh Codex pass:
 
 ```bash
-go run ./cmd/revolvr status
+codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-Do not revive deferred EXT/PTC work, publish a later TUI task, or reopen
-Architecture 025 without a separately authorized task.
+The next fresh pass implements the already-pending TUI-022 task. Do not
+republish TUI-021 or publish TUI-030 before TUI-022 completes.
 
 ## Verification
 
@@ -292,5 +372,72 @@ Architecture 025 without a separately authorized task.
 - `go run ./cmd/revolvr status` — PASS; no pending canonical task is selected.
 - Current-state line-limit, exact changed-path, unchanged-boundary,
   trailing-whitespace, and prompt-deletion gates — PASS.
+- `git show --check --oneline f12690b` — PASS.
+- `git push origin main` — PASS; `1d959ad..f12690b  main -> main`.
+- `git status --short --branch` immediately after the push — PASS;
+  `main...origin/main` with no worktree changes.
+- TUI-011 publication prompt source pin, one-task scope, no-implementation
+  boundary, relative-link, and empty-selector checks — PASS.
+- TUI-011 canonical task publication, accepted D3/TUI-005 links, required-term,
+  changed-scope, prompt-deletion, no-later-task, and exact-next-selector checks
+  — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-011 is the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-011 is selected next.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestTranscriptShellResize'` — PASS.
+- `go test ./internal/tui` — PASS.
+- `go test ./...` — PASS.
+- `git diff --check` — PASS.
+- `go test ./internal/tui -run 'TestTranscriptShellSettlement'` — PASS.
+- Compiled settlement proof on a pseudo-terminal — PASS; the final cancelled
+  cell appeared once, Bubble Tea disabled paste/mouse modes and restored the
+  cursor, and the returned prompt accepted `printf 'PROMPT_OK\n'`.
+- `go run ./cmd/revolvr task list` — PASS; no canonical task is pending.
+- `go run ./cmd/revolvr status` — PASS; no next task is selected.
+- Fresh-pass completion-handoff, canonical-task, Markdown-link, changed-scope,
+  empty-selector, no-TUI-013-publication, no-runtime-change, and consumed-
+  prompt checks — PASS.
+- `gofmt -w internal/app/app.go internal/app/app_test.go internal/tui/model.go
+  internal/tui/model_test.go internal/tui/architecture_024_test.go
+  internal/tui/checkpoint_test.go internal/cli/root_test.go` — PASS.
+- `go test ./internal/tui -run
+  'Test(TranscriptShellProof|TranscriptShellResize|TranscriptShellSettlement|StatusModelInstallsTranscriptShell)'`
+  — PASS.
+- `go test ./internal/tui ./internal/app ./internal/cli` — PASS.
+- `go test ./...` — PASS.
+- `go run ./cmd/revolvr tui --help` — PASS.
+- TUI-013 project-root, session ordering/exact-once, refresh/navigation/resize
+  no-replay, no-header, retained-route, no-new-dependency, task-publication,
+  and relative-link gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-013 is complete and TUI-020 is
+  the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-020 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestTranscriptCell'` — PASS.
+- `go test ./internal/tui` — PASS.
+- `go test ./...` — PASS.
+- TUI-020 cell-kind, stable-identity/source, session-source, deterministic-
+  render, text-only-meaning, invalid-input, display-width, no-public-type,
+  no-interface/factory, and single-publication gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-020 is complete and TUI-021 is
+  the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-021 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go
+  internal/tui/architecture_024_test.go internal/cli/root_test.go` — PASS.
+- `go test ./internal/tui -run 'TestHistoricalTranscript'` — PASS.
+- `go test ./internal/app` — PASS.
+- `go test ./internal/tui` — PASS.
+- `go test ./...` — PASS after replacing the one stale CLI managed-dashboard
+  assertion with the committed-history boundary.
+- `go run ./cmd/revolvr tui --help` — PASS.
+- TUI-021 bounded-window, typed run/order identity, deterministic narrative,
+  startup/refresh exact-once, filter, no-dashboard-duplication, focused-view,
+  no-app-redesign, and single-publication gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-021 is complete and TUI-022 is
+  the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-022 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
 
-Run the exact read-only selector above before any future task publication.
+Run the exact next command above for the pending TUI-022 implementation pass.

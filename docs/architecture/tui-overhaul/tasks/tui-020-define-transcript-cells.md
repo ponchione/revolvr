@@ -1,6 +1,6 @@
 # TUI-020 — Define and Render Transcript Cells
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-08-28
 - Epic: [E2 — Build semantic transcript cells](../epics/e2-semantic-transcript.md)
 - Depends on: [TUI-013](tui-013-install-terminal-shell.md)
 
@@ -42,3 +42,13 @@ go test ./internal/tui
 
 - No run-history projection, live reconciliation, app-service change, or new
   semantic state.
+
+## Completion Evidence
+
+- The package-local cell now stores one of the seven accepted kinds, a stable
+  presentation identity, and source lines used directly by rendering.
+- `session-start` retains only the product label, inspected project root, and
+  initial repository state.
+- Rendering uses existing styles and display-cell wrapping; malformed and
+  unknown cells stay visible as warning-prefixed generic evidence.
+- Focused cell tests, the TUI package, and the full Go suite pass.

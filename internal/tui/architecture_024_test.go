@@ -40,23 +40,30 @@ func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *te
 	}
 	model := NewStatusModel(status)
 	model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 48, Height: 80})
-	requireLines(t, normalizedViewLines(model.View()),
-		"• Run running · verification running",
-		"› 15:00 codex — Checking the operator console.",
-		"✓ 15:00 changes captured — 1 changed file",
-		"• 15:00 receipt parsed — completed",
-		"• 15:00 commit started — 1 changed file",
-		"! 15:00 receipt — changed files differ from",
-		"  captured files",
-		"• --:-- verification running",
-		"› / for commands",
-	)
+	var transcriptLines []string
+	for _, cell := range model.committed[1:] {
+		transcriptLines = append(transcriptLines, normalizedViewLines(strings.Join(cell.render(48), "\n"))...)
+	}
+	transcript := strings.Join(transcriptLines, "\n")
+	for _, want := range []string{
+		"codex — Checking the operator console.",
+		"changes captured — 1 changed file",
+		"receipt parsed — completed",
+		"commit started — 1 changed file",
+		"receipt — changed files differ from",
+		"captured files",
+		"Run running: architecture-024-ui",
+	} {
+		if !strings.Contains(transcript, want) {
+			t.Fatalf("committed transcript missing %q: %q", want, transcript)
+		}
+	}
+	assertMaxLineWidth(t, transcriptLines, 48)
+	requireLines(t, normalizedViewLines(model.View()), "› / for commands")
 	dashboardLines := normalizedViewLines(model.View())
 	for _, noise := range []string{"item.started", "item.completed", "command_execution", "verbose task instructions"} {
-		for _, line := range dashboardLines {
-			if strings.Contains(line, noise) {
-				t.Fatalf("dashboard contains noisy transcript detail %q: %#v", noise, dashboardLines)
-			}
+		if strings.Contains(transcriptCellSource(model.committed), noise) {
+			t.Fatalf("committed transcript contains noisy detail %q: %q", noise, transcriptCellSource(model.committed))
 		}
 	}
 	for _, duplicate := range []string{"Dashboard", "Transcript", "Activity", "State: initialized", "Tasks", "Latest Run", "Recent Runs", "Events", "Task architecture-024-ui", "Run run-ui"} {
@@ -103,6 +110,7 @@ func TestFocusedRunRefreshReloadsCanonicalHistory(t *testing.T) {
 	model.view = viewRunDetail
 	model.runDetails = &history
 	model.openFocusedView(viewEvidence)
+	model.Init()
 
 	model, cmd := updateStatusModel(t, model, keyRunes("r"))
 	if cmd == nil {

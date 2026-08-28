@@ -38,6 +38,9 @@ func TestStatusUninitializedDoesNotCreateState(t *testing.T) {
 	if result.Initialized {
 		t.Fatal("status initialized = true, want false")
 	}
+	if result.ProjectRoot != workDir {
+		t.Fatalf("status project root = %q, want %q", result.ProjectRoot, workDir)
+	}
 	if _, err := os.Stat(filepath.Join(workDir, stateDirName)); !os.IsNotExist(err) {
 		t.Fatalf("state dir stat err = %v, want not exist", err)
 	}
@@ -91,6 +94,9 @@ func TestStatusReturnsTasksRecentRunsAndLatestEvents(t *testing.T) {
 	}
 	if !result.Initialized {
 		t.Fatal("status initialized = false, want true")
+	}
+	if result.ProjectRoot != workDir {
+		t.Fatalf("status project root = %q, want %q", result.ProjectRoot, workDir)
 	}
 	if got, want := taskStatuses(result.Tasks), map[string]string{
 		"task-pending":   taskmodel.StatusPending,
