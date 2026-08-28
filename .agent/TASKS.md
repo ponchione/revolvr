@@ -82,7 +82,7 @@
   Each task owns one decision, proof, component change, focused-view migration,
   or verification pass and states dependencies, scope, acceptance, verification,
   and exclusions. No implementation task was published.
-- [ ] TUI overhaul design review — review the draft tree under
+- [x] TUI overhaul design review — review the draft tree under
   `docs/architecture/tui-overhaul/` and resolve D1-D6 before promoting only
   TUI-010. Do not guess through product semantics or duplicate the draft backlog
   here. D1 is accepted: emulate the accepted Codex interaction behavior in the
@@ -102,7 +102,16 @@
   pass. D6 is accepted: one startup-only `session-start` cell per TUI process
   owns product label, inspected absolute project root, and process-start
   initialization; refresh, resize, and overlays never re-emit it, restart does,
-  and no Revolvr clear action is added. TUI-005 is next.
+  and no Revolvr clear action is added. TUI-005 accepts literal initialized-
+  idle, uninitialized, running, completed, failed, cancelled, needs-input,
+  overlay, and 40-column source snapshots with exclusive row ownership,
+  80-column normal width, 40-column minimum width, and intentional below-
+  minimum behavior. E0 is accepted; no implementation task was published.
+- [ ] TUI-010 publication pass — promote only the accepted
+  `docs/architecture/tui-overhaul/tasks/tui-010-prove-shell-composition.md`
+  proof into one canonical pending `.agent/tasks` task and the active selector.
+  Do not implement TUI-010, change product code, add a dependency, commit, or
+  continue to execution in the publication pass.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

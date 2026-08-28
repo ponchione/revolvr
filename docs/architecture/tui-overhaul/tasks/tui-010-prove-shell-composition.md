@@ -1,6 +1,6 @@
 # TUI-010 — Prove Transcript-Shell Composition
 
-- Status: Draft; first implementation candidate after E0
+- Status: Draft; sole publication candidate after accepted E0
 - Epic: [E1 — Prove the terminal shell](../epics/e1-terminal-shell.md)
 - Depends on: [E0 exit gate](../epics/e0-product-contract.md#exit-gate)
 
@@ -13,6 +13,9 @@ installed Bubble Tea stack and Revolvr's program IO.
 
 - Build the smallest proof with `session-start` plus one canonical committed
   source cell, one replaceable live cell, and the accepted bottom composer.
+- Copy the literal normal-width source rows and ownership from the
+  [accepted snapshots](../README.md#accepted-experience-state-snapshots);
+  introduce no alternate wording in the proof.
 - Emit committed cell renderings once through the installed `tea.Println`
   boundary while keeping the live cell and composer in the managed frame.
 - Exercise both Bubble Tea test output buffers and one interactive terminal.

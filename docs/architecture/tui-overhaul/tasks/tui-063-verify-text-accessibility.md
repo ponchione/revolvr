@@ -15,6 +15,9 @@ terminal-default and ANSI semantic styles remain legible.
   cyan/green/red in representative light and dark terminal themes.
 - Disable/strip color in tests and manually inspect selection, success, failure,
   warning, cancellation, needs-input, disabled action, and focus state.
+- Treat the exact labels and actions in the
+  [accepted snapshots](../README.md#accepted-experience-state-snapshots) as the
+  text-only minimum; color may not replace them.
 - Add the smallest textual marker where a state currently depends on color.
 - Retain terminal-default primary text and current semantic color roles.
 

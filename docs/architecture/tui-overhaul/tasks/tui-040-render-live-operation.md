@@ -14,6 +14,9 @@ replaceable cell.
 
 - Consolidate task identity, operation mode, pass/limit, elapsed time, latest
   meaningful detail, and cancellation affordance from existing progress state.
+- Use the exact running, cancellation-requested, blocked, safety-stop, and
+  terminal-result wording in the
+  [accepted snapshots](../README.md#accepted-experience-state-snapshots).
 - Distinguish single pass, bounded loop, autonomous task, and queue modes.
 - Replace repeated command-lifecycle detail in place.
 - Map existing terminal results to distinct completion, failure, cancellation,
@@ -24,6 +27,8 @@ replaceable cell.
 
 - Repeated progress messages do not grow the visible transcript.
 - Cell height stays within the accepted bound at 80 and 40 columns.
+- `Safety: admitted`, `Current:`, cancellation, and `Next:` remain literal and
+  visible at 40 columns without duplicate footer ownership.
 - Mode, current pass/limit, cancellation availability, and terminal result are
   understandable without color.
 - The cell cannot infer lifecycle or completion state from detail prose.

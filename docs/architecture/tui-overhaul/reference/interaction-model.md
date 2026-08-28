@@ -84,6 +84,12 @@ TUI-020: the D6 `session-start` cell, operator input, run/task status, progress,
 result, warning, question, and approval evidence. Codex-specific categories do
 not justify matching Go types one-for-one.
 
+**Accepted Revolvr presentation:** TUI-005 assigns every literal visible row
+in the [experience-state snapshots](../README.md#accepted-experience-state-snapshots)
+to session, transcript, live, composer, overlay, or transient-footer ownership.
+The labels, safety/cancellation/outcome vocabulary, and next actions are
+Revolvr source fixtures; no Codex snapshot wording is copied.
+
 ## Composer Ownership and Submission
 
 **Observed Codex behavior:** the composer is constructed with input focus and
@@ -275,6 +281,11 @@ Restart creates a new emitted-identity set, emits one new `session-start`, and
 then replays the bounded canonical window once. The initialization wording is
 explicitly a process-start fact; current command guards use refreshed status
 without rewriting terminal history.
+
+TUI-005 fixes the literal process-start wording as `Revolvr`, `Project: ...`,
+and `At start: initialized` or `At start: not initialized`. Mutable `Ready` or
+`Not initialized` wording belongs to the replaceable live owner, so a refresh
+can change current guards without contradicting or duplicating session history.
 
 D6 rejects adding a Revolvr clear action in this overhaul. Clearing terminal-
 owned scrollback outside Revolvr is not observed and causes no replay. This is

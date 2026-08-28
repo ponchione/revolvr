@@ -12,6 +12,9 @@ composer, command, overlay, scrollback, cancellation, and loop behavior.
 ## Scope
 
 - Update README and TUI help text to the accepted names and interaction paths.
+- Use the literal state, safety, cancellation, outcome, next-action, and focus
+  terms from the
+  [accepted snapshots](../README.md#accepted-experience-state-snapshots).
 - Document plain-text behavior, including unavailable states, exactly as shipped.
 - Document command discovery, overlay open/close, history navigation/copy,
   cancellation, quit settlement, needs-input, and known terminal limitations.

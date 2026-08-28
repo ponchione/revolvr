@@ -30,8 +30,10 @@ Updated: 2026-08-27
   removal. D6 accepts one startup-only `session-start` cell per TUI process,
   sourced from the inspected absolute project root and process-start
   initialization; refresh, resize, and overlays never re-emit it, restart does,
-  and no Revolvr clear action is added. No implementation task is authorized
-  yet.
+  and no Revolvr clear action is added. TUI-005 accepts literal experience
+  states at 80 columns and the 40-column minimum with exclusive row ownership
+  and intentional below-minimum behavior. E0 has exited; no implementation task
+  is published or authorized for execution yet.
 
 ## Architecture 024 TUI
 
@@ -122,45 +124,47 @@ Updated: 2026-08-27
   and page rollback until their parity/removal gates pass. D6 is accepted with
   one startup-only session cell, exclusive presentation ownership, typed local
   identity, and proof gates before persistent dashboard chrome is removed.
+- TUI-005 and E0 are accepted. The design authority fixes all required literal
+  state snapshots, exact safety/cancellation/outcome/next-action text, 80x24
+  normal geometry, 40x24 minimum geometry, and below-minimum behavior. TUI-010
+  remains unpublished and unstarted pending one separate publication pass.
 
 ## Latest Documentation Pass
 
-- Task selected: TUI-004, the bounded D6 session-header decision.
-- Files changed: accepted D6 in the design and TUI-004 task; reconciled the E0,
-  E1, E2, E6, and E7 gates, affected shell/transcript/geometry/removal tasks,
-  terminal/operator-doc/closeout tasks, all four behavioral references, and
-  durable task/decision/state/handoff. The consumed TUI-004 prompt was deleted.
-- Result: each TUI process emits one typed `session-start` before bounded
-  replay. It owns only the local product label, inspected absolute project
-  root, and process-start initialization. Refresh, resize, and overlay
-  transitions never re-emit it; restart does. No clear action, app/domain
-  capability, callback, runtime dependency, product code, or runnable task was
-  added.
-- Verification: the required path-scoped diff and D6 term audits plus relative-
-  link, changed-scope, accepted-D6, unchanged-D1-D5, task-count, no-TUI-010,
-  no-product-code/dependency, prompt-deletion, and TUI-005 selector checks pass.
-- Evidence gaps: the planned shell and geometry tasks still must prove the D6
-  source, ordering, count, replay, width, and failure/restoration contracts;
-  TUI-005 must accept the experience-state snapshots.
-- What remains: execute TUI-005 as the next separate fresh pass before
-  promoting TUI-010.
-- Blockers: none for TUI-005.
+- Task selected: TUI-005, the bounded experience-state decision.
+- Files changed: replaced illustrative sketches with accepted source fixtures;
+  reconciled E0, affected shell/cell/live/geometry/accessibility/operator-doc
+  tasks, the behavioral references, and durable task/decision/state/handoff.
+  The consumed TUI-005 prompt was deleted.
+- Result: all required states now have literal owner-annotated fixtures. Exact
+  safety, cancellation-requested, terminal-outcome, focus, and next-action text
+  remains visible at the 40-column minimum; normal width is 80 columns and
+  below-minimum behavior is intentional. E0 is accepted.
+- Verification: the required path-scoped diff and term audits plus relative-
+  link, changed-scope, D1-D6 consistency, ownership, 33-task, no-published-
+  TUI-010, no-product-code/dependency, prompt-deletion, and next-selector checks
+  pass.
+- Evidence gaps: TUI-010 through TUI-063 still must prove the accepted shell,
+  settlement, replay, geometry, scrollback, lifecycle, and accessibility
+  contracts in Go and supported terminals.
+- What remains: publish only TUI-010 in the next separate fresh pass; do not
+  implement it in that publication pass.
+- Blockers: none for the TUI-010 publication pass.
 
-## Next Decision Pass
+## Next Publication Pass
 
 - Commit `3509bb4` (`docs: accept TUI session header lifecycle`) was pushed to
   `origin/main`; the branch was clean and synchronized immediately after the
   push.
-- TUI-004 is complete, committed, and pushed. The intentionally uncommitted
-  `docs/architecture/tui-overhaul/TUI_005_DECISION_PROMPT.md` is the sole next-
-  slice prompt; it executes TUI-005 as the exact next bounded documentation
-  pass and deletes itself when consumed.
+- TUI-005 is complete and intentionally uncommitted. Its consumed prompt was
+  deleted. `docs/architecture/tui-overhaul/TUI_010_PUBLICATION_PROMPT.md` is the
+  sole next-slice prompt and may publish, but not implement, TUI-010.
 
 ## Blockers And Next Task
 
-- The approved task-publication, console, plan, and behavioral-study snapshot
-  and the accepted TUI-001/TUI-002/TUI-003/TUI-004 decisions are committed and
-  pushed through `3509bb4`.
-- The TUI-005 decision prompt is prepared and uncommitted. Complete the E0
-  snapshot gate before publishing TUI-010. Do not revive EXT/PTC work or
-  reopen Architecture 025.
+- The approved task-publication, console, plan, behavioral study, and accepted
+  TUI-001/TUI-002/TUI-003/TUI-004 decisions are committed and pushed through
+  `3509bb4`; TUI-005 is the current uncommitted documentation snapshot.
+- E0 is accepted. The exact next task is a documentation-only TUI-010
+  publication pass. Do not implement TUI-010, revive EXT/PTC work, or reopen
+  Architecture 025 in that pass.

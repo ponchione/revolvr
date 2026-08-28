@@ -6,8 +6,8 @@
 
 ## Outcome
 
-Turn the accepted experience states into automated 80-column, 40-column, and
-resize-sequence geometry regressions.
+Turn the [accepted experience states](../README.md#accepted-experience-state-snapshots)
+into automated 80-column, 40-column, and resize-sequence geometry regressions.
 
 ## Scope
 
@@ -20,6 +20,8 @@ resize-sequence geometry regressions.
   counts and ordering at 80 and 40 columns; assert no Revolvr clear route.
 - Measure ANSI-stripped display width rather than bytes or rune count.
 - Assert required composer, cancellation, safety, and current-state text.
+- Assert the accepted wrap/truncation rules and best-effort behavior below 40
+  columns without clearing or re-emitting committed rows.
 - Prefer current test helpers and focused assertions over a new snapshot system.
 
 ## Acceptance

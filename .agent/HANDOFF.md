@@ -120,17 +120,33 @@ Updated: 2026-08-27
   experience-state snapshots, preserves D1-D6, deletes itself when consumed,
   and hands off to a separate TUI-010 publication pass without implementing or
   publishing TUI-010.
+- TUI-005 is accepted and closes E0. The design authority now contains literal
+  initialized-idle, uninitialized, running, completed, failed, cancelled,
+  needs-input, Help-overlay, and 40-column source snapshots. Every fact has one
+  session/transcript, live, composer, overlay, or transient-footer owner.
+- Normal acceptance geometry is 80x24 and the minimum supported geometry is
+  40x24. Required safety, cancellation, current-work, terminal-outcome, focus,
+  and next-action text never truncates; below 40 columns is explicit best
+  effort without application-owned history clear or replay.
+- Consumed and removed
+  `docs/architecture/tui-overhaul/TUI_005_DECISION_PROMPT.md`. No product code,
+  application/domain authority, dependency, production fixture, canonical
+  task, commit, push, or TUI-010 implementation changed.
+- Created `docs/architecture/tui-overhaul/TUI_010_PUBLICATION_PROMPT.md` as the
+  sole next-slice prompt. It allows one separate pass to publish only TUI-010
+  as the first canonical implementation task and forbids implementing it in
+  that publication pass.
 
 ## Exact Next Command
 
-Run one fresh Codex pass for TUI-005:
+Run one fresh Codex pass for the TUI-010 publication task:
 
 ```bash
-codex exec "Execute the one-pass instructions in docs/architecture/tui-overhaul/TUI_005_DECISION_PROMPT.md."
+codex exec "Execute the one-pass instructions in docs/architecture/tui-overhaul/TUI_010_PUBLICATION_PROMPT.md."
 ```
 
-Consume and delete the prompt in that pass; do not create another TUI-005
-prompt or start TUI-010.
+Consume and delete the prompt in that pass; publish only the canonical TUI-010
+task and stop without implementing it.
 
 ## Verification
 
@@ -199,5 +215,9 @@ prompt or start TUI-010.
   `main...origin/main` with no worktree changes.
 - TUI-005 next-slice prompt scope, relative-link, trailing-whitespace, durable-
   selector, accepted-D1-D6, and no-runnable-task checks — PASS.
+- TUI-005 required diff/term, relative-link, changed-scope, accepted-D1-D6,
+  owner-annotation, literal-state, 80-/40-column, 33-task, no-published-TUI-010,
+  no-product-code/dependency, prompt-deletion, and exact-next-selector checks —
+  PASS.
 
-Run the exact next command above for TUI-005.
+Run the exact next command above for the TUI-010 publication pass.

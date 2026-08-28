@@ -1,6 +1,6 @@
 # E0 — Settle the Product Contract
 
-- Status: Draft; not canonical or runnable
+- Status: Accepted 2026-08-27; planning record only
 - Design authority: [TUI overhaul](../README.md)
 - Depends on: none
 
@@ -8,8 +8,8 @@
 
 The operator experience and implementation boundaries are explicit enough that
 the terminal-shell proof can be judged without inventing product semantics.
-D1-D6 are accepted; TUI-005 remains the only E0 task before the experience
-snapshots and E0 exit gate can be accepted.
+D1-D6 and the TUI-005 source snapshots are accepted; E0 has exited without
+publishing or starting an implementation task.
 
 ## Tasks
 
@@ -29,8 +29,10 @@ code, runtime dependency, canonical task, or domain behavior.
 
 ## Exit Gate
 
-- D1-D6 have accepted answers with no contradiction against ADR-025.
-- Every required state has an accepted source snapshot or wireframe.
-- Any missing app/domain capability discovered by the decisions is represented
-  by its own bounded prerequisite task.
-- TUI-010 is the only implementation task promoted next.
+- **Passed 2026-08-27.** D1-D6 have accepted answers with no contradiction
+  against ADR-025.
+- Every required state has an accepted source snapshot with exclusive
+  presentation ownership and 80-/40-column geometry.
+- No missing app/domain capability or prerequisite task was discovered.
+- TUI-010 is the only implementation task eligible for a separate publication
+  pass; it remains unpublished and unstarted.

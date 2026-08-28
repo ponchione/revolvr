@@ -51,7 +51,7 @@ the overhaul.
 | Evidence in overlay | Focused evidence already reloads canonical history on refresh. ([R04], [R07]) | `presentation change` | `renderFocusedEvidence` under the shared overlay shell | [TUI-056](../tasks/tui-056-move-evidence-overlay.md) / accepted D4 |
 | [Typed approval overlay](interaction-model.md#approvals) | Approval is a focused projection; accepted answers pass typed task/question/revision/hash/option identity to the app callback. ([R04], [R13]) | `presentation change` | keep `autonomousAnswerState` and `AnswerInput`; change only focus/render owner | [TUI-057](../tasks/tui-057-move-approval-overlay.md) / accepted D4 |
 | [Typed question overlay](interaction-model.md#typed-questions) | Needs-input requires a current typed question, explicit option, double confirmation, and stale-question rejection. ([R13]) | `accepted presentation change` | retain the existing answer state machine and expose it through the shared overlay; no free-form route | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) / accepted D2/D4 |
-| [Width/geometry proof](terminal-mechanics.md#resize-reflow-and-width) | Exact 100-column, 40-column, and 40x24 render tests already bound lines and chrome for the current dashboard. ([R14]) | `proof required` | prove managed-frame reflow, no committed-identity replay, and D6 session counts across startup/restart/refresh/resize/overlays | [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) / accepted D3/D6 |
+| [Width/geometry proof](terminal-mechanics.md#resize-reflow-and-width) | Exact 100-column, 40-column, and 40x24 render tests already bound lines and chrome for the current dashboard. ([R14]) | `proof required` | copy TUI-005's 80-/40-column source fixtures, prove managed-frame reflow, no committed-identity replay, and D6 session counts across startup/restart/refresh/resize/overlays | [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) / accepted D3/D6/TUI-005 |
 | [Terminal-native scrollback](terminal-mechanics.md#history-insertion-and-native-scrollback) | Current code uses one Bubbles viewport and has no project-owned insertion seam. ([R01], [R05]) | `accepted; environment proof required` | installed `tea.Println` plus plain-terminal/tmux matrix; no production escape layer | [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) / accepted D3 |
 | [Suspend/restore/error lifecycle](terminal-mechanics.md#terminal-lifecycle-and-restoration) | Lifecycle is delegated to `tea.NewProgram`; active quit waits for run settlement in model tests. ([R01], [R09]) | `accepted boundary; proof required` | Bubble Tea lifecycle plus existing model settlement and D6 startup failure/restart checks | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) / accepted D3/D6 |
 | [Text-first semantic styling](terminal-mechanics.md#styling-and-text-accessibility) | Default text plus bold/dim/cyan/green/red roles exist, and tests strip ANSI before textual assertions. ([R15], [R14]) | `proof required` | existing style functions and styles-disabled test environment | [TUI-063](../tasks/tui-063-verify-text-accessibility.md) / none |
@@ -78,6 +78,11 @@ the overhaul.
   replay, using the local product label, inspected absolute repository root,
   and initial initialization fact. Refresh, resize, and overlays never emit it;
   restart emits one for the new process. No Revolvr clear action is added.
+- **Accepted TUI-005:** literal initialized-idle, uninitialized, running,
+  completed, failed, cancelled, needs-input, overlay, and 40-column source
+  snapshots assign every fact to one owner. Normal width is 80 columns,
+  minimum supported width is 40, and below-minimum behavior is best effort
+  without history clear or replay.
 
 ## Prioritized Evidence Gaps
 
@@ -96,7 +101,8 @@ the overhaul.
    exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-005 is the next bounded product-decision task.
+TUI-005 closes the product-decision gate. A separate TUI-010 publication pass
+is next; TUI-010 remains unpublished and unstarted.
 
 ## Revolvr Evidence
 

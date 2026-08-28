@@ -4,8 +4,8 @@
 - Baseline date: 2026-08-27
 - Reference implementation: local `openai/codex` checkout at
   `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`
-- Implementation status: blocked until TUI-005 accepts the experience
-  snapshots and the E0 exit gate passes
+- Implementation status: E0 accepted; TUI-010 is ready for a separate
+  publication pass but remains unpublished and unstarted
 - Epic and task index: [Implementation plan](#implementation-plan)
 
 ## Purpose
@@ -18,10 +18,10 @@ This is a TUI architecture and interaction change, not a replacement runtime.
 Revolvr's Go application services, safety policy, scheduler, ledger, receipts,
 artifacts, and task lifecycle remain authoritative.
 
-This document and the linked epic/task files are deliberately drafts. They
-capture the current system, the proposed target, open decisions, and a bounded
-implementation sequence so the team can edit the design before changing more
-product code.
+The implementation epics and tasks remain drafts until separately published.
+This document captures the current system, the accepted product decisions and
+source snapshots, and a bounded implementation sequence before product code
+changes.
 
 ## Plan Use and Task Contract
 
@@ -165,49 +165,232 @@ The target has four persistent concepts instead of a dashboard and many pages:
 The target is behavioral fidelity to the useful Codex interaction model under
 Revolvr branding. It is not a Rust port or a second runtime.
 
-### Idle sketch
+### Accepted experience-state snapshots
+
+**Status: Accepted 2026-08-27.** These source snapshots are the presentation
+authority for TUI-010 through TUI-072. Text to the right of `│` is literal
+visible content. The label to the left is a documentation annotation and is
+not rendered:
+
+- `session` — the committed `session-start` cell;
+- `transcript` — a committed canonical-history cell;
+- `live` — the one replaceable current-state cell;
+- `composer` — editable input or its empty-buffer prompt;
+- `overlay` — the focused workflow that temporarily owns input;
+- `footer` — focus keys or one ephemeral action result.
+
+Blank layout rows carry no fact and are not part of the source contract. No
+visible fact appears under more than one owner in a snapshot.
+
+#### Initialized and idle — 80 columns
 
 ```text
-Revolvr
-  project  /path/to/repository
-  state    initialized · ready
-
-• Ready
-  Next task  Compact durable agent state
-  Workflow   mixed-pass-v1 · audit
-
-› /run
-  ? for shortcuts                         ready
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: initialized
+live       │ Ready
+live       │ Next task: Compact durable agent state
+live       │ Next: type a task or use /run
+composer   │ ›
+footer     │ Enter submit · / commands · ? shortcuts
 ```
 
-### Running sketch
+`At start: initialized` is immutable process-start history. `Ready`, the next
+task, and the next action are one replaceable current projection; refresh may
+replace them without rewriting the session cell.
+
+#### Uninitialized — 80 columns
 
 ```text
-• Started task Compact durable agent state
-
-• Codex
-  I am inspecting the durable state and task conventions.
-
-• Working (18s · pass 1/3 · esc to interrupt)
-  └ Running go test ./...
-
-› / for commands
-  ? for shortcuts                         run active
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: not initialized
+live       │ Not initialized
+live       │ Next: run revolvr init in this repository
+composer   │ ›
+footer     │ Enter submit · / commands · ? shortcuts
 ```
 
-### Completed sketch
+Submitting nonblank plain text in this state preserves the buffer and replaces
+the composer-owned refusal with the literal text `Input unavailable: run
+revolvr init first`. It calls no application service. Startup inspection or
+status failure emits no session cell and launches no TUI.
+
+#### Running — 80 columns
 
 ```text
-• Completed task Compact durable agent state
-  Verification passed · commit ff50d9b5cd07
-  2 receipt warnings · /run to inspect
-
-› /run
-  ? for shortcuts                         ready
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: initialized
+live       │ Running: Compact durable agent state
+live       │ Mode: loop · pass 1 of 3
+live       │ Safety: admitted
+live       │ Current: Running go test ./...
+live       │ Next: wait, or press c or Esc to cancel
+composer   │ ›
+footer     │ Enter submit · / commands · ? shortcuts
 ```
 
-The text is illustrative, not accepted event phrasing. Exact cells and command
-semantics are settled by the decision and snapshot tasks before implementation.
+The live cell is replaced in place; progress does not append rows. Active plain
+text remains local and is rejected with `Input unavailable: active steering is
+not supported`. After cancellation is requested, the same live owner renders
+exactly:
+
+```text
+live       │ Cancelling: Compact durable agent state
+live       │ Current: waiting for the run to stop
+live       │ Next: wait for settlement
+```
+
+The program neither clears this cell nor exits until the matching domain result
+settles.
+
+#### Completed — 80 columns
+
+```text
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: initialized
+transcript │ Completed: Compact durable agent state
+transcript │ Verification: passed
+transcript │ Commit: ff50d9b5cd07
+transcript │ Next: /run to continue
+composer   │ ›
+footer     │ Enter submit · / commands · ? shortcuts
+```
+
+#### Failed — 80 columns
+
+```text
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: initialized
+transcript │ Failed: Compact durable agent state
+transcript │ Reason: verification failed
+transcript │ Detail: go test ./... exited 1
+transcript │ Next: /detail to inspect the failure
+composer   │ ›
+footer     │ Enter submit · / commands · ? shortcuts
+```
+
+#### Cancelled — 80 columns
+
+```text
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: initialized
+transcript │ Cancelled: Compact durable agent state
+transcript │ Result: no completion was recorded
+transcript │ Next: /run to retry
+composer   │ ›
+footer     │ Enter submit · / commands · ? shortcuts
+```
+
+#### Needs-input question — 80 columns
+
+```text
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: initialized
+transcript │ Needs input: task-017
+transcript │ Question: Choose the verification scope
+transcript │ Next: answer the question to continue
+overlay    │ Answer required
+overlay    │ Task: task-017
+overlay    │ Choose one option
+overlay    │ > focused — Run package tests
+overlay    │   full — Run all tests
+overlay    │ Enter reviews the selected answer
+footer     │ j/k choose · Enter review · Esc back
+```
+
+The normal composer is absent while the typed question owns focus. After the
+first Enter, the focused fragment is exactly:
+
+```text
+overlay │ Confirm answer
+overlay │ focused — Run package tests
+footer  │ Enter submit · Esc options
+```
+
+Only the second Enter calls `app.AnswerAutonomousInput` with the exact typed
+identity.
+
+#### Help overlay — 80 columns
+
+```text
+session    │ Revolvr
+session    │ Project: /home/alex/source/revolvr
+session    │ At start: initialized
+overlay    │ Help
+overlay    │ ?  Help
+overlay    │ /help  Help
+overlay    │ /tasks  Tasks
+overlay    │ /runs  Runs
+overlay    │ /detail  Run Detail
+overlay    │ Esc closes Help
+footer     │ ↑/↓ scroll · Esc close
+```
+
+The overlay owns focus and its local scroll state. It emits no transcript row;
+dismissal restores the exact composer buffer against the latest live state.
+
+#### Running — 40-column minimum
+
+The visible content below is at most 40 display columns per row; the ownership
+gutter is not rendered or counted.
+
+```text
+session  │ Revolvr
+session  │ Project: /home/alex/source/revolvr
+session  │ At start: initialized
+live     │ Running: Compact durable agent state
+live     │ Mode: loop · pass 1 of 3
+live     │ Safety: admitted
+live     │ Current: Running go test ./...
+live     │ Next: wait, or press c or Esc to cancel
+composer │ ›
+footer   │ Enter submit · / commands
+footer   │ ? shortcuts
+```
+
+#### Exact terminal-result vocabulary
+
+The completed, failed, cancelled, and needs-input snapshots above are literal
+fixtures. The remaining terminal results use these literal committed cells:
+
+```text
+transcript │ Blocked: task-017
+transcript │ Reason: dependency task-016 is pending
+transcript │ Next: /workflow to inspect the task
+
+transcript │ Safety stop: task-017
+transcript │ Reason: protected path changed
+transcript │ Next: /detail to inspect the evidence
+```
+
+`Safety: admitted` is active state only. `Safety stop:` is a terminal outcome;
+neither color nor an icon supplies either meaning.
+
+#### Width, wrapping, and truncation contract
+
+- Normal acceptance geometry is 80x24. The minimum supported geometry is
+  40x24. Width assertions use ANSI-stripped terminal display cells, not bytes
+  or rune count.
+- Labels, safety, cancellation, terminal outcome, `Next:`, and the selected
+  typed option are never truncated or removed. Prose, errors, questions, and
+  the exact project root wrap with a two-column hanging indent; an unbroken
+  token hard-wraps rather than overflowing.
+- `Current:` detail may occupy two physical rows. Additional detail is replaced
+  by a trailing `…`; complete canonical evidence remains in Run Detail or its
+  owning overlay. Secondary overlay lists scroll instead of growing the frame.
+- The footer wraps only between key/action items. At 40 columns the owning
+  action remains before discovery hints, as shown above.
+- At widths from 1 through 39, Revolvr remains best-effort usable but support is
+  not claimed: content width clamps to one display cell, required state and
+  action text wraps vertically, secondary live detail may reduce to `…`, and
+  overlay content scrolls. The application never clears or re-emits committed
+  terminal rows to compensate for the narrow terminal.
 
 ## Presentation Architecture
 
@@ -588,13 +771,10 @@ The overhaul is complete only when:
 
 ## Document Review Gate
 
-Before the first implementation task is created:
+**Accepted 2026-08-27.** D1-D6 and the experience-state snapshots are
+consistent, the 33-task epic index remains bounded, and E0 has exited. No
+implementation task was published or started by the review.
 
-1. Confirm accepted D1-D6 remain consistent with the snapshots.
-2. Complete [TUI-005](tasks/tui-005-accept-experience-states.md) so the idle,
-   running, completed, failure, cancellation, needs-input, and narrow-terminal
-   snapshots describe the intended product.
-3. Review the [epic index](#implementation-plan) and delete any task that does
-   not independently improve or prove the operator experience.
-4. Promote only [TUI-010](tasks/tui-010-prove-shell-composition.md) into
-   `.agent/tasks/` and the active selector after E0 exits.
+The next separate pass may promote only
+[TUI-010](tasks/tui-010-prove-shell-composition.md) into `.agent/tasks/` and
+the active selector. It must not implement the proof in the publication pass.

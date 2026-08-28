@@ -11,8 +11,9 @@ the accepted transcript snapshots.
 
 ## Scope
 
-- Define only accepted cell kinds, including session, operator action,
-  status, progress, result, warning, and question when TUI-005 requires them.
+- Define only the cell kinds required by the
+  [accepted source snapshots](../README.md#accepted-experience-state-snapshots):
+  session, operator action, status, progress, result, warning, and question.
 - Keep the session kind limited to the three D6 sources and the typed local
   identity `session-start`; do not add mutable context fields.
 - Store display source and stable presentation identity, never duplicated

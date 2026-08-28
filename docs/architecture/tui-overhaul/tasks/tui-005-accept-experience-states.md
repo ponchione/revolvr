@@ -1,6 +1,6 @@
 # TUI-005 — Accept the Experience-State Snapshots
 
-- Status: Draft; not canonical or runnable
+- Status: Accepted 2026-08-27; documentation-only decision complete
 - Epic: [E0 — Settle the product contract](../epics/e0-product-contract.md)
 - Depends on: [TUI-000](tui-000-resolve-source-reuse.md),
   [TUI-001](tui-001-resolve-composer-semantics.md),
@@ -29,21 +29,34 @@ Produce the accepted source snapshots that judge all later presentation work.
 
 ## Acceptance
 
-- Every required state has one accepted text snapshot or wireframe.
-- The snapshots implement D1-D6 without placeholders or contradictory routes.
-- No fact is required simultaneously in transcript, live cell, session cell,
-  overlay, and footer.
-- Important state and action remain textual and visible at 40 columns.
-- TUI-010 can copy the snapshots into test fixtures without product inference.
+- **Passed 2026-08-27.** Every required state has one accepted literal source
+  snapshot in the [design authority](../README.md#accepted-experience-state-snapshots).
+- The snapshots implement D1-D6 without placeholders, contradictory routes,
+  duplicate ownership, a clear action, or a new app/domain capability.
+- Safety, cancellation, current work, terminal outcome, next action, focus, and
+  typed confirmation remain textual and visible at 40 columns.
+- Normal width is 80 columns, minimum supported width is 40 columns, and wrap,
+  truncation, scrolling, and below-minimum behavior are explicit.
+- TUI-010 can copy the source rows into test fixtures without product
+  inference; it remains unpublished and unstarted.
 
 ## Verification
 
 ```bash
 git diff --check -- docs/architecture/tui-overhaul
 rg -n \
-  "Idle sketch|Running sketch|Completed sketch|failed|cancelled|needs-input|40-column" \
+  "initialized|uninitialized|running|completed|failed|cancelled|needs-input|overlay|40-column|session-start" \
   docs/architecture/tui-overhaul/README.md
 ```
+
+## Completed Result
+
+- Accepted nine literal source snapshots plus exact cancellation-requested,
+  blocked, and safety-stop cells.
+- Assigned every visible fact to committed session/transcript, replaceable
+  live, composer, overlay, or transient-footer ownership.
+- Closed E0 without changing product code, publishing TUI-010, adding a
+  dependency, or creating a runtime capability.
 
 ## Not Included
 

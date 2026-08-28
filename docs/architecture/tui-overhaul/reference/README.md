@@ -26,8 +26,11 @@ D4 accepts the Help-to-typed-needs-input one-view-at-a-time migration, retained
 key/command entries, exact return ownership, and parity-gated page removal; D5
 rejects active steering and queued/deferred operator messages; D6 accepts one
 startup-only `session-start` cell per process and no Revolvr clear action. This
-study remains behavioral evidence for those accepted seams; Revolvr's D6
-decision, not Codex's header lifecycle, is product authority.
+study remains behavioral evidence for those accepted seams. TUI-005 accepts
+Revolvr's literal [experience-state snapshots](../README.md#accepted-experience-state-snapshots),
+80-column normal width, 40-column minimum, exclusive row ownership, and
+below-minimum behavior. Revolvr's accepted decisions and snapshots, not Codex's
+rendered wording or header lifecycle, are product authority.
 
 ## Citation Format
 
@@ -67,7 +70,7 @@ process is the only useful authority.
 | [TUI-030](../tasks/tui-030-make-composer-primary.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission) |
 | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) | [Composer ownership and submission](interaction-model.md#composer-ownership-and-submission); accepted D2/D5 and the existing reviewed task-entry path remain authoritative |
 | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) | [Commands and history](interaction-model.md#commands-and-history) |
-| [TUI-040](../tasks/tui-040-render-live-operation.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement) |
+| [TUI-040](../tasks/tui-040-render-live-operation.md) | [Live-to-committed settlement](interaction-model.md#live-to-committed-settlement); Revolvr's accepted snapshots own exact wording |
 | [TUI-050](../tasks/tui-050-add-overlay-shell.md) | [Accepted D4 overlays and focus transfer](interaction-model.md#overlays-and-focus-transfer) |
 | [TUI-051](../tasks/tui-051-move-tasks-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for task content |
 | [TUI-052](../tasks/tui-052-move-runs-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for run content |
@@ -77,7 +80,7 @@ process is the only useful authority.
 | [TUI-056](../tasks/tui-056-move-evidence-overlay.md) | [Overlay shell mechanics](interaction-model.md#overlays-and-focus-transfer); no useful Codex analog for Revolvr evidence content |
 | [TUI-057](../tasks/tui-057-move-approval-overlay.md) | [Approvals](interaction-model.md#approvals) plus Revolvr’s typed approval mapping |
 | [TUI-058](../tasks/tui-058-move-needs-input-overlay.md) | [Typed questions](interaction-model.md#typed-questions) plus Revolvr’s typed-input mapping |
-| [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) | [Resize, reflow, and width](terminal-mechanics.md#resize-reflow-and-width) and [defining proof](terminal-mechanics.md#defining-tests-and-snapshots) |
+| [TUI-060](../tasks/tui-060-lock-geometry-snapshots.md) | [Resize, reflow, and width](terminal-mechanics.md#resize-reflow-and-width), [defining proof](terminal-mechanics.md#defining-tests-and-snapshots), and Revolvr's accepted 80-/40-column fixtures |
 | [TUI-061](../tasks/tui-061-verify-terminal-scrollback.md) | [Accepted terminal-owned history and remaining native-scrollback proof](terminal-mechanics.md#history-insertion-and-native-scrollback) |
 | [TUI-062](../tasks/tui-062-verify-terminal-lifecycle.md) | [Terminal lifecycle and restoration](terminal-mechanics.md#terminal-lifecycle-and-restoration) |
 | [TUI-063](../tasks/tui-063-verify-text-accessibility.md) | [Styling and text accessibility](terminal-mechanics.md#styling-and-text-accessibility) |

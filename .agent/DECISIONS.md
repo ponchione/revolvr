@@ -1,5 +1,38 @@
 # Agent Decisions
 
+## Accepted Experience States Fix Literal Text And Geometry (2026-08-27)
+
+- TUI-overhaul TUI-005 is accepted and closes E0. The design authority now
+  contains literal initialized-idle, uninitialized, running, completed,
+  failed, cancelled, needs-input, Help-overlay, and 40-column source snapshots.
+  Fixture annotations are not rendered; every visible fact belongs exclusively
+  to the committed session/transcript, replaceable live, composer, overlay, or
+  transient-footer owner accepted by D6.
+- Each process fixture includes `Revolvr`, the exact inspected absolute project
+  root, and `At start: initialized` or `At start: not initialized` to prove the
+  one-time `session-start` prefix. The runtime emits that cell only once per
+  process; repeated fixture context does not authorize replay, persistent
+  header chrome, or a clear action.
+- Mutable idle/readiness, next-task, active mode, safety, current-work,
+  cancellation, and next-action facts belong to the replaceable live cell.
+  Final completed, failed, cancelled, blocked, safety-stop, and needs-input
+  meaning belongs to committed transcript cells. Typed questions and focused
+  workflows own overlays; the normal composer is absent while modal input owns
+  focus.
+- Exact active wording includes `Safety: admitted`, `Current:`, and
+  `Cancelling:`. Terminal wording uses `Completed:`, `Failed:`, `Cancelled:`,
+  `Blocked:`, `Safety stop:`, or `Needs input:` plus a textual `Next:` action.
+  These facts remain understandable without color and are not duplicated in
+  the footer.
+- Normal acceptance geometry is 80x24 and minimum supported geometry is 40x24.
+  Required state/action text never truncates; prose and exact roots wrap,
+  current detail may compact after two physical rows, and overlays scroll.
+  Widths below 40 are intentional best effort and never trigger application-
+  owned history clearing or replay.
+- No product code, callback, domain state, dependency, runtime capability,
+  fixture implementation, canonical task, or TUI-010 execution was added.
+  TUI-010 is eligible only for a separate publication pass.
+
 ## One Startup-Only Session Cell Replaces Persistent Header Chrome (2026-08-27)
 
 - TUI-overhaul D6 is accepted. Each TUI process emits one committed

@@ -97,6 +97,13 @@ bounded history for each process, never on refresh, resize, or overlay
 transitions, and once again only when a new process starts. No Revolvr clear
 action or terminal-history clearing mechanism is added.
 
+TUI-005 accepts 80x24 as normal geometry and 40x24 as the minimum supported
+geometry. Its [source snapshots](../README.md#accepted-experience-state-snapshots)
+keep required state, safety, cancellation, outcome, focus, and next-action text
+at 40 columns. Below 40 columns is intentional best effort: required text wraps,
+secondary live detail may compact to `…`, overlays scroll, and committed rows
+are never cleared or replayed.
+
 ## Terminal Lifecycle and Restoration
 
 **Observed Codex behavior:** initialization requires TTY stdin/stdout, enables
