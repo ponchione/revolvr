@@ -18,6 +18,9 @@
   qualifying current-brain usage, repeated source-linked failures, and
   smaller-fix insufficiency evidence do not. No Graphiti comparison prototype
   or implementation is authorized.
+- E0 is accepted. `tui-010-prove-shell-composition` is the sole published TUI
+  implementation task and is complete. All later TUI tasks remain unpublished
+  drafts.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
   reconciliation is complete maintenance, not a new architecture selector. It
   also normalized the two obsolete `complete` task statuses and restored
@@ -33,7 +36,7 @@
 
 ## Rules
 
-- Work on the first unchecked task.
+- Work on the canonical task selected by `go run ./cmd/revolvr status`.
 - Do exactly one task per fresh loop pass.
 - Mark a task complete only after verification passes.
 - If blocked, record the blocker and stop.
@@ -106,12 +109,17 @@
   idle, uninitialized, running, completed, failed, cancelled, needs-input,
   overlay, and 40-column source snapshots with exclusive row ownership,
   80-column normal width, 40-column minimum width, and intentional below-
-  minimum behavior. E0 is accepted; no implementation task was published.
-- [ ] TUI-010 publication pass — promote only the accepted
+  minimum behavior. E0 is accepted; TUI-010 was published separately and its
+  transcript-shell composition proof is complete.
+- [x] TUI-010 publication pass — promoted only the accepted
   `docs/architecture/tui-overhaul/tasks/tui-010-prove-shell-composition.md`
   proof into one canonical pending `.agent/tasks` task and the active selector.
-  Do not implement TUI-010, change product code, add a dependency, commit, or
-  continue to execution in the publication pass.
+  No product code, test, dependency, or terminal behavior changed, and the
+  publication pass did not start implementation.
+- [x] TUI-010 implementation — proved the accepted session/history append,
+  replaceable managed frame, test output, composer input, and normal PTY
+  restoration in `internal/tui/model_test.go`. No production shell, dependency,
+  or later TUI task was added.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

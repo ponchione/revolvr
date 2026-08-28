@@ -1,9 +1,21 @@
+---
+id: tui-010-prove-shell-composition
+status: completed
+workflow: mixed-pass-v1
+phase: implement
+priority: 0
+---
+
 # TUI-010 — Prove Transcript-Shell Composition
 
-- Status: Completed 2026-08-27 as
-  [the canonical task](../../../../.agent/tasks/tui-010-prove-shell-composition.md)
-- Epic: [E1 — Prove the terminal shell](../epics/e1-terminal-shell.md)
-- Depends on: [E0 exit gate](../epics/e0-product-contract.md#exit-gate)
+- Status: Completed 2026-08-27
+- Accepted E0 source: `19d80f8977dabae8c3bd1f8a0cf430879147efa8`
+- Accepted source:
+  [TUI-010 draft](../../docs/architecture/tui-overhaul/tasks/tui-010-prove-shell-composition.md)
+- Epic:
+  [E1 — Prove the terminal shell](../../docs/architecture/tui-overhaul/epics/e1-terminal-shell.md)
+- Depends on:
+  [accepted E0 exit gate](../../docs/architecture/tui-overhaul/epics/e0-product-contract.md#exit-gate)
 
 ## Outcome
 
@@ -15,7 +27,7 @@ installed Bubble Tea stack and Revolvr's program IO.
 - Build the smallest proof with `session-start` plus one canonical committed
   source cell, one replaceable live cell, and the accepted bottom composer.
 - Copy the literal normal-width source rows and ownership from the
-  [accepted snapshots](../README.md#accepted-experience-state-snapshots);
+  [accepted snapshots](../../docs/architecture/tui-overhaul/README.md#accepted-experience-state-snapshots);
   introduce no alternate wording in the proof.
 - Emit committed cell renderings once through the installed `tea.Println`
   boundary while keeping the live cell and composer in the managed frame.
@@ -55,9 +67,23 @@ task completion evidence.
 - No semantic run projection, resize proof, cancellation proof, overlay,
   plain-text dispatch, terminal-history clearing, or terminal backend.
 
-## Result
+## Completion Evidence
 
-The test-only proof in `internal/tui/model_test.go` appends the accepted session
-and completed cells once, keeps live/composer rows in the managed frame, passes
-with two output-buffer types, and exits cleanly in a real PTY. The production
-shell remains reserved for TUI-013.
+- `internal/tui/model_test.go` contains the test-only proof. It emits the
+  accepted `session-start` and completed cells once through installed
+  `tea.Println`, retains semantic identities, and keeps only live/composer/
+  footer rows in `View`.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestTranscriptShellProof'` — PASS.
+- `go test ./internal/tui` — PASS.
+- `go test ./...` — PASS.
+- Interactive PTY command — PASS:
+
+  ```bash
+  go test -c -o /tmp/revolvr-tui-proof.NoORaI/tui-proof.test ./internal/tui
+  REVOLVR_TUI_INTERACTIVE_PROOF=1 /tmp/revolvr-tui-proof.NoORaI/tui-proof.test -test.run '^TestTranscriptShellProofInteractive$' -test.v
+  ```
+
+  After `q`, the proof disabled bracketed paste and mouse modes, restored the
+  cursor, exited cleanly, and returned to Bash. `printf 'PROMPT_OK\n'` then ran
+  successfully at that prompt. The temporary proof binary was removed.

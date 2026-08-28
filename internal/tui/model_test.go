@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
 	"regexp"
 	"slices"
@@ -26,6 +29,221 @@ import (
 	"revolvr/internal/taskmodel"
 	"revolvr/internal/taskscheduler"
 )
+
+func TestTranscriptShellProof(t *testing.T) {
+	model := newTranscriptShellProofModel(false)
+	if model.Init() == nil {
+		t.Fatal("initial committed cells returned no append command")
+	}
+	if got, want := len(model.emitted), len(model.committed); got != want {
+		t.Fatalf("emitted identities = %d, want %d", got, want)
+	}
+	if cmd := model.appendCommitted(); cmd != nil {
+		t.Fatal("redraw returned a duplicate append command")
+	}
+
+	wantIdle := []string{
+		"Ready",
+		"Next task: Compact durable agent state",
+		"Next: type a task or use /run",
+		"›",
+		"Enter submit · / commands · ? shortcuts",
+	}
+	if got := normalizedViewLines(model.View()); !reflect.DeepEqual(got, wantIdle) {
+		t.Fatalf("idle managed frame = %#v, want %#v", got, wantIdle)
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	if cmd != nil {
+		t.Fatalf("composer key command = %v, want nil", cmd)
+	}
+	model = updated.(*transcriptShellProofModel)
+	before := len(model.emitted)
+	updated, cmd = model.Update(transcriptShellProofLiveMsg{lines: []string{
+		"Running: Compact durable agent state",
+		"Mode: loop · pass 1 of 3",
+		"Safety: admitted",
+		"Current: Running go test ./...",
+		"Next: wait, or press c or Esc to cancel",
+	}})
+	if cmd != nil {
+		t.Fatalf("live replacement command = %v, want nil", cmd)
+	}
+	model = updated.(*transcriptShellProofModel)
+	if got := len(model.emitted); got != before {
+		t.Fatalf("live replacement changed emitted identities from %d to %d", before, got)
+	}
+	wantRunning := []string{
+		"Running: Compact durable agent state",
+		"Mode: loop · pass 1 of 3",
+		"Safety: admitted",
+		"Current: Running go test ./...",
+		"Next: wait, or press c or Esc to cancel",
+		"› x",
+		"Enter submit · / commands · ? shortcuts",
+	}
+	lines := normalizedViewLines(model.View())
+	if !reflect.DeepEqual(lines, wantRunning) {
+		t.Fatalf("running managed frame = %#v, want %#v", lines, wantRunning)
+	}
+	assertMaxLineWidth(t, lines, 80)
+
+	t.Run("bytes buffer", func(t *testing.T) {
+		var output bytes.Buffer
+		assertTranscriptShellProofOutput(t, &output, output.String)
+	})
+	t.Run("strings builder", func(t *testing.T) {
+		var output strings.Builder
+		assertTranscriptShellProofOutput(t, &output, output.String)
+	})
+}
+
+func TestTranscriptShellProofInteractive(t *testing.T) {
+	if os.Getenv("REVOLVR_TUI_INTERACTIVE_PROOF") != "1" {
+		t.Skip("set REVOLVR_TUI_INTERACTIVE_PROOF=1 and press q to run the terminal proof")
+	}
+	if _, err := tea.NewProgram(
+		newTranscriptShellProofModel(false),
+		tea.WithInput(os.Stdin),
+		tea.WithOutput(os.Stdout),
+	).Run(); err != nil {
+		t.Fatalf("run interactive transcript shell proof: %v", err)
+	}
+}
+
+func assertTranscriptShellProofOutput(t *testing.T, output io.Writer, contents func() string) {
+	t.Helper()
+	model := newTranscriptShellProofModel(true)
+	final, err := tea.NewProgram(
+		model,
+		tea.WithInput(nil),
+		tea.WithOutput(output),
+		tea.WithoutSignals(),
+	).Run()
+	if err != nil {
+		t.Fatalf("run transcript shell proof: %v", err)
+	}
+	model = final.(*transcriptShellProofModel)
+	if cmd := model.appendCommitted(); cmd != nil {
+		t.Fatal("final redraw returned a duplicate append command")
+	}
+
+	rendered := contents()
+	for _, line := range slices.Concat(model.committed[0].lines, model.committed[1].lines) {
+		if got := strings.Count(rendered, line); got != 1 {
+			t.Fatalf("committed line %q count = %d, want 1 in %q", line, got, rendered)
+		}
+	}
+	for _, line := range normalizedViewLines(model.View()) {
+		if !strings.Contains(rendered, line) {
+			t.Fatalf("managed frame line %q missing from %q", line, rendered)
+		}
+	}
+	if session, history := strings.Index(rendered, model.committed[0].lines[0]), strings.Index(rendered, model.committed[1].lines[0]); session < 0 || history < 0 || session >= history {
+		t.Fatalf("committed order session=%d history=%d in %q", session, history, rendered)
+	}
+	if strings.Contains(rendered, "Revolvr  Dashboard  initialized") {
+		t.Fatalf("proof output retained dashboard composition: %q", rendered)
+	}
+}
+
+type transcriptShellProofCell struct {
+	identity string
+	lines    []string
+}
+
+type transcriptShellProofLiveMsg struct {
+	lines []string
+}
+
+type transcriptShellProofModel struct {
+	committed []transcriptShellProofCell
+	emitted   map[string]struct{}
+	live      []string
+	composer  string
+	autoQuit  bool
+}
+
+func newTranscriptShellProofModel(autoQuit bool) *transcriptShellProofModel {
+	return &transcriptShellProofModel{
+		committed: []transcriptShellProofCell{
+			{identity: "session-start", lines: []string{
+				"Revolvr",
+				"Project: /home/alex/source/revolvr",
+				"At start: initialized",
+			}},
+			{identity: "run-ff50d9b5cd07", lines: []string{
+				"Completed: Compact durable agent state",
+				"Verification: passed",
+				"Commit: ff50d9b5cd07",
+				"Next: /run to continue",
+			}},
+		},
+		emitted: make(map[string]struct{}),
+		live: []string{
+			"Ready",
+			"Next task: Compact durable agent state",
+			"Next: type a task or use /run",
+		},
+		autoQuit: autoQuit,
+	}
+}
+
+func (m *transcriptShellProofModel) Init() tea.Cmd {
+	cmds := m.pendingCommittedCommands()
+	if m.autoQuit {
+		cmds = append(cmds, tea.Quit)
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Sequence(cmds...)
+}
+
+func (m *transcriptShellProofModel) appendCommitted() tea.Cmd {
+	cmds := m.pendingCommittedCommands()
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Sequence(cmds...)
+}
+
+func (m *transcriptShellProofModel) pendingCommittedCommands() []tea.Cmd {
+	cmds := make([]tea.Cmd, 0, len(m.committed))
+	for _, cell := range m.committed {
+		if _, ok := m.emitted[cell.identity]; ok {
+			continue
+		}
+		m.emitted[cell.identity] = struct{}{}
+		cmds = append(cmds, tea.Println(strings.Join(cell.lines, "\n")))
+	}
+	return cmds
+}
+
+func (m *transcriptShellProofModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case transcriptShellProofLiveMsg:
+		m.live = slices.Clone(msg.lines)
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		default:
+			m.composer += string(msg.Runes)
+		}
+	}
+	return m, nil
+}
+
+func (m *transcriptShellProofModel) View() string {
+	lines := slices.Clone(m.live)
+	composer := "›"
+	if m.composer != "" {
+		composer += " " + m.composer
+	}
+	lines = append(lines, composer, "Enter submit · / commands · ? shortcuts")
+	return strings.Join(lines, "\n")
+}
 
 func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{})

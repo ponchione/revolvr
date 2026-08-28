@@ -19,7 +19,8 @@ Updated: 2026-08-27
   authorized.
 - Canonical truth remains in the existing Go/PostgreSQL ledger, artifacts,
   verification, audit, and completion model.
-- The TUI overhaul is in documentation review only. D1 accepts a native
+- The TUI overhaul has completed its product review and first implementation
+  proof. D1 accepts a native
   Go/Bubble Tea behavioral reimplementation. D2 accepts reviewed idle task
   drafts and rejects plain text elsewhere, including typed needs-input. D5
   rejects active steering and queued/deferred operator messages. D3 accepts
@@ -32,8 +33,9 @@ Updated: 2026-08-27
   initialization; refresh, resize, and overlays never re-emit it, restart does,
   and no Revolvr clear action is added. TUI-005 accepts literal experience
   states at 80 columns and the 40-column minimum with exclusive row ownership
-  and intentional below-minimum behavior. E0 has exited; no implementation task
-  is published or authorized for execution yet.
+  and intentional below-minimum behavior. E0 has exited. TUI-010 is the sole
+  published TUI implementation task and its composition proof is complete; all
+  later TUI tasks remain unpublished drafts.
 
 ## Architecture 024 TUI
 
@@ -110,9 +112,8 @@ Updated: 2026-08-27
 - The task audit separated previously combined decision gates, resize/reflow
   from active settlement, independently reachable focused views, real-terminal
   scrollback from lifecycle restoration, and operator docs from final closeout.
-- No draft item was copied into `.agent/tasks/`. Promote only one bounded task
-  after the review gate is complete; TUI-010 is the first implementation
-  candidate.
+- Only TUI-010 was copied into `.agent/tasks/` after the review gate. All later
+  draft tasks remain unpublished and non-runnable.
 - D1, D2, and D5 are accepted. Initialized idle plain text opens the existing
   reviewed Add Task draft; uninitialized and active text rejects without an app
   effect; typed needs-input remains option-only; and no steering or queued
@@ -127,44 +128,42 @@ Updated: 2026-08-27
 - TUI-005 and E0 are accepted. The design authority fixes all required literal
   state snapshots, exact safety/cancellation/outcome/next-action text, 80x24
   normal geometry, 40x24 minimum geometry, and below-minimum behavior. TUI-010
-  remains unpublished and unstarted pending one separate publication pass.
+  is complete without installing the production shell.
 
-## Latest Documentation Pass
+## Latest Implementation Pass
 
-- Task selected: TUI-005, the bounded experience-state decision.
-- Files changed: replaced illustrative sketches with accepted source fixtures;
-  reconciled E0, affected shell/cell/live/geometry/accessibility/operator-doc
-  tasks, the behavioral references, and durable task/decision/state/handoff.
-  The consumed TUI-005 prompt was deleted.
-- Result: all required states now have literal owner-annotated fixtures. Exact
-  safety, cancellation-requested, terminal-outcome, focus, and next-action text
-  remains visible at the 40-column minimum; normal width is 80 columns and
-  below-minimum behavior is intentional. E0 is accepted.
-- Verification: the required path-scoped diff and term audits plus relative-
-  link, changed-scope, D1-D6 consistency, ownership, 33-task, no-published-
-  TUI-010, no-product-code/dependency, prompt-deletion, and next-selector checks
-  pass.
-- Evidence gaps: TUI-010 through TUI-063 still must prove the accepted shell,
-  settlement, replay, geometry, scrollback, lifecycle, and accessibility
-  contracts in Go and supported terminals.
-- What remains: publish only TUI-010 in the next separate fresh pass; do not
-  implement it in that publication pass.
-- Blockers: none for the TUI-010 publication pass.
+- Task selected: `tui-010-prove-shell-composition` — prove transcript-shell
+  composition.
+- Files changed: `internal/tui/model_test.go`, the canonical TUI-010 task,
+  affected TUI planning records, `.agent/TASKS.md`, `.agent/STATE.md`, and
+  `.agent/HANDOFF.md`.
+- Verification: `gofmt -w internal/tui/model.go internal/tui/model_test.go`,
+  `go test ./internal/tui -run 'TestTranscriptShellProof'`,
+  `go test ./internal/tui`, `go test ./...`, an interactive PTY proof, and
+  `go run ./cmd/revolvr task list`, `go run ./cmd/revolvr status`, the 169-line
+  state-file check, and `git diff --check` pass.
+- Result: the test-only proof appends accepted committed identities once,
+  replaces only the managed live frame, preserves composer input, works with
+  two output-buffer types, and restores the PTY after normal quit. The old
+  dashboard composition is explicitly rejected.
+- What remains: the production shell remains TUI-013 work after the unpublished
+  TUI-011 and TUI-012 proofs. The next canonical selector is the existing
+  bounded `.agent/STATE.md` compaction task.
+- Blockers: none.
 
-## Next Publication Pass
+## Next Fresh Pass
 
-- Commit `3509bb4` (`docs: accept TUI session header lifecycle`) was pushed to
-  `origin/main`; the branch was clean and synchronized immediately after the
-  push.
-- TUI-005 is complete and intentionally uncommitted. Its consumed prompt was
-  deleted. `docs/architecture/tui-overhaul/TUI_010_PUBLICATION_PROMPT.md` is the
-  sole next-slice prompt and may publish, but not implement, TUI-010.
+- Commit `19d80f8` (`docs: accept TUI experience states`) was pushed to
+  `origin/main` and is the accepted publication source.
+- `.agent/tasks/01a043b3-ad2d-7979-8d33-b6875643af8d.md` is the next canonical
+  selector. It is the pre-existing bounded current-state compaction task, not
+  deferred EXT/PTC work.
 
 ## Blockers And Next Task
 
-- The approved task-publication, console, plan, behavioral study, and accepted
-  TUI-001/TUI-002/TUI-003/TUI-004 decisions are committed and pushed through
-  `3509bb4`; TUI-005 is the current uncommitted documentation snapshot.
-- E0 is accepted. The exact next task is a documentation-only TUI-010
-  publication pass. Do not implement TUI-010, revive EXT/PTC work, or reopen
-  Architecture 025 in that pass.
+- The approved task-publication, console, plan, behavioral study, accepted
+  TUI-001 through TUI-005 decisions, and E0 closure are committed and pushed
+  through `19d80f8`.
+- TUI-010 is complete. The exact next task is the bounded current-state
+  compaction selected above. Do not select deferred EXT/PTC work, publish a
+  later TUI task, or reopen Architecture 025 in that pass.

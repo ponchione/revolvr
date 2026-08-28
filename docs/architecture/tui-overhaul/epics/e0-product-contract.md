@@ -34,5 +34,5 @@ code, runtime dependency, canonical task, or domain behavior.
 - Every required state has an accepted source snapshot with exclusive
   presentation ownership and 80-/40-column geometry.
 - No missing app/domain capability or prerequisite task was discovered.
-- TUI-010 is the only implementation task eligible for a separate publication
-  pass; it remains unpublished and unstarted.
+- TUI-010 was the only implementation task eligible for publication. It is now
+  published as pending and remains unstarted.

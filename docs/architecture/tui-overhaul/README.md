@@ -4,8 +4,8 @@
 - Baseline date: 2026-08-27
 - Reference implementation: local `openai/codex` checkout at
   `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`
-- Implementation status: E0 accepted; TUI-010 is ready for a separate
-  publication pass but remains unpublished and unstarted
+- Implementation status: E0 accepted; TUI-010 is the sole published TUI task
+  and its transcript-shell composition proof is complete
 - Epic and task index: [Implementation plan](#implementation-plan)
 
 ## Purpose
@@ -19,9 +19,10 @@ Revolvr's Go application services, safety policy, scheduler, ledger, receipts,
 artifacts, and task lifecycle remain authoritative.
 
 The implementation epics and tasks remain drafts until separately published.
-This document captures the current system, the accepted product decisions and
-source snapshots, and a bounded implementation sequence before product code
-changes.
+TUI-010 is the sole published exception and is complete; all later tasks remain
+drafts. This document captures the current system, the accepted product
+decisions and source snapshots, and a bounded implementation sequence before
+product code changes.
 
 ## Plan Use and Task Contract
 
@@ -575,8 +576,8 @@ Rejected alternatives:
   the transcript behind application scrolling and selection, duplicating the
   current viewport shell instead of providing native copy-friendly history.
 
-TUI-010 must first prove append-above-program composition in a test output
-buffer and one real terminal. TUI-011 proves source/live reflow without
+TUI-010 proves append-above-program composition in two test output buffers and
+one real terminal. TUI-011 proves source/live reflow without
 re-emitting committed identities; TUI-012 proves settlement and restoration.
 TUI-061 later records native scroll, copy, resize, and tmux behavior, while
 TUI-062 records normal, cancellation, and error restoration. A failed
@@ -775,6 +776,6 @@ The overhaul is complete only when:
 consistent, the 33-task epic index remains bounded, and E0 has exited. No
 implementation task was published or started by the review.
 
-The next separate pass may promote only
+A separate publication pass promoted only
 [TUI-010](tasks/tui-010-prove-shell-composition.md) into `.agent/tasks/` and
-the active selector. It must not implement the proof in the publication pass.
+the active selector. Its proof is complete; no later TUI task is published.

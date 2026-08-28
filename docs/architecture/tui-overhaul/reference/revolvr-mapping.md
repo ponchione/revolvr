@@ -86,9 +86,9 @@ the overhaul.
 
 ## Prioritized Evidence Gaps
 
-1. Accepted D3 still lacks the minimal Go/Bubble Tea proof showing
-   `tea.Println` commitment, replaceable live content, test output, managed
-   resize, and settlement without duplicated rows.
+1. TUI-010 proves D3's `tea.Println` commitment, replaceable live content,
+   test output, and normal quit without duplicated rows. Managed resize and
+   live-to-committed settlement still require TUI-011 and TUI-012.
 2. D3/TUI-061 still lacks real-terminal evidence for the supported terminal and
    multiplexer matrix; unit-render strings cannot establish native scrollback.
 3. TUI-062 lacks recorded Ctrl-Z/resume, normal exit, cancellation-settlement,
@@ -101,8 +101,8 @@ the overhaul.
    exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-005 closes the product-decision gate. A separate TUI-010 publication pass
-is next; TUI-010 remains unpublished and unstarted.
+TUI-005 closes the product-decision gate. TUI-010 is the sole published TUI
+implementation task and is complete; later tasks remain unpublished drafts.
 
 ## Revolvr Evidence
 

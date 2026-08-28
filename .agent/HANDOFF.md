@@ -136,17 +136,43 @@ Updated: 2026-08-27
   sole next-slice prompt. It allows one separate pass to publish only TUI-010
   as the first canonical implementation task and forbids implementing it in
   that publication pass.
+- Committed and pushed TUI-005 plus the initial next-slice prompt as `19d80f8`
+  (`docs: accept TUI experience states`) with raw Git. `main` and `origin/main`
+  both resolved to `19d80f8977dabae8c3bd1f8a0cf430879147efa8`
+  immediately after the push.
+- Prepared the TUI-010 publication prompt after that push by pinning it to the
+  exact accepted TUI-005 source. This preparation does not publish or start
+  TUI-010.
+- Published only `.agent/tasks/tui-010-prove-shell-composition.md` as a pending
+  mixed-pass proof from the accepted draft. E0 remains accepted, no later TUI
+  task was published, and TUI-010 remains unstarted.
+- Reconciled only affected planning and durable status, then consumed and
+  deleted the TUI-010 publication prompt. No product code, Go test, dependency,
+  fixture, callback, domain state, or terminal behavior changed.
+- Completed TUI-010 with a test-only proof in `internal/tui/model_test.go`.
+  Accepted session/history cells append once through installed `tea.Println`;
+  live/composer rows remain managed, two output-buffer types pass, and a real
+  PTY restores its normal modes after `q`. No production shell, dependency, or
+  later TUI task was added.
+
+## Exact Read-Only Selector
+
+```bash
+go run ./cmd/revolvr status
+```
+
+It must report `01a043b3-ad2d-7979-8d33-b6875643af8d` as the next task.
 
 ## Exact Next Command
 
-Run one fresh Codex pass for the TUI-010 publication task:
+Run one fresh Codex pass for the bounded current-state compaction task:
 
 ```bash
-codex exec "Execute the one-pass instructions in docs/architecture/tui-overhaul/TUI_010_PUBLICATION_PROMPT.md."
+codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-Consume and delete the prompt in that pass; publish only the canonical TUI-010
-task and stop without implementing it.
+Complete and verify only the selected compaction task in that pass. Do not
+publish or start a later TUI task.
 
 ## Verification
 
@@ -219,5 +245,25 @@ task and stop without implementing it.
   owner-annotation, literal-state, 80-/40-column, 33-task, no-published-TUI-010,
   no-product-code/dependency, prompt-deletion, and exact-next-selector checks —
   PASS.
+- `git show --check --oneline 19d80f8` — PASS.
+- `git push origin main` — PASS; `aadd5f4..19d80f8  main -> main`.
+- `git status --short --branch` immediately after push — PASS;
+  `main...origin/main` with no worktree changes.
+- TUI-010 publication prompt exact-source pin, publication-only scope, no-
+  implementation boundary, relative-link, and durable-selector checks — PASS.
+- TUI-010 canonical task publication, required-term, relative-link, changed-
+  scope, prompt-deletion, no-later-task, and exact-next-selector checks — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestTranscriptShellProof'` — PASS.
+- `go test ./internal/tui` — PASS.
+- `go test ./...` — PASS.
+- Interactive PTY proof — PASS; committed cells appeared once in order, `q`
+  exited cleanly, and Bubble Tea disabled paste/mouse modes and restored the
+  cursor. The returned Bash prompt executed `printf 'PROMPT_OK\n'` successfully.
+- `go run ./cmd/revolvr task list` — PASS; TUI-010 is completed.
+- `go run ./cmd/revolvr status` — PASS; the bounded current-state compaction is
+  selected next.
+- 169-line state-file, TUI-010 completion, and no-later-TUI-publication checks
+  — PASS.
 
-Run the exact next command above for the TUI-010 publication pass.
+Run the exact next command above for the current-state compaction pass.

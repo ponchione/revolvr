@@ -38,7 +38,7 @@ Produce the accepted source snapshots that judge all later presentation work.
 - Normal width is 80 columns, minimum supported width is 40 columns, and wrap,
   truncation, scrolling, and below-minimum behavior are explicit.
 - TUI-010 can copy the source rows into test fixtures without product
-  inference; it remains unpublished and unstarted.
+  inference; it is published as pending and remains unstarted.
 
 ## Verification
 
