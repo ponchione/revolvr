@@ -21,6 +21,8 @@
 - E0 is accepted. `tui-010-prove-shell-composition` is the sole published TUI
   implementation task and is complete. All later TUI tasks remain unpublished
   drafts.
+- The bounded current-state compaction audit is complete. No canonical task is
+  pending; deferred EXT and superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
   reconciliation is complete maintenance, not a new architecture selector. It
   also normalized the two obsolete `complete` task statuses and restored
@@ -120,6 +122,10 @@
   replaceable managed frame, test output, composer input, and normal PTY
   restoration in `internal/tui/model_test.go`. No production shell, dependency,
   or later TUI task was added.
+- [x] Current-state compaction audit — compacted `.agent/STATE.md` to current
+  Architecture 001-025, ADR-025, verification, blocker, and selector facts.
+  No product, architecture, evidence, dependency, runtime, or task-selection
+  authority changed.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

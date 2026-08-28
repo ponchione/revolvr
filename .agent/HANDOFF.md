@@ -154,6 +154,20 @@ Updated: 2026-08-27
   live/composer rows remain managed, two output-buffer types pass, and a real
   PTY restores its normal modes after `q`. No production shell, dependency, or
   later TUI task was added.
+- Committed and pushed the TUI-010 publication, proof, and reconciliation as
+  `1d959ad` (`test: prove TUI shell composition`) with raw Git. `main` and
+  `origin/main` both resolved to
+  `1d959ad8bb3315ea1a49c8e9b747945ff68a4c13` immediately after the push.
+- Prepared `.agent/STATE_COMPACTION_PROMPT.md` as the sole next-pass prompt.
+  It permits only the selected current-state compaction and its normal task and
+  handoff metadata.
+- Completed the bounded current-state compaction from accepted source
+  `1d959ad8bb3315ea1a49c8e9b747945ff68a4c13`. `.agent/STATE.md` now retains
+  only current architecture, authority, verification, blocker, and selector
+  facts and remains under 200 lines.
+- Marked only task `01a043b3-ad2d-7979-8d33-b6875643af8d` complete. No
+  canonical task is pending; deferred EXT and superseded PTC work remain
+  non-selectable, and no later TUI task was published.
 
 ## Exact Read-Only Selector
 
@@ -161,18 +175,20 @@ Updated: 2026-08-27
 go run ./cmd/revolvr status
 ```
 
-It must report `01a043b3-ad2d-7979-8d33-b6875643af8d` as the next task.
+It must report no pending canonical task and must not select deferred EXT or
+superseded PTC work.
 
 ## Exact Next Command
 
-Run one fresh Codex pass for the bounded current-state compaction task:
+No next task is authorized. Confirm the empty canonical selector before
+publishing any separately approved work:
 
 ```bash
-codex exec "$(cat .agent/LOOP_PROMPT.md)"
+go run ./cmd/revolvr status
 ```
 
-Complete and verify only the selected compaction task in that pass. Do not
-publish or start a later TUI task.
+Do not revive deferred EXT/PTC work, publish a later TUI task, or reopen
+Architecture 025 without a separately authorized task.
 
 ## Verification
 
@@ -265,5 +281,16 @@ publish or start a later TUI task.
   selected next.
 - 169-line state-file, TUI-010 completion, and no-later-TUI-publication checks
   — PASS.
+- `git show --check --oneline 1d959ad` — PASS.
+- `git push origin main` — PASS; `19d80f8..1d959ad  main -> main`.
+- `git status --short --branch` immediately after the push — PASS;
+  `main...origin/main` with no worktree changes.
+- Current-state compaction prompt source pin, one-task scope, changed-path
+  boundary, deletion gate, and durable-selector checks — PASS.
+- `go test ./...` — PASS.
+- `go run ./cmd/revolvr task list` — PASS; all canonical tasks are terminal.
+- `go run ./cmd/revolvr status` — PASS; no pending canonical task is selected.
+- Current-state line-limit, exact changed-path, unchanged-boundary,
+  trailing-whitespace, and prompt-deletion gates — PASS.
 
-Run the exact next command above for the current-state compaction pass.
+Run the exact read-only selector above before any future task publication.
