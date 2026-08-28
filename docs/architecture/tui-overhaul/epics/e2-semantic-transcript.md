@@ -1,7 +1,6 @@
 # E2 — Build Semantic Transcript Cells
 
-- Status: Active planning record; TUI-020 and TUI-021 are complete, TUI-022 is
-  pending, and later tasks remain draft
+- Status: Complete; TUI-020 through TUI-022 are complete
 - Design authority: [TUI overhaul](../README.md)
 - Depends on: [E1](e1-terminal-shell.md)
 

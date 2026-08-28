@@ -18,13 +18,13 @@
   qualifying current-brain usage, repeated source-linked failures, and
   smaller-fix insufficiency evidence do not. No Graphiti comparison prototype
   or implementation is authorized.
-- E0 and E1 are complete. `tui-010-prove-shell-composition`,
+- E0 through E2 are complete. `tui-010-prove-shell-composition`,
   `tui-011-prove-resize-reflow`, `tui-012-prove-active-settlement`, and
-  `tui-013-install-terminal-shell` are complete. TUI-020 and TUI-021 are
-  complete, TUI-022 is the only pending canonical task, and all later TUI tasks
+  `tui-013-install-terminal-shell` are complete. TUI-020 through TUI-022 are
+  complete, TUI-030 is the only pending canonical task, and all later TUI tasks
   remain unpublished drafts.
-- The bounded current-state compaction audit is complete. No canonical task is
-  pending; deferred EXT and superseded PTC work remain non-selectable.
+- The bounded current-state compaction audit is complete. Deferred EXT and
+  superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
   reconciliation is complete maintenance, not a new architecture selector. It
   also normalized the two obsolete `complete` task statuses and restored
@@ -155,8 +155,12 @@
   run timeline window and typed run result into committed cells, removed the
   duplicated managed-dashboard history, and preserved exact-once startup and
   refresh emission. Its completion handoff published only TUI-022.
-- [ ] TUI-022 implementation — reconcile replaceable live state with canonical
-  committed history exactly once. This is the only pending canonical task;
+- [x] TUI-022 implementation — reconciled replaceable live state with canonical
+  committed results through the installed append/ack boundary, stable run and
+  operation identities, refresh deduplication, and stale-message guards. Its
+  completion handoff published only TUI-030.
+- [ ] TUI-030 implementation — make the existing composer the primary focus
+  without changing command semantics. This is the only pending canonical task;
   later TUI tasks remain unpublished.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence

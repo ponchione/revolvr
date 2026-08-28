@@ -24,9 +24,9 @@ Updated: 2026-08-28
   operator messages, parity-gated focused-view migration, and one startup-only
   session cell. TUI-010's composition proof, TUI-011's managed-resize proof,
   TUI-012's active-settlement proof, TUI-013's installed terminal shell,
-  TUI-020's semantic cell vocabulary, and TUI-021's bounded historical
-  projection are complete. TUI-022 is the only pending canonical task, and
-  later TUI tasks remain unpublished drafts.
+  TUI-020's semantic cell vocabulary, TUI-021's bounded historical projection,
+  and TUI-022's live-to-committed reconciliation are complete. TUI-030 is the
+  only pending canonical task, and later TUI tasks remain unpublished drafts.
 
 ## Architecture 024 TUI
 
@@ -55,6 +55,8 @@ Updated: 2026-08-28
 - `go test ./internal/tui -run 'TestTranscriptShellSettlement'` — PASS.
 - `go test ./internal/tui -run 'TestTranscriptCell'` — PASS.
 - `go test ./internal/tui -run 'TestHistoricalTranscript'` — PASS.
+- `go test ./internal/tui -run
+  'TestLiveTranscript(Reconciles|RejectsStale)'` — PASS.
 - `go test ./internal/app` — PASS.
 - `go test ./internal/tui` — PASS.
 - Compiled settlement proof on a pseudo-terminal — PASS; modes restored and
@@ -62,30 +64,29 @@ Updated: 2026-08-28
 - `go run ./cmd/revolvr tui --help` — PASS.
 - `.agent/STATE.md` line limit — PASS; fewer than 200 lines.
 - `git diff --check` — PASS.
-- TUI-021 bounded-window, canonical-order/typed-identity, accepted completed
-  narrative, filtering, restart, refresh, no-duplicate-dashboard, and complete
-  Run Detail gates — PASS.
+- TUI-022 terminal-vocabulary, append-before-clear, stable-domain-identity,
+  refresh-deduplication, stale-message, and single-publication gates — PASS.
 - `.agent/DECISIONS.md`, application/domain callbacks and authority,
-  dependencies, and `.revolvr/` runtime state are unchanged from `f12690b`.
+  dependencies, and `.revolvr/` runtime state are unchanged in this pass.
 
 ## Blockers And Next Task
 
 - Blockers: none.
-- TUI-021 is complete. TUI-022 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-021.
+- TUI-022 is complete. TUI-030 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-013 and accepted D2/D5.
 - Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
   TUI tasks, or reopen Architecture 025.
 
 ## Latest Pass
 
-- Task selected: `tui-021-project-historical-runs`.
-- Files changed: the TUI historical projection and tests, one affected CLI
-  integration test, TUI-021 completion and TUI-022 publication metadata, and
-  affected planning, state, task-list, and handoff records.
-- Verification commands run: required `gofmt`, focused historical-transcript,
-  app, TUI, and full Go tests, TUI help, task list/status selectors, state line
+- Task selected: `tui-022-reconcile-live-history`.
+- Files changed: the TUI live-settlement path and tests, TUI-022 completion and
+  TUI-030 publication metadata, and affected planning, state, task-list,
+  reference, and handoff records.
+- Verification commands run: required `gofmt`, focused live-reconciliation,
+  TUI, and full Go tests, TUI help, task list/status selectors, state line
   limit, publication/status audits, and `git diff --check`.
 - Verification result: PASS.
-- What remains: TUI-022 is pending for the next fresh pass; later tasks remain
+- What remains: TUI-030 is pending for the next fresh pass; later tasks remain
   unpublished drafts.
 - Blockers: none.

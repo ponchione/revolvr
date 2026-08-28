@@ -1,6 +1,6 @@
 ---
 id: tui-022-reconcile-live-history
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-021-project-historical-runs
 
 # TUI-022 — Reconcile Live State with Committed History
 
-- Status: Pending
+- Status: Completed 2026-08-28
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-022 draft](../../docs/architecture/tui-overhaul/tasks/tui-022-reconcile-live-history.md)
@@ -60,3 +60,17 @@ go test ./internal/tui
 ## Not Included
 
 - No richer live-cell content, composer change, queue, or lifecycle authority.
+
+## Completion Evidence
+
+- Matching terminal results now cross the installed append/ack boundary before
+  their replaceable live presentation clears or delayed quit is released.
+- Run, task-run, and queue results use canonical run or operation identities;
+  process-local tokens and domain identities reject stale progress and terminal
+  messages without inspecting rendered text or timestamps.
+- Completed, failed, cancelled, blocked, safety-stop, and needs-input results
+  render through the existing transcript-cell vocabulary. Existing bounded,
+  compacted, redacted live progress remains replaceable.
+- Refresh during or after settlement preserves `session-start`, the emitted
+  identity set, and one final cell without replay.
+- Focused reconciliation, stale-message, TUI package, and full Go tests pass.

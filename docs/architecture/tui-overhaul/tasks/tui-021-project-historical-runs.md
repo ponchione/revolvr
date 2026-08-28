@@ -1,6 +1,6 @@
 # TUI-021 — Project Historical Runs into Committed Cells
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-08-28
 - Epic: [E2 — Build semantic transcript cells](../epics/e2-semantic-transcript.md)
 - Depends on: [TUI-020](tui-020-define-transcript-cells.md)
 

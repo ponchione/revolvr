@@ -1,6 +1,6 @@
 # TUI-022 — Reconcile Live State with Committed History
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-08-28
 - Epic: [E2 — Build semantic transcript cells](../epics/e2-semantic-transcript.md)
 - Depends on: [TUI-021](tui-021-project-historical-runs.md)
 
@@ -44,3 +44,14 @@ go test ./internal/tui
 ## Not Included
 
 - No richer live-cell content, composer change, queue, or lifecycle authority.
+
+## Completion Evidence
+
+- Stable run and operation identities reconcile matching terminal results with
+  the process-local emitted set; stale token or domain identities are ignored.
+- The installed append/ack boundary retains live state until the final cell is
+  emitted, then clears it and releases any delayed quit.
+- Refresh during or after settlement converges without replaying the final cell
+  or the process-local `session-start`.
+- Focused live-reconciliation tests, the TUI package, and the full Go suite
+  pass.

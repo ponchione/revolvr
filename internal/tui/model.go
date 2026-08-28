@@ -78,6 +78,7 @@ type StatusModel struct {
 	actions               StatusActions
 	committed             []transcriptCell
 	emitted               map[string]struct{}
+	settling              *transcriptSettlement
 	view                  TUIView
 	previous              TUIView
 	selectedTask          int
@@ -102,6 +103,11 @@ type transcriptCell struct {
 	kind     transcriptCellKind
 	identity string
 	source   []string
+}
+
+type transcriptSettlement struct {
+	token int
+	cell  transcriptCell
 }
 
 type transcriptCellKind string
@@ -472,9 +478,15 @@ func (m StatusModel) Init() tea.Cmd {
 }
 
 func (m StatusModel) appendCommitted() tea.Cmd {
+	if m.runOnce.Active {
+		return nil
+	}
 	cmds := make([]tea.Cmd, 0, len(m.committed))
 	for _, cell := range m.committed {
 		if _, ok := m.emitted[cell.identity]; ok {
+			continue
+		}
+		if m.settling != nil && cell.identity == m.settling.cell.identity {
 			continue
 		}
 		m.emitted[cell.identity] = struct{}{}
@@ -694,6 +706,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.token != m.runOnce.Token || !m.runOnce.Started || m.runOnce.Mode != runModeTask {
 			return m, nil
 		}
+		if !m.acceptLiveOperationID(msg.operation.OperationID) {
+			return m, m.waitRunOnceMsgCmd()
+		}
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, fmt.Sprintf("task: cycle %d stage %s action %s", msg.operation.Statistics.CyclesStarted, msg.operation.Stage, msg.operation.LastAction))
 		m.message = "Autonomous task run in progress."
 		m.updateViewportContent()
@@ -702,7 +717,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.token != m.runOnce.Token || !m.runOnce.Started || m.runOnce.Mode != runModeQueue {
 			return m, nil
 		}
-		m.runOnce.RunID = msg.operation.OperationID
+		if !m.acceptLiveOperationID(msg.operation.OperationID) {
+			return m, m.waitRunOnceMsgCmd()
+		}
 		line := fmt.Sprintf("queue: stage %s selections %d tasks %d", msg.operation.Stage, msg.operation.Statistics.Selections, msg.operation.Statistics.TasksRun)
 		if msg.operation.InFlight != nil {
 			line += " task " + msg.operation.InFlight.TaskID
@@ -716,17 +733,51 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case runOnceDoneMsg:
-		if msg.token != m.runOnce.Token || !m.runOnce.Started {
+		if msg.token != m.runOnce.Token || !m.runOnce.Started || m.settling != nil || !m.liveResultMatches(msg) {
 			return m, nil
 		}
 		quitAfterSettlement := m.runOnce.QuitAfterSettlement
+		cell := liveTranscriptResultCell(m.runOnce, msg)
 		m.applyRunOnceDone(msg)
+		m.runOnce.QuitAfterSettlement = quitAfterSettlement
+		m.updateViewportContent()
+		if cell.identity != "" {
+			if _, ok := m.emitted[cell.identity]; !ok {
+				m.settling = &transcriptSettlement{token: msg.token, cell: cell}
+				return m, tea.Sequence(
+					tea.Println(strings.Join(cell.render(m.width), "\n")),
+					func() tea.Msg { return transcriptCommittedMsg{token: msg.token, identity: cell.identity} },
+				)
+			}
+		}
+		m.runOnce.Started = false
 		m.runOnce.QuitAfterSettlement = false
 		m.updateViewportContent()
 		if quitAfterSettlement {
 			return m, tea.Quit
 		}
 		if m.view == viewAutonomous && (msg.taskRun || msg.queue) {
+			return m, m.loadAutonomousSelectorsCmd()
+		}
+		return m, nil
+	case transcriptCommittedMsg:
+		if m.settling == nil || msg.token != m.runOnce.Token || msg.token != m.settling.token || msg.identity != m.settling.cell.identity {
+			return m, nil
+		}
+		cell := m.settling.cell
+		m.emitted[cell.identity] = struct{}{}
+		if !hasTranscriptCell(m.committed, cell.identity) {
+			m.committed = append(m.committed, cell)
+		}
+		m.settling = nil
+		m.runOnce.Started = false
+		quitAfterSettlement := m.runOnce.QuitAfterSettlement
+		m.runOnce.QuitAfterSettlement = false
+		m.updateViewportContent()
+		if quitAfterSettlement {
+			return m, tea.Quit
+		}
+		if m.view == viewAutonomous && (m.runOnce.Mode == runModeTask || m.runOnce.Mode == runModeQueue) {
 			return m, m.loadAutonomousSelectorsCmd()
 		}
 		return m, nil
@@ -1030,6 +1081,11 @@ type runOnceDoneMsg struct {
 	taskResult    autonomoustaskrun.Result
 	queue         bool
 	queueResult   autonomousqueue.Result
+}
+
+type transcriptCommittedMsg struct {
+	token    int
+	identity string
 }
 
 type taskRunProgressMsg struct {
@@ -1716,7 +1772,7 @@ func (m StatusModel) startRunLoopCmd(token int, ctx context.Context, messages ch
 
 func (m StatusModel) runStartBlocker(mode string) string {
 	switch {
-	case m.runOnce.Active:
+	case m.runOnce.Active || m.runOnce.Started:
 		return "Run already active."
 	case mode == runModeLoop && m.actions.RunLoop == nil:
 		return "Run loop is unavailable."
@@ -1735,6 +1791,192 @@ func (m StatusModel) runStartBlocker(mode string) string {
 	default:
 		return ""
 	}
+}
+
+func (m *StatusModel) acceptLiveOperationID(identity string) bool {
+	identity = strings.TrimSpace(identity)
+	if identity == "" {
+		return true
+	}
+	if m.runOnce.RunID == "" {
+		m.runOnce.RunID = identity
+		return true
+	}
+	return m.runOnce.RunID == identity
+}
+
+func (m StatusModel) liveResultMatches(msg runOnceDoneMsg) bool {
+	identity := ""
+	switch m.runOnce.Mode {
+	case runModeLoop:
+		identity = msg.lastRunID
+	case runModeTask:
+		identity = msg.taskResult.OperationID
+	case runModeQueue:
+		identity = msg.queueResult.OperationID
+	default:
+		identity = msg.result.Run.ID
+	}
+	identity = strings.TrimSpace(identity)
+	return identity == "" || m.runOnce.RunID == "" || identity == m.runOnce.RunID
+}
+
+func liveTranscriptResultCell(state runOnceState, msg runOnceDoneMsg) transcriptCell {
+	switch state.Mode {
+	case runModeTask:
+		return taskRunTranscriptResultCell(state.Token, msg.taskResult, msg.err, msg.cancelled)
+	case runModeQueue:
+		return queueTranscriptResultCell(state.Token, msg.queueResult, msg.err, msg.cancelled)
+	}
+
+	runID := strings.TrimSpace(msg.result.Run.ID)
+	if state.Mode == runModeLoop {
+		runID = strings.TrimSpace(msg.lastRunID)
+	}
+	run := msg.result.Run
+	if strings.TrimSpace(msg.history.Run.ID) == runID {
+		run = msg.history.Run
+	}
+	for _, candidate := range msg.status.RecentRuns {
+		if strings.TrimSpace(candidate.ID) == runID {
+			run = candidate
+			break
+		}
+	}
+	canonical, canonicalOK := historicalRunResultCell(run)
+	identity := canonical.identity
+	if identity == "" {
+		terminal := runTerminalStatus(msg.result, msg.err, msg.cancelled)
+		if runID != "" {
+			status := strings.TrimSpace(run.Status)
+			if status == "" {
+				status = ledger.StatusFailed
+				if terminal == "completed" {
+					status = ledger.StatusCompleted
+				}
+			}
+			identity = "run:" + runID + ":status:" + status
+		} else {
+			identity = fmt.Sprintf("operation:%s:%d:status:%s", state.Mode, state.Token, terminal)
+		}
+	}
+	name := oneLine(run.Task)
+	if name == "" {
+		name = strings.TrimSpace(msg.result.Task.ID)
+	}
+	if name == "" {
+		name = "run"
+	}
+	reason := oneLine(msg.result.Message)
+	if reason == "" && msg.err != nil {
+		reason = oneLine(msg.err.Error())
+	}
+	switch {
+	case msg.cancelled:
+		return terminalTranscriptCell(identity, name, "cancelled", reason)
+	case msg.result.Receipt.Verdict == receipt.VerdictSafetyLimit:
+		return terminalTranscriptCell(identity, name, "safety_stop", reason)
+	case msg.result.Outcome == runonce.OutcomeBlocked:
+		return terminalTranscriptCell(identity, name, "blocked", reason)
+	case canonicalOK:
+		return canonical
+	case msg.result.NoTask || msg.result.Outcome == runonce.OutcomeNoTask:
+		return transcriptCell{kind: transcriptCellStatus, identity: identity, source: []string{"No pending runnable tasks.", "Next: add a task or wait for dependencies"}}
+	case msg.err != nil || app.RunOnceOutcomeError(msg.result) != nil:
+		return terminalTranscriptCell(identity, name, "failed", reason)
+	default:
+		return terminalTranscriptCell(identity, name, "completed", reason)
+	}
+}
+
+func taskRunTranscriptResultCell(token int, result autonomoustaskrun.Result, err error, cancelled bool) transcriptCell {
+	identity := strings.TrimSpace(result.OperationID)
+	if identity == "" {
+		identity = fmt.Sprintf("task:%s:%d", strings.TrimSpace(result.TaskID), token)
+	}
+	identity = "task-operation:" + identity + ":stop:" + optionalValue(string(result.StopReason))
+	name := optionalValue(strings.TrimSpace(result.TaskID))
+	reason := oneLine(result.StopDetail)
+	if reason == "" && err != nil {
+		reason = oneLine(err.Error())
+	}
+	outcome := "failed"
+	switch result.StopReason {
+	case autonomoustaskrun.StopCompleted:
+		outcome = "completed"
+	case autonomoustaskrun.StopBlocked:
+		outcome = "blocked"
+	case autonomoustaskrun.StopNeedsInput:
+		outcome = "needs_input"
+	case autonomoustaskrun.StopSafety:
+		outcome = "safety_stop"
+	case autonomoustaskrun.StopTaskCancelled, autonomoustaskrun.StopOperationCancelled:
+		outcome = "cancelled"
+	}
+	if cancelled {
+		outcome = "cancelled"
+	}
+	return terminalTranscriptCell(identity, name, outcome, reason)
+}
+
+func queueTranscriptResultCell(token int, result autonomousqueue.Result, err error, cancelled bool) transcriptCell {
+	operationID := strings.TrimSpace(result.OperationID)
+	if operationID == "" {
+		operationID = fmt.Sprintf("queue:%d", token)
+	}
+	identity := "queue-operation:" + operationID + ":stop:" + optionalValue(string(result.StopReason))
+	name := "queue " + operationID
+	reason := oneLine(result.StopDetail)
+	if reason == "" && err != nil {
+		reason = oneLine(err.Error())
+	}
+	outcome := "failed"
+	switch result.StopReason {
+	case autonomousqueue.StopDrained:
+		outcome = "completed"
+	case autonomousqueue.StopWaitingDependency, autonomousqueue.StopWaitingBlocked, autonomousqueue.StopBudgetExhausted:
+		outcome = "blocked"
+	case autonomousqueue.StopWaitingInput:
+		outcome = "needs_input"
+	case autonomousqueue.StopSafety:
+		outcome = "safety_stop"
+	case autonomousqueue.StopCancelled:
+		outcome = "cancelled"
+	}
+	if cancelled {
+		outcome = "cancelled"
+	}
+	return terminalTranscriptCell(identity, name, outcome, reason)
+}
+
+func terminalTranscriptCell(identity string, name string, outcome string, reason string) transcriptCell {
+	cell := transcriptCell{kind: transcriptCellWarning, identity: identity}
+	switch outcome {
+	case "completed":
+		cell.kind = transcriptCellResult
+		cell.source = []string{"Completed: " + name, "Next: /run to continue"}
+	case "cancelled":
+		cell.source = []string{"Cancelled: " + name, "Result: no completion was recorded", "Next: /run to retry"}
+	case "blocked":
+		cell.source = []string{"Blocked: " + name, "Reason: " + optionalValue(reason), "Next: /workflow to inspect the task"}
+	case "safety_stop":
+		cell.source = []string{"Safety stop: " + name, "Reason: " + optionalValue(reason), "Next: /detail to inspect the evidence"}
+	case "needs_input":
+		cell.kind = transcriptCellQuestion
+		cell.source = []string{"Needs input: " + name, "Question: " + optionalValue(reason), "Next: answer the question to continue"}
+	default:
+		cell.source = []string{"Failed: " + name, "Reason: " + optionalValue(reason), "Next: /detail to inspect the failure"}
+	}
+	return cell
+}
+
+func hasTranscriptCell(cells []transcriptCell, identity string) bool {
+	for _, cell := range cells {
+		if cell.identity == identity {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {

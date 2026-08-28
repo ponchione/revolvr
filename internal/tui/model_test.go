@@ -375,6 +375,154 @@ func TestHistoricalTranscriptRefreshAppendsOnlyNewIdentities(t *testing.T) {
 	}
 }
 
+func TestLiveTranscriptReconciles(t *testing.T) {
+	tests := []struct {
+		name         string
+		state        runOnceState
+		msg          runOnceDoneMsg
+		wantIdentity string
+		wantLine     string
+	}{
+		{
+			name:  "completed",
+			state: runOnceState{Active: true, Started: true, Mode: runModeOnce, Token: 1, Status: "running"},
+			msg: runOnceDoneMsg{token: 1, result: runonce.Result{Outcome: runonce.OutcomeCommitted, Run: ledger.Run{
+				ID: "run-completed", Task: "Complete the task", Status: ledger.StatusCompleted, VerificationStatus: "passed",
+			}}, status: app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{{ID: "run-completed", Task: "Complete the task", Status: ledger.StatusCompleted, VerificationStatus: "passed"}}}},
+			wantIdentity: "run:run-completed:status:completed",
+			wantLine:     "Completed: Complete the task",
+		},
+		{
+			name:  "failed",
+			state: runOnceState{Active: true, Started: true, Mode: runModeOnce, Token: 2, Status: "running"},
+			msg: runOnceDoneMsg{token: 2, result: runonce.Result{Outcome: runonce.OutcomeVerificationFailed, Message: "verification failed", Run: ledger.Run{
+				ID: "run-failed", Task: "Fail the task", Status: ledger.StatusFailed, Summary: "verification failed",
+			}}, status: app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{{ID: "run-failed", Task: "Fail the task", Status: ledger.StatusFailed, Summary: "verification failed"}}}},
+			wantIdentity: "run:run-failed:status:failed",
+			wantLine:     "Failed: Fail the task",
+		},
+		{
+			name:  "cancelled",
+			state: runOnceState{Active: true, Started: true, Mode: runModeOnce, Token: 3, Status: "running"},
+			msg: runOnceDoneMsg{token: 3, cancelled: true, result: runonce.Result{Outcome: runonce.OutcomeBlocked, Message: "context canceled", Run: ledger.Run{
+				ID: "run-cancelled", Task: "Cancel the task", Status: ledger.StatusFailed,
+			}}, status: app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{{ID: "run-cancelled", Task: "Cancel the task", Status: ledger.StatusFailed}}}},
+			wantIdentity: "run:run-cancelled:status:failed",
+			wantLine:     "Cancelled: Cancel the task",
+		},
+		{
+			name:         "blocked",
+			state:        runOnceState{Active: true, Started: true, Mode: runModeTask, Token: 4, RunID: "operation-blocked", Status: "running"},
+			msg:          runOnceDoneMsg{token: 4, taskRun: true, taskResult: autonomoustaskrun.Result{OperationID: "operation-blocked", TaskID: "task-017", StopReason: autonomoustaskrun.StopBlocked, StopDetail: "dependency task-016 is pending"}},
+			wantIdentity: "task-operation:operation-blocked:stop:blocked",
+			wantLine:     "Blocked: task-017",
+		},
+		{
+			name:         "safety stop",
+			state:        runOnceState{Active: true, Started: true, Mode: runModeTask, Token: 5, RunID: "operation-safety", Status: "running"},
+			msg:          runOnceDoneMsg{token: 5, taskRun: true, taskResult: autonomoustaskrun.Result{OperationID: "operation-safety", TaskID: "task-017", StopReason: autonomoustaskrun.StopSafety, StopDetail: "protected path changed"}},
+			wantIdentity: "task-operation:operation-safety:stop:safety_stop",
+			wantLine:     "Safety stop: task-017",
+		},
+		{
+			name:         "needs input",
+			state:        runOnceState{Active: true, Started: true, Mode: runModeTask, Token: 6, RunID: "operation-input", Status: "running"},
+			msg:          runOnceDoneMsg{token: 6, taskRun: true, taskResult: autonomoustaskrun.Result{OperationID: "operation-input", TaskID: "task-017", StopReason: autonomoustaskrun.StopNeedsInput, StopDetail: "Choose the verification scope"}},
+			wantIdentity: "task-operation:operation-input:stop:needs_input",
+			wantLine:     "Needs input: task-017",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model := NewStatusModel(app.StatusResult{Initialized: true, ProjectRoot: "/work/revolvr"})
+			if model.Init() == nil {
+				t.Fatal("session append command is nil")
+			}
+			model.runOnce = test.state
+			var cmd tea.Cmd
+			if test.name == "completed" {
+				model, cmd = updateStatusModel(t, model, refreshStatusMsg{status: test.msg.status})
+				if cmd != nil || countTranscriptCells(model.committed, test.wantIdentity) != 1 {
+					t.Fatalf("active refresh emitted terminal history: cmd=%v cells=%#v", cmd, model.committed)
+				}
+				if _, ok := model.emitted[test.wantIdentity]; ok || !model.runOnce.Active {
+					t.Fatalf("active refresh replaced live owner: emitted=%#v run=%#v", model.emitted, model.runOnce)
+				}
+			}
+			model, cmd = updateStatusModel(t, model, test.msg)
+			if cmd == nil || model.settling == nil || model.settling.cell.identity != test.wantIdentity {
+				t.Fatalf("settlement = %#v cmd=%v, want identity %q", model.settling, cmd, test.wantIdentity)
+			}
+			if got := model.settling.cell.source[0]; got != test.wantLine {
+				t.Fatalf("terminal line = %q, want %q", got, test.wantLine)
+			}
+			if _, ok := model.emitted[test.wantIdentity]; ok || !model.runOnce.Started {
+				t.Fatalf("live state cleared before append acknowledgement: emitted=%#v run=%#v", model.emitted, model.runOnce)
+			}
+
+			if test.name == "completed" {
+				model, cmd = updateStatusModel(t, model, refreshStatusMsg{status: test.msg.status})
+				if cmd != nil || countTranscriptCells(model.committed, test.wantIdentity) != 1 {
+					t.Fatalf("refresh during settlement duplicated result: cmd=%v cells=%#v", cmd, model.committed)
+				}
+			}
+
+			model, cmd = updateStatusModel(t, model, transcriptCommittedMsg{token: test.state.Token, identity: test.wantIdentity})
+			if cmd != nil || model.settling != nil || model.runOnce.Started || countTranscriptCells(model.committed, test.wantIdentity) != 1 {
+				t.Fatalf("acknowledged settlement = %#v cmd=%v committed=%#v", model.runOnce, cmd, model.committed)
+			}
+			if _, ok := model.emitted[test.wantIdentity]; !ok {
+				t.Fatalf("terminal identity %q was not emitted", test.wantIdentity)
+			}
+			if test.name == "completed" {
+				model, cmd = updateStatusModel(t, model, refreshStatusMsg{status: test.msg.status})
+				if cmd != nil || countTranscriptCells(model.committed, test.wantIdentity) != 1 {
+					t.Fatalf("refresh after settlement replayed result: cmd=%v cells=%#v", cmd, model.committed)
+				}
+			}
+			model, cmd = updateStatusModel(t, model, test.msg)
+			if cmd != nil || countTranscriptCells(model.committed, test.wantIdentity) != 1 {
+				t.Fatalf("duplicate terminal message replayed result: cmd=%v cells=%#v", cmd, model.committed)
+			}
+		})
+	}
+}
+
+func TestLiveTranscriptRejectsStale(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	model.runOnce = runOnceState{
+		Active:  true,
+		Started: true,
+		Mode:    runModeTask,
+		Token:   8,
+		RunID:   "operation-new",
+		Status:  "running",
+		Logs:    []string{"system: autonomous task run started for task-new"},
+	}
+	wantLogs := slices.Clone(model.runOnce.Logs)
+	staleProgress := taskRunProgressMsg{token: 8, operation: autonomoustaskrun.Operation{OperationID: "operation-old", TaskID: "task-old"}}
+	model, cmd := updateStatusModel(t, model, staleProgress)
+	if cmd != nil || model.runOnce.RunID != "operation-new" || !reflect.DeepEqual(model.runOnce.Logs, wantLogs) {
+		t.Fatalf("stale progress changed live owner: cmd=%v run=%#v", cmd, model.runOnce)
+	}
+
+	staleDone := runOnceDoneMsg{token: 8, taskRun: true, taskResult: autonomoustaskrun.Result{
+		OperationID: "operation-old", TaskID: "task-old", StopReason: autonomoustaskrun.StopCompleted,
+	}}
+	model, cmd = updateStatusModel(t, model, staleDone)
+	if cmd != nil || model.settling != nil || !model.runOnce.Active || model.runOnce.RunID != "operation-new" {
+		t.Fatalf("stale terminal changed live owner: cmd=%v model=%#v", cmd, model)
+	}
+
+	model, cmd = updateStatusModel(t, model, runOnceDoneMsg{token: 7, taskRun: true, taskResult: autonomoustaskrun.Result{
+		OperationID: "operation-new", TaskID: "task-new", StopReason: autonomoustaskrun.StopCompleted,
+	}})
+	if cmd != nil || model.settling != nil || !model.runOnce.Active {
+		t.Fatalf("stale token changed live owner: cmd=%v model=%#v", cmd, model)
+	}
+}
+
 func transcriptCellSource(cells []transcriptCell) string {
 	var lines []string
 	for _, cell := range cells {
@@ -2250,10 +2398,12 @@ func TestTranscriptShellSettlement(t *testing.T) {
 					}
 				}
 				model, quitCmd = updateStatusModel(t, model, terminal)
-				if quitCmd == nil {
-					t.Fatal("matching terminal did not release delayed quit")
+				if quitCmd == nil || model.settling == nil || !model.runOnce.QuitAfterSettlement {
+					t.Fatalf("matching terminal did not begin final append: cmd=%v model=%#v", quitCmd, model)
 				}
-				if model.runOnce.Active || model.runOnce.QuitAfterSettlement {
+				settling := model.settling
+				model, quitCmd = updateStatusModel(t, model, transcriptCommittedMsg{token: settling.token, identity: settling.cell.identity})
+				if model.runOnce.Active || model.runOnce.Started || model.runOnce.QuitAfterSettlement {
 					t.Fatalf("settled state = %#v", model.runOnce)
 				}
 				if _, ok := quitCmd().(tea.QuitMsg); !ok {

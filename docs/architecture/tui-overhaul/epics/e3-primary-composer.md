@@ -1,6 +1,7 @@
 # E3 — Make the Composer Primary
 
-- Status: Draft; not canonical or runnable
+- Status: Active planning record; TUI-030 is pending and later tasks remain
+  draft
 - Design authority: [TUI overhaul](../README.md)
 - Depends on: [E1](e1-terminal-shell.md) and accepted D2
 
