@@ -31,7 +31,7 @@ func TestAutonomousWorkflowLoadsProjectionAndRejectsStaleResponse(t *testing.T) 
 	model.width, model.height = 180, 220
 	model.resizeViewport()
 	model.updateViewportContent()
-	model, cmd := updateStatusModel(t, model, keyRunes("6"))
+	model, cmd := sendShortcut(t, model, "6")
 	if cmd == nil || !model.autonomous.LoadingList {
 		t.Fatalf("loading=%t cmd=%v", model.autonomous.LoadingList, cmd)
 	}
@@ -63,6 +63,7 @@ func TestAutonomousWorkflowLoadsProjectionAndRejectsStaleResponse(t *testing.T) 
 func TestAutonomousWorkflowPreservesTaskIdentityAcrossActiveToArchiveRefresh(t *testing.T) {
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{LoadAutonomous: func(string) (autonomousview.View, error) { return tuiAutonomousView("task-one", "completed"), nil }})
 	model.view = viewAutonomous
+	model.composer.Active = false
 	model.autonomous = autonomousState{TaskID: "task-one", Selector: "task-one", Request: 7, Selectors: []app.AutonomousTaskSelector{{Selector: "task-one", TaskID: "task-one", SourceKind: autonomousview.SourceActive}}}
 	archive := app.AutonomousTaskSelector{Selector: "archive-one", TaskID: "task-one", SourceKind: autonomousview.SourceArchive, Status: "completed", ArchiveID: "archive-one", Disposition: "completed"}
 	updated, cmd := model.Update(autonomousSelectorsMsg{token: 7, selectors: []app.AutonomousTaskSelector{archive}})
@@ -78,6 +79,7 @@ func TestAutonomousWorkflowRenderingIsPlainNarrowAndScrollableAcrossLifecycles(t
 			view := tuiAutonomousView("task-"+strings.ReplaceAll(lifecycle, "_", "-"), lifecycle)
 			model := NewStatusModel(app.StatusResult{Initialized: true})
 			model.view = viewAutonomous
+			model.composer.Active = false
 			model.autonomous.View = &view
 			model.autonomous.Selector = view.Identity.TaskID
 			model.autonomous.Selectors = []app.AutonomousTaskSelector{{Selector: view.Identity.TaskID, TaskID: view.Identity.TaskID, SourceKind: autonomousview.SourceActive, Status: "pending"}}
@@ -117,13 +119,14 @@ func TestAutonomousAnswerRequiresExplicitChoiceAndDoubleConfirmation(t *testing.
 		},
 	})
 	model.view = viewAutonomous
+	model.composer.Active = false
 	model.autonomous.View = &view
 	model.autonomous.Selector = "input-task"
 	model.autonomous.TaskID = "input-task"
 	model.autonomous.Selectors = []app.AutonomousTaskSelector{{Selector: "input-task", TaskID: "input-task", SourceKind: autonomousview.SourceActive}}
 	model.updateViewportContent()
 
-	model, cmd := updateStatusModel(t, model, keyRunes("a"))
+	model, cmd := sendShortcut(t, model, "a")
 	if cmd != nil || model.autonomous.Answer.Selected != -1 {
 		t.Fatalf("recommendation was preselected: %#v", model.autonomous.Answer)
 	}
@@ -159,12 +162,13 @@ func TestAutonomousAnswerRejectsReloadedQuestionDuringConfirmation(t *testing.T)
 		return app.AnswerAutonomousInputResult{}, nil
 	}})
 	model.view = viewAutonomous
+	model.composer.Active = false
 	model.autonomous.View = &view
 	model.autonomous.Selector = "input-task"
 	model.autonomous.TaskID = "input-task"
 	model.updateViewportContent()
 
-	model, _ = updateStatusModel(t, model, keyRunes("a"))
+	model, _ = sendShortcut(t, model, "a")
 	model, _ = updateStatusModel(t, model, keyRunes("j"))
 	model, _ = updateStatusModel(t, model, keyRunes("j"))
 	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
@@ -199,7 +203,7 @@ func TestAutonomousQueueProgressAndCancellationUseOneActiveRun(t *testing.T) {
 		},
 	})
 	model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
-	model, cmd := updateStatusModel(t, model, keyRunes("Q"))
+	model, cmd := sendShortcut(t, model, "Q")
 	if cmd == nil {
 		t.Fatal("queue start command is nil")
 	}

@@ -116,9 +116,10 @@ func TestStatusModelInstallsTranscriptShell(t *testing.T) {
 		t.Fatal("second append command replayed session start")
 	}
 	requireNoLine(t, normalizedViewLines(model.View()), "Revolvr  Dashboard  initialized")
-	requireLines(t, normalizedViewLines(model.View()), "Idle", "No runs recorded.", "› / for commands")
+	requireLines(t, normalizedViewLines(model.View()), "Idle", "No runs recorded.", "›", "Enter submit · / commands · ? shortcuts")
 
-	model, cmd := updateStatusModel(t, model, keyRunes("r"))
+	model, _ = updateStatusModel(t, model, keyRunes("/refresh"))
+	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("refresh command is nil")
 	}
@@ -126,7 +127,8 @@ func TestStatusModelInstallsTranscriptShell(t *testing.T) {
 	if cmd != nil || model.appendCommitted() != nil {
 		t.Fatalf("refresh replayed session start: cmd=%v", cmd)
 	}
-	model, cmd = updateStatusModel(t, model, keyRunes("2"))
+	model, _ = updateStatusModel(t, model, keyRunes("/tasks"))
+	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil || model.appendCommitted() != nil {
 		t.Fatalf("navigation replayed session start: cmd=%v", cmd)
 	}
@@ -139,7 +141,7 @@ func TestStatusModelInstallsTranscriptShell(t *testing.T) {
 	input, inputWriter := io.Pipe()
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		_, _ = inputWriter.Write([]byte("q"))
+		_, _ = inputWriter.Write([]byte("/quit\r"))
 		_ = inputWriter.Close()
 	}()
 	if err := RunStatus(context.Background(), status, RunOptions{
@@ -890,8 +892,8 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 	want := []string{
 		"Run `revolvr init` to initialize this repository.",
 		"",
-		"› / for commands",
-		"? Help | R Run | r Refresh | q Quit",
+		"›",
+		"Enter submit · / commands · ? shortcuts",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("view lines = %#v, want %#v", lines, want)
@@ -927,7 +929,7 @@ func TestStatusModelRendersStaticStatusSnapshot(t *testing.T) {
 	}
 
 	lines := normalizedViewLines(updated.View())
-	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	requireLines(t, lines, "›", "Enter submit · / commands · ? shortcuts")
 	requireNoLine(t, lines, "× Run failed · verification failed")
 	if got := transcriptCellSource(updated.(StatusModel).committed); !strings.Contains(got, "Failed: run-new") || !strings.Contains(got, "Reason: verification failed") {
 		t.Fatalf("committed failure narrative = %q", got)
@@ -1589,7 +1591,7 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	runsView, cmd := updateStatusModel(t, resized, keyRunes("3"))
+	runsView, cmd := sendShortcut(t, resized, "3")
 	if cmd != nil {
 		t.Fatalf("runs view cmd = %v, want nil", cmd)
 	}
@@ -1745,7 +1747,7 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
-	afterKey, cmd := updateStatusModel(t, resized, keyRunes("r"))
+	afterKey, cmd := sendShortcut(t, resized, "r")
 	if cmd == nil {
 		t.Fatal("refresh key returned nil cmd")
 	}
@@ -1808,7 +1810,7 @@ func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
-	preflightView, cmd := updateStatusModel(t, model, keyRunes("5"))
+	preflightView, cmd := sendShortcut(t, model, "5")
 	if cmd == nil {
 		t.Fatal("preflight key returned nil cmd")
 	}
@@ -1854,7 +1856,7 @@ func TestStatusModelPreflightViewShowsFailedChecks(t *testing.T) {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
-	preflightView, cmd := updateStatusModel(t, model, keyRunes("5"))
+	preflightView, cmd := sendShortcut(t, model, "5")
 	if cmd == nil {
 		t.Fatal("preflight key returned nil cmd")
 	}
@@ -1881,7 +1883,7 @@ func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.
 		},
 	})
 
-	afterBlocked, cmd := updateStatusModel(t, model, keyRunes("R"))
+	afterBlocked, cmd := sendShortcut(t, model, "R")
 	if cmd != nil {
 		t.Fatalf("run without preflight cmd = %v, want nil", cmd)
 	}
@@ -1896,7 +1898,7 @@ func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.
 		Checked: true,
 		Result:  app.PreflightResult{Ready: false},
 	}
-	afterFailedPreflight, cmd := updateStatusModel(t, afterBlocked, keyRunes("R"))
+	afterFailedPreflight, cmd := sendShortcut(t, afterBlocked, "R")
 	if cmd != nil {
 		t.Fatalf("run with failed preflight cmd = %v, want nil", cmd)
 	}
@@ -1908,7 +1910,7 @@ func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.
 		Checked: true,
 		Result:  app.PreflightResult{Ready: true},
 	}
-	active, cmd := updateStatusModel(t, afterFailedPreflight, keyRunes("R"))
+	active, cmd := sendShortcut(t, afterFailedPreflight, "R")
 	if cmd == nil {
 		t.Fatal("run with ready preflight returned nil cmd")
 	}
@@ -1990,7 +1992,7 @@ func TestStatusModelRunOnceStreamsProgressAndRefreshesCompletion(t *testing.T) {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("R"))
+	afterKey, cmd := sendShortcut(t, model, "R")
 	if cmd == nil {
 		t.Fatal("run key returned nil cmd")
 	}
@@ -2058,7 +2060,7 @@ func TestStatusModelRunOnceFailureReportsTerminalState(t *testing.T) {
 	})
 	model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("R"))
+	afterKey, cmd := sendShortcut(t, model, "R")
 	if cmd == nil {
 		t.Fatal("run key returned nil cmd")
 	}
@@ -2107,7 +2109,7 @@ func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
 	})
 	model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("R"))
+	afterKey, cmd := sendShortcut(t, model, "R")
 	if cmd == nil {
 		t.Fatal("run key returned nil cmd")
 	}
@@ -2143,7 +2145,7 @@ func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
 }
 
 func TestTranscriptShellSettlement(t *testing.T) {
-	t.Run("escape closes composer without cancelling", func(t *testing.T) {
+	t.Run("escape cancels without discarding composer", func(t *testing.T) {
 		cancelCalls := 0
 		model := NewStatusModel(app.StatusResult{Initialized: true})
 		model.composer = commandComposerState{Active: true, Text: "/"}
@@ -2155,7 +2157,7 @@ func TestTranscriptShellSettlement(t *testing.T) {
 		}
 
 		model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-		if cmd != nil || model.composer.Active || !model.runOnce.Active || model.runOnce.CancelRequested || cancelCalls != 0 {
+		if cmd != nil || !model.composer.Active || model.composer.Text != "/" || !model.runOnce.Active || !model.runOnce.CancelRequested || cancelCalls != 1 {
 			t.Fatalf("escape state: composer=%#v run=%#v cancel calls=%d cmd=%v", model.composer, model.runOnce, cancelCalls, cmd)
 		}
 	})
@@ -2340,6 +2342,7 @@ func TestTranscriptShellSettlement(t *testing.T) {
 
 				model := NewStatusModelWithActions(status, actions)
 				model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 				model, startCmd := updateStatusModel(t, model, keyRunes(mode.key))
 				if startCmd == nil {
 					t.Fatal("start command is nil")
@@ -2417,7 +2420,7 @@ func TestTranscriptShellSettlement(t *testing.T) {
 func TestStatusModelRunLoopCyclesPassCount(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{Initialized: true})
 
-	afterFirst, cmd := updateStatusModel(t, model, keyRunes("n"))
+	afterFirst, cmd := sendShortcut(t, model, "n")
 	if cmd != nil {
 		t.Fatalf("first cycle cmd = %v, want nil", cmd)
 	}
@@ -2494,7 +2497,7 @@ func TestStatusModelRunLoopMaxPassCompletionRefreshesAndOpensLatestRun(t *testin
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	afterKey, cmd := sendShortcut(t, model, "L")
 	if cmd == nil {
 		t.Fatal("loop key returned nil cmd")
 	}
@@ -2554,7 +2557,7 @@ func TestStatusModelRunLoopNoTaskStopRefreshesStatus(t *testing.T) {
 		},
 	})
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	afterKey, cmd := sendShortcut(t, model, "L")
 	if cmd == nil {
 		t.Fatal("loop key returned nil cmd")
 	}
@@ -2609,7 +2612,7 @@ func TestStatusModelRunLoopRepeatedFailureGuardrail(t *testing.T) {
 		},
 	})
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	afterKey, cmd := sendShortcut(t, model, "L")
 	if cmd == nil {
 		t.Fatal("loop key returned nil cmd")
 	}
@@ -2658,7 +2661,7 @@ func TestStatusModelRunLoopBlockedStop(t *testing.T) {
 		},
 	})
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	afterKey, cmd := sendShortcut(t, model, "L")
 	if cmd == nil {
 		t.Fatal("loop key returned nil cmd")
 	}
@@ -2694,7 +2697,7 @@ func TestStatusModelRunLoopCancellationReportsTerminalState(t *testing.T) {
 		},
 	})
 
-	afterKey, cmd := updateStatusModel(t, model, keyRunes("L"))
+	afterKey, cmd := sendShortcut(t, model, "L")
 	if cmd == nil {
 		t.Fatal("loop key returned nil cmd")
 	}
@@ -2746,15 +2749,15 @@ func TestStatusModelRunSelectedAutonomousTaskPinsSelection(t *testing.T) {
 		return autonomoustaskrun.Result{TaskID: taskID, OperationID: "operation-one", StopReason: autonomoustaskrun.StopBlocked, Statistics: autonomoustaskrun.Statistics{CyclesStarted: 1}}, nil
 	}, RefreshStatus: func() (app.StatusResult, error) { return status, nil }})
 	m.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'U'}})
-	m = updated.(StatusModel)
+	m, cmd := sendShortcut(t, m, "U")
 	if cmd == nil {
 		t.Fatal("start command nil")
 	}
 	for i := 0; i < 4 && m.runOnce.Active; i++ {
 		msg := cmd()
-		updated, cmd = m.Update(msg)
+		updated, next := m.Update(msg)
 		m = updated.(StatusModel)
+		cmd = next
 	}
 	if called != "task-one" || m.runOnce.Active || m.runOnce.Outcome != "blocked" {
 		t.Fatalf("called=%q state=%+v", called, m.runOnce)
@@ -2769,8 +2772,7 @@ func TestStatusModelRejectsSelectedAutonomousTaskThatIsNotDependencyReady(t *tes
 		return autonomoustaskrun.Result{}, nil
 	}})
 	m.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'U'}})
-	m = updated.(StatusModel)
+	m, cmd := sendShortcut(t, m, "U")
 	if cmd != nil || called || !strings.Contains(m.message, "waiting_dependency") {
 		t.Fatalf("cmd=%v called=%v message=%q", cmd, called, m.message)
 	}
@@ -3332,7 +3334,7 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
-	runsView, cmd := updateStatusModel(t, model, keyRunes("3"))
+	runsView, cmd := sendShortcut(t, model, "3")
 	if cmd != nil {
 		t.Fatalf("runs view cmd = %v, want nil", cmd)
 	}
@@ -3426,7 +3428,7 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
-	runsView, cmd := updateStatusModel(t, model, keyRunes("3"))
+	runsView, cmd := sendShortcut(t, model, "3")
 	if cmd != nil {
 		t.Fatalf("runs view cmd = %v, want nil", cmd)
 	}
@@ -3508,7 +3510,7 @@ func TestStatusModelWideRenderSnapshot(t *testing.T) {
 	}
 
 	lines := normalizedViewLines(model.View())
-	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	requireLines(t, lines, "›", "Enter submit · / commands · ? shortcuts")
 	committed := normalizedViewLines(strings.Join(model.committed[len(model.committed)-1].render(100), "\n"))
 	requireLines(t, committed, "Completed: run-success", "Verification: passed", "Commit: abc123", "Next: /run to continue")
 	assertMaxLineWidth(t, append(lines, committed...), 100)
@@ -3536,7 +3538,7 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 	}
 
 	lines := normalizedViewLines(model.View())
-	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	requireLines(t, lines, "›", "Enter submit · / commands", "? shortcuts")
 	committed := normalizedViewLines(strings.Join(model.committed[len(model.committed)-1].render(40), "\n"))
 	if got := strings.Join(committed, "\n"); !strings.Contains(got, "Failed:") || !strings.Contains(got, "Reason: verification failed") || !strings.Contains(got, "Next: /detail to inspect the failure") {
 		t.Fatalf("narrow committed narrative = %q", got)
@@ -3544,7 +3546,7 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 	assertMaxLineWidth(t, append(lines, committed...), 40)
 }
 
-func TestStatusModelManagedPanelAndComposer(t *testing.T) {
+func TestComposerFocusAndEscapeStateTable(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{Initialized: true})
 
 	wide, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -3559,37 +3561,70 @@ func TestStatusModelManagedPanelAndComposer(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("narrow window size update cmd = %v, want nil", cmd)
 	}
-	if got := len(narrow.footerLines()); got > 2 {
-		t.Fatalf("narrow dashboard footer rows = %d, want at most 2", got)
+	if got := len(narrow.footerLines()); got != 3 {
+		t.Fatalf("narrow composer rows = %d, want 3", got)
 	}
 	lines := normalizedViewLines(narrow.View())
 	requireNoLine(t, lines, "Revolvr  Dashboard  initialized")
-	requireLines(t, lines, "› / for commands", "? Help | R Run | r Refresh | q Quit")
+	requireLines(t, lines, "›", "Enter submit · / commands", "? shortcuts")
 	assertMaxLineWidth(t, lines, 40)
 
-	composer, cmd := updateStatusModel(t, narrow, keyRunes("/"))
-	if cmd != nil || !composer.composer.Active {
-		t.Fatalf("composer state=%#v cmd=%v", composer.composer, cmd)
+	populated, cmd := updateStatusModel(t, narrow, keyRunes("draft task"))
+	if cmd != nil || !populated.composer.Active || populated.composer.Text != "draft task" {
+		t.Fatalf("populated composer=%#v cmd=%v", populated.composer, cmd)
 	}
-	requireLines(t, normalizedViewLines(composer.View()), "› /", "enter Run | esc Close | ctrl+c Quit")
-
-	closed, cmd := updateStatusModel(t, composer, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || closed.composer.Active || closed.view != viewDashboard {
-		t.Fatalf("closed composer state=%#v view=%v cmd=%v", closed.composer, closed.view, cmd)
+	preserved, cmd := updateStatusModel(t, populated, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || !preserved.composer.Active || preserved.composer.Text != "draft task" || preserved.view != viewDashboard {
+		t.Fatalf("plain submit state=%#v view=%v cmd=%v", preserved.composer, preserved.view, cmd)
 	}
-	requireLines(t, normalizedViewLines(closed.View()), "› / for commands")
+	preserved, cmd = updateStatusModel(t, preserved, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || !preserved.composer.Active || preserved.composer.Text != "draft task" {
+		t.Fatalf("populated escape state=%#v cmd=%v", preserved.composer, cmd)
+	}
 
-	composer, _ = updateStatusModel(t, closed, keyRunes("/"))
-	composer, _ = updateStatusModel(t, composer, keyRunes("tasks"))
-	submitted, cmd := updateStatusModel(t, composer, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || submitted.composer.Active || submitted.view != viewTasks {
-		t.Fatalf("submitted composer state=%#v view=%v cmd=%v", submitted.composer, submitted.view, cmd)
+	empty := NewStatusModel(app.StatusResult{Initialized: true})
+	empty, cmd = updateStatusModel(t, empty, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || empty.composer.Active || empty.view != viewDashboard {
+		t.Fatalf("empty escape state=%#v view=%v cmd=%v", empty.composer, empty.view, cmd)
+	}
+	requireLines(t, normalizedViewLines(empty.View()), "›", "? Help | R Run | r Refresh | q Quit")
+
+	command, _ := updateStatusModel(t, empty, keyRunes("/"))
+	command, _ = updateStatusModel(t, command, keyRunes("tasks"))
+	submitted, cmd := updateStatusModel(t, command, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || submitted.composer.Active || submitted.composer.Text != "" || submitted.view != viewTasks {
+		t.Fatalf("submitted command state=%#v view=%v cmd=%v", submitted.composer, submitted.view, cmd)
+	}
+
+	popup := NewStatusModel(app.StatusResult{Initialized: true})
+	popup, _ = updateStatusModel(t, popup, keyRunes("/"))
+	popup, cmd = updateStatusModel(t, popup, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || popup.composer.Active || popup.composer.Text != "/" || popup.view != viewHelp {
+		t.Fatalf("command help state=%#v view=%v cmd=%v", popup.composer, popup.view, cmd)
+	}
+	restored, cmd := updateStatusModel(t, popup, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || !restored.composer.Active || restored.composer.Text != "/" || restored.view != viewDashboard {
+		t.Fatalf("command help return=%#v view=%v cmd=%v", restored.composer, restored.view, cmd)
+	}
+
+	nonComposer := NewStatusModel(app.StatusResult{Initialized: true})
+	nonComposer.composer.Text = "saved draft"
+	nonComposer.openFocusedView(viewDiff)
+	nonComposer, cmd = updateStatusModel(t, nonComposer, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || !nonComposer.composer.Active || nonComposer.composer.Text != "saved draft" || nonComposer.view != viewDashboard {
+		t.Fatalf("focused view return=%#v view=%v cmd=%v", nonComposer.composer, nonComposer.view, cmd)
+	}
+	nonComposer.autonomous.Answer.Active = true
+	nonComposer, cmd = updateStatusModel(t, nonComposer, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || nonComposer.autonomous.Answer.Active || !nonComposer.composer.Active || nonComposer.composer.Text != "saved draft" {
+		t.Fatalf("typed question return: answer=%#v composer=%#v cmd=%v", nonComposer.autonomous.Answer, nonComposer.composer, cmd)
 	}
 }
 
 func TestStatusModelQuitActionReturnsQuitCommand(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{})
 
+	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 	_, cmd := updateStatusModel(t, model, keyRunes("q"))
 	if cmd == nil {
 		t.Fatal("quit key returned nil cmd")
@@ -3634,6 +3669,21 @@ func updateStatusModel(t *testing.T, model tea.Model, msg tea.Msg) (StatusModel,
 	return statusModel, cmd
 }
 
+func sendShortcut(t *testing.T, model StatusModel, key string) (StatusModel, tea.Cmd) {
+	t.Helper()
+	if model.composer.Active {
+		if model.composer.Text != "" {
+			t.Fatalf("shortcut %q cannot take focus from populated composer %#v", key, model.composer)
+		}
+		var cmd tea.Cmd
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if cmd != nil || model.composer.Active {
+			t.Fatalf("shortcut focus state=%#v cmd=%v", model.composer, cmd)
+		}
+	}
+	return updateStatusModel(t, model, keyRunes(key))
+}
+
 func runStatusModelCmd(t *testing.T, model StatusModel, cmd tea.Cmd) (StatusModel, tea.Cmd) {
 	t.Helper()
 	if cmd == nil {
@@ -3664,7 +3714,8 @@ func openTasksView(t *testing.T, model StatusModel) StatusModel {
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	tasksView, cmd := updateStatusModel(t, resized, keyRunes("2"))
+	resized, _ = updateStatusModel(t, resized, keyRunes("/tasks"))
+	tasksView, cmd := updateStatusModel(t, resized, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
 		t.Fatalf("tasks view cmd = %v, want nil", cmd)
 	}
@@ -3677,7 +3728,8 @@ func openRunsView(t *testing.T, model StatusModel) StatusModel {
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	runsView, cmd := updateStatusModel(t, resized, keyRunes("3"))
+	resized, _ = updateStatusModel(t, resized, keyRunes("/runs"))
+	runsView, cmd := updateStatusModel(t, resized, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
 		t.Fatalf("runs view cmd = %v, want nil", cmd)
 	}
@@ -3692,6 +3744,7 @@ func runDetailView(t *testing.T, history ledger.RunWithEvents, width int, height
 	})
 	model.view = viewRunDetail
 	model.previous = viewRuns
+	model.composer.Active = false
 	model.runDetails = &history
 	model.width = width
 	model.height = height

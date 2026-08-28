@@ -263,6 +263,17 @@ Updated: 2026-08-28
 - TUI-022's completion handoff published only
   `.agent/tasks/tui-030-make-composer-primary.md`. TUI-030 is pending and
   unstarted; every later task remains an unpublished draft.
+- Completed TUI-030 by making the existing composer the default dashboard
+  focus with the accepted always-visible prompt and 80-/40-column discovery
+  footer. Slash commands keep their existing action paths, while blank and
+  non-command text remain editable and undispatched for TUI-031.
+- Populated Escape preserves the buffer; empty Escape yields focus to retained
+  single-key actions. Current pages and typed questions keep their input
+  ownership, bare-slash Help restores its buffer, and active Escape/`c` plus
+  delayed `q`/Ctrl-C settlement remain intact.
+- TUI-030's completion handoff published only
+  `.agent/tasks/tui-031-implement-plain-text-input.md`. TUI-031 is pending and
+  unstarted; every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -270,7 +281,7 @@ Updated: 2026-08-28
 go run ./cmd/revolvr status
 ```
 
-It must report TUI-030 as the only pending and next task, without selecting
+It must report TUI-031 as the only pending and next task, without selecting
 deferred EXT or superseded PTC work.
 
 ## Exact Next Command
@@ -281,8 +292,8 @@ Run one fresh Codex pass:
 codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-The next fresh pass implements the already-pending TUI-030 task. Do not
-republish TUI-022 or publish TUI-031 before TUI-030 completes.
+The next fresh pass implements the already-pending TUI-031 task. Do not
+republish TUI-030 or publish TUI-032 before TUI-031 completes.
 
 ## Verification
 
@@ -466,5 +477,20 @@ republish TUI-022 or publish TUI-031 before TUI-030 completes.
   the only pending task.
 - `go run ./cmd/revolvr status` — PASS; TUI-030 is selected next.
 - `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go
+  internal/tui/autonomous_test.go internal/tui/architecture_024_test.go
+  internal/cli/root_test.go` — PASS.
+- `go test ./internal/tui -run 'TestComposer|TestCommand'` — PASS.
+- `go test ./internal/tui` — PASS.
+- `go test ./internal/cli -run 'TestTUI'` — PASS.
+- `go test ./...` — PASS.
+- `go run ./cmd/revolvr tui --help` — PASS.
+- TUI-030 primary-focus, accepted-footer, plain-text preservation, Escape,
+  retained-shortcut, slash-command, typed-question, active-settlement, and
+  single-publication gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-030 is complete and TUI-031 is
+  the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-031 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
 
-Run the exact next command above for the pending TUI-030 implementation pass.
+Run the exact next command above for the pending TUI-031 implementation pass.

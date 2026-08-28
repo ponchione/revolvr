@@ -38,7 +38,7 @@ the overhaul.
 | [Semantic cell interface](interaction-model.md#semantic-cell-categories) | Semantic timeline rows and focused projections exist, but presentation is assembled as strings. ([R03], [R04]) | `presentation change` | small TUI-owned cell value/render functions over existing projections; the session kind has only D6's three sources | [TUI-020](../tasks/tui-020-define-transcript-cells.md) / accepted D6 for `session-start` |
 | [Replay from durable semantic source](interaction-model.md#session-header-replay-and-refresh) | `app.RunTimeline` deterministically projects ledger history and tests completed/failure/fallback cases. ([R03]) | `presentation change` | emit `session-start`, replay a bounded source window once, and append only new stable identities on refresh | [TUI-021](../tasks/tui-021-project-historical-runs.md) / accepted D3/D6 |
 | Live/history identity reconciliation | Refresh preserves selection and focused refresh reloads canonical history. ([R07]) | `proof required` | stable ledger event/run identity plus process-local emitted set | [TUI-022](../tasks/tui-022-reconcile-live-history.md) / accepted D3 |
-| [Normally focused composer](interaction-model.md#composer-ownership-and-submission) | Composer opens only after `/` and closes after submission or escape. ([R08]) | `presentation change` | `commandComposerState`, top-level key routing, footer | [TUI-030](../tasks/tui-030-make-composer-primary.md) / accepted D2 |
+| [Normally focused composer](interaction-model.md#composer-ownership-and-submission) | Composer starts focused, retains plain text without command dispatch, and yields to current page/modal focus without losing populated input. ([R08]) | `accepted; complete` | `commandComposerState`, top-level key routing, footer | [TUI-030](../tasks/tui-030-make-composer-primary.md) / accepted D2 |
 | Plain-text submission | `submitCommand` treats the first field as a slash command; task entry already holds an editable draft and calls reviewed `AddTaskAndCommit` only on Enter. ([R02], [R08], [R17]) | `presentation change` | transfer initialized idle text into existing `taskEntryState`; reject and preserve it otherwise | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) / accepted D2/D5; no app prerequisite |
 | [Contextual command discovery and history](interaction-model.md#commands-and-history) | `/` plus enter opens static help; no filtered popup or submission history exists. ([R08]) | `presentation change` | composer-local filtered list over the existing `submitCommand` vocabulary | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) / D2 |
 | One replaceable live operation | `runOnceState` already holds one active operation and rejects overlapping starts. ([R06], [R09]) | `presentation change` | render existing `runOnceState` only in the managed live frame | [TUI-040](../tasks/tui-040-render-live-operation.md) / accepted D3 |
@@ -103,8 +103,8 @@ the overhaul.
    exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-005 closes the product-decision gate. TUI-010 through TUI-022 are complete,
-TUI-030 is pending, and later tasks remain unpublished drafts.
+TUI-005 closes the product-decision gate. TUI-010 through TUI-030 are complete,
+TUI-031 is pending, and later tasks remain unpublished drafts.
 
 ## Revolvr Evidence
 
@@ -115,7 +115,7 @@ TUI-030 is pending, and later tasks remain unpublished drafts.
 - **R05** — `Revolvr internal/tui/model.go:L320-L327,L777-L782,L2046-L2054,L2144-L2179 (resize and managed-frame redraw)`.
 - **R06** — `Revolvr internal/tui/model.go:L1198-L1370,L1501-L1577 (run state, admission, active keys, cancellation)`.
 - **R07** — `Revolvr internal/tui/model.go:L294-L315 (refresh identity handling)`; `Revolvr internal/tui/architecture_024_test.go:L86-L120 (TestFocusedRunRefreshReloadsCanonicalHistory)`.
-- **R08** — `Revolvr internal/tui/model.go:L195-L198,L515-L528,L1845-L2014 (composer activation and command dispatch)`; `Revolvr internal/tui/model_test.go:L2602-L2648 (TestStatusModelDashboardChromeAndComposer)`.
+- **R08** — `Revolvr internal/tui/model.go:L385-L388,L789-L811,L2312-L2488,L2666-L2687 (composer focus, command dispatch, and footer)`; `Revolvr internal/tui/model_test.go:L3549-L3622 (TestComposerFocusAndEscapeStateTable)`.
 - **R09** — `Revolvr internal/tui/model_test.go:L1234-L1448 (run cancellation and settlement tests)`.
 - **R10** — `Revolvr internal/tui/model.go:L2038-L2062 (focused-view ownership)`; `Revolvr internal/tui/architecture_024_test.go:L66-L83 (focus navigation and return)`.
 - **R11** — `Revolvr internal/tui/model.go:L2153-L2187,L2318-L2439 (view dispatch; Tasks/Runs/Run Detail)`.

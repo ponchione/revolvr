@@ -59,7 +59,7 @@ func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *te
 		}
 	}
 	assertMaxLineWidth(t, transcriptLines, 48)
-	requireLines(t, normalizedViewLines(model.View()), "› / for commands")
+	requireLines(t, normalizedViewLines(model.View()), "›", "Enter submit · / commands · ? shortcuts")
 	dashboardLines := normalizedViewLines(model.View())
 	for _, noise := range []string{"item.started", "item.completed", "command_execution", "verbose task instructions"} {
 		if strings.Contains(transcriptCellSource(model.committed), noise) {
@@ -70,6 +70,7 @@ func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *te
 		requireNoLine(t, dashboardLines, duplicate)
 	}
 
+	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 	model, cmd := updateStatusModel(t, model, keyRunes("d"))
 	if cmd != nil || model.view != viewDiff {
 		t.Fatalf("diff navigation view=%v cmd=%v", model.view, cmd)
@@ -108,11 +109,12 @@ func TestFocusedRunRefreshReloadsCanonicalHistory(t *testing.T) {
 		},
 	})
 	model.view = viewRunDetail
+	model.composer.Active = false
 	model.runDetails = &history
 	model.openFocusedView(viewEvidence)
 	model.Init()
 
-	model, cmd := updateStatusModel(t, model, keyRunes("r"))
+	model, cmd := sendShortcut(t, model, "r")
 	if cmd == nil {
 		t.Fatal("refresh command is nil")
 	}
@@ -156,6 +158,7 @@ func TestApprovalComposerSubmitsTypedNeedsInputResponse(t *testing.T) {
 		},
 	})
 	model.view = viewAutonomous
+	model.composer.Active = false
 	model.autonomous.View = &view
 	model.autonomous.Selector = "input-task"
 	model.autonomous.TaskID = "input-task"

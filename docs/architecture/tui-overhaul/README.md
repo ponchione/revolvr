@@ -4,8 +4,8 @@
 - Baseline date: 2026-08-27
 - Reference implementation: local `openai/codex` checkout at
   `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`
-- Implementation status: E0 through E2 are complete; TUI-030 is the only
-  pending canonical task, and later tasks remain unpublished drafts
+- Implementation status: E0 through E2 and TUI-030 are complete; TUI-031 is
+  the only pending canonical task, and later tasks remain unpublished drafts
 - Epic and task index: [Implementation plan](#implementation-plan)
 
 ## Purpose
@@ -19,7 +19,7 @@ Revolvr's Go application services, safety policy, scheduler, ledger, receipts,
 artifacts, and task lifecycle remain authoritative.
 
 The implementation epics and tasks remain drafts until published by a
-completion handoff. TUI-010 through TUI-022 are complete and TUI-030 is the
+completion handoff. TUI-010 through TUI-030 are complete and TUI-031 is the
 only pending canonical task; all later tasks remain drafts. This document
 captures the current system, the accepted product decisions and source
 snapshots, and a bounded implementation sequence.
@@ -120,10 +120,12 @@ presentation and task-publication changes present on 2026-08-27.
 
 ### Composer and commands
 
-- The inactive dashboard footer always shows `› / for commands`.
-- `/` activates a hand-built command composer with the same `› ` prompt.
-- Enter executes an existing slash command and Escape closes the composer.
-- Plain text is not currently a first-class operator message.
+- The dashboard composer starts focused with the accepted `›` prompt and
+  command-discovery footer; `/` refocuses it from a current page.
+- Enter executes an existing slash command. Non-command text remains editable
+  and undispatched until TUI-031 applies D2/D5.
+- Populated Escape preserves the draft. Empty Escape yields focus to retained
+  single-key actions; current pages and typed questions own input while open.
 - Full discovery remains in Help and the slash-command list.
 
 ### Live operations
@@ -786,6 +788,6 @@ The overhaul is complete only when:
 consistent, the 33-task epic index remains bounded, and E0 has exited. No
 implementation task was published or started by the review.
 
-TUI-010 through TUI-022 are complete. TUI-022's completion handoff published
-only [TUI-030](tasks/tui-030-make-composer-primary.md); every later TUI task
-remains an unpublished draft.
+TUI-010 through TUI-030 are complete. TUI-030's completion handoff published
+only [TUI-031](tasks/tui-031-implement-plain-text-input.md); every later TUI
+task remains an unpublished draft.

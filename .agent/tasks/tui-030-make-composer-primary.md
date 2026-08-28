@@ -1,6 +1,6 @@
 ---
 id: tui-030-make-composer-primary
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-013-install-terminal-shell
 
 # TUI-030 — Make the Composer the Primary Focus
 
-- Status: Pending
+- Status: Completed 2026-08-28
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-030 draft](../../docs/architecture/tui-overhaul/tasks/tui-030-make-composer-primary.md)
@@ -59,3 +59,17 @@ go test ./internal/tui
 
 - No plain-text action, contextual command popup, overlay shell, or command
   policy change.
+
+## Completion Evidence
+
+- The existing composer starts focused with the accepted always-visible prompt
+  and 80-/40-column discovery footer; pages and typed questions retain their
+  current input ownership.
+- Slash commands keep their existing dispatch paths. Non-command and blank
+  submissions remain in the composer without entering slash-command parsing.
+- Populated Escape preserves input, empty Escape yields focus to the retained
+  single-key actions, bare-slash Help restores its prior buffer, and typed
+  question dismissal restores the underlying composer state.
+- Active Escape and `c` request cancellation without clearing composer text;
+  `q` and Ctrl-C retain delayed quit until matching operation settlement.
+- Focused composer/command, TUI package, CLI, and full Go tests pass.

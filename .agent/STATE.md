@@ -25,8 +25,9 @@ Updated: 2026-08-28
   session cell. TUI-010's composition proof, TUI-011's managed-resize proof,
   TUI-012's active-settlement proof, TUI-013's installed terminal shell,
   TUI-020's semantic cell vocabulary, TUI-021's bounded historical projection,
-  and TUI-022's live-to-committed reconciliation are complete. TUI-030 is the
-  only pending canonical task, and later TUI tasks remain unpublished drafts.
+  TUI-022's live-to-committed reconciliation, and TUI-030's primary composer
+  are complete. TUI-031 is the only pending canonical task, and later TUI tasks
+  remain unpublished drafts.
 
 ## Architecture 024 TUI
 
@@ -57,6 +58,7 @@ Updated: 2026-08-28
 - `go test ./internal/tui -run 'TestHistoricalTranscript'` — PASS.
 - `go test ./internal/tui -run
   'TestLiveTranscript(Reconciles|RejectsStale)'` — PASS.
+- `go test ./internal/tui -run 'TestComposer|TestCommand'` — PASS.
 - `go test ./internal/app` — PASS.
 - `go test ./internal/tui` — PASS.
 - Compiled settlement proof on a pseudo-terminal — PASS; modes restored and
@@ -64,29 +66,30 @@ Updated: 2026-08-28
 - `go run ./cmd/revolvr tui --help` — PASS.
 - `.agent/STATE.md` line limit — PASS; fewer than 200 lines.
 - `git diff --check` — PASS.
-- TUI-022 terminal-vocabulary, append-before-clear, stable-domain-identity,
-  refresh-deduplication, stale-message, and single-publication gates — PASS.
+- TUI-030 immediate-focus, accepted footer, plain-text preservation, Escape,
+  retained shortcut, slash-command, typed-question, active-settlement, and
+  single-publication gates — PASS.
 - `.agent/DECISIONS.md`, application/domain callbacks and authority,
   dependencies, and `.revolvr/` runtime state are unchanged in this pass.
 
 ## Blockers And Next Task
 
 - Blockers: none.
-- TUI-022 is complete. TUI-030 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-013 and accepted D2/D5.
+- TUI-030 is complete. TUI-031 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-030 and accepted D2/D5.
 - Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
   TUI tasks, or reopen Architecture 025.
 
 ## Latest Pass
 
-- Task selected: `tui-022-reconcile-live-history`.
-- Files changed: the TUI live-settlement path and tests, TUI-022 completion and
-  TUI-030 publication metadata, and affected planning, state, task-list,
+- Task selected: `tui-030-make-composer-primary`.
+- Files changed: TUI composer focus/routing and tests, TUI-030 completion and
+  TUI-031 publication metadata, and affected planning, state, task-list,
   reference, and handoff records.
-- Verification commands run: required `gofmt`, focused live-reconciliation,
-  TUI, and full Go tests, TUI help, task list/status selectors, state line
+- Verification commands run: required `gofmt`, focused composer/command, TUI,
+  CLI, and full Go tests, TUI help, task list/status selectors, state line
   limit, publication/status audits, and `git diff --check`.
 - Verification result: PASS.
-- What remains: TUI-030 is pending for the next fresh pass; later tasks remain
+- What remains: TUI-031 is pending for the next fresh pass; later tasks remain
   unpublished drafts.
 - Blockers: none.

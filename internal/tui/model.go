@@ -432,6 +432,7 @@ func NewStatusModelWithActions(status app.StatusResult, actions StatusActions) S
 		emitted:      make(map[string]struct{}),
 		view:         viewDashboard,
 		previous:     viewDashboard,
+		composer:     commandComposerState{Active: true},
 		selectedTask: clampTaskIndex(status.Tasks, 0),
 		selectedRun:  clampRunIndex(status.RecentRuns, 0),
 		loopPasses:   defaultRunLoopPasses,
@@ -787,6 +788,14 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.autonomous.Answer.Active {
 			return m.updateAutonomousAnswer(msg)
+		}
+		if m.runOnce.Active {
+			switch msg.String() {
+			case "ctrl+c", "q", "c", "esc":
+				if handled, cmd := m.updateActiveRunKeys(msg); handled {
+					return m, cmd
+				}
+			}
 		}
 		if m.composer.Active {
 			return m.updateCommandComposer(msg)
@@ -1990,7 +1999,7 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.message = "Cancellation requested; waiting for run settlement before exit."
 		m.updateViewportContent()
 		return true, nil
-	case "c":
+	case "c", "esc":
 		m.requestRunCancel()
 		return true, nil
 	case "R", "L", "U", "Q", "n", "r", "a", "u":
@@ -2312,7 +2321,10 @@ func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		}
 		return m, tea.Quit
 	case "esc":
-		m.composer = commandComposerState{}
+		if m.composer.Text != "" {
+			return m, nil
+		}
+		m.composer.Active = false
 		m.resizeViewport()
 		return m, nil
 	case "backspace":
@@ -2334,15 +2346,18 @@ func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 
 func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 	text := strings.TrimSpace(m.composer.Text)
-	m.composer = commandComposerState{}
-	m.resizeViewport()
 	fields := strings.Fields(text)
-	if len(fields) == 0 || fields[0] == "/" {
+	if len(fields) == 0 || !strings.HasPrefix(fields[0], "/") {
+		return m, nil
+	}
+	if fields[0] == "/" {
 		m.switchView(viewHelp)
 		m.message = "Slash commands opened."
 		m.updateViewportContent()
 		return m, nil
 	}
+	m.composer.Text = ""
+	m.resizeViewport()
 	command := strings.TrimPrefix(strings.ToLower(fields[0]), "/")
 	switch command {
 	case "help", "commands":
@@ -2489,6 +2504,7 @@ func (m *StatusModel) switchView(view TUIView) {
 		m.previous = m.view
 	}
 	m.view = view
+	m.composer.Active = view == viewDashboard
 	m.resizeViewport()
 	m.updateViewportContent()
 }
@@ -2502,6 +2518,7 @@ func (m *StatusModel) openFocusedView(view TUIView) {
 		m.focusedFromAutonomous = true
 	}
 	m.view = view
+	m.composer.Active = false
 	m.resizeViewport()
 	m.updateViewportContent()
 }
@@ -2525,6 +2542,7 @@ func (m *StatusModel) startTaskEntry() {
 		field:    taskEntryTaskField,
 	}
 	m.view = viewTaskEntry
+	m.composer.Active = false
 	m.message = ""
 	m.resizeViewport()
 	m.updateViewportContent()
@@ -2536,6 +2554,7 @@ func (m *StatusModel) cancelTaskEntry() {
 		previous = viewTasks
 	}
 	m.view = previous
+	m.composer.Active = previous == viewDashboard
 	m.taskEntry = taskEntryState{}
 	m.resizeViewport()
 	m.updateViewportContent()
@@ -2645,20 +2664,26 @@ func (m StatusModel) renderContent() string {
 }
 
 func (m StatusModel) footerLines() []string {
+	if m.view == viewTaskEntry {
+		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
+	}
+	if m.autonomous.Answer.Active {
+		return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
+	}
 	if m.composer.Active {
 		composer := wrapPlainLines([]string{"› " + m.composer.Text}, m.contentWidth())
-		quit := "ctrl+c Quit"
-		if m.runOnce.Active {
-			quit = "ctrl+c Cancel"
+		footer := []string{"Enter submit · / commands · ? shortcuts"}
+		if m.contentWidth() <= 40 {
+			footer = []string{"Enter submit · / commands", "? shortcuts"}
 		}
-		return append(composer, wrapPlainLines([]string{"enter Run | esc Close | " + quit}, m.contentWidth())...)
+		return append(composer, wrapPlainLines(footer, m.contentWidth())...)
 	}
 	if m.view == viewDashboard {
 		keys := "? Help | R Run | r Refresh | q Quit"
 		if m.runOnce.Active {
 			keys = "c Cancel Run | ? Help | q Quit"
 		}
-		return append([]string{"› / for commands"}, wrapPlainLines([]string{keys}, m.contentWidth())...)
+		return append([]string{"›"}, wrapPlainLines([]string{keys}, m.contentWidth())...)
 	}
 	keys := []string{}
 	if m.runOnce.Active {
@@ -2669,8 +2694,6 @@ func (m StatusModel) footerLines() []string {
 			keys = append(keys, "up/down Scroll", "home/end Jump")
 		case viewHelp:
 			keys = append(keys, "esc Back")
-		case viewTaskEntry:
-			return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
 		}
 		keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "c Cancel Run", "q Quit")
 		return wrapKeyLines(keys, m.width)
@@ -2688,21 +2711,13 @@ func (m StatusModel) footerLines() []string {
 	case viewPreflight:
 		keys = append(keys, "p Check")
 	case viewAutonomous:
-		if m.autonomous.Answer.Active {
-			return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
-		}
 		return wrapKeyLines([]string{"j/k Select", "enter Reload", "a Answer", "pgup/pgdown Scroll", "home/end Jump", "U Run Task", "Q Run Queue", "r Refresh", "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "q Quit"}, m.width)
 	case viewDiff, viewEvidence:
 		return wrapKeyLines([]string{"d Changes", "e Evidence", "A Approval", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
 	case viewApproval:
-		if m.autonomous.Answer.Active {
-			return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
-		}
 		return wrapKeyLines([]string{"a Answer", "d Changes", "e Evidence", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
 	case viewHelp:
 		keys = append(keys, "esc Back")
-	case viewTaskEntry:
-		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
 	}
 	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "R Run Once", fmt.Sprintf("n Passes %d", m.selectedRunLoopPasses()), "L Run Loop", "r Refresh", "q Quit")
 	return wrapKeyLines(keys, m.width)
@@ -3399,7 +3414,7 @@ func (m StatusModel) renderHelp() string {
 		"5  Preflight",
 		"6  Workflow",
 		"?  Help",
-		"/  Open command composer",
+		"/  Focus command composer",
 		"d/e/A  Open change summary, evidence, or approval",
 		"a  Add task",
 		"R  Run once",

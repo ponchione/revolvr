@@ -21,8 +21,8 @@
 - E0 through E2 are complete. `tui-010-prove-shell-composition`,
   `tui-011-prove-resize-reflow`, `tui-012-prove-active-settlement`, and
   `tui-013-install-terminal-shell` are complete. TUI-020 through TUI-022 are
-  complete, TUI-030 is the only pending canonical task, and all later TUI tasks
-  remain unpublished drafts.
+  complete, TUI-030 is complete, TUI-031 is the only pending canonical task,
+  and all later TUI tasks remain unpublished drafts.
 - The bounded current-state compaction audit is complete. Deferred EXT and
   superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
@@ -159,9 +159,14 @@
   committed results through the installed append/ack boundary, stable run and
   operation identities, refresh deduplication, and stale-message guards. Its
   completion handoff published only TUI-030.
-- [ ] TUI-030 implementation — make the existing composer the primary focus
-  without changing command semantics. This is the only pending canonical task;
-  later TUI tasks remain unpublished.
+- [x] TUI-030 implementation — made the existing composer the primary focus,
+  preserved populated input and slash-command paths, and retained modal and
+  operation-settlement focus rules. Its completion handoff published only
+  TUI-031.
+- [ ] TUI-031 implementation — route initialized idle plain text to the
+  existing reviewed Add Task flow and reject every other accepted D2/D5 state
+  without an app effect. This is the only pending canonical task; later TUI
+  tasks remain unpublished.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

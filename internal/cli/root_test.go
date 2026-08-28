@@ -434,7 +434,11 @@ func TestTUIRendersTranscriptAndFocusedTaskRunViewsFromAppStatus(t *testing.T) {
 			if cmd != nil {
 				t.Fatalf("window size update cmd = %v, want nil", cmd)
 			}
-			tasksView, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+			shortcutView, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			if cmd != nil {
+				t.Fatalf("shortcut focus update cmd = %v, want nil", cmd)
+			}
+			tasksView, cmd := shortcutView.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
 			if cmd != nil {
 				t.Fatalf("tasks view update cmd = %v, want nil", cmd)
 			}
@@ -462,7 +466,7 @@ func TestTUIRendersTranscriptAndFocusedTaskRunViewsFromAppStatus(t *testing.T) {
 	if !called {
 		t.Fatal("tui runner was not called")
 	}
-	for _, want := range []string{"› / for commands"} {
+	for _, want := range []string{"›", "Enter submit · / commands · ? shortcuts"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("tui output missing %q:\n%s", want, out.String())
 		}

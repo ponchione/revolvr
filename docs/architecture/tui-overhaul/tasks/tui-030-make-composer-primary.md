@@ -1,6 +1,6 @@
 # TUI-030 — Make the Composer the Primary Focus
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-08-28
 - Epic: [E3 — Make the composer primary](../epics/e3-primary-composer.md)
 - Depends on: [TUI-013](tui-013-install-terminal-shell.md)
 
@@ -43,3 +43,13 @@ go test ./internal/tui
 
 - No plain-text action, contextual command popup, overlay shell, or command
   policy change.
+
+## Completion Evidence
+
+- The composer now begins focused with the accepted prompt and discovery
+  footer; empty Escape yields focus to retained shortcuts while populated
+  Escape preserves the draft.
+- Slash commands retain their existing action paths, and non-command text is
+  preserved without dispatch for TUI-031.
+- Active cancellation/quit settlement and typed-question focus remain intact;
+  focused, package, CLI, and full Go tests pass.
