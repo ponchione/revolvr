@@ -1,6 +1,6 @@
 # Agent Handoff
 
-Updated: 2026-08-28
+Updated: 2026-09-02
 
 ## Where We Stopped
 
@@ -274,6 +274,18 @@ Updated: 2026-08-28
 - TUI-030's completion handoff published only
   `.agent/tasks/tui-031-implement-plain-text-input.md`. TUI-031 is pending and
   unstarted; every later task remains an unpublished draft.
+- Completed bounded cross-machine evaluation portability maintenance after a
+  clean `0644` checkout reproduced Architecture 022's golden failure. The
+  original golden had captured nonportable `0664` fixture permissions.
+- `FixtureIdentity` now records canonical Git `0644`/`0755` modes, preserving
+  executable meaning while ignoring group/other umask differences. A
+  seam-level regression proves `0644 == 0664` and `0644 != 0755`.
+- Regenerated and audited the expected golden hash cascade. Removing SHA-256
+  fields from old and new baselines yields identical semantic evidence; the
+  twice-run evaluation suite and full Go suite pass.
+- Restored this checkout's ignored `.revolvr/` state with `revolvr init`.
+  Other machines create their own local runtime after pulling the portability
+  commit; canonical task and handoff authority remains tracked under `.agent/`.
 
 ## Exact Read-Only Selector
 
@@ -297,6 +309,16 @@ republish TUI-030 or publish TUI-032 before TUI-031 completes.
 
 ## Verification
 
+- `gofmt -w internal/evaluation/loader.go
+  internal/evaluation/evaluation_test.go` — PASS.
+- `go test ./internal/evaluation -run
+  '^TestFixtureIdentityUsesGitPortableFileModes$' -count=1` — PASS after the
+  same test first failed against the nonportable mode identity.
+- `go test ./internal/evaluation -count=2` — PASS; 28 test executions.
+- Normalized golden comparison — PASS; removing SHA-256 fields leaves no diff.
+- `go test ./...` — PASS; 4,129 tests in 91 packages.
+- `go run ./cmd/revolvr init` — PASS; local ignored runtime restored.
+- `go run ./cmd/revolvr status` — PASS; TUI-031 is the sole next task.
 - `gofmt -w internal/tui/model.go internal/tui/model_test.go
   internal/tui/architecture_024_test.go internal/tui/checkpoint_test.go
   internal/cli/root_test.go` — PASS.

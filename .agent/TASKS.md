@@ -23,6 +23,9 @@
   `tui-013-install-terminal-shell` are complete. TUI-020 through TUI-022 are
   complete, TUI-030 is complete, TUI-031 is the only pending canonical task,
   and all later TUI tasks remain unpublished drafts.
+- The 2026-09-02 cross-machine evaluation portability maintenance is complete:
+  fixture identities now use Git-stable `0644`/`0755` modes, the golden is
+  reconciled, and TUI-031 remains the only pending canonical task.
 - The bounded current-state compaction audit is complete. Deferred EXT and
   superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
@@ -78,6 +81,10 @@
 - [x] Architecture 025 — record and simplify the **defer** decision with its
   exact future re-evaluation trigger. No Graphiti comparison prototype or
   implementation was authorized. **Completed at `simplify`.**
+- [x] 2026-09-02 evaluation portability maintenance — normalize deterministic
+  fixture identities to Git `0644`/`0755` semantics, prove umask-independent
+  identity, reconcile the golden hash cascade, and keep semantic outcomes
+  unchanged across development machines.
 - [x] 2026-08-27 TUI maintenance — collapse the Bubble Tea dashboard into a
   compact transcript-first operator console without changing commands,
   focused views, application services, ledger events, or `app.RunTimeline`.

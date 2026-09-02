@@ -77,7 +77,11 @@ func FixtureIdentity(repositoryRoot, relative string) (string, error) {
 			return err
 		}
 		sum := sha256.Sum256(raw)
-		entries = append(entries, entry{Path: rel, Mode: uint32(info.Mode().Perm()), SHA256: hex.EncodeToString(sum[:]), Size: info.Size()})
+		mode := uint32(0o644)
+		if info.Mode()&0o100 != 0 {
+			mode = 0o755
+		}
+		entries = append(entries, entry{Path: rel, Mode: mode, SHA256: hex.EncodeToString(sum[:]), Size: info.Size()})
 		return nil
 	})
 	if err != nil {

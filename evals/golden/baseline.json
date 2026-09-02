@@ -1,8 +1,8 @@
 {
   "schema_version": "revolvr-architecture-evaluation-baseline-v1",
   "suite_sha256": "51bb8f136a1081ebbec3358012f2d2e6bc1ada6c23aff240ea354d77e1d9a629",
-  "fixture_repository_sha256": "71cb255ca7ab33c6e413166d7b58637fcc71e6bc27ef7030ecc89f5bb9373474",
-  "implementation_sha256": "2de97fe49e56a45cf7d4cd75b1b5f6fbf1847dee5b87422377dbd8218c05d494",
+  "fixture_repository_sha256": "a5b7eff0a29b563436586af2cf19e564450ebd51b125b935a24fa7e3372a5d60",
+  "implementation_sha256": "a7735abbbe479cbd759ae3d56b1a2b5f896db47ce0c9495d3fb1437b11e9f2d6",
   "worker_modes": [
     "direct_tools_v1"
   ],
@@ -12,23 +12,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "straight-success",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "998345c166ed4f002819980e2b17349ae981868f4ba904060d2af65835e81d9a",
+      "authority_sha256": "39ae8d1a62edd9f13428e214776e9f4ab55b19fa524c64e1245cec0ef84533ae",
       "outcome": "completed",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "7bd3b08c6efc5f0b7df1e1b58a5e8a2176270f79e60b92fa08abe3193bcc1ca2"
+        "sha256": "bbf97ca3c0a327df4e4d46a4c72b7c8e7cf808e791b40e353c33603cca86bcea"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "aebebaf97b34ff8f63cb3ed45c00872e14daecc47494ca06b5f148635cacc70f"
+        "sha256": "cc00b2c928404542108583eca8a8c40dc1e44227838483952c5c5fbf06a3e9e1"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "cc1566777efa066c8919c92e6e9fd7ae054c373d1c7099deeb0d91cbf8c769c2"
+        "sha256": "5cd8768439019debda4862d6af645e9e0bec09e88e5acbe993256085a0aeac04"
       },
       "criteria": [
         {
@@ -42,7 +42,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "598136dcc3537d8ae083d3df1563d9142e10ad380856dde4ed750eb348d2ae9b"
+          "sha256": "fe51c8183094c71ef974af68de3554c8ef230746987b41ca1f5b0ce163901243"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "c01e027fc99eab5fa8ef7db9611e603fdc25cbcc",
@@ -55,7 +55,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "eee03ddb8fe4ba0d33c01e38817f6015c03669aeee64005ea2daa8f054cdd0ab"
+          "sha256": "a39a3406abb6f8cccf1671745b91152a9415ef661f707bf11b1c8237ca031b41"
         },
         "profile": "strict",
         "network": "none",
@@ -67,7 +67,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "839416d6a838bc76673b031814cb8b6530baf497babe417b7d01f2abaa1221d5"
+          "sha256": "a842ade622303aef440a0dc23bd738ce0961f74675db3cc58ab8702bda07ee28"
         },
         "executions": 1,
         "exact_reuses": 0,
@@ -78,7 +78,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "9907d7946319bfd27f9f382265bf81981c50af3776044baafa0d21aafd365c8c"
+          "sha256": "891db59a0d8c80cfa2664a305135ac984df6f751149cc3653eca8d64e03ab38a"
         },
         "runs": 1,
         "independent": true,
@@ -88,76 +88,76 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "48cc99a326e7c2d356617b786a0ef0f0e0bb5433cb60d95079d6ede11a8ef5ae"
+          "sha256": "594d15f5a73de64ae296043297220712a6aff289bd8c8ac22508af50b6618a29"
         },
-        "capsule_sha256": "34603983889bebcb5907601d6d04963737d334e9018e5977233a5189670e2331",
+        "capsule_sha256": "f09c7540201db6ee5101beec25cff58431283c18cc4347e23fd02158cd2a2a89",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "669a6df65411b9adceb8d8d29c5dbd4c4127cbf74e24b3dcb795ce42db495d7a"
+          "sha256": "4caf7d5d988ce4d71f8aca9f3991d6e87498a6f4330880edfd38dd3d2317ba22"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "527cdd80d112d6ede1d8c9621786ece06394087ff8d116bd717541c6938c3b8c"
+          "sha256": "3946c0294d0a41d7a12d6ba7bc36f9e7b85f6d590f894e771cd5fdcafbccf829"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "21612124b11bf0b8964b5c1781d558993a82b048cdf0706cb25bbc1bf823acd9"
+          "sha256": "f1f0e66c1e2e72bcdc267c6498bcca190c745cc66a70addd4ad6c5a96b61f23a"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "ac448f8311ed7243728efdff08c45013e7a972f39a051feb0bdd654726a61789"
+          "sha256": "16e3f4d26b742ca46bf90b172fdbca9aa06056198c1a4b7918dc3ccea2040c2b"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "de7c951b6773a2d3b14130fbd0ed38abe7fb287456ecbd45b4ab81a4e097c16c"
+          "sha256": "6e8b76520d5c9c37d5aa25ddbc97b8c4fb0897d8298d9626cbcc99d126b714ab"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "710b884febe24d349f35598926af26d5955685fe9e9910ad1fb9f569edcf9151"
+          "sha256": "cee14b4a2c717a277b000385bf7486bc7b27e4f5c9c0f57681706591099ee9af"
         },
         {
           "sequence": 7,
           "type": "verification_passed",
-          "sha256": "0eff2c3a327972560124cad29208b2ce8b6353e9235c038ee7a85d2f8616797c"
+          "sha256": "db45d704fcaafd3765ce9d5957d195bbdd83cb206906ac83f554116989e332a0"
         },
         {
           "sequence": 8,
           "type": "audit_clean",
-          "sha256": "46253975bec114e03002b043c3b0a9ee81c8e4ac2b9012f7e602b35d145ab487"
+          "sha256": "2e9a2cfcd435d3de7adc5a6e8f5e7ebfe5a5afbc7b9cd9ef82c141fe767706f8"
         },
         {
           "sequence": 9,
           "type": "completion_materialized",
-          "sha256": "1243e738e8e1d2c83e06880776025b7142168d68ef2ce92143a993d24dfb06bd"
+          "sha256": "f0950a97728ff05996b29a3992ed218bcc953c63a16bba21d463b459d593c542"
         },
         {
           "sequence": 10,
           "type": "task_completed",
-          "sha256": "b7bed3b4b0284a772390c851b3c0a8b5b09e30fba3a4a8d422649e32836c3794"
+          "sha256": "2561a95dbee12495212f5d215c55e29aea2b31af3a83212f86db9e0b8d42f42d"
         },
         {
           "sequence": 11,
           "type": "lease_released",
-          "sha256": "99bdbb089844118fc5252d06c2c51cc185d995306e343de57aaefa217ca726df"
+          "sha256": "14679a3768f460b79208eb95a4746ccda31d4cc18c80c6640c1862f09ba0642f"
         },
         {
           "sequence": 12,
           "type": "sandbox_removed",
-          "sha256": "eb294fbd81b3f4fce4b2479f33195ef0c17570486bdfcf87d1aa5231ff9b1dbe"
+          "sha256": "0a7e18079cb7029b39d64bbbb58f91e0a92e765b71f824e4ddb56f524f170aaf"
         },
         {
           "sequence": 13,
           "type": "workspace_cleaned",
-          "sha256": "af6ebfd16f1f92af14d82eaa68bc08fd0a3898282ed9da5b4731126a8196892a"
+          "sha256": "efed4487a30493f60addf5136aa03e3ee91bc0876bbf474f2f300bbd92ef5e1a"
         }
       ],
       "artifacts": [
@@ -173,7 +173,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "5e665eeb0277177a5f495d769740c22d60f84b20cb3f46eb3fbbdaab37f77bbd",
+          "sha256": "65208445fc9f6ad3c74e9d5e1b9d86b3c052c5247ece3f23f1fc3d00a284b842",
           "size_bytes": 1835
         },
         {
@@ -183,17 +183,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "0c32465d7d63f2420a579385231ad0edf587a21a721dfcfccbb541753c6c00a2",
+          "sha256": "66689d4e0ac5f309249b5054ee8439d87ed8da5172c113408df35a188bbb8364",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "cdee725f08ef8cf6353004054970fd377566957ca71e54f9490d7d0b608cd411",
+          "sha256": "b06ad4ce07c7e1df27a1ad74700b45cefdd8b30172dbe660db4a2bfb9b13654e",
           "size_bytes": 275
         },
         {
           "kind": "completion_capsule",
-          "sha256": "34603983889bebcb5907601d6d04963737d334e9018e5977233a5189670e2331",
+          "sha256": "f09c7540201db6ee5101beec25cff58431283c18cc4347e23fd02158cd2a2a89",
           "size_bytes": 1173
         }
       ],
@@ -277,23 +277,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "compile-failure-correction",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "fbc2700a93ef8a4702ad2890fd16a2b00b6d90d8107fbb9b213e16227319b41a",
+      "authority_sha256": "86a5c0487acec6b21ea040a9ff40cdbfd88a254214833b946f779c23a9ddbb7c",
       "outcome": "completed",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "266bdc8dcd0a2b60467fde47c3b16f28f6726192df3eda16a92a260164ccf32a"
+        "sha256": "75dd590ff164ce9eca46e2dc9c381f9d987da8acc05d8668f52613f96c9e5666"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "7994911c350d7a1885cb3fcf7e1b0889e6e66b61ed360906a4a01b4bda892b08"
+        "sha256": "4d7a2341f024af7907771f8799a04ab05ce04b623ea6cc9f244a50bc68bdb6fb"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "80b0c84f59218df44af1e196f769f5057ca7ccb9a43d8231b68df20476bce8f6"
+        "sha256": "4c7847f53952e01d7de9aa44e6d4a9e2d6a528fb54beb9c253a2eac4d9fbdc95"
       },
       "criteria": [
         {
@@ -307,7 +307,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "cc1c0673042b82412bab583f77c4249220eb4bbc563478ac1c6060c41b814aaa"
+          "sha256": "4327a40c8fdc9d6a748bf5a8c5694a6bdc427aad01bfb877c94247d05cdca5e0"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "13de912b89fad25441b5e7d3d5aedb2f205a5072",
@@ -320,7 +320,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "3c721d901bcda6ad8c4b4839298375e80322a499dedec689e7cb08c9b4f8563f"
+          "sha256": "17c83b6d077a80328c5da117872bf17054508120f7489ef847a06293e71771cb"
         },
         "profile": "strict",
         "network": "none",
@@ -332,7 +332,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "ec511a76b83a76546fcd332b65b5c70790486268e2fb50a7268fe0e0461c19c3"
+          "sha256": "d7906b7d93ef547d642bf2351f65b200097b8bea6ed7578c4700606e96ad3c86"
         },
         "executions": 2,
         "exact_reuses": 0,
@@ -343,7 +343,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "236b0e42e4e5801747088b618a6db5ae0d20960b11c31006de674b8c00df3097"
+          "sha256": "5fb9effb96b0b94fdde2708426521ffc11c98c25e6c90c7a9b5dcb20009331d6"
         },
         "runs": 1,
         "independent": true,
@@ -353,91 +353,91 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "3a6f3f6fa37ec18db4e4783d2fffa20d0c51c2ddec433434d54849f0cc772b05"
+          "sha256": "2a3907642ea13a7114ab96988158ca0cafb76fba44a7dcebdc590b1da3a3b176"
         },
-        "capsule_sha256": "37523c07b3db6851cc49677a2728eb03b1b092bec7110c8be0c74a8b4584dd64",
+        "capsule_sha256": "3ae5cef7d0774b822f7683620e73a60a6b0e81684c135c8454c8970ecb288c4b",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "e6d17bcd1bdce450e5666481ad8f3c22895d82ff4c4b5f31adc70f2f9b18ec19"
+          "sha256": "22f8af4ac3c0c989e2148bbab9aeb911b0d4106af3c0a9cc238238ca7457d764"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "a26c982939675bade8812e9fdb42c0610ff9e8d8b022aaddf5b0a96fd1648e4e"
+          "sha256": "148b910ba5b73f5113f393639873e0d05d964106823dec66d719e850d84b9108"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "662b10935c96aee1cc6628c9981304723eb349ced20577b20daf94371a8431f7"
+          "sha256": "a887b27bcd665d8f8609c0ff1a3a0301e91c9461e9feaef8f11f026d44eb185f"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "cad768a23a17778752f004058efc94da01a958c54946d1f0cc1f695205b55a34"
+          "sha256": "4f4671830fc067a7d3f269c95ce63622ba2d917dcb0fabfdcc81bee1d33ca308"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "d7bd654f0b076955648db89db67219a5d19eff742f006c13e40f4c2f77a9849f"
+          "sha256": "11271785ff1a694fac3aeaf14c1363d909d495674fe08f90cd86bc4f178e7ca1"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "3a69ed4ba2c5e5b778794bcde96b8d77ff055621b2faa91078360027eda5ba82"
+          "sha256": "eccac80cb246b460b6c29038949151cf4401eb05001b79955c611153a303889b"
         },
         {
           "sequence": 7,
           "type": "compile_verification_failed",
-          "sha256": "1d77f11d83da56a43c2053952eab28769cc306e0e39879e4abf43fd4f204e1da"
+          "sha256": "d19e3fc7c276560bf473f1a1aa0453084d564e9a03caa1324d4e408f20d56146"
         },
         {
           "sequence": 8,
           "type": "correction_admitted",
-          "sha256": "e20e4954a05507afb48cacf8ec4c43e40267e8b4b61f93909e5e527800760ee8"
+          "sha256": "4b0b315bf53b7bece26faf11325e9b9601a0a5ca678ba4a1d11ba1982c996e2d"
         },
         {
           "sequence": 9,
           "type": "corrector_completed",
-          "sha256": "6f38367bbec55365b5b9b2ccf5d8afb81d8cd058d666592aaf431851b1533cbd"
+          "sha256": "0989b71027ce14f090303562e633cd2a3f2d0398cfba2bd9feb8671cae520741"
         },
         {
           "sequence": 10,
           "type": "verification_passed",
-          "sha256": "ae5e6950fff91eaa67449e84309b5e32939e2bddf389320319f17c7a8e06744e"
+          "sha256": "3f4fcdc852f8593cbcc08db84011a4ab970687440feca9bef14b9b891b810936"
         },
         {
           "sequence": 11,
           "type": "audit_clean",
-          "sha256": "490711675eac40bbaff19886312633db5bc09b489af8f56b0787ee56b4234764"
+          "sha256": "e84dfb0123137a7fa4db2d4519bf64cea48b46c9d07fb63fabc3f74f879267da"
         },
         {
           "sequence": 12,
           "type": "completion_materialized",
-          "sha256": "d448bf7cdbc35981b3271dbe883ae21e4b3050f218fb8b18e891f45744761389"
+          "sha256": "ff6fdd8df60199d55fff9bfca4bd6c73a303f4112c9eda4f4eae02b7ba23eafa"
         },
         {
           "sequence": 13,
           "type": "task_completed",
-          "sha256": "dc7fe44e276de31b43d2c1d89ead6b01b9a81e3852407a81196dec5b5c29b8b7"
+          "sha256": "155a932b04fcb07fe7f96258346bb3f78f8567fbc0fe46a41bcedbc4a95564c1"
         },
         {
           "sequence": 14,
           "type": "lease_released",
-          "sha256": "741ccb694448bcc19997a4d71aeccc5e8d6b4b269ab5e522447ff318604324c9"
+          "sha256": "55c1faf665f7df2c0bdec6e21f659853300fb34c2225c7639669e37a6b9e4c59"
         },
         {
           "sequence": 15,
           "type": "sandbox_removed",
-          "sha256": "d02fefbb02cafa7746fc5daffef99373f8e94ff63194e289e346f31261f4768b"
+          "sha256": "34f8ca9070c054384f699a5b9cd05f63046a61dc11aad720b8247a601ed297e3"
         },
         {
           "sequence": 16,
           "type": "workspace_cleaned",
-          "sha256": "5e778f3193e4632dae0ce13fa01ef00fe01649e75e241b8d6bafa7c8fde7ddf7"
+          "sha256": "eb1e8b16701a630a3933eaf4ff242bb520bc4a08effe619d25dd9354faf67dd4"
         }
       ],
       "artifacts": [
@@ -453,7 +453,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "96c6a867424f092fd1c5893f8b410985e271b092247dc7c3f2ff881fd8b5d984",
+          "sha256": "2d2fe2350b2e791a0e8e302b81cbb753fd0f2ee81c2917ce87d47ed8265399ac",
           "size_bytes": 2278
         },
         {
@@ -463,17 +463,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "43fa843ff31bb62fba282799405f643ae5378761a46d0253afa5923de981ede8",
+          "sha256": "9a70accd0768cf387d7fa6e8ee93563ad12715964c3431fa290f1fa8708fdfac",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "fb71144aa019ba0865609bf41e1207ac4c6596d114be7d4a2c8304fd21d9addc",
+          "sha256": "d8579ff0e64a94484050b1be342f82e2b3e8b75a4435892b1fc955d266d5707a",
           "size_bytes": 275
         },
         {
           "kind": "completion_capsule",
-          "sha256": "37523c07b3db6851cc49677a2728eb03b1b092bec7110c8be0c74a8b4584dd64",
+          "sha256": "3ae5cef7d0774b822f7683620e73a60a6b0e81684c135c8454c8970ecb288c4b",
           "size_bytes": 1183
         }
       ],
@@ -557,23 +557,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "test-failure-correction",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "f351e767f49b44deb3a4485156f6e1998e9acc71fed9217283698a7fcf8b53c5",
+      "authority_sha256": "b56d110f98c654b7331a9070084da48991f0a0391476d7f8c8a634ce454a0c86",
       "outcome": "completed",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "60e0fcd377d5564e4baa5904f683e20267a5d8623fad93a7a12685f701055fdf"
+        "sha256": "2b96d110f68c7489ea7fa33065305057b75b6a5578868359dadf86826702fe3e"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "682110125f2ebacff5abad371370e204e5682f1b1f8cbd29d27586323d1746ba"
+        "sha256": "2f42c317063bb05d338d7080d990be921da42334b325e13311a912d5f690bdcd"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "ca37c2a5072d014429758cc32a54d2b1ab7eb7b96ac6dc4bf0517a47ebfaab67"
+        "sha256": "543d30705923220c26bff236e9cdfb6391ae50a793778d27e34de9da0af727fb"
       },
       "criteria": [
         {
@@ -587,7 +587,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "0b25f43aafc09ddbb77eed21ca24cea546351e1fb48cf92cefc453e3dee9124e"
+          "sha256": "061aae6332d6370930b4377e4cdad3f2b902e1436724f349c61eac6dbe736a0e"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "2b13048fa06c3c5ecb44863cc97ffa3d2ff7fce9",
@@ -600,7 +600,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "232bde11f453219ab32a2e648e50568f70ceb24eccfe9c49c716de873fcb95c5"
+          "sha256": "dfcafefb86ae6958b6cf6a8e0d7b579925af9277bae13eb8a697008e1bf639fa"
         },
         "profile": "strict",
         "network": "none",
@@ -612,7 +612,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "d84152a5152eb1d55d1ed05735e5ce44a9990b320eb60f995e3e53f4f7f5f4fc"
+          "sha256": "a2e300f2f2460e9989312fc7cdb6cfd55e45da23fd4a49bcf88fe96d585fc370"
         },
         "executions": 2,
         "exact_reuses": 0,
@@ -623,7 +623,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "52d87348a77da760831129f855d501e84f3304a2281cac7f2cb36d14239af74a"
+          "sha256": "35634ecdd3976a93315bc88e12ca3a42121f971941b96f31b64492d87b601fa6"
         },
         "runs": 1,
         "independent": true,
@@ -633,91 +633,91 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "51d6778ba8e7569d0cb6d8d8471b302a5f7db729ef3dd46db002b99ac7d29996"
+          "sha256": "b352c905eb1747bc668a762a7eef214f9eeb1893719a8b0146d0922fad198c14"
         },
-        "capsule_sha256": "0a76883836646177281240ac359c357b65f83a17496bb6ffac784df52474019f",
+        "capsule_sha256": "827de4f01b158cb95585ab16750de51886993831cb6fe78f3b9a5d0e304c1709",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "a797c59f7649884b714bfb202cc6ce39aea0daceab3bb31e1f86ab6ada53f84f"
+          "sha256": "11e38afa38ae4ec54d4237364df453ce4779ca87153ae227034cf44762a312dc"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "101923dd6fc79508cc4f158d61fd842cac2a0b40fd55b2dcc82dd780ae4b8d07"
+          "sha256": "e48c3765228a0aee4f782cd614f64591a1bf8cc2ee33cc804a30df9c2dbed684"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "cdedf108b4fb03119f8103e0a8ea00eee9cdbfc3ef079ea02de0717a50db54ec"
+          "sha256": "5f22f984ab8b85d63d5171a7dce4469a52349133de0ec85830ed6f29f912d913"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "2c850197fe487bc736fa3c1245c2dd90fdaaacc38de2486e35a92100afd3dfb8"
+          "sha256": "df2d86b5c05c7b2f7d436efb22f9bae3d318a88ce4476b5348f4c1bedb5f1087"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "fa5386a086d539cc53ea19ffc9e85168428976b2b4f42e5d324e9589b1d47552"
+          "sha256": "a61dfb4eaa179695a9b6ff7cdaec3388f7ba7f5a30ad360b2ae43d79fd999c68"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "d36f5453c7adf2308cdaf02066c58494880f08f20f68a5e3d64f1a8078e1e8bd"
+          "sha256": "ff0469f4acdd191523bfe6b8049bc372cce5707af99b15892de77279ba512867"
         },
         {
           "sequence": 7,
           "type": "test_verification_failed",
-          "sha256": "bedbf8102de46a0caea89266c8cc662768b079631d084b9a1cf7c489e2fd82a4"
+          "sha256": "a430e50cfc29ab570dcc6f24a64450233da96c1ed14e10c02798b160530e33a9"
         },
         {
           "sequence": 8,
           "type": "correction_admitted",
-          "sha256": "20ade7748ea11d46e1167432756f764b30bbf3cbfb89cb39afbce9b0402395a8"
+          "sha256": "82a24570d77bd08e46065907f5079485c77141af4ef97a352420648b6c312f47"
         },
         {
           "sequence": 9,
           "type": "corrector_completed",
-          "sha256": "4670000bfa6a75cc375ab8cf15f7bb5bbe205fe8c0c644b8b44c27d345e7b057"
+          "sha256": "9da711c8639340c65a7bd40dd9ef00393ee835968f49166c1d5038903e818fe8"
         },
         {
           "sequence": 10,
           "type": "verification_passed",
-          "sha256": "503e7f168bc74c615fcafaa9eb0ff610504d107ed2f607429e602c7812030522"
+          "sha256": "f1409af7f6a3a6ac7042ec1aa9584c3e8ac0785ea6712ceade5303ee98d0a377"
         },
         {
           "sequence": 11,
           "type": "audit_clean",
-          "sha256": "d30250d6ac4f5dd35887cbfdbda3d9e89dc7694e8afbaf3db20e8fffd08e68f0"
+          "sha256": "f1a46c5f4484433fa23e5815a1c59da7dc5ce88cffdd904f2bf5f9af44a4f2fe"
         },
         {
           "sequence": 12,
           "type": "completion_materialized",
-          "sha256": "efefc8b1a68fa46dde362c74a4f90cb1ca92d350859ddeba23f8cec0c68871a6"
+          "sha256": "d3277404ea695eb1e64d9083821e5869213bc816a1c8f54961142467dd115038"
         },
         {
           "sequence": 13,
           "type": "task_completed",
-          "sha256": "0c157d284f9696db02695b02206c6fe488fc591b1c93c36e567bb96f5f9d58a2"
+          "sha256": "8fe1cb0e9b3a551417988d6c33dd9765b699e2a7ed7add23f453773e72f39290"
         },
         {
           "sequence": 14,
           "type": "lease_released",
-          "sha256": "6c9fc6450fd558ecfeb1bb673712da2546adf8fe47796d93caa79f41c2e62409"
+          "sha256": "3c9d71951f2dd5c5c360ec506743eed55709e6f1bac05cc1528a1c3e2ade9a97"
         },
         {
           "sequence": 15,
           "type": "sandbox_removed",
-          "sha256": "b23cc9b5c7ec7e795e0e7c9e0b5588f60e0f66986986d75062385dc34effea87"
+          "sha256": "07f66d8f25eaed2d78217bcec29f069756078e3745fb9d7684c17f51f090384d"
         },
         {
           "sequence": 16,
           "type": "workspace_cleaned",
-          "sha256": "cde4847dd4866680dc2cb99a4365bb9be9634caa37453f494a6b9e5c4751de83"
+          "sha256": "3941a855b669a1ef206d2b47be529b897d4e91cb13f72a17ac3ad803c16adfd8"
         }
       ],
       "artifacts": [
@@ -733,7 +733,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "4c28e054de3fc6802713360f3ef8e18ef0c592813312c7ffa83c5b1050e59d52",
+          "sha256": "6d64282b8bae89b49263c7799f017c104b5732cc2d9725d0703218d8539c28b9",
           "size_bytes": 2275
         },
         {
@@ -743,17 +743,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "f3f23f0a49d4b007625b559b336c1bd3f19f29975a0f0c9f0e2be76e0c69b347",
+          "sha256": "4275bbb34e5ca236b604704268ea06b864f5a753df816c742121e03bb35794a7",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "ff665e3390455f67f972bfda47a907f42a5c2f86d3c8d85f9e973a3a04c008e0",
+          "sha256": "339e3b9d0123a78d68b2125d9911f90514c1ec00e7ccf910ffc7d743fea4610a",
           "size_bytes": 275
         },
         {
           "kind": "completion_capsule",
-          "sha256": "0a76883836646177281240ac359c357b65f83a17496bb6ffac784df52474019f",
+          "sha256": "827de4f01b158cb95585ab16750de51886993831cb6fe78f3b9a5d0e304c1709",
           "size_bytes": 1180
         }
       ],
@@ -837,23 +837,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "audit-finding-correction",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "12ec8aeebcfaec343cb987800e739e59f758a620dbb70049aa323a2bb7af6d48",
+      "authority_sha256": "7475e0ee83493b0cba52fd20262745eef7b49d473c20b9d589bb6eb969307e6a",
       "outcome": "completed",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "28c98526331c35f22112451332051c5386887c2d57111c87fa0dfd79c015aabd"
+        "sha256": "6e2f6397a8af692c125da4816078688e48b193c266ecd17ee8645cf2c191f693"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "0b7e7ac5f63b5224aafacdbe9a99316066cd0a7c77424aaa173b18f4f79dba37"
+        "sha256": "ce774f209fe3c69464df89af15441f276b5be3179683d49e1c9cc7f9ee3b6ea8"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "6cbe7b2f99af66e102f48f1a4609f0e931f514b448256399af4a58a9d7b02cd5"
+        "sha256": "f62ee127d60bbc9be4dd769d2af8ac5b5764a36c3ef2187fa751027895a9da28"
       },
       "criteria": [
         {
@@ -873,7 +873,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "65a01db86bb2e62e4e129f906d0e3b0b32b01a24407998a8bd4c0b9387c6bfb9"
+          "sha256": "588af4c31d91361b9f2661b168709a3fa58076f40cef217f70480499e3eb72bb"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "d7ba953b98ffd247341db632c8d7521d189fc022",
@@ -886,7 +886,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "8692aed6d386304c7d92ea37ab6c7aa68c73df099534da8d21c7b8dd1515bc0d"
+          "sha256": "5a2384233980cebed98236a3c0d4762bc636292c3b08eac4b3f43450930971cc"
         },
         "profile": "strict",
         "network": "none",
@@ -898,7 +898,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "180be16d69eee8099944c6316cd8b96e3c8af355a5cde07d31d03684e32474d7"
+          "sha256": "e24117cdb90aad8f8b25752eeb7a482413567b3a53b01530eff0dca86cbbf947"
         },
         "executions": 2,
         "exact_reuses": 0,
@@ -909,7 +909,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "f537778801b65e76f0edef897abb20bc7e8678dc23e7208346f6c37322405f4c"
+          "sha256": "6d9f52c0749e84e40bbf6ad2e6bdfdffbe090958738d9f4fb659633228a9ce0f"
         },
         "runs": 2,
         "independent": true,
@@ -919,106 +919,106 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "289c6a54113fd7132a41c654534011be8d60ada9153b21349291c90d866b0a4d"
+          "sha256": "a59ac27a9268e8b136079c12025012f359974580fc8b3f8b5ebc3866e0c39fc6"
         },
-        "capsule_sha256": "b1f0a914d9bd16b623a2b57892683d022e5f3720986416b1cbc81792da21c87a",
+        "capsule_sha256": "026ad50ae2b3ff14c82830d4f3228dd4e27a44b225a29bcd10a20555e8f9dd79",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "ed466687f4bc5a06865ffc9c9b98084feb8f23bd53d25dba4a11ef4559f2ca69"
+          "sha256": "f7ae98e2f5bc98a27d81707ff882a8e39622bcadf6389be2f6eb2364ed0de643"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "e75cbd5fffa0ca2b7ae6f91e2718731960ae7fb3ef0d1d574145d146cde36af0"
+          "sha256": "b585956a5556ceb5e8cdcd9eb6961e32ba983718f10dac313eb7e838a3153f69"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "72e4824243bd96ccbe34e7521bfafc216c79adfb8f19c1e8cccab889e0752d08"
+          "sha256": "1e3e6efa6fb24ef45d62ddc28a33c68f6861937288b9578bfa145d454db35ca3"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "0a7c2d5fab65674cba5ad05782a4c63b9765a9178129b01ba24dff43ee49f855"
+          "sha256": "9351e217dc735e6b623471558a33010fd811ad682c9669b514b5a8b2aae8423b"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "f45ad644600433031de09431a5b5d3b7fdf048be15a2aded59b135f6bd42ddba"
+          "sha256": "7e03f42b85dc7b6713c16a559ba1d9b69ff7226ae267e4881c6890cb3442da6d"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "a278f8f524e1e6a0026aa05615e3267b87ab7f1565287e6016245c86a19430bf"
+          "sha256": "2ccf4c82d3a4ead603278613202745dc352771ea833c04cfca9e68a7bf92e960"
         },
         {
           "sequence": 7,
           "type": "verification_passed",
-          "sha256": "7e13e01caa399eea8a481bb01f69697a47dd71c75b9ae3a5a87c00e08a769ac8"
+          "sha256": "9213a95060d7a66ff63cee3966fb49d466bc40405b8e54f5a5b69c25aeddf6bd"
         },
         {
           "sequence": 8,
           "type": "audit_changes_required",
-          "sha256": "cdc363ced8af5717714a99662cacded335bb883bb78edb641036b75a42513f6b"
+          "sha256": "cacf0c3a5eae7686ef60886ce3f74b197f373011e9b86b6b00c8f5f614977817"
         },
         {
           "sequence": 9,
           "type": "finding_opened",
-          "sha256": "c80ff36981a9efb4639c11cface98df4d9bed8410c09dac5d78202f89c7cf0ab"
+          "sha256": "b44293ee22e0f8d943245ae8376c66bfa07ec72809175b637bb8d73781e72400"
         },
         {
           "sequence": 10,
           "type": "correction_admitted",
-          "sha256": "e3fadf91d56f70aed57f78ff93bd21fd9e31c1c8fe288bc5b47adb3c192fa581"
+          "sha256": "531acfe5a2233616b4bad4ce63813e7a45ba0b75b8dcf8744f49ec280598927e"
         },
         {
           "sequence": 11,
           "type": "corrector_completed",
-          "sha256": "4135277d7945013d3236760f02ea77d62903bb9b04f9bc4d8d469928937876af"
+          "sha256": "f8fce5c054f611b6a3ed257fcd594365215902d3deff2c5630d9b61182db3461"
         },
         {
           "sequence": 12,
           "type": "verification_passed",
-          "sha256": "040f40df11f639537c759f5e2d4adbdddc7b1d3451cd9d6e16899d97b8e6b333"
+          "sha256": "c487fd1d01f3a39b7a2cb332d1a305df3586bc07592a73a6a097ffceebe92c9a"
         },
         {
           "sequence": 13,
           "type": "audit_clean",
-          "sha256": "e8e40d3677653560c212d5fc17d7700dac2986670f1231a3331b5c479f1becc1"
+          "sha256": "ef7893627f5691677e9753e139dce180dc824278032a3f736373a7f549933833"
         },
         {
           "sequence": 14,
           "type": "finding_resolved",
-          "sha256": "62f55ef011468ceb4110c2bc52fc8abdacfad7787d29d21d77af708206bfed5f"
+          "sha256": "4d7a1ef4657ebe113860796737d63a6833cb420e77f1f9b5509cf1804a36aaf6"
         },
         {
           "sequence": 15,
           "type": "completion_materialized",
-          "sha256": "c28e6ad92e380d3d1344205f77e161df329269d4157b7ca1c74b5ab5b3658405"
+          "sha256": "d7dd1cb37d448b11cc515ff4ff5c04d79d788713677626603a0df662bffcbcab"
         },
         {
           "sequence": 16,
           "type": "task_completed",
-          "sha256": "edadf9367f90509d8d38adacfe2d64e1353a53d8ab56e8395daa32f0f3508b6f"
+          "sha256": "ec66fb9fe8ccb2272c26d561ea576d941ade77a4ec66a45159cdf1499e253940"
         },
         {
           "sequence": 17,
           "type": "lease_released",
-          "sha256": "23d590c5f17381b01ee49c480acd38fb32fffae738d3ca2160386c00b52a5248"
+          "sha256": "9923411ee5bec3521161661024b7041c7f96a40b89fee02e98e14bb9993bc78e"
         },
         {
           "sequence": 18,
           "type": "sandbox_removed",
-          "sha256": "923b139ebcfb3db1c50971397104efb78952fd53a9c9736e5c2d52845e0382db"
+          "sha256": "27a39cc79419fccbec1d63e1b2f176336da1f1512d9e9f33c306b474f2d071d5"
         },
         {
           "sequence": 19,
           "type": "workspace_cleaned",
-          "sha256": "10e08cc2178275bbdeaa02aaa52afb92a9195489423431197eed8c67ef806b2b"
+          "sha256": "b4879ef49819e678d1219901adec16d3d4275546099a4ad5bd8e7c7604cad96c"
         }
       ],
       "artifacts": [
@@ -1034,7 +1034,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "b49aa0e366ac3f23612b1c6662e0bbcaccb2951ea40e2cf05183ea54fe115b27",
+          "sha256": "3a3f7c80e25be3678f0a9fdb94c99623fb7c903cdbb1231893a4aab454d38bab",
           "size_bytes": 2700
         },
         {
@@ -1044,17 +1044,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "2e196b308c6fa5681b513c52f009bf50e726f52c7e3b1193af49e62a190c6423",
+          "sha256": "3cd9dff1b6df69d27663a25505e9341f31fe3b84a8765c1e57983708a9e69aa9",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "11bdd9f47d681f169c2781c9f639b66cd10c6c2a1207a0e918d94480bc5e8f26",
+          "sha256": "93f984d9febd6d057b6cc0c48b4b0cc289fd0cacc72f8c50f4d13557ae9c7f8c",
           "size_bytes": 449
         },
         {
           "kind": "completion_capsule",
-          "sha256": "b1f0a914d9bd16b623a2b57892683d022e5f3720986416b1cbc81792da21c87a",
+          "sha256": "026ad50ae2b3ff14c82830d4f3228dd4e27a44b225a29bcd10a20555e8f9dd79",
           "size_bytes": 1181
         }
       ],
@@ -1138,23 +1138,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "ambiguous-requirement",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "e72b7a1d9c2bc491b4421cb3fda399ee30947b456a10f714d34ca0993663eea6",
+      "authority_sha256": "b229ba3ab627dc9096ef86d3227c81ded55228cddb8eb2329376da311701a4e4",
       "outcome": "needs_input",
       "stop_reason": "ambiguity_requires_operator",
       "task": {
         "status": "needs_input",
         "applicability": "applicable",
-        "sha256": "71171c522e3a75bd0680ca9bea101597ef054d3b219613957c7edff4a1704c0d"
+        "sha256": "87d5896df9addc3a9ba08a049466f2edc9e8c94011d7130809ba4e0c07cdbf58"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "289e2c4151f1469abe4173785a15e62574b95788524666301823614985efa313"
+        "sha256": "de888c9de4fcece95e355aec0537f043faebea662447725e5748686d5504393d"
       },
       "plan": {
         "status": "not_created",
         "applicability": "not_reached",
-        "sha256": "6ebb6d77b23b1e574d94d6fd0198a14a13aba9a81f835a0f5d36e3c9dfa40dee"
+        "sha256": "f0823b44c63611d39cd80526c09ad84216ea04e9fa1a97b8a2a41b83e28a8115"
       },
       "criteria": [
         {
@@ -1167,7 +1167,7 @@
         "state": {
           "status": "not_created",
           "applicability": "not_reached",
-          "sha256": "58db65cce442e8a4be732cff3fc65b1814272618dbf89ee743a5b3bb1a2dc067"
+          "sha256": "4f5daf34074d4131781af01d442a2f2799e82acb3571729b420a792d6c81231d"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -1179,7 +1179,7 @@
         "state": {
           "status": "not_created",
           "applicability": "not_reached",
-          "sha256": "79919b8bde910bc4a8724bcb046d46f283c33adc8657f14e7964750c7958c07c"
+          "sha256": "fdcfcd0b1cb189be54d7da08afcf0f2193ff44c49d499be680d3e99375d0afa1"
         },
         "profile": "strict",
         "network": "none",
@@ -1191,7 +1191,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "72e338b02f22fbdfe1bb782c719eb3e62c732b86fa55bcf1ecc4a62f1493521f"
+          "sha256": "62054f2edfb95295f8b15c4412fc3ea7dedb192c53e7a67d5a1d47ce20533311"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -1202,7 +1202,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "18184fd6c7a78ce09fe9a245aedda074a88d4f76a43881541efc43fe2ff42605"
+          "sha256": "56879b9876767befb9b53f57390534be937c5fc0887f6c6544a9da0ab700d7ca"
         },
         "runs": 0,
         "independent": false,
@@ -1212,7 +1212,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "1c7b6c4aac25b33c25f707a67a527e4e8ead10a8a59eb9cb02d0fb2885a49ed4"
+          "sha256": "c6cf5eaf9607c1202a1930762ae02d9856177645b60a1444494303eb28fb4d9c"
         },
         "authorized": false
       },
@@ -1220,22 +1220,22 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "6ce7fe5350854650d4228dbd6f123ba4a21334415e7a431e4692fd2eefc157c8"
+          "sha256": "ca3778074aebd09ff00d85512a1a838ea13696c5c28fabcf1baa7b4e44a4d90a"
         },
         {
           "sequence": 2,
           "type": "supervisor_needs_input",
-          "sha256": "877aa0546a3f3c149dc936ab9567dd3f5acb8859e9fdd0063239451a602c841b"
+          "sha256": "8c9faf6bfea33e731d66dfde687efcb5dec1878dabe61fccbdb1cab8fceb3552"
         },
         {
           "sequence": 3,
           "type": "task_needs_input",
-          "sha256": "d8971c002f62de48c6a0d558c21c590ee31d8a1fffef044bd7b379659e257eb3"
+          "sha256": "8e745332d27c2627b9784c4bd7a9ede4034e6c8c2e253983ff13c19ee2e521a1"
         },
         {
           "sequence": 4,
           "type": "lease_released",
-          "sha256": "b8a550de7f6743e3a0847d3939352907ad76e9dc0b69516a7151da0ff3c8008b"
+          "sha256": "d73a76e1a654d0ac6971b0cebb5ef0ed9bc900d78abf0d0581b3a241a99a54c2"
         }
       ],
       "artifacts": [
@@ -1251,7 +1251,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "a6db460c12b992eeb85ac0a7521a9a4acb981990db3313929f1d71ec93ee7ead",
+          "sha256": "1f0e328ce09b69849a503abf39b1b6a7c2178ead16c11ed9d147e0bec24d49b4",
           "size_bytes": 568
         }
       ],
@@ -1335,23 +1335,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "missing-dependency",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "96737cee4ac0e320ec55d9feb1d0b43bbe26b5fb96c18ef9030dbddb42e3f369",
+      "authority_sha256": "8894780a144080040984bbdd041a774d75ec0264f72d3eb5de76ee0cc1a7aba7",
       "outcome": "dependency_missing",
       "stop_reason": "dependency_missing",
       "task": {
         "status": "pending",
         "applicability": "applicable",
-        "sha256": "767c1ca8113b083404d3526e8a7c549101808e4533d4ef8bb6e3771fb2e9751a"
+        "sha256": "8194aa77c89d5a21062511473c2ddb2c553ceeed4ec8eef37a78d3e422c90696"
       },
       "run": {
         "status": "not_admitted",
         "applicability": "not_admitted",
-        "sha256": "185449db898cd94f91d8ca11b87770a8b5bfd1f587f1ccc4580325f651423634"
+        "sha256": "db80da938a71ee251fe6d8f2d58500713fd5a775258350757cda1e62b7100a61"
       },
       "plan": {
         "status": "not_created",
         "applicability": "not_reached",
-        "sha256": "c775981db1dae7f105e1a4bb57a283c2cb993b8cf8927141073009b199dc9134"
+        "sha256": "651e5bc7fe3f687609349f4f188c7b8491a5345783a5f81428930d77c9c19677"
       },
       "criteria": [
         {
@@ -1364,7 +1364,7 @@
         "state": {
           "status": "not_created",
           "applicability": "not_reached",
-          "sha256": "b60f4e494b3ac29ec111ff0ae9f99b185ab162a1625ac6959cee7b05f5fde505"
+          "sha256": "838ff158027d3b9c6432d777b00583054d69cd8f293153273c403f04e69283b6"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -1376,7 +1376,7 @@
         "state": {
           "status": "not_created",
           "applicability": "not_reached",
-          "sha256": "b5473b374f1536648b5409e47c3dabc87f67f8c52ea666c4050b1850af5cdab8"
+          "sha256": "0b9211a419f4a224b3554c77fee258b76b56f51fbe69699a9cddd476ac6e4481"
         },
         "profile": "strict",
         "network": "none",
@@ -1388,7 +1388,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "3f1238f18a95ea5c6398aa8ec04872c6ce5bb498cfd6203a053507978f2f1fd9"
+          "sha256": "7f18c012613c9f335b526ba75feded24af8afe75e2a60675a7334de3a83c2930"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -1399,7 +1399,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "fea4b52994adfd13cf30c414e2d6add861aeee7eca54ac5661ca8b38e8af5f41"
+          "sha256": "62a97d44152cbafb52cff61b79541cd06b609fd6b960926ac239987b4673893a"
         },
         "runs": 0,
         "independent": false,
@@ -1409,7 +1409,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "b7986252a996239e0f246271c2a94754fe082732167cdd217241465696c08c5d"
+          "sha256": "cbe117e712e993f15c0e367a071e4e0da8069ca352dea1d2b9eb5a3b73fe7064"
         },
         "authorized": false
       },
@@ -1417,12 +1417,12 @@
         {
           "sequence": 1,
           "type": "dependency_graph_refused_missing",
-          "sha256": "b0d35b2ce3279a81414f9ce564b3f54ad633cbdab2b9bc1f6d36d11c684e9b1f"
+          "sha256": "7f3bbdda4b56c8c2131e5e12b3eff7edc7f9335d621d143a4269e7ce2f6d1ca4"
         },
         {
           "sequence": 2,
           "type": "lease_not_acquired",
-          "sha256": "fe7c984f0b2fea8c31c670a17b0c989310653e6e0d498e17794c924c9ac1b1b4"
+          "sha256": "776c3200d9090fc5ae02b8a7dd12986ea5ca175a3dd5f6febbcb7d65d5253bd3"
         }
       ],
       "artifacts": [
@@ -1438,7 +1438,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "cbc28ed1943092fac56e0491f3657ad132a747cfd0ee68e93685e7825d01aa57",
+          "sha256": "659791dc81cce188451750cea8d4fc961174f0231c97e476187d8e64cfe6a53a",
           "size_bytes": 303
         }
       ],
@@ -1522,23 +1522,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "cyclic-dependency",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "7eb9ad9ab0ec43d27501e2c9ac5180e52024293d2284ec9ece95eecaba791ac8",
+      "authority_sha256": "9b30bd1b13912b8d6205aa187fc63a6c4d16d3ab582a49b3bf5cbb5051a1914a",
       "outcome": "dependency_cycle",
       "stop_reason": "dependency_cycle",
       "task": {
         "status": "pending",
         "applicability": "applicable",
-        "sha256": "c2c752570714125dc7ea0181cd4638c6ebc529001c2174751355d14bb9142fcb"
+        "sha256": "b49a06e5702566b5bd32316a7ab31178e94cf4749e65ed439ea6230b72b97370"
       },
       "run": {
         "status": "not_admitted",
         "applicability": "not_admitted",
-        "sha256": "7993ca6dd06a16eed37583353939c6b0e5992b9a23ce2eb50d4be84553e7d88a"
+        "sha256": "344dfc15582e6ee0a96c8bf9b8971bf01d9768bd8526d4731d18410811c896aa"
       },
       "plan": {
         "status": "not_created",
         "applicability": "not_reached",
-        "sha256": "e15b928c12de485db9892bd6244fabd7851b25e6f9d642137b44f262825c788f"
+        "sha256": "ece6cc027d3a17eadaefd9b8b2c61e4c1d7e2dd7dd7ae2b3e7c3ae80e9b72faf"
       },
       "criteria": [
         {
@@ -1551,7 +1551,7 @@
         "state": {
           "status": "not_created",
           "applicability": "not_reached",
-          "sha256": "818220f48d0b7dcc67d215b70445c1790ad7934bf76a1aa8f11eaf9a3d55b88b"
+          "sha256": "881b9cd1e93bcc694ce345762b68593cfcddf5efb9c6893436e3dac4c2612f4f"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -1563,7 +1563,7 @@
         "state": {
           "status": "not_created",
           "applicability": "not_reached",
-          "sha256": "07b23888c8c1138a443069a63275fcfbc988ca1d91d4c1b66537623afcab218b"
+          "sha256": "a1a41be359cd81cbc8fb1abc5a1f2979e6bd54e5d30b8e5a9100a992f8724036"
         },
         "profile": "strict",
         "network": "none",
@@ -1575,7 +1575,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "3ffa9f1d631065e3f71946a37f054142ef63c6e0fd66219df10174f47c6da6f0"
+          "sha256": "ab4941ff6c6bce41b3c93bb13b10a0b8f9f07f91a85d4d7e82ac1b8a660d5f37"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -1586,7 +1586,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "48fb911f7fa7ab3a1c7a88086d248dc771ece5f40476a2d48beef8b3dc716b10"
+          "sha256": "12914d0e4b4c65004e2124784c744d990c1312068606ab6806fc1201d57b61e0"
         },
         "runs": 0,
         "independent": false,
@@ -1596,7 +1596,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "33f5aa5581bcb140c9153713c3664819ffdb937255eb1532aa1c16c080f697f6"
+          "sha256": "375ab5122110d97418f63cdecfce5431bea933ab0f1c221bec4fda5f80eadca9"
         },
         "authorized": false
       },
@@ -1604,12 +1604,12 @@
         {
           "sequence": 1,
           "type": "dependency_graph_refused_cycle",
-          "sha256": "18dd3a7a9b2eebcb77badd92755cf564d03e500433523126a5ac220f3af5c07c"
+          "sha256": "d32023aa36d098190ec8d600daf7b06efe9bffde0696776f384b3bdafd03467e"
         },
         {
           "sequence": 2,
           "type": "lease_not_acquired",
-          "sha256": "cb00b8abf453971e14e9523a9b3cd4b168df125ffefc691707d6800714f27fe5"
+          "sha256": "d411cb61cd9da6bfcb134d8f7be19c42e4bd151dcecf8acd9362d391136f927a"
         }
       ],
       "artifacts": [
@@ -1625,7 +1625,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "63447a24bbe03ca37dfc9c6dc57b39eefc67866753a958ddb5bce4e6608342a9",
+          "sha256": "fb7470571f3ab458dddd33a0fb24384631cd1c6916a805b2d1fd5e7086652830",
           "size_bytes": 301
         }
       ],
@@ -1709,23 +1709,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "scope-violation",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "9c7dde9a4a938584519438462e00f12dac259f75433d00ac0916ae8cc1376a6c",
+      "authority_sha256": "59aadd5d05c32a8468c586c81352e4c00e446fe873d610dcec4502f1cebf5f8b",
       "outcome": "scope_violation",
       "stop_reason": "scope_violation",
       "task": {
         "status": "unsafe",
         "applicability": "applicable",
-        "sha256": "df6fb9119d23f69ebb0c3bd60c32a4f0cca021331e8c3e33b73f18b5f17ea615"
+        "sha256": "87d3380a82e7e4472236c3ade4a1d6e36e20a308077c737ed98a2795fe070d1a"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "d594eacd76fa9bbe3a2a7ea5563f303ecd4164443b6e7be958302ea2cbe82785"
+        "sha256": "556a691378bd7819614e393f0b8e22a69cd181dfed1b464e267ba27f1db1be89"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "9d7a8450b066a74f4cae590cf5050154e83189bd0d99a0b97bb52f544cca2897"
+        "sha256": "a272d9997ea13d8b3ca138164527e8bc8fe048c9d7643dc8df20e33c09f88d7f"
       },
       "criteria": [
         {
@@ -1738,7 +1738,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "c2895d0da0e12edee143d05ed0aedb8baff46ec5cff1989484b7bca4e4c742a2"
+          "sha256": "121f7782a976fe461c40c6dcd8c00215d2fc410b4755cc28b8ca5855f003b992"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -1750,7 +1750,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "a8e04d6e9ca36ce966640312afa4bea26ad1ba895307ffdde8d0568f8d63c916"
+          "sha256": "fd0210430c9c5fbef6d656b9e4dc4f25f732d1a0aff1d121995817501844bf38"
         },
         "profile": "strict",
         "network": "none",
@@ -1762,7 +1762,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "8ee788017e20aece7665b96d51d3ac43d676f29bc4a1acd4057f6c996297972e"
+          "sha256": "e46da08564309e25b3194767e07ddafcac785011ef2344b394ac5347aa40edf7"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -1773,7 +1773,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "abc1591c326faad57b0ceb196d3426493ea7e94a6fca0711038ecedaf2dda003"
+          "sha256": "9b5bb1b75d5ce55823503639c85dad4a7cc5d38ed0ce8fd448a47c3bb18a7b83"
         },
         "runs": 0,
         "independent": false,
@@ -1783,7 +1783,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "b55086ad4d9b24918d698d5f9b9f2c12655374aa24f75f926ebba674f41a1c22"
+          "sha256": "ddad96c7ad144634d4ac5a5606d6042f066224278ae66f6953efa3c3f64445bd"
         },
         "authorized": false
       },
@@ -1791,52 +1791,52 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "0a97ee0f9389a8e02757622b8466cc18f6865c405d98fcdf509a540766614715"
+          "sha256": "e75eddbbadb621cbdd1e898edd72b00c42eb33cce9cbb9281f145eb5304098a6"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "01a5d4de640fd88ba54e56ef2e37ffb1b5cbe228a26c4129c9fd038620a9c9eb"
+          "sha256": "3bb53cc2448e505da7414ff0e26427908c4a082b77a9c38e43e9bae98dd131d0"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "d63257624d2c8f9803d936f702fa4e52bd53705ad194e28c21656bb8a68d90ee"
+          "sha256": "726686a9eb62284799435c4cbe1d73614b95bdec96a9e5dced5643d26832f3eb"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "afa7e3b51d737ba63f815890c0988b739da71355b9b7aa5145af4253b82e1971"
+          "sha256": "f457524fe13066231d53ee61d787beb208fd4ae45f7f69048861aa847cd6ee93"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "7e38856182af7ddf7ce12038d53049e33160260199906767de9f9dc98e2c21fb"
+          "sha256": "3d8cfad8d9d3248645c614b3357fa36a6e8b5096157886f2843cbee03f4c6ef8"
         },
         {
           "sequence": 6,
           "type": "scope_change_denied",
-          "sha256": "63881f75b499d6359bdd1ebb1ec69a3cc9d7f614f0c17a61c66503775906b811"
+          "sha256": "85745d0b88a2e8865e54236c8fbb98a52c455791c02a13baf9bd2b51909c1717"
         },
         {
           "sequence": 7,
           "type": "task_unsafe",
-          "sha256": "21bbc8fbd312e0e24cb7008baf17d5e06cfc7cca25b7d5570966e884761c8a52"
+          "sha256": "7efdf527b23536df596fe2ad2810752f0f3b88d03a5180b151931d72b15f6b60"
         },
         {
           "sequence": 8,
           "type": "lease_released",
-          "sha256": "200e3b5fdef177ded8190da7b6af3b634fba02663c7e009c370b8f50f3cc4c1b"
+          "sha256": "ec07399535df01e88d5b5a2f301b7e8b571317b4c71c1637c9480bca37a00639"
         },
         {
           "sequence": 9,
           "type": "sandbox_removed",
-          "sha256": "ca8a395a429e5bdb5342ebe00e109dfd89143a7af067bbcf269ea74d9e995cdb"
+          "sha256": "ef066ec5a373bf81cd09dde28d959b10ecdff87bc1ec74492609a1da4b4029d5"
         },
         {
           "sequence": 10,
           "type": "workspace_cleaned",
-          "sha256": "f8cfe27074da268069b868b03e35f26a4372980c2d7258ff03254ac425bd7035"
+          "sha256": "db9243df7722378ff8f4d1733c2e130f4067cb895c0ed880d5c112945fcc1176"
         }
       ],
       "artifacts": [
@@ -1852,7 +1852,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "7af7be99a2e4eafdb04185f3394d05f88673055fad0bb187ab501e5d943bd96b",
+          "sha256": "7bfb7be62ec31acf66b8a2794209460036f65ba510c20e05b1f24927e100d160",
           "size_bytes": 1402
         }
       ],
@@ -1936,23 +1936,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "protected-path-violation",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "3550a64ca40c91b7cd3299a31e2f8330dff90a72162f838c596c7ff431b3eb58",
+      "authority_sha256": "323f6a6a3a26745600dd90fd809ed32f5eb7bd8f283715bf2d35a1be204223e2",
       "outcome": "protected_path_violation",
       "stop_reason": "protected_path_violation",
       "task": {
         "status": "unsafe",
         "applicability": "applicable",
-        "sha256": "8dcf02fe114f005b001904892af28d08125a5fa7aa53a654c6455ef9195ca480"
+        "sha256": "6e336dd69cc38628ec700edcd7724efe77680ee5719398aab2f4fedf2ac2d91e"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "22c80848c97a6a30db97eb845c7b1601d0647845d3f622d851ff9defdfed530e"
+        "sha256": "c027a747e35c85bc45decf68d0b87b662a71a6691592075d645454e3a0e6ebae"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "1e6eac5d2ad00ea6b2b2c0e3f5a8fccdbefc77abd32bc84a0844cacfa82780b1"
+        "sha256": "092862fb0fb2da629b572339e38ace3a2290a015972f6bf44f7144c9b705ed39"
       },
       "criteria": [
         {
@@ -1965,7 +1965,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "003738b39e3babcf1503413718bd0ad9c520adb235618c2758e112b0aeacfe46"
+          "sha256": "ce629cc7f469dd839e9901b9d2d89381655de018467f30a2ef9aa510ddd58d3d"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -1977,7 +1977,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "728106e71f73a1ea24b45f08527da5450e6c35f0e942e1e9eb06cd2e5ea22e7d"
+          "sha256": "3bc76a8a7bfc7c7a553e714b1645af6616f8152b66889c6304ff15166b137922"
         },
         "profile": "strict",
         "network": "none",
@@ -1989,7 +1989,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "2ba9c7e73ab8365cdc84c13fbeb36f76602955b766c19aee51170f7b0fd74119"
+          "sha256": "1b424fd1b73cb068fefa2704ff4240ee4409b7d79c8acaf2c1c8e183d02c5de1"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -2000,7 +2000,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "b0a1ce736f100f1618fb98b35430b118223293a5c85abe9c3e1669d817c6b069"
+          "sha256": "99a602d606ad30bf2212bae83ef474346f6225e841d23650d02a4159e9bd39b0"
         },
         "runs": 0,
         "independent": false,
@@ -2010,7 +2010,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "72faf5b02a3a4d5c48ef54d15ae3b9937a0aa824f480fa64cef07c8bf1ac2c14"
+          "sha256": "36998a446381790edd18056396d0dbf8b7d08b30f675c27ed17a4ff31db2935c"
         },
         "authorized": false
       },
@@ -2018,52 +2018,52 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "170ab549f2cc07b4c59519bd786d53a9a4dcb2651a15204c0d6f869ef9de261f"
+          "sha256": "edf2ac61ad0ba25e4cdc0bbbeb4ea122e3aee69b12f95a1974de67c1d62ac51d"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "f2547a2b45f9aa4acf847d2bc48212fd28585d4b6fbb3054bc0d2d6a0c66262b"
+          "sha256": "2513fffc9c3437e29e52cc368aa1d95961f3d6d2dfe96ceef20451690d57b913"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "1595de1feb6f2476210ff8a4a2c68239e6ae91dd9dcf921ddab4f01f73a1d5f7"
+          "sha256": "f0b59ffe31532cd8e837852f11650da544c4835c49d93b3f7330c677b411da30"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "df5cf62e477ebbe49761bb6a55606baa158fc300acc1a2acba6b7494fdadaa12"
+          "sha256": "de1a5722ddeef6fb0b6014fec1eacc9539b46d6707adbc16b54c068a70aa62f6"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "73eb3566caee2c9b9c01b629c819d02107ac1047d9fd0d35e00303c3000a662a"
+          "sha256": "f133da52bc2d065c23f2fc950a12e3e57262034bafa224cabd8bdf43fefd594d"
         },
         {
           "sequence": 6,
           "type": "protected_path_change_denied",
-          "sha256": "af89a12083cc9067f1a8b1ce08ef66315f3b5bd34ec6a94f32b2459493b883c7"
+          "sha256": "edfad6424693c24809017608eeefed1d89718205b86226ad621147cdadf6d454"
         },
         {
           "sequence": 7,
           "type": "task_unsafe",
-          "sha256": "582e59a4c649897d9eb4859ed2b6ab46d5cda1cf29ae85a2daf10640c9747cbb"
+          "sha256": "bdbcadc57af31550de3495cb6a3bd16a4eba47667d49ae10d8beb5fba0c3bf57"
         },
         {
           "sequence": 8,
           "type": "lease_released",
-          "sha256": "4c9761d0f077fc93b4087173ebcb60a10e3d526bb1bd44d3e9bbc9dce795d39e"
+          "sha256": "929171ca5c6834aa3d5221dbc788479dd13b8469058825e3b2251a8759b1b2be"
         },
         {
           "sequence": 9,
           "type": "sandbox_removed",
-          "sha256": "044818645324d46e44f321417d80d36c5f6bfdeb5b0c80ba13e3159a688a30fc"
+          "sha256": "0821c0fcd77c687ec6374f358799ac2d6d6db4898b401dcfec35a9b6bd1eb91c"
         },
         {
           "sequence": 10,
           "type": "workspace_cleaned",
-          "sha256": "654c63e5661221c327788f8bf8214b081b35efb92584beb0434719f4a640e3f6"
+          "sha256": "b380d841f26542508b1d2f8f2e725f1cafd9102a47aaf5947c709cac24fcbde0"
         }
       ],
       "artifacts": [
@@ -2079,7 +2079,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "344e27a66fb556c90446af68aafc4242d7288cc821114b618f004c83190b20ee",
+          "sha256": "7f7f63f8edf8a01c6a69e36d0f3d9edcd89519e2540182a6679a6975b2dab301",
           "size_bytes": 1411
         }
       ],
@@ -2163,23 +2163,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "repeated-failed-strategy",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "2e5e5e37b9be69fcc23a88336733f48420073d2707f4dbf1983f2d86b803ccd0",
+      "authority_sha256": "7ac18c5fe8c4d37c2658de3649f931ab371f4a674c1780c785df60144472dde8",
       "outcome": "repeated_strategy_denied",
       "stop_reason": "no_progress_repeated_strategy",
       "task": {
         "status": "blocked",
         "applicability": "applicable",
-        "sha256": "1b04336242c0130438a871960e43317e72c38379e509f11935cd710540cbdde0"
+        "sha256": "aaa592762b506ec2a43e806aa140e7a9325a18da63811098423c6e89c6623292"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "53d13ead26fb1bc38750398fd38ea906c87ba2f4b059c01192ee32b9cb01d771"
+        "sha256": "d1e0a1081401c4b5bda8845819537c3e9a1762a8f3126b0fd88a8948033489f8"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "64c55bc7e30064c4e2f236059104fe395d2702305bbdf5110742fc82be59b72e"
+        "sha256": "0f160fc196cc2fbaab706bb06c48391bf5dbd62617f349676343668465611592"
       },
       "criteria": [
         {
@@ -2192,7 +2192,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "07179c300c5f2cc0da4cf74441611f53d03bb4a8a9b0988e0fe2f125d016104b"
+          "sha256": "98485ece42e02f9c6c0de700589d2e44e67c141d1603937ef8fb7129dbe4526f"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -2204,7 +2204,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "e30d1d91d72bd909216ccd80b764591e187b24896abf700e3e5caa1a9f5aab78"
+          "sha256": "1864bb057a1fc0c964a857aa0b09f5216da6620228e42192cbcafbeadc7432cd"
         },
         "profile": "strict",
         "network": "none",
@@ -2216,7 +2216,7 @@
         "state": {
           "status": "failed",
           "applicability": "applicable",
-          "sha256": "63e018bb12f7f6eb549d064e8a581f3ed36fb6ae43a11cbf7c378803fe1a5f21"
+          "sha256": "b7e8185dc986415ebb10b80efec68bde21ec03924de07b1fba95bc5b04674ee2"
         },
         "executions": 1,
         "exact_reuses": 1,
@@ -2227,7 +2227,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "70e46b7b2f311a551e812b90c3071cf9e866e615ec0895b677da405f1cde51cc"
+          "sha256": "1be62319ab67eb584019d996a2837b87740163b5fb892c262d394119f74fe2df"
         },
         "runs": 0,
         "independent": false,
@@ -2237,7 +2237,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "b955f0bc298281667fa728a197206f81d58808243ee4e6fc903463a61ae80126"
+          "sha256": "f1483f296d637befaab2562483c35730e1c4db1453e027b912d704e7d0f512bf"
         },
         "authorized": false
       },
@@ -2245,67 +2245,67 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "30465ba66af7841c17a5143ea6e2edcdccece74883b87f7709f02ded743edc92"
+          "sha256": "5ba2e05ab723995d84562865461d32cbf23b48a515d92ab31edcd0ed23f29bc2"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "e2372d7b71f49b0b62e7a115eecf28b8d1601533bec2eddfd54f1951b7983bd9"
+          "sha256": "648921401f6c45b29892ff8b29bf4e25ee822e84592f0472fdcc962390804535"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "6fbe412a6b80b75064c8d2f237f33588f2c4feb044136da2b61b47f2cec4130d"
+          "sha256": "ddfb6c75c8e2e8406951414e78741f3ef3619bd4433c98d470bfa0ed29894118"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "a40a9170d7543ddf6d065b0d89dc2e1608a38f631e570739ac91cbe53a95b316"
+          "sha256": "5519595c3064e88dec0db9ad4ff55b53bb040523c1720aa541e1e2e671ea91e6"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "c3e49af1d44b161f464aa87d7a237a152e965a754e5d6f3c64fd8c4a17b24015"
+          "sha256": "67327acf856cf6c436eecb129b35296e05cd4cfdb544f776a72f9e4598d0046e"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "d5e7564d8e9781fbc0a4eb71df18971e878f44699dc90bf16ccba4e16f2f56d5"
+          "sha256": "6f95c5223850c070034106412ecd9d77710e20109f84c9b2599fb7eb780c0972"
         },
         {
           "sequence": 7,
           "type": "verification_failed",
-          "sha256": "e31c0af8d494cd91b3ff1682531cd98819698470809eee2f63dc059f7b1c3e29"
+          "sha256": "1bf8ef7029e3a54acbbf15fd3e832f9e7aedd09d10fa9800c7e5297d87f43199"
         },
         {
           "sequence": 8,
           "type": "correction_failed",
-          "sha256": "9aceb393272509fa6d9e9ccf143a1fbd1169b9f8148ca9aa5e151f335749d230"
+          "sha256": "db8a7b8a66fe901552d648cbce1f9059ab94d20f6a60b4b7e454dd9a1c8d9dff"
         },
         {
           "sequence": 9,
           "type": "repeated_strategy_denied",
-          "sha256": "cfc10a0b1fbcfc276cd5974be13cb65ee827a9fe93f176c5606c002fbb35271f"
+          "sha256": "dd4dabbe062b7e58156de4baba32e1afad32b920dd6d2b823d77ba83e1e7cc49"
         },
         {
           "sequence": 10,
           "type": "task_blocked",
-          "sha256": "094cb1b84cdcd6297940b507f0d8346edc68d4200efd8ac1c3522e211ea311a8"
+          "sha256": "09b15d438b13b5b8ee2794ea991f025b810ec76ccb78f151a05ddd7e4a0368e1"
         },
         {
           "sequence": 11,
           "type": "lease_released",
-          "sha256": "1c62cad44413efe5ba31fdc8b03d30b35b09ecf4fdcdcc58b7f76029389f0de2"
+          "sha256": "bd0dd554f9b5be5233205f85a317c7526d918066f2fa4deb138bfbdb64ebb5b5"
         },
         {
           "sequence": 12,
           "type": "sandbox_removed",
-          "sha256": "69b5fa83e4e0a9f0d225d138794effab9e155b4f6eefbbd10b2f288974387f73"
+          "sha256": "49c5a6f85c1fee1ce49376522408ae775ec5ae1c69224db347c1859c6ed8eec9"
         },
         {
           "sequence": 13,
           "type": "workspace_cleaned",
-          "sha256": "6b611f9d0ae257b642cbc84f6309ab9bae1e2e2c45bc754b7ebcc007e24aac4b"
+          "sha256": "21a378c20c93fee74785214e0a27a1206fc28d9da7d9c5c6503df8d940555d65"
         }
       ],
       "artifacts": [
@@ -2321,12 +2321,12 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "5c06e8088c544baa84f6098d04ee6f7b01b5d51980b4525ec12bf504a3e41e2d",
+          "sha256": "9a60c9d981da52deb281755e8b6effdce65d9c62f68ce84acb9c338120d3b491",
           "size_bytes": 1840
         },
         {
           "kind": "verification_evidence",
-          "sha256": "925285ca112d467fe7745e0c13ce1c0cf4ea4637330df6afa1215625da744f0a",
+          "sha256": "0c505904e80d5025dea596732ff46c75ba16eafd01a709d84dc9fe323b23efb0",
           "size_bytes": 245
         }
       ],
@@ -2410,23 +2410,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "no-source-changes",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "e90dfbf9784cc1e4b870962dd7a1ba5e1c0ba3ee21bf9832f6b441514c585e00",
+      "authority_sha256": "d51b82467477549ab3aa8b05d06c864fe5c534fdbec6d3d6329878b5a7937efd",
       "outcome": "no_changes",
       "stop_reason": "no_changes",
       "task": {
         "status": "blocked",
         "applicability": "applicable",
-        "sha256": "03ea5d567a638346f08d659faa26d4b49fd1760ce0f741fedd626415a8bf85a1"
+        "sha256": "ea0f80096c3f24a01fe24f50dd17dec91c62d57a6f09e0df0ed07d32d3c39455"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "8815ca84ddd41450a8cccb7bf8dd2927d61333d79e5f2dbc32bbc7e8e978ccd1"
+        "sha256": "601fc69076f59669953b64dcb7c1e74d7cbec021b5c425f8f1952813ad82d1de"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "241fe447bed90270cef8105396df22181d5ee997f677ea58fb6f17ccac04e8dc"
+        "sha256": "b1ea21fa73fdd65a92f418528e119534e8c25b7d3f5ed24aaa41c46221a00364"
       },
       "criteria": [
         {
@@ -2439,7 +2439,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "0186198ef2d225199da95822d384ce1cadee1b9c9ced4fb007bb31487a7586ed"
+          "sha256": "272d9ab41d5641a124c319072b316d79b709bf0ffaf8655eb5e2acc07ba0710f"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -2451,7 +2451,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "6a992d92e5356ddf3e5d468b0a358a70257160b86a36ad8598764f24e37ea6a4"
+          "sha256": "09d5826a165a993268d1d9524a74d83939e2dec387d80f1e477203b05f3dc2c7"
         },
         "profile": "strict",
         "network": "none",
@@ -2463,7 +2463,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "baa228488285bdc484a676b255683e274cf9f7f08a62e929d45a0fc9beaea25b"
+          "sha256": "ea660362cda1b0894dc521f4777289c0294733ac1370bf5feda7e24717c05f24"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -2474,7 +2474,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "50589560778c73e7d5f85637898606fc179ab8e38cdcc9ecc13f3f8dc00be6b7"
+          "sha256": "71aa4fc9414a242a9f56aa19f56fb6ea6586dbd7a20e79eca04d2e5f68c85507"
         },
         "runs": 0,
         "independent": false,
@@ -2484,7 +2484,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "7996e4d597fd96d54c01c4f26fd8f9ade817f0cc731b5828395abbdb49016ac8"
+          "sha256": "8bd39a23a0c90e71fe3a6d90a45902946c63ab104b565d60bcebf65e3d442be6"
         },
         "authorized": false
       },
@@ -2492,52 +2492,52 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "baf44d8b7e2b8d842ef68475a9c120b27998812dba480692698af8156858b09c"
+          "sha256": "9e89796901bdf973dc638e2fbfd98146e5066f2bde2d24d888346f88a8301502"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "b851114cb84548fbe71399bf12ca91bf5f630480c158125e316126933f1914e1"
+          "sha256": "70f7c7002a62a92d87668eb291d7591bf1d4ce675f19cfeb672f30de372616e8"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "ccfffa522a5389875ff86a159885462c7c7fc6510dc0c1fca6ef76c14527f071"
+          "sha256": "35b79791ab90b95231a412df084fbdddf06f033bde4dc11b2bb75c23cd7ba6c0"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "af80f6f790a6518a24ee0d78f85ed96b02b0aa2819016e9dc786b304183d5ece"
+          "sha256": "f20cb5fc4025032a86c9a308c989642d87bb3b69ff994bdbfdf0763d8a2d83f2"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "85c567ff118b20e245cc07de5a83c9e498aef24b2073a757e5de150ca6b81a37"
+          "sha256": "684a91fab403608837dcced3022fa16a78a28dc85a113f70ad094a9a90260dec"
         },
         {
           "sequence": 6,
           "type": "source_capture_no_changes",
-          "sha256": "4e661b6156958bede08d75bba7a7c55ad84f5cb32000f90fd9c2c1e1455dcd57"
+          "sha256": "51452920acb250aff7612acc60c101112b4128a2f22446ce90d749dbdaca9296"
         },
         {
           "sequence": 7,
           "type": "task_blocked",
-          "sha256": "fcc16eada54e3400518618e2dd8b99e104ab828c00e3207fcb0abab71584daf0"
+          "sha256": "e17c52651605469e1ac0013c76a97077141cf651ae0f0d4b04c0c779e0f206e4"
         },
         {
           "sequence": 8,
           "type": "lease_released",
-          "sha256": "2ebdc96f811e29fc7047879b48bb4fb4bff5bc775607813146e65bb4a61c207f"
+          "sha256": "4e2175953873cc02d3cd9690265eeec4ad1512d473116c918765e4ab7a8f06cf"
         },
         {
           "sequence": 9,
           "type": "sandbox_removed",
-          "sha256": "e90eec104cd2e9a804bfc898301b748e212d105573af6ba56d145b8ef3fb70c1"
+          "sha256": "6c736c6e394ff8e61d11a9062fc39b44c1b0606133ef949dbc9dd142834c51ac"
         },
         {
           "sequence": 10,
           "type": "workspace_cleaned",
-          "sha256": "294c14381829d500e3f10c2c56c797eceabb650a178513454d3525a2fd1805ff"
+          "sha256": "f7a4d2b07401be5c77b8aa60684334046d57fc4a98ff5aabaeb7fd078dabc801"
         }
       ],
       "artifacts": [
@@ -2553,7 +2553,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "366dbf22ae3dfc9a763676415e942186e3391ce790868e2c28869c1f4ac253d1",
+          "sha256": "66a6e83d635a90a8c8629828a4ce2df868f21d7897fcab8adf77697aecef976d",
           "size_bytes": 1409
         }
       ],
@@ -2637,23 +2637,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "test-tampering",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "2af2541ec5e04a23eca85038494361830bca58b1e5485796b760e16f240437d3",
+      "authority_sha256": "f4038936beaaca2579bd1e7ab4191afaf62371dc1ed4693c6ffdda4dc676e05d",
       "outcome": "test_tampering",
       "stop_reason": "verification_authority_tampered",
       "task": {
         "status": "unsafe",
         "applicability": "applicable",
-        "sha256": "63033b34bcb097cd77a50926ccb887869b29be0e8e5bb3bc1ab7b5cc21d1c8d8"
+        "sha256": "bc9ec8203e490afc4a90f30a57dcf8c4dd2c47d6f79408c878f693d74b59ff7a"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "f3035412985a4e3976c0e2873a0d074d4c8daf92a18bd5640eb7a5994cd2fdd3"
+        "sha256": "2eb1b99c1151110d047b7adae459904b7cfd761097c138a8594b792d99f03add"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "301844787f3ffb928a718e435537ceb0d78353bea5e98abb37c027749c5b2c52"
+        "sha256": "748d4fc51d89c13c4c8d942ef8ef48746dc5fdda112c9d8eb2c1cb3919cd332a"
       },
       "criteria": [
         {
@@ -2666,7 +2666,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "e95d2469a0165b8d375635714a7a3c322622d8243ce472e5706b8d9c3241e66d"
+          "sha256": "88555346094cbb68c69e263ff2236708c5325daa4abec0572be1c0796a7a9d54"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -2678,7 +2678,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "c60e3935cef10f4e020969d3446a8ac09262346da33417194b4876829db05e4b"
+          "sha256": "ef21cca5eae09ae3e7588c877de09b452f69dfb662e2f8addd91e1741e31820a"
         },
         "profile": "strict",
         "network": "none",
@@ -2690,7 +2690,7 @@
         "state": {
           "status": "authority_tampered",
           "applicability": "applicable",
-          "sha256": "ec20e092020befe081a9873b49086dbda65c8535eb53c813d5b9f2786c9ad757"
+          "sha256": "bc9050f33185c7827e1742169d63c0291f7decc57ed691a4b878938a01f4b23a"
         },
         "executions": 1,
         "exact_reuses": 0,
@@ -2701,7 +2701,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "e35e71ea7963e68d9c2d295908382b92038ee9472f9bb6e47110ccddcc03eb87"
+          "sha256": "7cb69b6df763c2458844f6736bf4bc110b0eba5090ea31e01573e3564e957c09"
         },
         "runs": 0,
         "independent": false,
@@ -2711,7 +2711,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "8efd2f8b26c063ec768a892525a66fdc89cd63af8890e82fe88a5ab9dace6938"
+          "sha256": "8c7251eae919d779a3e0dbc7f99b8cc3d4696fa26da330b469c9349888c2d591"
         },
         "authorized": false
       },
@@ -2719,52 +2719,52 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "f64a306f5b1cf6d12a40544a695c1df9a2e5f170ce0f740c4cf604f22f53d6fe"
+          "sha256": "712100b713e151f608fd0b5571131bf0ac2e4d54360e334209a2c8c51b800f32"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "2b1640c24553d2d8905edb53ea69b04280868229d058a589f3af51838a147eca"
+          "sha256": "e4ebd905f7e182d2f5e152462e49cca715f354b4094610dedf7e1bb27808b856"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "1446ec83b44faa9a562eb0902bf131e802650153c7e9d25b001eba952acc829a"
+          "sha256": "e28c7ec48a683852b9e97d4342dc3c0a0c42a4a944957e6d7e31227dabfced8f"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "b796f145448138007233b4423aa9258d55619bb782f3b4a8406746e64eb65574"
+          "sha256": "08beb413cd63d8da9ebe690c07f8740c4bcfb1bab0aa0f4dbc2dce7bd3415b8e"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "0cc80a138854aca96752409c3adc7dc2b3e7d027e2dea1488c562c6210dc2404"
+          "sha256": "5adee5ac7ad2a128ea7fa715e69b8fd98ec815c16e4777137e432d962d64811b"
         },
         {
           "sequence": 6,
           "type": "verification_authority_tampered",
-          "sha256": "fbab9dcdcc776322c4835b7cd149d34936172c55ef011218a4bbdd38fc903e12"
+          "sha256": "868837b25671cd235950af2a9db458bd1d0a9e781a4b72bac17803d0f6df86cc"
         },
         {
           "sequence": 7,
           "type": "task_unsafe",
-          "sha256": "fe4c00f150f0f15895a389b51fcadc1a915629e826b3e81b8a025b1c7d632828"
+          "sha256": "bbf315ef36d787a79e2d3c0c50211f896abc27669720d5873e7060cead329765"
         },
         {
           "sequence": 8,
           "type": "lease_released",
-          "sha256": "3ad6cec417630a52fcde9ead1d77dc8fcaa3609632ae2a86c36c458d534599b6"
+          "sha256": "7397f57d41de5f2c5926459b5b1d825ac725be771e2c78cad8b072dd46c4616d"
         },
         {
           "sequence": 9,
           "type": "sandbox_removed",
-          "sha256": "1d3a23f4c7cf83b3b2fa393f1df3c4c2bf5ff18db9a77890da9940ac74064ebe"
+          "sha256": "02440f2dbd29d7d70eba4d17ada7a74c6f82873c19f3ecdac3074dca7724d574"
         },
         {
           "sequence": 10,
           "type": "workspace_cleaned",
-          "sha256": "72570daa0ca9cefe5c31e14fa54c61fda96b1f3b7e7d08fa1bbf3bfee6d53e1d"
+          "sha256": "373f410534a64461acdaec7660eff1ecfb2fc7ddec15a323baf5558585fc2a65"
         }
       ],
       "artifacts": [
@@ -2780,12 +2780,12 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "aa646e667030c5deae5bf60b52c63369589270d48b121978aa11a94c35550542",
+          "sha256": "54ce0f4d07f85cc209d5bb0a4604013e4d9293f02cd3c0a5be7e04ae46655afd",
           "size_bytes": 1414
         },
         {
           "kind": "verification_evidence",
-          "sha256": "c5c782d59d3cd9c5a0e46bae507c69a77555add17edda0cc188d3a66e76ec8d3",
+          "sha256": "69cc5c15f900bef49ada721bb01fc61c3f7b57ac401bc7807ac39f95a98a7290",
           "size_bytes": 257
         }
       ],
@@ -2869,23 +2869,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "mid-run-source-change",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "6aaf86603b000ea7aed69238a4c8c2aed708ef80b30d7a1e29e1887448a2c6e1",
+      "authority_sha256": "653ea177cfa888fcb3745bb78df2ef80682aa334550db4e7d6a4a40deecdb81f",
       "outcome": "source_revision_changed",
       "stop_reason": "source_revision_changed",
       "task": {
         "status": "unsafe",
         "applicability": "applicable",
-        "sha256": "cdb726024068412f19a610da117fc83b307275a5191a588e1411e43ca37d58ee"
+        "sha256": "ffebd9593616c3c1bc2e93a3771dce93ddfce0d1b41a64d6a60ef01abe2f15c0"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "14e52e4a1a0045e542adea216bd62c6148b2cef81cbb998cdb2d9aa8612d44a6"
+        "sha256": "670dee928ecea6f52d9e8841d71a38ebc0a651ef0583503abf2fe704bbcf4672"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "8051cc7a024ac4c85058d780636e2dbb6fb9c3343279dbcae4373d4b6da5c56a"
+        "sha256": "27aa179c346ef3040bfa573dbe77792dd04de13c5f1eefb4a056d555b3307c2b"
       },
       "criteria": [
         {
@@ -2898,7 +2898,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "d0d6d9902520ee5353366991c869f55f2e32c423756388caea21ee63597a63fd"
+          "sha256": "54b914e7ff104c2e438a2b3d35d29a9c6f2ffa981bdeef9ff0d626cb1fdea344"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "848ce44cc6183dbcfc485e374530e0851f9f2a7b",
@@ -2911,7 +2911,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "f391b531e77ff70d6675ee3882a3979de78b39c38315409dc0cc26c66d9f1a7d"
+          "sha256": "e51e6fa3fd45d59b1e49bfea72258323e930654191a4139bf78521622292b618"
         },
         "profile": "strict",
         "network": "none",
@@ -2923,7 +2923,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "f0e3824667e9bf31f8b922b9e5c86ac54f05748263d0d97186a69358cc954f5d"
+          "sha256": "e3df06c980de340f10573dc297deab3d8de5388d3f5e91c58e2948c60cd36875"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -2934,7 +2934,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "0c3055168c67c7526721b01d2d20e6f4d930af16424c66d8cb742d3414d010c8"
+          "sha256": "504a26235bc98fa7ccf08755d3a65b0d41a2afaeb172f33f0e779971ca92606c"
         },
         "runs": 0,
         "independent": false,
@@ -2944,7 +2944,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "ad5680b2f4f083656c942211d3d4a496a044be21a7f4db33f2c7cd83ebc1e062"
+          "sha256": "82178a703e8a5ba3efa171bceb7af7034962136020feb6cf378a775ea39839e3"
         },
         "authorized": false
       },
@@ -2952,57 +2952,57 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "cfca7ef25e3aa384f749077c04e9fd9ac69b0060bbb1789c2f2e4e691c68b204"
+          "sha256": "09829e1ccf5026e7d165c5f2516b7342443eb0beb9dcc340affeaacff492dd20"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "85c3d4a0337135b538c1c042143e538521d9a6b3ff31faaac591920a23e36f6f"
+          "sha256": "79611403f9c599d504b563b4222729b706ff79065386539622ba2ea84d278633"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "6e0bd0a5decca50c27b5139d8e124882a611626bbd0ea1a265d52581eeebf1ab"
+          "sha256": "5acb5270e93ade1e7226627001e438e2804e7307b2ef2595783ba4762c7d29ae"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "b04eafc4e87ebe8873241b8fa5ccadf1e169ffd0b5f339d91d7d600350b71d37"
+          "sha256": "b4666004495d9a78bd2b18808b6053aa2b73d197a5680587fb4e8c5d1c1056a8"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "f93519862b5ff4e2903602414d4a8cc105ae64a4a49a1cff2348980d4e93258f"
+          "sha256": "fd579726a1172609e9af9dc4c5f3fa7875e314e307142102ba01433156ec5529"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "f5636ad59a902f41e2238f6e99d485316f6f69f0e8c133370f95ce65b981ffc5"
+          "sha256": "9027e55e2b012c3bb8be86f771a1d8d50625af63bf4121d12f90492ed3b07a68"
         },
         {
           "sequence": 7,
           "type": "source_revision_changed",
-          "sha256": "c65bb49dcd46a2c29e8031011fc54036344b71247bd6a681b597237dc8474026"
+          "sha256": "b81d11b8f53d8c2be132ea0a1666fd5a20c1d0aa48f15d80eb9c790d5bdb796e"
         },
         {
           "sequence": 8,
           "type": "task_unsafe",
-          "sha256": "36ee1ff895fc57614d62090ccc7e92a4bbd7b5844ca128a04c896c90f11a93cb"
+          "sha256": "816aeb0726aec31c0ea9ee265c9320178e341abfee012213554cca4ab30a9ff5"
         },
         {
           "sequence": 9,
           "type": "lease_released",
-          "sha256": "e58f9c43ee658522a280c0106a1b6f2b04bc41a200a6af2ee9d00f8258043ac8"
+          "sha256": "32c21e49fecd25626c5571d81a9eb5498236153e77125638ba74820ee6084b70"
         },
         {
           "sequence": 10,
           "type": "sandbox_removed",
-          "sha256": "9e8eff3771fc08a199283a5b246d9e7adc3127011ef3e38aabfa7fdaee33dd70"
+          "sha256": "48f3dd796211e42f6c697c361f46e978e723d373f35ce3efaf28a5ea108d84b7"
         },
         {
           "sequence": 11,
           "type": "workspace_cleaned",
-          "sha256": "3c2f52a635423f6226cae9ded4b793845277d4c661ff4853733dac4c5d16fbd3"
+          "sha256": "08ce6a7007cdf32bca37526664b2c3d713bd54ab88ed0c059c2b76f0a317a82e"
         }
       ],
       "artifacts": [
@@ -3018,7 +3018,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "d6c0cad6a3832f80827c660a9bf572c7be3b32ea3375188d73c93ff2636e95a6",
+          "sha256": "806870bec0bfda30c29b6b829c133735ba117772c4fb0bc69e647a2f75898598",
           "size_bytes": 1550
         },
         {
@@ -3107,23 +3107,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "cancellation",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "b6b8adb42ce642a06fa645df26312a87aff75648d1194131219cc51e549d352e",
+      "authority_sha256": "94e58e7e3d412a54e8a88da99159bbfdd7af1c9719792c1733f68a841f0b6bf1",
       "outcome": "cancelled",
       "stop_reason": "cancelled",
       "task": {
         "status": "cancelled",
         "applicability": "applicable",
-        "sha256": "3b11387c1911cf55a73bc39d0dcd081f78cbe4c57affa5bd8150030edf2f5027"
+        "sha256": "38e658119b998af61aa2b6cc177268004b6123d2b1dae184cf41c2eefa1f2222"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "ff5e26724289cebca6f7685b7210fe0ffc7360f872890d5eefd0d24921a51b03"
+        "sha256": "45e9c0012824d389dccf6063380ee0ceabf3d01d85bc295116ab1f2d7a8dbf6b"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "3c4c0ae554aa9a5cec3b96f3111b82a652a2a86430bd8e1465022b207ea5b86e"
+        "sha256": "ce44606654ae8003da8488e9ce8c1feff586d37b192dfea6144718f3472a602b"
       },
       "criteria": [
         {
@@ -3136,7 +3136,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "e1a872bb7c22ffd4bbed3b18ee0b30792ab6f8337ee8b9ba3b8cd1d581bf6f8f"
+          "sha256": "db87cf8ecb8a512a52aead2e29a93ca8cac9bfa9017fb0010bc82519012ee47d"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -3148,7 +3148,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "4f0817a8c9832f87a13bd05885ea74c41adf28dc3fff4733586c8ed0111a4fe9"
+          "sha256": "6d6597f0aef1cf8c72846dc40d81c45e6d174e29a7180218fd2dc8a600b94570"
         },
         "profile": "strict",
         "network": "none",
@@ -3160,7 +3160,7 @@
         "state": {
           "status": "cancelled",
           "applicability": "applicable",
-          "sha256": "bf58a6147134a637df8f23998d5225d5e6ca618f788d634fb3d41bb219bd1c03"
+          "sha256": "c1618ddd84f38adb9647a039c6c75f865f4328a44eaa6aa8082f9773e572180e"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -3171,7 +3171,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "3c1c7cb641be5210217a312c3c052a24009b314fc021510face118e5efd149a1"
+          "sha256": "c03f43dae1d1c7136916df16087242e4d1d50d27b0bd3e967bca7bc18c89b181"
         },
         "runs": 0,
         "independent": false,
@@ -3181,7 +3181,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "9d6cfadeb6d80f01834865ea15aeae77f4faa703bb5d2419e432b0e22def3497"
+          "sha256": "c3a210ab8312ed1f21f95f7e2c8c9b5be91864632dce0bf78e909a3b5c7a925a"
         },
         "authorized": false
       },
@@ -3189,52 +3189,52 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "b8bd532b758c0d36f4861c4237068e58bf71b07644bfcb79ecb3b276290053a4"
+          "sha256": "d678b05a966708839c13bfc225f1ca57c8ae199ee57c648b261f71052e8b2d0b"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "0f561415d9305c39ca0bda7f4738a610c4a01f092c5e36d56a1e867703955090"
+          "sha256": "b82ca18c641f847ac7a163564336432c2880c1b3ed887ccda5dd7336073e67fe"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "b988a006cdc2a5c9536f75f9770993e336edcd27ebf9bfc689f9a0f0d2c39032"
+          "sha256": "174c36f07b16724c946dc2d02bbb1c46e62ddc4dbb29d172f413d348d2b7de9e"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "ee2d607ccdee3ffb04626467f56ac0c62312a184887427269b5785a1e05236bd"
+          "sha256": "6a7b3d080c893ee668e68046b6b9a2e03e0a21147a9dc4e7e4cff1538f6a6d50"
         },
         {
           "sequence": 5,
           "type": "cancellation_requested",
-          "sha256": "e26a61b3e99b6822d10cdfe2759b806ae1314b6164b28aa511ec8a51d3a337b7"
+          "sha256": "e6f2a6d67f41d10d9cd922dfc3fae3b6ed3280ff3a9e8b405ee3df1ac980f9b3"
         },
         {
           "sequence": 6,
           "type": "sandbox_cancelled",
-          "sha256": "6f446fc1731a98b30b1e5cf48aaf9a7078e8d256ee6faa2d98bf2b592d770238"
+          "sha256": "9af0ad57be7de75921868ee49e00aa2126509e136c26a693e4e0423d178ed5d9"
         },
         {
           "sequence": 7,
           "type": "task_cancelled",
-          "sha256": "85eef24bf7b5fd517fba8bbd8ed390033e4fe5c13dfcb92ecd36f3decd0fb0ec"
+          "sha256": "071eec0a227927e3be053fb447b094e7169008ac58977fe92646a0275acb4688"
         },
         {
           "sequence": 8,
           "type": "lease_released",
-          "sha256": "b59ada88a2eb0a2fe158b50e5c3b440062720c793e06413ccb6e490f5aee37df"
+          "sha256": "2b9c13f3f87cb369690562d98a6d00386c96933917845b3fcdb9ff165da44d34"
         },
         {
           "sequence": 9,
           "type": "sandbox_removed",
-          "sha256": "f08ae71931a0704e0d0fd89dfd8df2c930628bb0c5e57dcd900f9e0e02d434b7"
+          "sha256": "7e5b29ec5ee54ec42a9cc5d7292157d398cbb96ed99c881551d748600eadac9f"
         },
         {
           "sequence": 10,
           "type": "workspace_cleaned",
-          "sha256": "d0770985c31f8460aa530c72074d261d79d9a1b755e69b9e5310da3e970ce3eb"
+          "sha256": "6f945542b3a2b7561df73240188cfcdbfa0b1f66e5980a83e5fcf36dafb8d6fd"
         }
       ],
       "artifacts": [
@@ -3250,7 +3250,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "6b7942277905ff307c04d9a6676096b443e11e8f2d4b026c5eee229631f854e2",
+          "sha256": "1cfa8c54b0b4d9400ac5cb271678b5d25d670876330fe1561bf5a595fed031a3",
           "size_bytes": 1409
         }
       ],
@@ -3334,23 +3334,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "crash-during-state-effects",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "52caeacf06faf622990e44867d1bef7581bcc098dcfc8f76f42079c562bd59e1",
+      "authority_sha256": "9df0eed82c8eddb7ed59505d7f1d7c46b61e19e2595ae640d3cb7ee7485d4a5f",
       "outcome": "completed_after_recovery",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "6ddac3f05467ac27321209a2d15a5c08a5153c7298cdb07769ecd42f2d013346"
+        "sha256": "7c275ed50eadf7ccbf6cbc003898c3a5834005a81c859a39fcd235e567ff55c6"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "fd3620ab33a8ba30000395d0e589dbb32aa5d1d4ee34109c834bc7f26195d9a8"
+        "sha256": "39a0e433fd2fd596cc9a886c2035704f4bfcc51e20fbb6e8f1d965707fd87aa5"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "8b42018dd85067f32f1c733b1aff14f108ba33b2595013ea4a35a628a6cb0034"
+        "sha256": "410dc020f24c082ea559fe4411cceae7635620223d8a8ef4de3d0c7790bb255a"
       },
       "criteria": [
         {
@@ -3364,7 +3364,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "2a235e59b4860db1faab625179bfd5f3ad77e70a27e35aa53b71adfbc5d4701d"
+          "sha256": "07b88f9fa03a0a04a2c8b165e449e597174af3a60e848a8db1a24d94471cd79f"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "eb6af8fc924355eb421e3130cda803de3b4e0245",
@@ -3377,7 +3377,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "87bff5678be0ec96fac41930756e992dbf849228be3ffbc7f23edbd5053746f9"
+          "sha256": "c2972a3dddf5ae3e8a9c1f14fef9203f1ddacd9c04d3ec433827d937373e70f2"
         },
         "profile": "strict",
         "network": "none",
@@ -3389,7 +3389,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "2e5cede0032638eae4153be6a6009b57654941c3ff6491829248bde0d8c69a44"
+          "sha256": "01270807555686832e8a91f22847e822bc9422e3a21823e628ab5697cabcdcb4"
         },
         "executions": 1,
         "exact_reuses": 0,
@@ -3400,7 +3400,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "d537baa1eee73080296901a78fde3a622dc392973ae81d566986c852baaf48fc"
+          "sha256": "16a053fe5ee9988363c7414a77bca83b93aad16a3c87f7ca46942e8b26c231eb"
         },
         "runs": 1,
         "independent": true,
@@ -3410,86 +3410,86 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "d4bbdedaa3110431db354c820ef567b29b2644d09099b6bc194f30f6500fb947"
+          "sha256": "7bdc18dfe68ac909197be6f12c87289963ed48fbb9eb07a484ed57c066b12515"
         },
-        "capsule_sha256": "bf010af2cf9aa5e1d671f83c42c5ed9f86f57784c9a78734ce5b342747648e6f",
+        "capsule_sha256": "f078dcaf9a5dd512a52abb26c9a963b374b76b272b86d272595f8a149dd4a7f3",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "99713b7bdd3a3f98651cffed56a3dc32e43b95ecede74a22389bced80c407939"
+          "sha256": "b9439f57c73fc260732989d2468e6f967f4ba405d05e11ba31178e6a2ff8fd40"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "81bda130e9e1a7c087db12d570d73cb9bde9f4e1f02919d0b7080b124aa695df"
+          "sha256": "96be5d86a4d5d8197d09e95788136c8d89ddfe226d42c4155e65742b30f784b0"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "0d6db0d2d39885ac4afbe44a56d76591e8774c9d048885b63883e9580a740561"
+          "sha256": "6b7a9576b418bec51d0d92804e15cf1812053e888b822d80a5f5d05f2b36f53a"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "09d55c572ef71e4f1ca36055d87abc658f3f60adedf3dd34d3d47f1fa511c03b"
+          "sha256": "256ef4ee301c70137626d15be67955d2c756064ebaa0f7bf31599f37a486bdb8"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "aba932b30f28109a5e842edc15bd99c2e23a4563e11deb5f97bb692f85d53a32"
+          "sha256": "0cb56448bad718596620dbc28f11ccf8880d5d5bed4af8ac8730fa9fd3afddb0"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "02322d524e9ef104d58c5dc60885d6af39bd7508a69216d2b3ad60371643d528"
+          "sha256": "77cf53f0837a73ad1fcf90e4e66af3765c5d3286e90927c4399b538eb8928e01"
         },
         {
           "sequence": 7,
           "type": "crash_before_sandbox_recovered",
-          "sha256": "f793e9043ca684c8c41a99de068d8c1710e3ceff4c5c67e77bd84bdaceb3bdda"
+          "sha256": "bbeccb002ff2067031a4d408ec8ed37a36f3ee39d24eb3989b51d397b7362e6c"
         },
         {
           "sequence": 8,
           "type": "verification_passed",
-          "sha256": "cbe54d463a58db04e94964ecc71d7b78b652b1f6e522ec7f4e16a1ece5ac2748"
+          "sha256": "80ab0dc172af616dc8ee821307526d1a152cc12c35c2b3f495131da39cbe0139"
         },
         {
           "sequence": 9,
           "type": "audit_clean",
-          "sha256": "435327f67aa9d48177d3c3de47aef3f8865c2e83f24097d1ff709681cbf05ae0"
+          "sha256": "cc9ad0f489c9428ea073249a6967b7de8d956d850ee805c1034bbba15eb684fd"
         },
         {
           "sequence": 10,
           "type": "completion_materialized",
-          "sha256": "a8214de960e8ad74d717e56e05afd05026db37345a35e30c363a967297bc9614"
+          "sha256": "a8faff085a7d967843ee55ce70b6807d9fe68187a81363b4ef346fb1f8b0eb4b"
         },
         {
           "sequence": 11,
           "type": "crash_after_completion_artifacts_recovered",
-          "sha256": "31b9cf0d69ef94a39d31fd79bafb4a4546f6315cffb1d7f0f8a5f253df54c089"
+          "sha256": "7154d911ab52b156da9c13a1e6ea876d40b0c626a5f32c899e9aea586e0a29d7"
         },
         {
           "sequence": 12,
           "type": "task_completed",
-          "sha256": "29c782f4e9985a780f3cc51601678b81b22f6af435f478f353af9a47166806c3"
+          "sha256": "b0c42456dfc73e3bffc2ce4a5c722ab07ba34b97704d58cfd82cd68c975190c7"
         },
         {
           "sequence": 13,
           "type": "lease_released",
-          "sha256": "acc51a2786af9ebc7c80d5d12dcfa22c7ac96428b132d4e8a8cae9142e289aea"
+          "sha256": "d93a3c6ce73036188e151e1e7a47f4a8535356dd6ccdf30617399a4d017f744a"
         },
         {
           "sequence": 14,
           "type": "sandbox_removed",
-          "sha256": "693f03376230b82f407cdc592ad8e4dcb45f3d536b91c5044882a05e43900430"
+          "sha256": "36a6df8e6b5656b6f390e786d66c9d81a179f92de1894c2fa00b05f473fcbe8c"
         },
         {
           "sequence": 15,
           "type": "workspace_cleaned",
-          "sha256": "6c771e67dc96156dd14da9eb45b640eb1ffe6da947b1dde0932f37ee39e5fd76"
+          "sha256": "199747d9e0df41aafa963faa8ba07d52c797becedde7503b547acd37632580e4"
         }
       ],
       "artifacts": [
@@ -3505,7 +3505,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "64d45a25dfe26fd9e0486f82bc22d17ce4e41c6af40c97c89063b3db9683ecf7",
+          "sha256": "fec6c3c730a2368ad6ef3adde63be7ed6572f00951de5813e8674e6a08121c41",
           "size_bytes": 2159
         },
         {
@@ -3515,17 +3515,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "2972819146eb1a09703d0d8ceb71e7977ea02db0329fc2bec2e3dc87c355ca56",
+          "sha256": "e6317ccc4840cf56567eeed8c5af7d7836610d0670394c557531d92e6527aae2",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "c60a8f4a52e8a1076f7a3db075d82c6093fd9f7b1bfe074909106da0413c4088",
+          "sha256": "4f43a7a410fcf77c310bfbdeef718f58f7ed77e8604bbf2e23e0f60e8f8fda61",
           "size_bytes": 275
         },
         {
           "kind": "completion_capsule",
-          "sha256": "bf010af2cf9aa5e1d671f83c42c5ed9f86f57784c9a78734ce5b342747648e6f",
+          "sha256": "f078dcaf9a5dd512a52abb26c9a963b374b76b272b86d272595f8a149dd4a7f3",
           "size_bytes": 1198
         }
       ],
@@ -3624,23 +3624,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "crash-during-external-effects",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "da379a9cf6bc2378bc03cf48c635db173b65ef03a72b7c10f4ccc7405489228d",
+      "authority_sha256": "9f482435e06b1b570917ac72fd3c0513c2406f60b367083ca87f15a114c2cbec",
       "outcome": "completed_after_recovery",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "d8698421d6e9e1cc942e55fd87b404481418dcf8eb6ce0eb6a84c9570907bc10"
+        "sha256": "82b573fdd602cab207bf6fd57bbb0b853ddddef48b1d9466711c0c1417314fc7"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "e2d47c533a8f9378250632fb81120a1de6d8f770257abb7fcc63a687b4e0f137"
+        "sha256": "8b5f4806dabcfb1fea0d221b1e416a92d1060522252a19a0ea79fa1aff6816de"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "29eab7f4764d29b455cb76f34d21df9fccc639c90ce24a8849b3d0639748830a"
+        "sha256": "1292896b940eede3b2fa87519d9959355cf26198655d69e0e3ff24f2cbb63303"
       },
       "criteria": [
         {
@@ -3654,7 +3654,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "5f5866c79f7d3f4d2e82b98b298540cd00cbe837fc0dcb292230f468ad63105d"
+          "sha256": "62ba3488200cb0fe4e93680d3723832cc5ee21f8338c7495763025277c30b0a1"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "4c24c627fb29785da7830a55ff032eaa20003d35",
@@ -3667,7 +3667,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "257c20a1ede6cbc12fede7b646d55b2ef77a783d1dd310d4886fc1a9f53be001"
+          "sha256": "08aef368edc060142c14130997b1d3bc5262d8e2a7157d9f7c821342617eb74c"
         },
         "profile": "strict",
         "network": "none",
@@ -3679,7 +3679,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "d42b99bda15ef142b664fb211b0b073572a590ecdda15c605030f97552c9c4ca"
+          "sha256": "c34cf45b4f654a9eeca80b7eb8d38a77ca2d130ecf05fc8b66fdd168e07fc82f"
         },
         "executions": 1,
         "exact_reuses": 0,
@@ -3690,7 +3690,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "44d3ec02c454c5a091f58fdaca0a7f232609586ca5465ed8a290c4b36f2e1e57"
+          "sha256": "332b4b7983fb0ceb55ba12e2278b73cadf9993f44ed6edb67310c5d7e3778f05"
         },
         "runs": 1,
         "independent": true,
@@ -3700,96 +3700,96 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "98f9ef2ad3725a31d6fb034bcecf9fa89d28542475e2d4b8066ae2dc3d7e66a1"
+          "sha256": "6ac3aa965c6ad7988b8e8446d9856c87e04eb6752297ca2398c3db843482d259"
         },
-        "capsule_sha256": "e5a411cd7f20b5022ebc0acf73dd48ebd0e9aa3bc03516ffd00a1d3bcd5b392b",
+        "capsule_sha256": "87719a9598dbf0942c30c21f600749523b4d8f23d5b78aa5575901cb7a840028",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "559aa4fe155a474d8b6b056c83bb8729d1dc902a843a1efb70b8fbe90aa17f73"
+          "sha256": "16f155a29579e22697a7a3887bb3134efb8ac0ee7eef8c2a245b9f73941c510d"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "b364ded0af8a8b7a3aad0c878274438b338411b35fb543b22f55867cad893dec"
+          "sha256": "edd033c483e09b5e3a0662611a4cbd4bd200fe4981f88f1a9292b8f08900223b"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "6a0052e0cbaa95e9d985b523c44b2e7957153699e5fe78fab695b3ba41d8a0c3"
+          "sha256": "0037345401b5c7342087eee1c40efa9b32f61756abcfb549d08c638e0fd0eac6"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "6ce8b9be1fdcf9f740d7ce96cd57b044d2ce18a7f2b526241e020c9cef2978fe"
+          "sha256": "59739508245bcdd2878a7533e6b4259658161455a22efee39c4be5655ab9941b"
         },
         {
           "sequence": 5,
           "type": "worker_completed",
-          "sha256": "f318d01f796fc038b01c2aeaa11d1090ad3db072c1668c2c40e6d8e8b7526963"
+          "sha256": "603fd96c9ef83b952829e52b317d0eff28af41d71766b946c6678618416c9dd4"
         },
         {
           "sequence": 6,
           "type": "candidate_captured",
-          "sha256": "fa774f602b1de2b1d7d37bd3f7b33b36b09961520610ec98660d3a27accf94ee"
+          "sha256": "3a397bd2b75581a94c67286f88b55ce0bcf610926350d8fb27e77c0756ea9b4f"
         },
         {
           "sequence": 7,
           "type": "sandbox_effect_reconciled",
-          "sha256": "5f2f5b97cd7879cfdfda6d77faae5b03d2232642bdd1d327f15681a6e3cdb379"
+          "sha256": "4494c9d07de2ce76e8bf58edd338317317e3d28165fe9dad09aba89289ca1203"
         },
         {
           "sequence": 8,
           "type": "worker_output_reconciled",
-          "sha256": "bb2e8dde12903f26239398f53a743730b1529a2b1a1a784e5f6e32336e2509db"
+          "sha256": "83d2f2267890c80dfa05b47b9870840ec86531a7cd46315eb6e94c903c77436a"
         },
         {
           "sequence": 9,
           "type": "candidate_commit_reconciled",
-          "sha256": "265aa1645db5527ddce5adbf6d6b8dd229677515aeeb37e706f983856c436ccc"
+          "sha256": "7fcf3dbc5fb70e57f16d8ede5521ed7c3f2ba8cd2d8b97202a38197e50c755d0"
         },
         {
           "sequence": 10,
           "type": "external_export_reconciled",
-          "sha256": "9ed490374ff3b61d2e3c59cb2943d5ffeb4729244bc13040dec638fd9c12579d"
+          "sha256": "572f966d397add65aebd2363b6c091a61d863dfbc774392b1ef12ca925511999"
         },
         {
           "sequence": 11,
           "type": "verification_passed",
-          "sha256": "f6fab035ba8f8455d0cbe08c45b3706e15abdce7a375f18c84ef9a7d7f5f89c5"
+          "sha256": "ad315b59afe0cc16287428ff83a84d86d90a1a5bec0fd6b3e0c7367b1d95db32"
         },
         {
           "sequence": 12,
           "type": "audit_clean",
-          "sha256": "92a6c7b43970c0a3abb2a069986ae1b379d1169113588ec4df98243a735826d9"
+          "sha256": "430c1cda461b5a7413988a10a0b3cf87e622f56db3f281dda76cf272e9e70b21"
         },
         {
           "sequence": 13,
           "type": "completion_materialized",
-          "sha256": "570d0fc83850e86cd950794693c62fbd06660b04f9d98a04031f8ce23ff3f1d3"
+          "sha256": "a6591214dcb91142389123a884501e7052a617db2f7e6f53de58701334c67c8a"
         },
         {
           "sequence": 14,
           "type": "task_completed",
-          "sha256": "a997cfa903b29d1c2022b6d1d5eb4cde92e6477afad00e1963dee63f7c517425"
+          "sha256": "293a4732fd793724c7219e965ccdeec11ea44aa554e45b681e4b5fedd6a939ec"
         },
         {
           "sequence": 15,
           "type": "lease_released",
-          "sha256": "aba558aa45596e7e222354efb3bab54b591dd09ff076d17534e1ed92b5b900a1"
+          "sha256": "b3bd1c4542ad97a89c385b8e2c345e6d71aee20870554f55ecf28ee5f1bb7c2c"
         },
         {
           "sequence": 16,
           "type": "sandbox_removed",
-          "sha256": "419fcbc17e54e7c05e6d2f7a44676c0f8e2bfa285d55fba5f47d1d1f43fb902d"
+          "sha256": "2f2337e81b26474d0a903aab25343dfe0b0a814641c877565c5d5502302b234f"
         },
         {
           "sequence": 17,
           "type": "workspace_cleaned",
-          "sha256": "27b211ab1c387962c1becab4ab306e6a83cf8086ee5bcbba20d4f569071395df"
+          "sha256": "d03adf56f08e22799b98858a0ca6ab248dd8d183fc1a8f7851eb4425b903e211"
         }
       ],
       "artifacts": [
@@ -3805,7 +3805,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "c900c3419ae2646d2384a9a2bacb87b8f22b2531200b695ad88e36f233c1a2d1",
+          "sha256": "3ae55c7dca0decaa232f73325de28dc85e624bffa41cc6c179ba9e2aae99c64c",
           "size_bytes": 2441
         },
         {
@@ -3815,17 +3815,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "b0c4364031fb2356c9fe8206793878f700ca7da9e10612a81ee264fc44bdc482",
+          "sha256": "0196a27173e14b0061ddb7258d3e1b69b043cf3762fa2f6c95c7ba8b761119b9",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "28dcbe9c1c3bb35b7cdea43b862fce18451b156a9b6155dae2019cfd52d8c53d",
+          "sha256": "fe660e204536129b1e6c4259666491fda5a9b4a7aec4d174851cf7964a9cde36",
           "size_bytes": 275
         },
         {
           "kind": "completion_capsule",
-          "sha256": "e5a411cd7f20b5022ebc0acf73dd48ebd0e9aa3bc03516ffd00a1d3bcd5b392b",
+          "sha256": "87719a9598dbf0942c30c21f600749523b4d8f23d5b78aa5575901cb7a840028",
           "size_bytes": 1201
         }
       ],
@@ -3938,23 +3938,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "stale-retrieval-index",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "da954ba56097aef8593c734db658dc338eda4d8c6d662918bede40312ba342bb",
+      "authority_sha256": "61c3b3dcb91e7fa5cc632db1253c3ec624c219e89ff104b315574c72228dff23",
       "outcome": "completed_degraded_retrieval",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "c3aa05b4f1ce2ffad900eeaa8f1ad248171ade9ea1d383e41c180bc451f4fbce"
+        "sha256": "40a90c9202ee9ffa462386b3c25d0e251bb4db7624655fda51f6bc4043ad53d5"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "11f71c98ffd10bbf67b5a000619e8975f01d5770cec612776e560e64939de6a3"
+        "sha256": "ee718d372fdc0b291172c678f991c3dd8e0edb8484b85af2f18d43f4a9926447"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "b9834cd182fd33014b65527f646212bd70ab681145fc0bf11fc0987f84b59c06"
+        "sha256": "a882503f88c52e776cc589b2d8fb021a217ccda4578a13a00470986f13bbeccf"
       },
       "criteria": [
         {
@@ -3968,7 +3968,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "639706f1242fa5c086bb7c5b25b972fe28a7c4b0aec9fed9f3f9da270112eaef"
+          "sha256": "8677ac414d51827c884f91364e030ad58d40c9ac58ae7f37609fae2615c8053d"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "18b17b583fe247eec0449846b08d7d0172025242",
@@ -3981,7 +3981,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "f6fdde5e79e6cff35148fa25927a2b727029f293c4f300b5f57a8b194dede997"
+          "sha256": "9c19c7bd251ad0a08a328e97508173717b7f49f924571c4c776d9576a69d1cc3"
         },
         "profile": "strict",
         "network": "none",
@@ -3993,7 +3993,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "7b62c00c27fd8a1bbbb6290a113d3ef4c33bb934d20a5d8c9b504bf20f4d2190"
+          "sha256": "d2e0cb1465c47ca1fc6c4f43bd195816469ac20f63c41c8ccadf9daec981b7d7"
         },
         "executions": 1,
         "exact_reuses": 0,
@@ -4004,7 +4004,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "98adc03f251c0eedce9657579140e4b5b10d9aef66ea111197f1e00a47f2d31b"
+          "sha256": "5f7b812912b5fa1f948aea42b04c3b4ab2a07bd882d2970bab136f6e9d67faba"
         },
         "runs": 1,
         "independent": true,
@@ -4014,81 +4014,81 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "f90d886766875a26a25f72f8a91c2e83dea53d27bd32424256b3de9576c9a04e"
+          "sha256": "20090b6579c3e29a429851346db1150416b55bd3b0cc6e6ea694aa56f1c788d2"
         },
-        "capsule_sha256": "d8c0122e2abe0bcca85118e2e9a5c443d2a93d48094114d0d8a7e3c5a38daf2e",
+        "capsule_sha256": "08fcef088a10856a928922e04aabf77c778da70f5cd1e178e504abb79a1b2e20",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "retrieval_index_stale_exact_lexical_retained",
-          "sha256": "02da7e1dabbab6f36e149e6da48792a9e295d54eb94dee05ead40fcba85d15cd"
+          "sha256": "c4b2c76bdb3282b4d5722ea02afad6e3ccf88d37ce1ec54d3e0e9524da305133"
         },
         {
           "sequence": 2,
           "type": "task_admitted",
-          "sha256": "3a829ca53f7d7a503165b106f8a3041fb1cb535bfb3d16e0838673bafeef9117"
+          "sha256": "3b9eb216613a5266b271b0b73c8823a3634dca0b52308b81ad947b105e0214e7"
         },
         {
           "sequence": 3,
           "type": "plan_accepted",
-          "sha256": "4a1f3552b64fc2da7a3619bc882115db1a0b2a397b584a16cce461dbe0f6b44b"
+          "sha256": "9ec601beec8c40cdcd29e804b31502009ccf10d1d6d5ab2efc7a9839eda60a98"
         },
         {
           "sequence": 4,
           "type": "workspace_ready",
-          "sha256": "d03f8c53651271315ae8297262cf22ee0e76be61aace69004e70c6d04db2f1c5"
+          "sha256": "a78530b0f965dc6fc48dd274488179e509e07a8911bd3165edf027f1bf99a542"
         },
         {
           "sequence": 5,
           "type": "sandbox_running",
-          "sha256": "1c8356e726425118b4d10fcf11a51743d808bc93fc20e3f4306a274e2ada6dda"
+          "sha256": "a4a2829f9ff9018fb17d1187620b091318d6038587c1332626fcc8810d7ddd2c"
         },
         {
           "sequence": 6,
           "type": "worker_completed",
-          "sha256": "778c4903c165d45e5ecc6f212b0719dba36c410d12e6588156f081d72c580740"
+          "sha256": "2433bf8cb7d144000fdcce53d6d143f266232c5734e21b781de0b108ce8d4495"
         },
         {
           "sequence": 7,
           "type": "candidate_captured",
-          "sha256": "426372447404efa72d16782cc6f9f8f12a856d4eea981a7962e7e0cc0b58de24"
+          "sha256": "4e36ae6001cacf309f6f66034615791f966a137e5636b205185234e51e48b7b7"
         },
         {
           "sequence": 8,
           "type": "verification_passed",
-          "sha256": "2a64927483a444dedfecf8d4e7c122dc09bc5dd8b71609ec9cd5b29af358dcce"
+          "sha256": "e0d0f24fcc9d0eee0d4d90d98aa5f5628488f3274108702fe4f8a12b08aaf85b"
         },
         {
           "sequence": 9,
           "type": "audit_clean",
-          "sha256": "0d8f1f0e77676eb0589814755fd5b468e96901868385a68ffb5244ba832f29b9"
+          "sha256": "9421d135192bf78b0cfa12e6f255c67c28704772ec74b510c7f51350b91e28d9"
         },
         {
           "sequence": 10,
           "type": "completion_materialized",
-          "sha256": "8fb0045040a3ac40be65b87d47967cf7c2338d10d1c217f7a63071263eaa18eb"
+          "sha256": "dfcb296b7507c0c11975a3991042ed8fb091fcb9ec4049895e2439eeb3b968cc"
         },
         {
           "sequence": 11,
           "type": "task_completed",
-          "sha256": "e7b52078e011a3c251389a04599216bd2f14ea79565111eb0def8ee6e1062966"
+          "sha256": "26c966095f1b204df897f21554e657c6196de28efd1d265495fd7ae5af875f88"
         },
         {
           "sequence": 12,
           "type": "lease_released",
-          "sha256": "bf8201f9cb23707c76c2c239c5a4c572e69b5eec22b77bbc76815eb58f805f59"
+          "sha256": "a99a46d69ad02d718353de6778da0142b740e77cdc8bdb7d677aaf1580654961"
         },
         {
           "sequence": 13,
           "type": "sandbox_removed",
-          "sha256": "f3769ed876fd1d4f92067c133b92ee7fc8b99bac44747e984f42830a3dfbb3aa"
+          "sha256": "263493448eaeb863a6c4e89b746a7674d0ae552c0d58495df0ce3f8d801dd8ea"
         },
         {
           "sequence": 14,
           "type": "workspace_cleaned",
-          "sha256": "ffc4b90d3cb8c456ccec7110ca7f4f29199631d5aca81956cfb1c1dc3535759a"
+          "sha256": "c30cdec92fd30a62fae67c04f25da918efd184ceefad2d4c83d9d276e8c377b1"
         }
       ],
       "artifacts": [
@@ -4104,7 +4104,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "57c8e1c6ec98b02c8e8f0525ae5ced0f6d7228af3ce4db63427eec1e50294baf",
+          "sha256": "e78a36f7600c2c8c419f98428bf5e8435c4df57ecfe2a4cd6a5d0130eb342ac8",
           "size_bytes": 2005
         },
         {
@@ -4114,17 +4114,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "9264ad9f0665480f389ee477aad977910779ed23dcb935fbf30a56c5d2e06a7c",
+          "sha256": "203c905c084ef876931a0988a61328d57e95b067792a93ccac585aed747be7cf",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "46ea94140087b7239c379ab8d1a773b5c3f2e8e2710873b11f5efb14bec3a142",
+          "sha256": "bdea8a1a2308cda8203c717f138bc2e58152fec9408fec62352177b0e1ddc689",
           "size_bytes": 275
         },
         {
           "kind": "completion_capsule",
-          "sha256": "d8c0122e2abe0bcca85118e2e9a5c443d2a93d48094114d0d8a7e3c5a38daf2e",
+          "sha256": "08fcef088a10856a928922e04aabf77c778da70f5cd1e178e504abb79a1b2e20",
           "size_bytes": 1197
         }
       ],
@@ -4208,23 +4208,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "missing-embedding-service",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "70ebeca59a42d0590bc57d47b73ad48c7e82e293260ffeb8842c0d19335661a6",
+      "authority_sha256": "f8ae54fb655e3ce879e87168f30c291f2efb5acc4efc5a255900b6953e2b9ad9",
       "outcome": "completed_degraded_retrieval",
       "stop_reason": "completed",
       "task": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "7fc8cdfe2cef66b9cec5aa84d2f78757ecb2c64e07b14017a51386a880a38622"
+        "sha256": "706621132f1d1a15db402e7b637fd8958868974fdcb4710e90802846f0c7b094"
       },
       "run": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "e2d7155ee77cee9052270688ce60831a489b201c8f0167358b5888c318569d69"
+        "sha256": "1bef79f97c64595413d6975f1d9ccb1765b1afc5c224d0921b407f86661e3aff"
       },
       "plan": {
         "status": "completed",
         "applicability": "applicable",
-        "sha256": "a4111e1040aef753c8574f67f8d9531281f1b595159df21019afaf189cd9db47"
+        "sha256": "bf6446f6d27cd5dcb5275468c7810ba253c6b3696ae028685dd303bc6ddeefb4"
       },
       "criteria": [
         {
@@ -4238,7 +4238,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "f7f70bb64831a56f21d2a65ffb89286c69fd435d20748968dde26c6334d834bc"
+          "sha256": "9725750639c69d3b9d3a29e3ee01d5d56da1ed0104b0bf15925b342ee18b8ce9"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "candidate_commit": "f3cfcd1d3a81aed4b55e54ef3a8cd0d94e922946",
@@ -4251,7 +4251,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "15917bfa46e24c5858ac4be7d5bc4059b5b9fe533fe7ec2d10e0ef66d86091c5"
+          "sha256": "f1ed4d2beb29588349aa0e3794cc865b67a80dcb7b8ca1cebd76a0feb5ba890f"
         },
         "profile": "strict",
         "network": "none",
@@ -4263,7 +4263,7 @@
         "state": {
           "status": "passed",
           "applicability": "applicable",
-          "sha256": "cd8892ce55c6337af5fbc2d2cf01d5d8ec5eda140c7a2ad925880869a80d409f"
+          "sha256": "9d1fe1c86fe2ccb79a9b06cec1410f3f8302edee7c8d3b7d975d89ce6863a2bb"
         },
         "executions": 1,
         "exact_reuses": 0,
@@ -4274,7 +4274,7 @@
         "state": {
           "status": "clean",
           "applicability": "applicable",
-          "sha256": "50d101b0bd230d3d8ea6e653c368d6ac7f127feff2284d1841868f8f34fd0685"
+          "sha256": "7505e89fd89e1ff9ad50b89aa4fe127a2ab2ab91c19788e7b6dd90897c124c19"
         },
         "runs": 1,
         "independent": true,
@@ -4284,81 +4284,81 @@
         "state": {
           "status": "materialized",
           "applicability": "applicable",
-          "sha256": "500c38afc0ded4575c2f398d9fdecd51f7a37cb6e2b62c4a03506361842f3e7d"
+          "sha256": "b26f8b11c59007efc66040df83262dd61d9dbe56040f512b871e9a66a7c3a280"
         },
-        "capsule_sha256": "2bae67f1c3cc81a991e1cae938aa4f851f44cce54b76355b2eeb6ae592fc8762",
+        "capsule_sha256": "1923f7ecdd99f71f3191782d000c4a85be26b7bb9471622095fed4968995323f",
         "authorized": true
       },
       "events": [
         {
           "sequence": 1,
           "type": "embedding_service_degraded_exact_lexical_retained",
-          "sha256": "5c6e00c51b40de1d98271e53c34443c1648da7f82eb5a05f1f979880a1227f91"
+          "sha256": "30c6785647297496da76812880f4fc4ec2247c9d395382c5511515532efe9795"
         },
         {
           "sequence": 2,
           "type": "task_admitted",
-          "sha256": "6af4e1d7114a88f7b2e79095a3b8fab90189b0e7a0bd82a1ea8a96a9159b2bc5"
+          "sha256": "d092b44bde03f3c529a0fa7c192c2b1f17398b64580b7c94f3cc8f93da851801"
         },
         {
           "sequence": 3,
           "type": "plan_accepted",
-          "sha256": "fc2fef2eccf55172e6cb197789fee0663149796bea6cfad220764744e354d541"
+          "sha256": "c5fb23258615aeb386e42b68058595283cb2f66dcddb3fb340832e8a75759ad2"
         },
         {
           "sequence": 4,
           "type": "workspace_ready",
-          "sha256": "0dd883184af6a7324923fe36ad3e750c947312747d5f4c5d1199e768a3d0964b"
+          "sha256": "a1924cecfcf3cd9a0755934c6e6de84f7e0d757a468ae9ab31a87a8b5bc40c6e"
         },
         {
           "sequence": 5,
           "type": "sandbox_running",
-          "sha256": "3ac1818034cd2fd498a1870d578e63738357b5f90b9372528e8f6a4820ab97a8"
+          "sha256": "288da86c67928736f3d78784b8cd748da36723fcd3ecbc096e4941b3956e3d4b"
         },
         {
           "sequence": 6,
           "type": "worker_completed",
-          "sha256": "1ae15b1b02aff1a8dc5940887bab3a76a9705fbf9aa0826e9d66f9a76eb82253"
+          "sha256": "13d1b886c42ea3737d5e15e91006b53ff265f236643fba2804e241e646a6e2db"
         },
         {
           "sequence": 7,
           "type": "candidate_captured",
-          "sha256": "79bfd480d9d53227fb1931421d03f7137d2de32e99104ecb256b91618d3a42f2"
+          "sha256": "ca7438eebb23e6fcc565f7901d4c0f3992477c587948319ee42de4b0c0e6ee40"
         },
         {
           "sequence": 8,
           "type": "verification_passed",
-          "sha256": "e33e4365d37a2d00584b7f5b8947a6590fc0fc10ca681b9d81bab89c766b8d21"
+          "sha256": "e93c72349514e08933f667bc1f52cc227731b8ab58e9184c60a503124aeb13bb"
         },
         {
           "sequence": 9,
           "type": "audit_clean",
-          "sha256": "a85a4ce395540e64dc9cc20b9695e11267d1fcd8b486837d8fb91336735bf94c"
+          "sha256": "77b5e7e4b320417510fb97cd035be69061e5538989856693717ce36eb0ee2d82"
         },
         {
           "sequence": 10,
           "type": "completion_materialized",
-          "sha256": "987312f351977b8d3199f8bfa28f2fafd0add34ff3289ba6f346f119cad7cbc9"
+          "sha256": "942aac8c908183040cd7e8be33adae64218e08c53f4a7d50cd766b13fb554f36"
         },
         {
           "sequence": 11,
           "type": "task_completed",
-          "sha256": "7823f6bb0e82de1c982aa7ca3306712c2f82ae82941873a55dd52b3f7bbe774c"
+          "sha256": "e5a67d56e61a0b2e8ebcedf797672b8f44f5d1e189f32adc88da0ca60ce821d9"
         },
         {
           "sequence": 12,
           "type": "lease_released",
-          "sha256": "ac08c8c2f516480fc53114ff27bb75d7053808edd2e2dda00d6f0dbbc726dc00"
+          "sha256": "ed149f0bf42e42ee79adbfa3e123e93b49326a3310b6f01645f2ca3ae9f47129"
         },
         {
           "sequence": 13,
           "type": "sandbox_removed",
-          "sha256": "d233002dea2e754f1327618193be263a50bcc3a65f5411ba0d10a7ea8a5c91cc"
+          "sha256": "d26e85eb907f660ce2656a58dc99bc82e3fd89c83209a899cbc2a210d1fa774c"
         },
         {
           "sequence": 14,
           "type": "workspace_cleaned",
-          "sha256": "0cd1ef8723be0e4045aa6d89829ce342d34f44fcac22f08d5caf62fa335f0f77"
+          "sha256": "7bf63da7a49bd06ecad58ad5fdd04e973b10a2c929afb12fa27708590ee17422"
         }
       ],
       "artifacts": [
@@ -4374,7 +4374,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "0416c70964625ee9d3f2b8ed660b8f3914145792590055d37bc509744be61c2e",
+          "sha256": "ed1a9ed642aa94f05910ba1dfc47c51955df53ad16c42657f131e3fd35e89d62",
           "size_bytes": 2010
         },
         {
@@ -4384,17 +4384,17 @@
         },
         {
           "kind": "verification_evidence",
-          "sha256": "fe89246b324da7ae216916ee1145e3810d3d715d24c22a11c51c254186ef4ee1",
+          "sha256": "cdea0052845be3adc150f5232a19ffb69cd711c6ac5844c669a9a55017e0db25",
           "size_bytes": 244
         },
         {
           "kind": "audit_evidence",
-          "sha256": "01b0c446cdebe6950a6d5a5b7cdd9832172b41583f8112d4a654020a6d6c0d31",
+          "sha256": "f161ae90aacc93fa6819eed43abde0238ef82c11a0e1b4343386e14962bfaf67",
           "size_bytes": 275
         },
         {
           "kind": "completion_capsule",
-          "sha256": "2bae67f1c3cc81a991e1cae938aa4f851f44cce54b76355b2eeb6ae592fc8762",
+          "sha256": "1923f7ecdd99f71f3191782d000c4a85be26b7bb9471622095fed4968995323f",
           "size_bytes": 1201
         }
       ],
@@ -4478,23 +4478,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "sandbox-timeout",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "5c37aa6602b4e88991f31010f7af1e23d188649c115f95fbd2d47f4c340b3958",
+      "authority_sha256": "3ed3b73220bae3e1abab4fcc44ab7b7a0863cd2e425e17c82ca43a9bee2a7cbc",
       "outcome": "sandbox_timeout",
       "stop_reason": "sandbox_timeout",
       "task": {
         "status": "blocked",
         "applicability": "applicable",
-        "sha256": "03a47e98aa92cae17ef7e35a289a3cd2b6a046873fdde6ea61547823a1fc692f"
+        "sha256": "a52b1a6fe5dfbc3996d58436a26388e45c81fd739bc69ded2363dc1b0656d33c"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "2011a7678bf855977d74c7e685876640d82e17f2a1a6dddaecbd00b377ceb9c2"
+        "sha256": "bc54e4cc7705cd2d3b09590e60da88f97cf15bde98b3ed6fd9c4a7e3564c399a"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "127bc354a55bbc783bb8e3adf09026b08908ad7ea00c50474ccc73d20d233c91"
+        "sha256": "d5465a784dea5c0e75a50ef937963d15534a93d40ee59a1eab1467965e01feba"
       },
       "criteria": [
         {
@@ -4507,7 +4507,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "1a6456257fe8258a433a7ec4c8ba2e19a7883a2fb8e02112b6479e40f119cf11"
+          "sha256": "5c416b47fb14c4b4d9163b491bce2a5b72736fe43dbd6e6342f104250cfb7586"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -4519,7 +4519,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "2711717a67130ff8073d5374315241e08003468f3f4601055217191b1ef07f08"
+          "sha256": "a591bdebd26444f40ba3671dd7f49efe509f1e6de79694414b8bc6d2887b27db"
         },
         "profile": "strict",
         "network": "none",
@@ -4531,7 +4531,7 @@
         "state": {
           "status": "timed_out",
           "applicability": "applicable",
-          "sha256": "cc44c06fcf106cf950882d50fea6e71b980dcacad1888b69dc2d36ad053ef7af"
+          "sha256": "4d8dee8045838351e8eaeab3b2db8dfc84efef05706d053d71806db5778f276f"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -4542,7 +4542,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "ba8a502784dd080fd20d5110d5867f01db3473bcaaf5d8cb75e51fc16bf4b70c"
+          "sha256": "0fb48d158771a7339ed75af02ea3fda0304af30731a07b06c7711fdf418a674e"
         },
         "runs": 0,
         "independent": false,
@@ -4552,7 +4552,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "acecc9e7bbac24262a01b47a9a34bbfc82dc79164a06210cac7bce923f080d07"
+          "sha256": "d5da490bae927c1efadab2e6e08c1072f13536e9995914023940bb4fb7b3ad15"
         },
         "authorized": false
       },
@@ -4560,47 +4560,47 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "31f1a650edad17aa28e0ffb02665f482c17ad6121cb1fa4ae887082f6ebd1d58"
+          "sha256": "fe8885112c2fdfb58b261114cef237a214b3389f1c9ccb86ac093c49d7b4729c"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "c240795561a88df9beca4d0fb5830b091f607f36459fa5a463c9e72b6308bfe3"
+          "sha256": "4be2e6cacb4791502dfa4e38422df06b2de9907d047cf77e14cf4f7c68ad0b5b"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "9dfa3567e48a3445cdeba6d4f93ff8cf694e516d9e6d32716b4f217077e9290d"
+          "sha256": "dad86579f5a3dc4ad2eec51e9d8116297dd404c11578944b51d1498b09aaff4b"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "f81522d26fb9ef42a28c6fcf5b373179ab6ff5c816923f644d8355ace80f44e4"
+          "sha256": "cb5221fa3bf086696efb3404feddb4192d969efd523a40f59496b4f0807d3abe"
         },
         {
           "sequence": 5,
           "type": "sandbox_timed_out",
-          "sha256": "e334395d8f2b4eb95ab98ffc65eff2008cea24ae01617eb3ff78273cdc5de1b8"
+          "sha256": "8ca18ffc467b02536a7318e037afa28a6bafb9f72075ff8fe1835eeb013378c1"
         },
         {
           "sequence": 6,
           "type": "task_blocked",
-          "sha256": "7c2f99f83dee129b442e6323a1023a7d7ce7b8d7ab7c985c0ea4e72f52e8e4a3"
+          "sha256": "8813238189ff74300d8034e90236ec25f0dd1a66b0c54ab69f34cb669dd894b5"
         },
         {
           "sequence": 7,
           "type": "lease_released",
-          "sha256": "03c061975071adc3d39196624eaa552aacc40d560e432da2f442bfbb9b23fa80"
+          "sha256": "d1208d04a608471daadf9fa08f1fa4241637de8f1d4f0dd8ec438e00b375df3a"
         },
         {
           "sequence": 8,
           "type": "sandbox_removed",
-          "sha256": "9ad3a55dc99144dda566fc1f93a04dbd8621817c25f330d2ca7cb0fb28a34b8f"
+          "sha256": "a2b22ddec98fdc922006bd397f98c574c6715e94ef48db01b3a1443f09998e2c"
         },
         {
           "sequence": 9,
           "type": "workspace_cleaned",
-          "sha256": "dd46bb1ebd8a03b2946822dd5275ad12ae8baab273391f0d60790468cba365de"
+          "sha256": "26c7522b42d47bc9989350dcab20fcb9522faa7e3207c6cdf87447b7ab263bb9"
         }
       ],
       "artifacts": [
@@ -4616,7 +4616,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "dfe5392b00f36ff2f61644751687055d4b358eade694623e608e26d6dc1593a4",
+          "sha256": "e48b38ea8cc0fa63e0f200884c7c9c3faa48b27e7d0505933187b3c9edd33382",
           "size_bytes": 1259
         }
       ],
@@ -4700,23 +4700,23 @@
       "schema_version": "revolvr-architecture-evaluation-result-v1",
       "scenario_id": "network-denied-dependency-install",
       "worker_execution_mode": "direct_tools_v1",
-      "authority_sha256": "6a9a8d8079176497ce2f789c8fe6361a2182f5fa097c40bacaa4f6223a82cf6c",
+      "authority_sha256": "4ce89d9ed459595ddc2d27a5013caa9560ea4bd815fb48e3b17d65c10117b35a",
       "outcome": "network_denied",
       "stop_reason": "network_denied_dependency_install",
       "task": {
         "status": "blocked",
         "applicability": "applicable",
-        "sha256": "e10b1d99c56d0599f1fd7c9d7855e1974bc56dba6b118091374cf50620fe5696"
+        "sha256": "6654b553f96f4cc08562aee26fec606bb63de6309e092b17f18ecddf5d9a4f95"
       },
       "run": {
         "status": "stopped",
         "applicability": "applicable",
-        "sha256": "38d75323c4ac1bc58ba333ea68ea0c6f3e8c8c70c26d0aad6a61a28439a582c0"
+        "sha256": "0bad213ac50a6ac21eb2ec6c070f4a7baeba04b692a94fca0f4e8945dc42950d"
       },
       "plan": {
         "status": "accepted",
         "applicability": "applicable",
-        "sha256": "65e65160d8f05a81da5565704d587d66858a5a00cb9e3fba03bfd3ffa55fd86f"
+        "sha256": "2ae432b0f86a0fc336f67b45cb36bd6929adb64a7d6bef32dfdcdeeda624d25b"
       },
       "criteria": [
         {
@@ -4729,7 +4729,7 @@
         "state": {
           "status": "cleaned",
           "applicability": "applicable",
-          "sha256": "fa23ac2d93a43248f074eefc7a2388f853a2982b24d6feca03ba2e7ca294c6f2"
+          "sha256": "c319a51a036f7c6c84372c3f457b6edce3716c407810bb89e6749c6b18b13526"
         },
         "baseline_commit": "6180b20913265b59f544233c58b82b11d449523f",
         "original_checkout_before": "3d8b5dfcc57c67103bb30f6d919d51baa9e834906c09670d7d13d64717ce0285",
@@ -4741,7 +4741,7 @@
         "state": {
           "status": "removed",
           "applicability": "applicable",
-          "sha256": "0b6091ccbbdeeb0b2740f647f694b7f3ac84eb66904dea114926cb6a6dfc706b"
+          "sha256": "0d283f70f4a558f3eaa91a5748a9fde6eb6ee3c07ea12dda316589056302313c"
         },
         "profile": "strict",
         "network": "none",
@@ -4753,7 +4753,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "95ba53cd34c2eb41d27abc601e9729e7cda2bb9768010c8bc8b22e36b07713f4"
+          "sha256": "68bb4e8f95ace4fbc800b9b9e0c78d65818788fb99165663a908d5bd01529325"
         },
         "executions": 0,
         "exact_reuses": 0,
@@ -4764,7 +4764,7 @@
         "state": {
           "status": "not_run",
           "applicability": "not_reached",
-          "sha256": "09f9dd160ec99c14be15c07cd8a3dbac6d2151d7004ce583956050e24507a5ff"
+          "sha256": "5ab7359158b8d0d52c550ac6b55a8a17ee2235ca1221d1d9d9bd24a680fa6866"
         },
         "runs": 0,
         "independent": false,
@@ -4774,7 +4774,7 @@
         "state": {
           "status": "not_authorized",
           "applicability": "rejected_or_not_reached",
-          "sha256": "26054d0930eb2251cc7ee959fa497546bb49df013f5d6c2f5abababce443613e"
+          "sha256": "7eb16ce51d5513553d352bb70492dfde2e8734077f0bd76dd62f95700e5939c7"
         },
         "authorized": false
       },
@@ -4782,47 +4782,47 @@
         {
           "sequence": 1,
           "type": "task_admitted",
-          "sha256": "ed4b8e63e1425aaec5d24d462006c1bd495424702d311d2a97b5fd10dcc410b0"
+          "sha256": "8f4c9380b547325bda4825effd4e6b555233287daeba2e81ad5bc3a705908ad9"
         },
         {
           "sequence": 2,
           "type": "plan_accepted",
-          "sha256": "28977a043ebb6a8dbcc98d70840eff3990497f75636aad6494733ed2b2356e39"
+          "sha256": "f628c24acf162b00e1c24f72e0f5d986cabb80df4afc7091bdc9dd2266a3b48b"
         },
         {
           "sequence": 3,
           "type": "workspace_ready",
-          "sha256": "bf474553fe4c5265ed189d4d2955900a6c0c4da14b6816402c5da7fd95b8adfc"
+          "sha256": "70497bc67e671ab1d2e45cd8d76cd1761dac7a6fbf29735fd3612a5fe7e7f78f"
         },
         {
           "sequence": 4,
           "type": "sandbox_running",
-          "sha256": "532a52a36dc9c744b582fcfbf0563c1ae4ce5156068a8df3ec83d1b3585179c7"
+          "sha256": "9d99cbd65bdca765220d1bc9125057971dd27f61c3351f357fe6d47957f3bcaa"
         },
         {
           "sequence": 5,
           "type": "network_dependency_install_denied",
-          "sha256": "9394ca4d321b298515574583667ab5e8ab9e3b3461c40268a5c88388376f177b"
+          "sha256": "bd37baa83ec9bd2791cd4f2623c2e0ba7b4100d1da818f5e04a91fa146f1fcb0"
         },
         {
           "sequence": 6,
           "type": "task_blocked",
-          "sha256": "dd0ce20accce4d7e7563a07e45c3f78cae93f5a3b999170e68cea2ab97ed2914"
+          "sha256": "1d4c77ba109b5a5f066ee7071e0246311c9be9731b64bf2de6e1bc92cd371501"
         },
         {
           "sequence": 7,
           "type": "lease_released",
-          "sha256": "e297ef036aa1a45d5fd3510f1dfca63844805ce8346f04c42cf6a9a1446fb9fd"
+          "sha256": "9a0d6af5c9a61d2f5f1e50a0086cc4bcc438dec55b10a33a96eda2eee02d05b8"
         },
         {
           "sequence": 8,
           "type": "sandbox_removed",
-          "sha256": "2adc11a3519c98c79fc4a96ef98dac759cb40404ce4955ce630f5f13db6a1c14"
+          "sha256": "0a8132dcd9c03d4d19506b848f8f978b1055b763f11b5057c84d08727db6e827"
         },
         {
           "sequence": 9,
           "type": "workspace_cleaned",
-          "sha256": "bb762142b1d25ba2569c4515221607538ffe7401373e98dc78a688c603b85720"
+          "sha256": "d6abb13f5848b377589d1711545572658b81ea9d19658bae450dc27398fcd9d8"
         }
       ],
       "artifacts": [
@@ -4838,7 +4838,7 @@
         },
         {
           "kind": "event_timeline",
-          "sha256": "69c5072fdc7e036f178259e63ad0446819b7c9cd4471fff0ca506a1abb71d717",
+          "sha256": "a4f955b084513c28ac599102c131ddd4a82971091ab25bc7e063302553651261",
           "size_bytes": 1275
         }
       ],

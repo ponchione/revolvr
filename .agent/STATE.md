@@ -1,6 +1,6 @@
 # Agent State
 
-Updated: 2026-08-28
+Updated: 2026-09-02
 
 ## Architecture Status
 
@@ -50,6 +50,11 @@ Updated: 2026-08-28
 ## Current Verification
 
 - `go test ./...` — PASS.
+- `go test ./internal/evaluation -run
+  '^TestFixtureIdentityUsesGitPortableFileModes$' -count=1` — PASS.
+- `go test ./internal/evaluation -count=2` — PASS; 28 test executions.
+- Architecture 022 golden audit — PASS; after recursively removing SHA-256
+  fields, the prior and regenerated baselines are byte-equivalent.
 - `go test ./internal/tui -run
   'Test(TranscriptShellProof|TranscriptShellResize|TranscriptShellSettlement|StatusModelInstallsTranscriptShell)'`
   — PASS.
@@ -69,8 +74,9 @@ Updated: 2026-08-28
 - TUI-030 immediate-focus, accepted footer, plain-text preservation, Escape,
   retained shortcut, slash-command, typed-question, active-settlement, and
   single-publication gates — PASS.
-- `.agent/DECISIONS.md`, application/domain callbacks and authority,
-  dependencies, and `.revolvr/` runtime state are unchanged in this pass.
+- `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS; local
+  ignored runtime is restored and TUI-031 is the sole next task.
+- Application/domain callbacks, dependencies, and TUI authority are unchanged.
 
 ## Blockers And Next Task
 
@@ -82,13 +88,12 @@ Updated: 2026-08-28
 
 ## Latest Pass
 
-- Task selected: `tui-030-make-composer-primary`.
-- Files changed: TUI composer focus/routing and tests, TUI-030 completion and
-  TUI-031 publication metadata, and affected planning, state, task-list,
-  reference, and handoff records.
-- Verification commands run: required `gofmt`, focused composer/command, TUI,
-  CLI, and full Go tests, TUI help, task list/status selectors, state line
-  limit, publication/status audits, and `git diff --check`.
+- Task selected: bounded cross-machine evaluation portability maintenance.
+- Files changed: fixture identity normalization, its seam-level regression,
+  the reviewed golden hash cascade, and affected durable-state records.
+- Verification commands run: red/green focused permission-mode regression,
+  golden semantic audit, evaluation suite twice, full Go suite, initialization,
+  status selector, state line limit, and `git diff --check`.
 - Verification result: PASS.
 - What remains: TUI-031 is pending for the next fresh pass; later tasks remain
   unpublished drafts.

@@ -71,6 +71,39 @@ func TestGoldenBaseline(t *testing.T) {
 	}
 }
 
+func TestFixtureIdentityUsesGitPortableFileModes(t *testing.T) {
+	root := t.TempDir()
+	fixture := filepath.Join(root, "fixture")
+	if err := os.Mkdir(fixture, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(fixture, "main.go")
+	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	identity := func(mode os.FileMode) string {
+		t.Helper()
+		if err := os.Chmod(path, mode); err != nil {
+			t.Fatal(err)
+		}
+		value, err := FixtureIdentity(root, "fixture")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+
+	readOnly := identity(0o644)
+	groupWritable := identity(0o664)
+	if groupWritable != readOnly {
+		t.Fatalf("non-executable fixture identity changed with umask permissions: %s / %s", readOnly, groupWritable)
+	}
+	if executable := identity(0o755); executable == readOnly {
+		t.Fatal("fixture identity ignored Git executable mode")
+	}
+}
+
 func TestRepeatedRunsAreByteStable(t *testing.T) {
 	root := repositoryRoot(t)
 	first, err := RunSuite(context.Background(), root)

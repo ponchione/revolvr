@@ -1,5 +1,17 @@
 # Agent Decisions
 
+## Evaluation Fixture Identity Uses Git-Portable Modes (2026-09-02)
+
+- Architecture 022 fixture identity records regular files as canonical Git
+  mode `0644` or `0755`, selected by the owner-executable bit. Group/other
+  read and write bits are checkout/umask details and do not change authority.
+- Fixture path, bytes, size, and executable meaning remain identity-bearing.
+  The golden baseline changes only after the complete hash cascade is reviewed
+  and its non-hash semantic projection remains byte-equivalent.
+- A seam-level regression proves `0644` and `0664` produce the same fixture
+  identity while `0755` remains distinct. No evaluation outcome, architecture
+  authority, dependency, or runtime policy changed.
+
 ## Accepted Experience States Fix Literal Text And Geometry (2026-08-27)
 
 - TUI-overhaul TUI-005 is accepted and closes E0. The design authority now
