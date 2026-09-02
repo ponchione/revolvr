@@ -21,11 +21,11 @@
 - E0 through E2 are complete. `tui-010-prove-shell-composition`,
   `tui-011-prove-resize-reflow`, `tui-012-prove-active-settlement`, and
   `tui-013-install-terminal-shell` are complete. TUI-020 through TUI-022 are
-  complete, TUI-030 is complete, TUI-031 is the only pending canonical task,
-  and all later TUI tasks remain unpublished drafts.
+  complete, TUI-030 and TUI-031 are complete, TUI-032 is the only pending
+  canonical task, and all later TUI tasks remain unpublished drafts.
 - The 2026-09-02 cross-machine evaluation portability maintenance is complete:
   fixture identities now use Git-stable `0644`/`0755` modes, the golden is
-  reconciled, and TUI-031 remains the only pending canonical task.
+  reconciled, and TUI-032 remains the only pending canonical task.
 - The bounded current-state compaction audit is complete. Deferred EXT and
   superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
@@ -170,10 +170,13 @@
   preserved populated input and slash-command paths, and retained modal and
   operation-settlement focus rules. Its completion handoff published only
   TUI-031.
-- [ ] TUI-031 implementation — route initialized idle plain text to the
-  existing reviewed Add Task flow and reject every other accepted D2/D5 state
-  without an app effect. This is the only pending canonical task; later TUI
-  tasks remain unpublished.
+- [x] TUI-031 implementation — routed initialized idle plain text to the
+  existing reviewed Add Task flow, rejected every other accepted D2/D5 state
+  without an app effect, and preserved active text through settlement. Its
+  completion handoff published only TUI-032.
+- [ ] TUI-032 implementation — add a compact, filtered slash-command popup
+  over the existing command vocabulary and guards. This is the only pending
+  canonical task; later TUI tasks remain unpublished.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

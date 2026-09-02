@@ -1,6 +1,6 @@
 ---
 id: tui-031-implement-plain-text-input
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-030-make-composer-primary
 
 # TUI-031 — Route Idle Plain Text to Task Review
 
-- Status: Pending
+- Status: Completed 2026-09-02
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-031 draft](../../docs/architecture/tui-overhaul/tasks/tui-031-implement-plain-text-input.md)
@@ -60,3 +60,17 @@ go test ./internal/tui
 
 - No new app/domain capability, generalized chat, queue, run instruction,
   command discovery, or task-publication shortcut.
+
+## Completion Evidence
+
+- Initialized idle plain text now opens the existing Add Task review with the
+  exact local draft and makes no app call before explicit review confirmation.
+- Review confirmation uses the existing Add Task callback exactly once;
+  cancellation, blank input, and whitespace-only input produce no write.
+- Uninitialized, active one-pass, loop, task, queue, and unavailable-callback
+  states preserve the composer buffer and report a refusal without an app call
+  or committed success cell.
+- Active input remains inert through matching settlement and requires a new
+  explicit Enter after idle; typed needs-input retains exclusive option-based
+  input.
+- Focused plain-text/task-entry, TUI package, CLI help, and full Go tests pass.

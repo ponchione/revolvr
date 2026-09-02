@@ -846,7 +846,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.beginAutonomousAnswer()
 				return m, nil
 			}
-			m.startTaskEntry()
+			m.startTaskEntry("")
 			return m, nil
 		case "d":
 			m.openFocusedView(viewDiff)
@@ -2347,7 +2347,29 @@ func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 	text := strings.TrimSpace(m.composer.Text)
 	fields := strings.Fields(text)
-	if len(fields) == 0 || !strings.HasPrefix(fields[0], "/") {
+	if len(fields) == 0 {
+		return m, nil
+	}
+	if !strings.HasPrefix(fields[0], "/") {
+		switch {
+		case !m.status.Initialized:
+			m.message = "Input unavailable: run revolvr init first"
+		case m.runOnce.Active || m.runOnce.Started:
+			m.message = "Input unavailable: active steering is not supported"
+			if m.runOnce.Mode != "" && m.runOnce.Mode != runModeOnce {
+				m.message = "Input unavailable: queued or deferred input is not supported"
+			}
+		case m.actions.AddTask == nil:
+			m.message = "Input unavailable: add task is unavailable"
+		case m.actions.RefreshStatus == nil:
+			m.message = "Input unavailable: refresh is unavailable"
+		default:
+			draft := m.composer.Text
+			m.composer.Text = ""
+			m.startTaskEntry(draft)
+			return m, nil
+		}
+		m.updateViewportContent()
 		return m, nil
 	}
 	if fields[0] == "/" {
@@ -2536,10 +2558,11 @@ func isFocusedView(view TUIView) bool {
 	return view == viewDiff || view == viewEvidence || view == viewApproval
 }
 
-func (m *StatusModel) startTaskEntry() {
+func (m *StatusModel) startTaskEntry(taskText string) {
 	m.taskEntry = taskEntryState{
 		previous: m.view,
 		field:    taskEntryTaskField,
+		taskText: taskText,
 	}
 	m.view = viewTaskEntry
 	m.composer.Active = false

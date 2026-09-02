@@ -1715,6 +1715,192 @@ func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) 
 	)
 }
 
+func TestPlainTextComposerOpensReviewedTaskDraft(t *testing.T) {
+	addCalled := false
+	refreshCalled := false
+	addCalls := 0
+	refreshCalls := 0
+	var addedInput app.AddTaskInput
+	actions := StatusActions{
+		AddTask: func(input app.AddTaskInput) (taskmodel.Task, error) {
+			addCalled = true
+			addCalls++
+			addedInput = input
+			return taskmodel.Task{ID: "task-published"}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			refreshCalled = true
+			refreshCalls++
+			return app.StatusResult{Initialized: true, Tasks: []taskmodel.Task{{ID: "task-published"}}}, nil
+		},
+	}
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, actions)
+
+	unchanged, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || unchanged.view != viewDashboard || unchanged.composer != model.composer || addCalled || refreshCalled {
+		t.Fatalf("empty submission changed state: cmd=%v view=%v composer=%#v add=%t refresh=%t", cmd, unchanged.view, unchanged.composer, addCalled, refreshCalled)
+	}
+	unchanged, _ = typeIntoStatusModel(t, unchanged, "   ")
+	beforeWhitespace := unchanged
+	unchanged, cmd = updateStatusModel(t, unchanged, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || unchanged.view != beforeWhitespace.view || unchanged.composer != beforeWhitespace.composer || unchanged.message != beforeWhitespace.message || addCalled || refreshCalled {
+		t.Fatalf("whitespace submission changed state: cmd=%v view=%v composer=%#v message=%q add=%t refresh=%t", cmd, unchanged.view, unchanged.composer, unchanged.message, addCalled, refreshCalled)
+	}
+
+	model = NewStatusModelWithActions(app.StatusResult{Initialized: true}, actions)
+	model, _ = typeIntoStatusModel(t, model, "  draft task  ")
+	review, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || addCalled || refreshCalled {
+		t.Fatalf("draft transition: cmd=%v add=%t refresh=%t", cmd, addCalled, refreshCalled)
+	}
+	if review.view != viewTaskEntry || review.taskEntry.taskText != "  draft task  " || review.composer.Text != "" {
+		t.Fatalf("draft state: view=%v entry=%#v composer=%#v", review.view, review.taskEntry, review.composer)
+	}
+	requireLines(t, normalizedViewLines(review.View()), "Add Task", "> Task:   draft task", "  Summary:")
+
+	cancelled, cmd := updateStatusModel(t, review, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || addCalled || refreshCalled || cancelled.view != viewDashboard || !cancelled.composer.Active || cancelled.composer.Text != "" {
+		t.Fatalf("cancelled draft: cmd=%v add=%t refresh=%t view=%v composer=%#v", cmd, addCalled, refreshCalled, cancelled.view, cancelled.composer)
+	}
+
+	model = NewStatusModelWithActions(app.StatusResult{Initialized: true}, actions)
+	model, _ = typeIntoStatusModel(t, model, "  publish this task  ")
+	review, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	submitted, cmd := updateStatusModel(t, review, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil || addCalls != 0 || refreshCalls != 0 {
+		t.Fatalf("review confirmation: cmd=%v add=%d refresh=%d", cmd, addCalls, refreshCalls)
+	}
+	_, cmd = runStatusModelCmd(t, submitted, cmd)
+	if cmd != nil || addCalls != 1 || refreshCalls != 1 || addedInput.Task != "publish this task" {
+		t.Fatalf("published draft: cmd=%v add=%d refresh=%d input=%#v", cmd, addCalls, refreshCalls, addedInput)
+	}
+}
+
+func TestPlainTextComposerRejectsUnavailableStates(t *testing.T) {
+	tests := []struct {
+		name             string
+		initialized      bool
+		addAvailable     bool
+		refreshAvailable bool
+		run              runOnceState
+		want             string
+	}{
+		{
+			name:             "uninitialized",
+			addAvailable:     true,
+			refreshAvailable: true,
+			want:             "Input unavailable: run revolvr init first",
+		},
+		{
+			name:             "active one pass",
+			initialized:      true,
+			addAvailable:     true,
+			refreshAvailable: true,
+			run:              runOnceState{Active: true, Started: true, Mode: runModeOnce, Token: 41},
+			want:             "Input unavailable: active steering is not supported",
+		},
+		{
+			name:             "active loop",
+			initialized:      true,
+			addAvailable:     true,
+			refreshAvailable: true,
+			run:              runOnceState{Active: true, Started: true, Mode: runModeLoop},
+			want:             "Input unavailable: queued or deferred input is not supported",
+		},
+		{
+			name:             "active task",
+			initialized:      true,
+			addAvailable:     true,
+			refreshAvailable: true,
+			run:              runOnceState{Active: true, Started: true, Mode: runModeTask},
+			want:             "Input unavailable: queued or deferred input is not supported",
+		},
+		{
+			name:             "active queue",
+			initialized:      true,
+			addAvailable:     true,
+			refreshAvailable: true,
+			run:              runOnceState{Active: true, Started: true, Mode: runModeQueue},
+			want:             "Input unavailable: queued or deferred input is not supported",
+		},
+		{name: "add callback", initialized: true, refreshAvailable: true, want: "Input unavailable: add task is unavailable"},
+		{name: "refresh callback", initialized: true, addAvailable: true, want: "Input unavailable: refresh is unavailable"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			actions := StatusActions{}
+			if tt.addAvailable {
+				actions.AddTask = func(app.AddTaskInput) (taskmodel.Task, error) {
+					calls++
+					return taskmodel.Task{}, nil
+				}
+			}
+			if tt.refreshAvailable {
+				actions.RefreshStatus = func() (app.StatusResult, error) {
+					calls++
+					return app.StatusResult{}, nil
+				}
+			}
+			model := NewStatusModelWithActions(app.StatusResult{Initialized: tt.initialized}, actions)
+			model.runOnce = tt.run
+			beforeCommitted := slices.Clone(model.committed)
+			model, _ = typeIntoStatusModel(t, model, "keep this draft")
+			rejected, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+			if cmd != nil || calls != 0 || rejected.view != viewDashboard || rejected.composer.Text != "keep this draft" || rejected.message != tt.want {
+				t.Fatalf("rejected state: cmd=%v calls=%d view=%v composer=%#v message=%q", cmd, calls, rejected.view, rejected.composer, rejected.message)
+			}
+			if !reflect.DeepEqual(rejected.committed, beforeCommitted) || rejected.taskEntry.taskText != "" {
+				t.Fatalf("rejection changed durable presentation: committed=%#v entry=%#v", rejected.committed, rejected.taskEntry)
+			}
+			requireLines(t, normalizedViewLines(rejected.View()), "Notice: "+tt.want, "› keep this draft")
+
+			if tt.name != "active one pass" {
+				return
+			}
+			settling, cmd := updateStatusModel(t, rejected, runOnceDoneMsg{
+				token:  41,
+				result: runonce.Result{NoTask: true, Outcome: runonce.OutcomeNoTask},
+				status: app.StatusResult{Initialized: true},
+			})
+			if cmd == nil || settling.settling == nil || calls != 0 || settling.composer.Text != "keep this draft" || settling.view != viewDashboard {
+				t.Fatalf("settlement consumed input: cmd=%v calls=%d settling=%#v composer=%#v view=%v", cmd, calls, settling.settling, settling.composer, settling.view)
+			}
+			settled, cmd := updateStatusModel(t, settling, transcriptCommittedMsg{token: 41, identity: settling.settling.cell.identity})
+			if cmd != nil || settled.runOnce.Started || calls != 0 || settled.composer.Text != "keep this draft" || settled.view != viewDashboard {
+				t.Fatalf("settled input changed: cmd=%v calls=%d run=%#v composer=%#v view=%v", cmd, calls, settled.runOnce, settled.composer, settled.view)
+			}
+			review, cmd := updateStatusModel(t, settled, tea.KeyMsg{Type: tea.KeyEnter})
+			if cmd != nil || calls != 0 || review.view != viewTaskEntry || review.taskEntry.taskText != "keep this draft" {
+				t.Fatalf("explicit retry: cmd=%v calls=%d view=%v entry=%#v", cmd, calls, review.view, review.taskEntry)
+			}
+		})
+	}
+}
+
+func TestPlainTextComposerCannotBypassTypedNeedsInput(t *testing.T) {
+	addCalled := false
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		AddTask: func(app.AddTaskInput) (taskmodel.Task, error) {
+			addCalled = true
+			return taskmodel.Task{}, nil
+		},
+		RefreshStatus: func() (app.StatusResult, error) { return app.StatusResult{}, nil },
+	})
+	model.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
+	model.composer = commandComposerState{Active: false, Text: "preserved draft"}
+
+	model, cmd := updateStatusModel(t, model, keyRunes("free-form answer"))
+	if cmd != nil || addCalled || model.composer.Text != "preserved draft" {
+		t.Fatalf("typed input runes changed composer: cmd=%v add=%t composer=%#v", cmd, addCalled, model.composer)
+	}
+	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || addCalled || !model.autonomous.Answer.Active || model.message != "Select an offered option before confirming." {
+		t.Fatalf("typed input enter: cmd=%v add=%t answer=%#v message=%q", cmd, addCalled, model.autonomous.Answer, model.message)
+	}
+}
+
 func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 	refreshed := false
 	model := NewStatusModelWithActions(app.StatusResult{

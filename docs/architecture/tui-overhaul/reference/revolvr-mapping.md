@@ -39,7 +39,7 @@ the overhaul.
 | [Replay from durable semantic source](interaction-model.md#session-header-replay-and-refresh) | `app.RunTimeline` deterministically projects ledger history and tests completed/failure/fallback cases. ([R03]) | `presentation change` | emit `session-start`, replay a bounded source window once, and append only new stable identities on refresh | [TUI-021](../tasks/tui-021-project-historical-runs.md) / accepted D3/D6 |
 | Live/history identity reconciliation | Refresh preserves selection and focused refresh reloads canonical history. ([R07]) | `proof required` | stable ledger event/run identity plus process-local emitted set | [TUI-022](../tasks/tui-022-reconcile-live-history.md) / accepted D3 |
 | [Normally focused composer](interaction-model.md#composer-ownership-and-submission) | Composer starts focused, retains plain text without command dispatch, and yields to current page/modal focus without losing populated input. ([R08]) | `accepted; complete` | `commandComposerState`, top-level key routing, footer | [TUI-030](../tasks/tui-030-make-composer-primary.md) / accepted D2 |
-| Plain-text submission | `submitCommand` treats the first field as a slash command; task entry already holds an editable draft and calls reviewed `AddTaskAndCommit` only on Enter. ([R02], [R08], [R17]) | `presentation change` | transfer initialized idle text into existing `taskEntryState`; reject and preserve it otherwise | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) / accepted D2/D5; no app prerequisite |
+| Plain-text submission | Initialized idle text transfers into the existing editable task review; rejected D2/D5 states preserve it, and only review confirmation calls the existing Add Task action. ([R02], [R08], [R17]) | `accepted; complete` | `submitCommand`, existing `taskEntryState`, and unchanged Add Task callback | [TUI-031](../tasks/tui-031-implement-plain-text-input.md) / accepted D2/D5; no app prerequisite |
 | [Contextual command discovery and history](interaction-model.md#commands-and-history) | `/` plus enter opens static help; no filtered popup or submission history exists. ([R08]) | `presentation change` | composer-local filtered list over the existing `submitCommand` vocabulary | [TUI-032](../tasks/tui-032-add-contextual-command-discovery.md) / D2 |
 | One replaceable live operation | `runOnceState` already holds one active operation and rejects overlapping starts. ([R06], [R09]) | `presentation change` | render existing `runOnceState` only in the managed live frame | [TUI-040](../tasks/tui-040-render-live-operation.md) / accepted D3 |
 | [Queued input with explicit categories](interaction-model.md#queued-input-and-interruption) | No application callback or domain projection owns queued composer input. Active-run key routing rejects conflicting actions. ([R02], [R06]) | `skip` | none; accepted D5 rejects steering and queued/deferred messages | No task; TUI-041 removed |
@@ -103,8 +103,8 @@ the overhaul.
    exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-005 closes the product-decision gate. TUI-010 through TUI-030 are complete,
-TUI-031 is pending, and later tasks remain unpublished drafts.
+TUI-005 closes the product-decision gate. TUI-010 through TUI-031 are complete,
+TUI-032 is pending, and later tasks remain unpublished drafts.
 
 ## Revolvr Evidence
 

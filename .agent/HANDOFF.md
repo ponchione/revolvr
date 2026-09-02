@@ -286,6 +286,16 @@ Updated: 2026-09-02
 - Restored this checkout's ignored `.revolvr/` state with `revolvr init`.
   Other machines create their own local runtime after pulling the portability
   commit; canonical task and handoff authority remains tracked under `.agent/`.
+- Completed TUI-031 by routing initialized idle plain text into the existing
+  editable Add Task review without calling the app before confirmation.
+- Blank input and Escape produce no write. Uninitialized, active one-pass,
+  loop, task, queue, and unavailable-callback states preserve the composer
+  buffer and reject without an app call or committed success cell.
+- Active text remains inert through matching settlement and requires a new
+  explicit Enter after idle. Typed needs-input remains exact option-only input.
+- TUI-031's completion handoff published only
+  `.agent/tasks/tui-032-add-contextual-command-discovery.md`. TUI-032 is pending
+  and unstarted; every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -293,7 +303,7 @@ Updated: 2026-09-02
 go run ./cmd/revolvr status
 ```
 
-It must report TUI-031 as the only pending and next task, without selecting
+It must report TUI-032 as the only pending and next task, without selecting
 deferred EXT or superseded PTC work.
 
 ## Exact Next Command
@@ -304,8 +314,8 @@ Run one fresh Codex pass:
 codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-The next fresh pass implements the already-pending TUI-031 task. Do not
-republish TUI-030 or publish TUI-032 before TUI-031 completes.
+The next fresh pass implements the already-pending TUI-032 task. Do not
+republish TUI-031 or publish TUI-040 before TUI-032 completes.
 
 ## Verification
 
@@ -514,5 +524,19 @@ republish TUI-030 or publish TUI-032 before TUI-031 completes.
   the only pending task.
 - `go run ./cmd/revolvr status` — PASS; TUI-031 is selected next.
 - `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run
+  'TestPlainTextComposer|TestStatusModelTaskEntry' -count=1` — PASS; 13 tests.
+- `go test ./internal/tui -count=1` — PASS; 135 tests.
+- `go test ./... -count=1` — PASS; 4,139 tests in 91 packages, including the
+  socket-based packages refused by the external agent sandbox.
+- `go run ./cmd/revolvr tui --help` — PASS.
+- TUI-031 reviewed-draft, exact-once publication, cancellation,
+  rejected-state, post-settlement, typed-needs-input, unchanged-authority, and
+  single-publication gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-031 is complete and TUI-032 is
+  the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-032 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
 
-Run the exact next command above for the pending TUI-031 implementation pass.
+Run the exact next command above for the pending TUI-032 implementation pass.

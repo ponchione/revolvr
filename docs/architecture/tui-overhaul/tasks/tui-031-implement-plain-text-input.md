@@ -1,6 +1,6 @@
 # TUI-031 — Route Idle Plain Text to Task Review
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-02
 - Epic: [E3 — Make the composer primary](../epics/e3-primary-composer.md)
 - Depends on: [TUI-030](tui-030-make-composer-primary.md) and accepted D2/D5
 
@@ -44,3 +44,12 @@ go test ./internal/tui
 
 - No new app/domain capability, generalized chat, queue, run instruction,
   command discovery, or task-publication shortcut.
+
+## Completion Evidence
+
+- Initialized idle text transfers into the existing editable Add Task review;
+  only review confirmation invokes the existing publication callback.
+- Blank/cancelled input and every rejected D2/D5 state have no app or
+  transcript-success effect, while the rejected composer buffer stays intact.
+- Active text remains inert through settlement, typed needs-input stays
+  option-only, and focused, package, and full Go tests pass.
