@@ -1,7 +1,6 @@
 # E3 — Make the Composer Primary
 
-- Status: Active planning record; TUI-030 and TUI-031 are complete, TUI-032 is
-  pending, and later tasks remain draft
+- Status: Completed 2026-09-02; TUI-030 through TUI-032 are complete
 - Design authority: [TUI overhaul](../README.md)
 - Depends on: [E1](e1-terminal-shell.md) and accepted D2
 

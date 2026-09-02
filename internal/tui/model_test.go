@@ -21,6 +21,7 @@ import (
 	"revolvr/internal/app"
 	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoustaskrun"
+	"revolvr/internal/autonomousview"
 	"revolvr/internal/codexexec"
 	"revolvr/internal/commit"
 	"revolvr/internal/ledger"
@@ -3730,6 +3731,172 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 		t.Fatalf("narrow committed narrative = %q", got)
 	}
 	assertMaxLineWidth(t, append(lines, committed...), 40)
+}
+
+func TestCommandDiscoveryFindsAndExecutesEveryCommand(t *testing.T) {
+	status := app.StatusResult{
+		Initialized: true,
+		Tasks: []taskmodel.Task{{
+			ID:       "task-ready",
+			Status:   taskmodel.StatusPending,
+			Workflow: taskfile.WorkflowAutonomousV1,
+		}},
+	}
+	actions := StatusActions{
+		RefreshStatus: func() (app.StatusResult, error) { return status, nil },
+		ValidateReceipt: func(string) (receipt.ValidationResult, error) {
+			return receipt.ValidationResult{}, nil
+		},
+		Preflight: func() (app.PreflightResult, error) {
+			return app.PreflightResult{Ready: true}, nil
+		},
+		RunOnce: func(context.Context, app.RunProgress) (runonce.Result, error) {
+			return runonce.Result{}, nil
+		},
+		RunLoop: func(context.Context, int, app.RunProgress, app.RunPassFunc) (app.RunLoopResult, error) {
+			return app.RunLoopResult{}, nil
+		},
+		RunTask: func(context.Context, string, int64, autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
+			return autonomoustaskrun.Result{}, nil
+		},
+		ListAutonomous: func() ([]app.AutonomousTaskSelector, error) { return nil, nil },
+		AnswerInput: func(app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+			return app.AnswerAutonomousInputResult{}, nil
+		},
+		RunQueue: func(context.Context, int64, int64, autonomousqueue.Progress) (autonomousqueue.Result, error) {
+			return autonomousqueue.Result{}, nil
+		},
+	}
+	question := autonomousview.View{
+		Identity: autonomousview.Identity{SourceKind: autonomousview.SourceActive, TaskID: "task-ready"},
+		Input: autonomousview.OperatorInput{
+			State:         "waiting",
+			QuestionID:    "question-one",
+			Revision:      1,
+			ContentSHA256: strings.Repeat("a", 64),
+			Options:       []autonomousview.InputOption{{ID: "option-one", Meaning: "Use option one."}},
+		},
+	}
+
+	for _, command := range slashCommands {
+		t.Run(command.name, func(t *testing.T) {
+			model := NewStatusModelWithActions(status, actions)
+			model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+			model.runDetails = &ledger.RunWithEvents{Run: ledger.Run{ID: "run-one"}}
+			model.autonomous.View = &question
+			model.autonomous.TaskID = "task-ready"
+			if command.name == "cancel" {
+				model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeOnce, Cancel: func() {}}
+			}
+
+			text := "/" + command.name
+			if command.name == "answer" {
+				text += " option-one"
+			}
+			model, cmd := updateStatusModel(t, model, keyRunes(text))
+			matches := model.filteredSlashCommands()
+			if len(matches) == 0 || matches[0].name != command.name {
+				t.Fatalf("exact match for %q = %#v", command.name, matches)
+			}
+			if !strings.Contains(model.renderHelp(), command.usage) {
+				t.Fatalf("Help does not include %q", command.usage)
+			}
+
+			model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+			if model.composer.DiscoveryOpen || strings.HasPrefix(model.message, "Unknown command:") {
+				t.Fatalf("command %q did not dispatch: composer=%#v message=%q cmd=%v", command.name, model.composer, model.message, cmd)
+			}
+			if model.runOnce.Cancel != nil {
+				model.runOnce.Cancel()
+			}
+		})
+	}
+}
+
+func TestCommandDiscoveryFiltersSelectsAndUsesCommandGuards(t *testing.T) {
+	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		RunOnce: func(context.Context, app.RunProgress) (runonce.Result, error) {
+			return runonce.Result{}, nil
+		},
+	})
+	model, _ = updateStatusModel(t, model, keyRunes("/ta"))
+	lines := normalizedViewLines(model.View())
+	requireLines(t, lines,
+		"Commands 1-2 of 2 · ↑/↓ select · Esc close",
+		"> /tasks — Open Tasks",
+		"  /task-run — [disabled] Autonomous task run is unavailable.",
+	)
+
+	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+	requireLines(t, normalizedViewLines(model.View()), "> /task-run — [disabled] Autonomous task run is unavailable.")
+	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyUp})
+	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || model.view != viewTasks || model.composer.DiscoveryOpen || model.composer.Text != "" {
+		t.Fatalf("selected command state: view=%v composer=%#v cmd=%v", model.view, model.composer, cmd)
+	}
+
+	guarded := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+		RunOnce: func(context.Context, app.RunProgress) (runonce.Result, error) {
+			return runonce.Result{}, nil
+		},
+	})
+	guarded, _ = updateStatusModel(t, guarded, keyRunes("/run"))
+	requireLines(t, normalizedViewLines(guarded.View()), "> /run — [disabled] Run blocked: preflight is not ready.")
+	guarded, cmd = updateStatusModel(t, guarded, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || guarded.composer.Text != "/run" || !guarded.composer.DiscoveryOpen || guarded.message != guarded.runStartBlocker(runModeOnce) {
+		t.Fatalf("guarded command state: composer=%#v message=%q cmd=%v", guarded.composer, guarded.message, cmd)
+	}
+
+	guarded.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+	requireLines(t, normalizedViewLines(guarded.View()), "> /run — Run once")
+	guarded, cmd = updateStatusModel(t, guarded, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil || !guarded.runOnce.Active || guarded.composer.DiscoveryOpen {
+		t.Fatalf("enabled command state: run=%#v composer=%#v cmd=%v", guarded.runOnce, guarded.composer, cmd)
+	}
+	guarded.runOnce.Cancel()
+}
+
+func TestCommandDiscoveryEscapePreservesComposerBufferAndFocus(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	model, _ = updateStatusModel(t, model, keyRunes("/ta"))
+	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || !model.composer.Active || model.composer.DiscoveryOpen || model.composer.Text != "/ta" {
+		t.Fatalf("closed discovery state: composer=%#v cmd=%v", model.composer, cmd)
+	}
+	requireNoLine(t, normalizedViewLines(model.View()), "Commands 1-2 of 2 · ↑/↓ select · Esc close")
+
+	model, _ = updateStatusModel(t, model, keyRunes("s"))
+	if !model.composer.DiscoveryOpen || model.composer.Text != "/tas" {
+		t.Fatalf("typing did not reopen discovery: composer=%#v", model.composer)
+	}
+	requireLines(t, normalizedViewLines(model.View()), "> /tasks — Open Tasks")
+}
+
+func TestCommandDiscoveryNarrowWindowKeepsSelectionAndCancellationVisible(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	model.runOnce = runOnceState{
+		Active:          true,
+		Started:         true,
+		CancelRequested: true,
+		Mode:            runModeLoop,
+		Status:          "running",
+		MaxPasses:       3,
+		Stats:           app.RunLoopStats{MaxPasses: 3},
+		Logs:            []string{"system: cancellation requested"},
+	}
+	model.updateViewportContent()
+	model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 40, Height: 24})
+	model, _ = updateStatusModel(t, model, keyRunes("/"))
+	for range slashCommands {
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+	}
+
+	if got := len(model.commandDiscoveryLines()); got != maxCommandRows+1 {
+		t.Fatalf("popup rows = %d, want %d", got, maxCommandRows+1)
+	}
+	lines := normalizedViewLines(model.View())
+	assertMaxLineWidth(t, lines, 40)
+	requireLines(t, lines, "Cancellation: requested", "> /quit — Quit")
 }
 
 func TestComposerFocusAndEscapeStateTable(t *testing.T) {

@@ -25,9 +25,10 @@ Updated: 2026-09-02
   session cell. TUI-010's composition proof, TUI-011's managed-resize proof,
   TUI-012's active-settlement proof, TUI-013's installed terminal shell,
   TUI-020's semantic cell vocabulary, TUI-021's bounded historical projection,
-  TUI-022's live-to-committed reconciliation, TUI-030's primary composer, and
-  TUI-031's reviewed idle plain-text route are complete. TUI-032 is the only
-  pending canonical task, and later TUI tasks remain unpublished drafts.
+  TUI-022's live-to-committed reconciliation, TUI-030's primary composer,
+  TUI-031's reviewed idle plain-text route, and TUI-032's contextual command
+  discovery are complete. TUI-040 is the only pending canonical task, and later
+  TUI tasks remain unpublished drafts.
 
 ## Architecture 024 TUI
 
@@ -49,7 +50,7 @@ Updated: 2026-09-02
 
 ## Current Verification
 
-- `go test ./... -count=1` — PASS; 4,139 tests in 91 packages, including the
+- `go test ./... -count=1` — PASS; 4,164 tests in 91 packages, including the
   socket-based packages that the external agent sandbox could not execute.
 - `go test ./internal/evaluation -run
   '^TestFixtureIdentityUsesGitPortableFileModes$' -count=1` — PASS.
@@ -79,29 +80,36 @@ Updated: 2026-09-02
   single-publication gates — PASS.
 - TUI-031 reviewed-draft, single-publication, cancellation, rejected-state,
   post-settlement, typed-needs-input, and unchanged-authority gates — PASS.
+- `go test ./internal/tui -run 'TestCommandDiscovery' -count=1` — PASS; 25
+  tests including every retained command name.
+- `go test ./internal/tui -count=1` — PASS; 160 tests.
+- TUI-032 command coverage, exact/prefix filtering, shared-guard, keyboard,
+  dismissal, Help, 40-column, cancellation-visibility, and single-publication
+  gates — PASS.
 - `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS; local
-  ignored runtime is restored and TUI-032 is the sole next task.
+  ignored runtime is restored and TUI-040 is the sole next task.
 - Application/domain callbacks, dependencies, and TUI authority are unchanged.
 
 ## Blockers And Next Task
 
 - Blockers: none. The prior socket-permission failure was specific to the
   external agent sandbox; the required full suite passes in this checkout.
-- TUI-031 is complete. TUI-032 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-030.
+- TUI-032 is complete. TUI-040 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-022 and TUI-030.
 - Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
   TUI tasks, or reopen Architecture 025.
 
 ## Latest Pass
 
-- Task selected: `tui-031-implement-plain-text-input`.
-- Files changed: the TUI plain-text routing path and regression tests, TUI-031
-  completion and TUI-032 publication metadata, and affected planning, state,
-  task-list, reference, and handoff records.
-- Verification commands run: required `gofmt`, focused plain-text/task-entry,
-  TUI, and full Go tests, TUI help, task list/status selectors, state line
-  limit, publication/status audits, and `git diff --check`.
+- Task selected: `tui-032-add-contextual-command-discovery`.
+- Files changed: composer-local command discovery and shared guard paths,
+  focused regression tests, TUI-032 completion and TUI-040 publication
+  metadata, and affected planning, state, task-list, reference, and handoff
+  records.
+- Verification commands run: required `gofmt`, focused command-discovery, TUI,
+  and full Go tests, TUI help, task list/status selectors, state line limit,
+  publication/status audits, and `git diff --check`.
 - Verification result: PASS.
-- What remains: TUI-032 is pending for the next fresh pass; later tasks remain
+- What remains: TUI-040 is pending for the next fresh pass; later tasks remain
   unpublished drafts.
 - Blockers: none.

@@ -1,6 +1,6 @@
 ---
 id: tui-032-add-contextual-command-discovery
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-030-make-composer-primary
 
 # TUI-032 — Add Contextual Command Discovery
 
-- Status: Pending
+- Status: Completed 2026-09-02
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-032 draft](../../docs/architecture/tui-overhaul/tasks/tui-032-add-contextual-command-discovery.md)
@@ -53,3 +53,17 @@ go test ./internal/tui
 ## Not Included
 
 - No new command, guard, Help redesign, or general overlay migration.
+
+## Completion Evidence
+
+- A composer-local popup opens for leading `/`, filters exact and prefix
+  matches across every retained command name, and keeps exact matches first.
+- Up/Down selection executes through the existing command dispatch; disabled
+  rows use the same command blocker methods as execution and retain readable
+  reasons without clearing the composer.
+- The popup shows at most five command rows, clips by display width, keeps the
+  selected row and active cancellation state visible at 40 columns, and uses
+  textual selection, descriptions, and disabled markers.
+- Escape closes discovery without changing the composer buffer or focus, while
+  bare `/` still opens full Help and restores its original buffer on return.
+- Focused discovery, full TUI, CLI help, and repository-wide Go tests pass.

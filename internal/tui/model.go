@@ -35,6 +35,7 @@ const (
 	defaultRunLoopPasses  = 3
 	maxDashboardEvents    = 8
 	maxDashboardDetail    = 56
+	maxCommandRows        = 5
 )
 
 var _ tea.Model = StatusModel{}
@@ -383,8 +384,40 @@ type taskEntryState struct {
 }
 
 type commandComposerState struct {
-	Active bool
-	Text   string
+	Active          bool
+	Text            string
+	DiscoveryOpen   bool
+	SelectedCommand int
+}
+
+type slashCommand struct {
+	name        string
+	usage       string
+	description string
+}
+
+var slashCommands = []slashCommand{
+	{name: "help", usage: "/help", description: "Open full Help"},
+	{name: "commands", usage: "/commands", description: "Alias for /help"},
+	{name: "transcript", usage: "/transcript", description: "Open transcript"},
+	{name: "dashboard", usage: "/dashboard", description: "Alias for /transcript"},
+	{name: "tasks", usage: "/tasks", description: "Open Tasks"},
+	{name: "runs", usage: "/runs", description: "Open Runs"},
+	{name: "detail", usage: "/detail", description: "Open Run Detail"},
+	{name: "workflow", usage: "/workflow", description: "Open Workflow"},
+	{name: "diff", usage: "/diff", description: "Open Change Summary"},
+	{name: "evidence", usage: "/evidence", description: "Open Evidence"},
+	{name: "approval", usage: "/approval", description: "Open Approval"},
+	{name: "answer", usage: "/answer <option-id>", description: "Answer typed input"},
+	{name: "preflight", usage: "/preflight", description: "Run readiness checks"},
+	{name: "run", usage: "/run", description: "Run once"},
+	{name: "loop", usage: "/loop", description: "Run bounded loop"},
+	{name: "task-run", usage: "/task-run", description: "Run selected task"},
+	{name: "queue", usage: "/queue", description: "Run task queue"},
+	{name: "refresh", usage: "/refresh", description: "Refresh status"},
+	{name: "cancel", usage: "/cancel", description: "Cancel active run"},
+	{name: "validate", usage: "/validate", description: "Validate receipt"},
+	{name: "quit", usage: "/quit", description: "Quit"},
 }
 
 type receiptValidationState struct {
@@ -801,7 +834,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateCommandComposer(msg)
 		}
 		if msg.String() == "/" {
-			m.composer = commandComposerState{Active: true, Text: "/"}
+			m.composer = commandComposerState{Active: true, Text: "/", DiscoveryOpen: true}
 			m.resizeViewport()
 			return m, nil
 		}
@@ -1238,8 +1271,8 @@ func (m StatusModel) preflightCmd() tea.Cmd {
 }
 
 func (m *StatusModel) loadAutonomousSelectorsCmd() tea.Cmd {
-	if m.actions.ListAutonomous == nil {
-		m.autonomous.Err = "Workflow selector loading is unavailable."
+	if blocker := m.autonomousListBlocker(); blocker != "" {
+		m.autonomous.Err = blocker
 		m.autonomous.LoadingList = false
 		m.updateViewportContent()
 		return nil
@@ -1253,6 +1286,13 @@ func (m *StatusModel) loadAutonomousSelectorsCmd() tea.Cmd {
 		selectors, err := m.actions.ListAutonomous()
 		return autonomousSelectorsMsg{token: token, selectors: selectors, err: err}
 	}
+}
+
+func (m StatusModel) autonomousListBlocker() string {
+	if m.actions.ListAutonomous == nil {
+		return "Workflow selector loading is unavailable."
+	}
+	return ""
 }
 
 func (m *StatusModel) preserveAutonomousSelection() {
@@ -1329,24 +1369,27 @@ func (m *StatusModel) moveAutonomousSelection(delta int) tea.Cmd {
 }
 
 func (m *StatusModel) beginAutonomousAnswer() {
-	if m.runOnce.Active {
-		m.message = "Run is active; cancel or wait before answering input."
-		m.updateViewportContent()
-		return
-	}
-	if m.actions.AnswerInput == nil {
-		m.message = "Answer input is unavailable."
-		m.updateViewportContent()
-		return
-	}
-	if m.autonomous.View == nil || m.autonomous.View.Identity.SourceKind != autonomousview.SourceActive || m.autonomous.View.Input.State != "waiting" || m.autonomous.View.Input.QuestionID == "" || len(m.autonomous.View.Input.Options) == 0 {
-		m.message = "Answer unavailable: the selected evidence has no current typed question."
+	if blocker := m.answerBlocker(); blocker != "" {
+		m.message = blocker
 		m.updateViewportContent()
 		return
 	}
 	m.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
 	m.message = "Choose an option explicitly; the recommendation is not preselected."
 	m.updateViewportContent()
+}
+
+func (m StatusModel) answerBlocker() string {
+	switch {
+	case m.runOnce.Active:
+		return "Run is active; cancel or wait before answering input."
+	case m.actions.AnswerInput == nil:
+		return "Answer input is unavailable."
+	case m.autonomous.View == nil || m.autonomous.View.Identity.SourceKind != autonomousview.SourceActive || m.autonomous.View.Input.State != "waiting" || m.autonomous.View.Input.QuestionID == "" || len(m.autonomous.View.Input.Options) == 0:
+		return "Answer unavailable: the selected evidence has no current typed question."
+	default:
+		return ""
+	}
 }
 
 func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1539,37 +1582,9 @@ func (m *StatusModel) startRunLoop() tea.Cmd {
 }
 
 func (m *StatusModel) startTaskRun() tea.Cmd {
-	if message := m.runStartBlocker(runModeTask); message != "" {
+	task, message := m.autonomousTaskRunBlocker()
+	if message != "" {
 		m.message = message
-		m.updateViewportContent()
-		return nil
-	}
-	task, ok := m.selectedTaskValue()
-	if m.view == viewAutonomous && m.autonomous.View != nil {
-		view := m.autonomous.View
-		ok = false
-		if view.Identity.SourceKind == autonomousview.SourceActive {
-			for _, candidate := range m.status.Tasks {
-				if candidate.ID == m.autonomous.TaskID {
-					task = candidate
-					ok = true
-					break
-				}
-			}
-		}
-	}
-	notReady := ok && task.ReadinessReason != "" && !task.AutonomousReady
-	if ok && m.view == viewAutonomous && m.autonomous.View != nil && m.autonomous.View.Why.SchedulerReadiness != "ready" {
-		notReady = true
-		if task.ReadinessReason == "" {
-			task.ReadinessReason = m.autonomous.View.Why.SchedulerReadiness
-		}
-	}
-	if !ok || task.Workflow != taskfile.WorkflowAutonomousV1 || task.Status != taskmodel.StatusPending || notReady {
-		m.message = "Autonomous run requires a selected pending autonomous-v1 task."
-		if notReady {
-			m.message = fmt.Sprintf("Autonomous task %s is not ready (%s).", task.ID, optionalValue(task.ReadinessReason))
-		}
 		m.updateViewportContent()
 		return nil
 	}
@@ -1605,6 +1620,41 @@ func (m *StatusModel) startTaskRun() tea.Cmd {
 		}
 		return msg
 	}
+}
+
+func (m StatusModel) autonomousTaskRunBlocker() (taskmodel.Task, string) {
+	if message := m.runStartBlocker(runModeTask); message != "" {
+		return taskmodel.Task{}, message
+	}
+	task, ok := m.selectedTaskValue()
+	if m.view == viewAutonomous && m.autonomous.View != nil {
+		view := m.autonomous.View
+		ok = false
+		if view.Identity.SourceKind == autonomousview.SourceActive {
+			for _, candidate := range m.status.Tasks {
+				if candidate.ID == m.autonomous.TaskID {
+					task = candidate
+					ok = true
+					break
+				}
+			}
+		}
+	}
+	notReady := ok && task.ReadinessReason != "" && !task.AutonomousReady
+	if ok && m.view == viewAutonomous && m.autonomous.View != nil && m.autonomous.View.Why.SchedulerReadiness != "ready" {
+		notReady = true
+		if task.ReadinessReason == "" {
+			task.ReadinessReason = m.autonomous.View.Why.SchedulerReadiness
+		}
+	}
+	if !ok || task.Workflow != taskfile.WorkflowAutonomousV1 || task.Status != taskmodel.StatusPending || notReady {
+		message := "Autonomous run requires a selected pending autonomous-v1 task."
+		if notReady {
+			message = fmt.Sprintf("Autonomous task %s is not ready (%s).", task.ID, optionalValue(task.ReadinessReason))
+		}
+		return taskmodel.Task{}, message
+	}
+	return task, ""
 }
 
 func (m *StatusModel) startQueueRun() tea.Cmd {
@@ -1800,6 +1850,79 @@ func (m StatusModel) runStartBlocker(mode string) string {
 	default:
 		return ""
 	}
+}
+
+func (m StatusModel) commandBlocker(command string) string {
+	switch command {
+	case "answer":
+		return m.answerBlocker()
+	case "workflow":
+		return m.autonomousListBlocker()
+	case "approval":
+		if m.autonomous.View == nil {
+			return m.autonomousListBlocker()
+		}
+		return ""
+	case "preflight":
+		return m.preflightBlocker()
+	case "run":
+		return m.runStartBlocker(runModeOnce)
+	case "loop":
+		return m.runStartBlocker(runModeLoop)
+	case "task-run":
+		_, blocker := m.autonomousTaskRunBlocker()
+		return blocker
+	case "queue":
+		return m.runStartBlocker(runModeQueue)
+	case "refresh":
+		return m.refreshBlocker()
+	case "cancel":
+		return m.cancelBlocker()
+	case "validate":
+		return m.validateBlocker()
+	default:
+		return ""
+	}
+}
+
+func (m StatusModel) preflightBlocker() string {
+	if m.runOnce.Active {
+		return "Run is active; cancel or wait before checking preflight."
+	}
+	if m.actions.Preflight == nil {
+		return "Preflight is unavailable."
+	}
+	return ""
+}
+
+func (m StatusModel) refreshBlocker() string {
+	if m.runOnce.Active {
+		return "Run is active; cancel or wait before refreshing."
+	}
+	if m.actions.RefreshStatus == nil {
+		return "Refresh is unavailable."
+	}
+	return ""
+}
+
+func (m StatusModel) cancelBlocker() string {
+	if !m.runOnce.Active {
+		return "No active run to cancel."
+	}
+	return ""
+}
+
+func (m StatusModel) validateBlocker() string {
+	if m.runOnce.Active {
+		return "Run is active; cancel or wait before validating a receipt."
+	}
+	if m.actions.ValidateReceipt == nil {
+		return "Receipt validation is unavailable."
+	}
+	if m.validateRunReceiptCmd() == nil {
+		return "No run detail loaded."
+	}
+	return ""
 }
 
 func (m *StatusModel) acceptLiveOperationID(identity string) bool {
@@ -2321,27 +2444,103 @@ func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		}
 		return m, tea.Quit
 	case "esc":
+		if m.composer.DiscoveryOpen {
+			m.composer.DiscoveryOpen = false
+			m.resizeViewport()
+			return m, nil
+		}
 		if m.composer.Text != "" {
 			return m, nil
 		}
 		m.composer.Active = false
 		m.resizeViewport()
 		return m, nil
+	case "up":
+		if m.composer.DiscoveryOpen {
+			m.moveCommandSelection(-1)
+			return m, nil
+		}
+	case "down":
+		if m.composer.DiscoveryOpen {
+			m.moveCommandSelection(1)
+			return m, nil
+		}
 	case "backspace":
 		m.composer.Text = trimLastRune(m.composer.Text)
+		m.updateCommandDiscovery()
 		m.resizeViewport()
 		return m, nil
 	case "enter":
+		if m.composer.DiscoveryOpen && !(m.composer.Text == "/" && m.composer.SelectedCommand == 0) {
+			if command, ok := m.selectedSlashCommand(); ok {
+				if blocker := m.commandBlocker(command.name); blocker != "" {
+					m.message = blocker
+					m.updateViewportContent()
+					return m, nil
+				}
+				m.composer.Text = replaceSlashCommand(m.composer.Text, command.name)
+			}
+		}
 		return m.submitCommand()
 	}
 	if msg.Type == tea.KeyRunes {
 		m.composer.Text += string(msg.Runes)
+		m.updateCommandDiscovery()
 		m.resizeViewport()
 	} else if msg.Type == tea.KeySpace {
 		m.composer.Text += " "
+		m.updateCommandDiscovery()
 		m.resizeViewport()
 	}
 	return m, nil
+}
+
+func (m *StatusModel) updateCommandDiscovery() {
+	m.composer.DiscoveryOpen = strings.HasPrefix(m.composer.Text, "/")
+	m.composer.SelectedCommand = 0
+}
+
+func (m *StatusModel) moveCommandSelection(delta int) {
+	commands := m.filteredSlashCommands()
+	if len(commands) == 0 {
+		m.composer.SelectedCommand = 0
+		return
+	}
+	m.composer.SelectedCommand = min(max(m.composer.SelectedCommand+delta, 0), len(commands)-1)
+}
+
+func (m StatusModel) selectedSlashCommand() (slashCommand, bool) {
+	commands := m.filteredSlashCommands()
+	if len(commands) == 0 {
+		return slashCommand{}, false
+	}
+	return commands[min(max(m.composer.SelectedCommand, 0), len(commands)-1)], true
+}
+
+func (m StatusModel) filteredSlashCommands() []slashCommand {
+	if !m.composer.DiscoveryOpen || !strings.HasPrefix(m.composer.Text, "/") {
+		return nil
+	}
+	prefix := strings.ToLower(strings.TrimPrefix(strings.Fields(m.composer.Text + " ")[0], "/"))
+	commands := make([]slashCommand, 0, len(slashCommands))
+	for _, command := range slashCommands {
+		if command.name == prefix {
+			commands = append(commands, command)
+		}
+	}
+	for _, command := range slashCommands {
+		if command.name != prefix && strings.HasPrefix(command.name, prefix) {
+			commands = append(commands, command)
+		}
+	}
+	return commands
+}
+
+func replaceSlashCommand(text, name string) string {
+	if index := strings.IndexAny(text, " \t\r\n"); index >= 0 {
+		return "/" + name + text[index:]
+	}
+	return "/" + name
 }
 
 func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
@@ -2373,12 +2572,14 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if fields[0] == "/" {
+		m.composer.DiscoveryOpen = false
 		m.switchView(viewHelp)
 		m.message = "Slash commands opened."
 		m.updateViewportContent()
 		return m, nil
 	}
 	m.composer.Text = ""
+	m.composer.DiscoveryOpen = false
 	m.resizeViewport()
 	command := strings.TrimPrefix(strings.ToLower(fields[0]), "/")
 	switch command {
@@ -2399,13 +2600,8 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		return m, nil
 	case "preflight":
 		m.switchView(viewPreflight)
-		if m.runOnce.Active {
-			m.message = "Run is active; cancel or wait before checking preflight."
-			m.updateViewportContent()
-			return m, nil
-		}
-		if m.actions.Preflight == nil {
-			m.message = "Preflight is unavailable."
+		if blocker := m.preflightBlocker(); blocker != "" {
+			m.message = blocker
 			m.updateViewportContent()
 			return m, nil
 		}
@@ -2451,20 +2647,15 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 		return m, nil
 	case "refresh":
-		if m.runOnce.Active {
-			m.message = "Run is active; cancel or wait before refreshing."
-			m.updateViewportContent()
-			return m, nil
-		}
-		if m.actions.RefreshStatus == nil {
-			m.message = "Refresh is unavailable."
+		if blocker := m.refreshBlocker(); blocker != "" {
+			m.message = blocker
 			m.updateViewportContent()
 			return m, nil
 		}
 		return m, m.refreshStatusCmd()
 	case "cancel":
-		if !m.runOnce.Active {
-			m.message = "No active run to cancel."
+		if blocker := m.cancelBlocker(); blocker != "" {
+			m.message = blocker
 			m.updateViewportContent()
 			return m, nil
 		}
@@ -2479,22 +2670,12 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 	case "queue":
 		return m, m.startQueueRun()
 	case "validate":
-		if m.runOnce.Active {
-			m.message = "Run is active; cancel or wait before validating a receipt."
+		if blocker := m.validateBlocker(); blocker != "" {
+			m.message = blocker
 			m.updateViewportContent()
 			return m, nil
 		}
-		if m.actions.ValidateReceipt == nil {
-			m.message = "Receipt validation is unavailable."
-			m.updateViewportContent()
-			return m, nil
-		}
-		cmd := m.validateRunReceiptCmd()
-		if cmd == nil {
-			m.message = "No run detail loaded."
-			m.updateViewportContent()
-		}
-		return m, cmd
+		return m, m.validateRunReceiptCmd()
 	case "quit":
 		if m.runOnce.Active {
 			m.runOnce.QuitAfterSettlement = true
@@ -2527,6 +2708,7 @@ func (m *StatusModel) switchView(view TUIView) {
 	}
 	m.view = view
 	m.composer.Active = view == viewDashboard
+	m.composer.DiscoveryOpen = false
 	m.resizeViewport()
 	m.updateViewportContent()
 }
@@ -2541,6 +2723,7 @@ func (m *StatusModel) openFocusedView(view TUIView) {
 	}
 	m.view = view
 	m.composer.Active = false
+	m.composer.DiscoveryOpen = false
 	m.resizeViewport()
 	m.updateViewportContent()
 }
@@ -2566,6 +2749,7 @@ func (m *StatusModel) startTaskEntry(taskText string) {
 	}
 	m.view = viewTaskEntry
 	m.composer.Active = false
+	m.composer.DiscoveryOpen = false
 	m.message = ""
 	m.resizeViewport()
 	m.updateViewportContent()
@@ -2694,12 +2878,14 @@ func (m StatusModel) footerLines() []string {
 		return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
 	}
 	if m.composer.Active {
+		lines := m.commandDiscoveryLines()
 		composer := wrapPlainLines([]string{"› " + m.composer.Text}, m.contentWidth())
 		footer := []string{"Enter submit · / commands · ? shortcuts"}
 		if m.contentWidth() <= 40 {
 			footer = []string{"Enter submit · / commands", "? shortcuts"}
 		}
-		return append(composer, wrapPlainLines(footer, m.contentWidth())...)
+		lines = append(lines, composer...)
+		return append(lines, wrapPlainLines(footer, m.contentWidth())...)
 	}
 	if m.view == viewDashboard {
 		keys := "? Help | R Run | r Refresh | q Quit"
@@ -2744,6 +2930,35 @@ func (m StatusModel) footerLines() []string {
 	}
 	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "R Run Once", fmt.Sprintf("n Passes %d", m.selectedRunLoopPasses()), "L Run Loop", "r Refresh", "q Quit")
 	return wrapKeyLines(keys, m.width)
+}
+
+func (m StatusModel) commandDiscoveryLines() []string {
+	commands := m.filteredSlashCommands()
+	if !m.composer.DiscoveryOpen {
+		return nil
+	}
+	width := m.contentWidth()
+	if len(commands) == 0 {
+		return []string{clipDisplayLine("Commands · no matching command · Esc close", width)}
+	}
+
+	selected := min(max(m.composer.SelectedCommand, 0), len(commands)-1)
+	start := max(selected-maxCommandRows+1, 0)
+	end := min(start+maxCommandRows, len(commands))
+	lines := []string{clipDisplayLine(fmt.Sprintf("Commands %d-%d of %d · ↑/↓ select · Esc close", start+1, end, len(commands)), width)}
+	for index := start; index < end; index++ {
+		prefix := "  "
+		if index == selected {
+			prefix = "> "
+		}
+		command := commands[index]
+		detail := command.description
+		if blocker := m.commandBlocker(command.name); blocker != "" {
+			detail = "[disabled] " + blocker
+		}
+		lines = append(lines, clipDisplayLine(prefix+command.usage+" — "+detail, width))
+	}
+	return lines
 }
 
 func (m StatusModel) renderDashboard() string {
@@ -3458,10 +3673,10 @@ func (m StatusModel) renderHelp() string {
 		"esc  Back from help or run detail",
 		"",
 		"Slash Commands",
-		"/transcript /tasks /runs /detail /workflow",
+		"/dashboard /transcript /tasks /runs /detail /workflow",
 		"/diff /evidence /approval /answer <option-id>",
 		"/preflight /run /loop /task-run /queue",
-		"/refresh /cancel /validate /help /quit",
+		"/refresh /cancel /validate /help /commands /quit",
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
@@ -4477,7 +4692,7 @@ func wrapPlainLine(line string, width int) []string {
 func styleFooterLines(lines []string) []string {
 	styled := append([]string(nil), lines...)
 	for i, line := range styled {
-		if strings.HasPrefix(strings.TrimSpace(line), "›") {
+		if strings.HasPrefix(strings.TrimSpace(line), "›") || strings.HasPrefix(line, "> ") {
 			styled[i] = selectedStyle.Render(line)
 		} else {
 			styled[i] = mutedStyle.Render(line)
@@ -4605,6 +4820,18 @@ func splitRunePrefix(value string, n int) (string, string) {
 		width += textWidth(string(r))
 	}
 	return value, ""
+}
+
+func clipDisplayLine(value string, width int) string {
+	if textWidth(value) <= width {
+		return value
+	}
+	if width <= 1 {
+		prefix, _ := splitRunePrefix(value, max(width, 1))
+		return prefix
+	}
+	prefix, _ := splitRunePrefix(value, width-1)
+	return prefix + "…"
 }
 
 func textWidth(value string) int {

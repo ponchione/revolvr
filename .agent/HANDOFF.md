@@ -296,6 +296,17 @@ Updated: 2026-09-02
 - TUI-031's completion handoff published only
   `.agent/tasks/tui-032-add-contextual-command-discovery.md`. TUI-032 is pending
   and unstarted; every later task remains an unpublished draft.
+- Completed TUI-032 with a composer-local, five-row slash-command popup that
+  filters every retained name by exact/prefix match and keeps exact matches
+  first.
+- Up/Down selection, display-width clipping, textual descriptions and disabled
+  reasons, and buffer-preserving Escape pass at 80 and 40 columns. Command
+  availability reuses the same blocker methods as execution.
+- Active cancellation remains visible with discovery open. Bare `/` still opens
+  exhaustive Help and restores its original buffer on return.
+- TUI-032's completion handoff published only
+  `.agent/tasks/tui-040-render-live-operation.md`. TUI-040 is pending and
+  unstarted; every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -303,7 +314,7 @@ Updated: 2026-09-02
 go run ./cmd/revolvr status
 ```
 
-It must report TUI-032 as the only pending and next task, without selecting
+It must report TUI-040 as the only pending and next task, without selecting
 deferred EXT or superseded PTC work.
 
 ## Exact Next Command
@@ -314,8 +325,8 @@ Run one fresh Codex pass:
 codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-The next fresh pass implements the already-pending TUI-032 task. Do not
-republish TUI-031 or publish TUI-040 before TUI-032 completes.
+The next fresh pass implements the already-pending TUI-040 task. Do not
+republish TUI-032 or publish TUI-050 before TUI-040 completes.
 
 ## Verification
 
@@ -538,5 +549,17 @@ republish TUI-031 or publish TUI-040 before TUI-032 completes.
   the only pending task.
 - `go run ./cmd/revolvr status` — PASS; TUI-032 is selected next.
 - `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestCommandDiscovery' -count=1` — PASS; 25
+  tests.
+- `go test ./internal/tui -count=1` — PASS; 160 tests.
+- `go test ./... -count=1` — PASS; 4,164 tests in 91 packages.
+- TUI-032 command coverage, exact/prefix filtering, shared-guard, keyboard,
+  dismissal, Help, 40-column, cancellation-visibility, and single-publication
+  gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-032 is complete and TUI-040 is
+  the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-040 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
 
-Run the exact next command above for the pending TUI-032 implementation pass.
+Run the exact next command above for the pending TUI-040 implementation pass.

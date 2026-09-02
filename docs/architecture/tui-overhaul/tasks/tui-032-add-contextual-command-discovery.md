@@ -1,6 +1,6 @@
 # TUI-032 — Add Contextual Command Discovery
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-02
 - Epic: [E3 — Make the composer primary](../epics/e3-primary-composer.md)
 - Depends on: [TUI-030](tui-030-make-composer-primary.md)
 
@@ -37,3 +37,13 @@ go test ./internal/tui
 ## Not Included
 
 - No new command, guard, Help redesign, or general overlay migration.
+
+## Completion Evidence
+
+- Leading-slash input now filters every retained command with exact-match
+  precedence, bounded keyboard selection, textual descriptions, and shared
+  guard explanations.
+- Discovery stays within 40 display columns and five command rows while keeping
+  its selected row and active cancellation state visible.
+- Escape preserves composer text/focus, bare `/` retains the full-Help route,
+  and focused, package, and full Go tests pass.
