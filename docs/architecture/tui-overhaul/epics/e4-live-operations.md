@@ -1,6 +1,6 @@
 # E4 — Surface Runs and Loops Live
 
-- Status: Active planning record; TUI-040 is pending
+- Status: Completed 2026-09-02; TUI-040 is complete
 - Design authority: [TUI overhaul](../README.md)
 - Depends on: [E2](e2-semantic-transcript.md) and [E3](e3-primary-composer.md)
 

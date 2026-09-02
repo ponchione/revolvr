@@ -1,6 +1,6 @@
 # TUI-040 — Render One Live Operation Cell
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-02
 - Epic: [E4 — Surface runs and loops live](../epics/e4-live-operations.md)
 - Depends on: [TUI-022](tui-022-reconcile-live-history.md) and
   [TUI-030](tui-030-make-composer-primary.md)
@@ -46,3 +46,13 @@ go test ./internal/tui
 
 - No queued input, richer workflow detail, progress-event schema, or domain
   lifecycle change.
+
+## Completion Evidence
+
+- The managed live owner now renders one bounded semantic cell instead of the
+  retained progress-log wall, with distinct text for all four operation modes.
+- Latest progress replaces `Current:` in place, cancellation retains the exact
+  accepted waiting-for-settlement wording, and terminal results retain the
+  accepted committed-cell vocabulary.
+- Focused live-cell, full TUI, and repository-wide Go tests pass without an
+  application/domain change or dependency.

@@ -26,9 +26,10 @@ Updated: 2026-09-02
   TUI-012's active-settlement proof, TUI-013's installed terminal shell,
   TUI-020's semantic cell vocabulary, TUI-021's bounded historical projection,
   TUI-022's live-to-committed reconciliation, TUI-030's primary composer,
-  TUI-031's reviewed idle plain-text route, and TUI-032's contextual command
-  discovery are complete. TUI-040 is the only pending canonical task, and later
-  TUI tasks remain unpublished drafts.
+  TUI-031's reviewed idle plain-text route, TUI-032's contextual command
+  discovery, and TUI-040's bounded live operation cell are complete. TUI-050 is
+  the only pending canonical task, and later TUI tasks remain unpublished
+  drafts.
 
 ## Architecture 024 TUI
 
@@ -50,7 +51,7 @@ Updated: 2026-09-02
 
 ## Current Verification
 
-- `go test ./... -count=1` — PASS; 4,164 tests in 91 packages, including the
+- `go test ./... -count=1` — PASS; 4,181 tests in 91 packages, including the
   socket-based packages that the external agent sandbox could not execute.
 - `go test ./internal/evaluation -run
   '^TestFixtureIdentityUsesGitPortableFileModes$' -count=1` — PASS.
@@ -63,8 +64,9 @@ Updated: 2026-09-02
 - `go test ./internal/tui -run 'TestTranscriptShellSettlement'` — PASS.
 - `go test ./internal/tui -run 'TestTranscriptCell'` — PASS.
 - `go test ./internal/tui -run 'TestHistoricalTranscript'` — PASS.
-- `go test ./internal/tui -run
-  'TestLiveTranscript(Reconciles|RejectsStale)'` — PASS.
+- `go test ./internal/tui -run 'TestLiveOperationCell' -count=1` — PASS; 24
+  tests across all modes, bounded replacement, cancellation, elapsed time,
+  footer ownership, typed lifecycle, and terminal vocabulary.
 - `go test ./internal/tui -run 'TestComposer|TestCommand'` — PASS.
 - `go test ./internal/tui -run
   'TestPlainTextComposer|TestStatusModelTaskEntry' -count=1` — PASS; 13 tests.
@@ -82,34 +84,36 @@ Updated: 2026-09-02
   post-settlement, typed-needs-input, and unchanged-authority gates — PASS.
 - `go test ./internal/tui -run 'TestCommandDiscovery' -count=1` — PASS; 25
   tests including every retained command name.
-- `go test ./internal/tui -count=1` — PASS; 160 tests.
+- `go test ./internal/tui -count=1` — PASS; 177 tests.
 - TUI-032 command coverage, exact/prefix filtering, shared-guard, keyboard,
   dismissal, Help, 40-column, cancellation-visibility, and single-publication
   gates — PASS.
+- TUI-040 live replacement, 80-/40-column bounds, mode/pass/limit, elapsed,
+  literal safety/current/cancellation/next, terminal vocabulary, settlement,
+  and single-publication gates — PASS.
 - `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS; local
-  ignored runtime is restored and TUI-040 is the sole next task.
+  ignored runtime is restored and TUI-050 is the sole next task.
 - Application/domain callbacks, dependencies, and TUI authority are unchanged.
 
 ## Blockers And Next Task
 
 - Blockers: none. The prior socket-permission failure was specific to the
   external agent sandbox; the required full suite passes in this checkout.
-- TUI-032 is complete. TUI-040 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-022 and TUI-030.
+- TUI-040 is complete. TUI-050 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-030.
 - Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
   TUI tasks, or reopen Architecture 025.
 
 ## Latest Pass
 
-- Task selected: `tui-032-add-contextual-command-discovery`.
-- Files changed: composer-local command discovery and shared guard paths,
-  focused regression tests, TUI-032 completion and TUI-040 publication
-  metadata, and affected planning, state, task-list, reference, and handoff
-  records.
-- Verification commands run: required `gofmt`, focused command-discovery, TUI,
-  and full Go tests, TUI help, task list/status selectors, state line limit,
+- Task selected: `tui-040-render-live-operation`.
+- Files changed: the typed live operation projection and focused regression
+  tests, TUI-040 completion and TUI-050 publication metadata, and affected
+  planning, state, task-list, reference, and handoff records.
+- Verification commands run: required `gofmt`, focused live-operation, TUI,
+  and full Go tests, task list/status selectors, state line limit,
   publication/status audits, and `git diff --check`.
 - Verification result: PASS.
-- What remains: TUI-040 is pending for the next fresh pass; later tasks remain
+- What remains: TUI-050 is pending for the next fresh pass; later tasks remain
   unpublished drafts.
 - Blockers: none.

@@ -1,6 +1,6 @@
 ---
 id: tui-040-render-live-operation
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-022-reconcile-live-history,tui-030-make-composer-primary
 
 # TUI-040 — Render One Live Operation Cell
 
-- Status: Pending
+- Status: Completed 2026-09-02
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-040 draft](../../docs/architecture/tui-overhaul/tasks/tui-040-render-live-operation.md)
@@ -62,3 +62,18 @@ go test ./internal/tui
 
 - No queued input, richer workflow detail, progress-event schema, or domain
   lifecycle change.
+
+## Completion Evidence
+
+- One typed live projection replaces the former growing progress-log panel and
+  keeps task, mode, pass/limit, elapsed time, safety, current detail, and the
+  cancellation action in a bounded cell.
+- Single-pass, bounded-loop, autonomous-task, and queue modes remain textual;
+  `Current:` occupies at most two physical rows and repeated progress replaces
+  its source without appending transcript identities.
+- Cancellation renders the accepted three-line `Cancelling:` state until the
+  matching result settles. Ordinary footers no longer duplicate its action.
+- Completion, failure, cancellation, blocked, safety-stop, and needs-input
+  results retain the accepted committed-cell wording and existing append/ack
+  settlement behavior.
+- Focused live-cell, full TUI, and repository-wide Go tests pass.

@@ -307,6 +307,19 @@ Updated: 2026-09-02
 - TUI-032's completion handoff published only
   `.agent/tasks/tui-040-render-live-operation.md`. TUI-040 is pending and
   unstarted; every later task remains an unpublished draft.
+- Completed TUI-040 by replacing the growing managed progress-log panel with
+  one typed, bounded live cell. Single pass, bounded loop, autonomous task, and
+  queue modes expose task, progress/limit, elapsed time when space permits,
+  admitted safety, latest meaningful detail, and the cancellation action.
+- `Current:` is capped at two physical rows; repeated progress replaces it
+  without appending transcript identity. Cancellation holds the exact accepted
+  three-line state until matching settlement.
+- Completed, failed, cancelled, blocked, safety-stop, and needs-input results
+  retain the accepted committed wording. Existing append/ack settlement and
+  domain callbacks are unchanged.
+- TUI-040's completion handoff published only
+  `.agent/tasks/tui-050-add-overlay-shell.md`. TUI-050 is pending and unstarted;
+  every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -314,7 +327,7 @@ Updated: 2026-09-02
 go run ./cmd/revolvr status
 ```
 
-It must report TUI-040 as the only pending and next task, without selecting
+It must report TUI-050 as the only pending and next task, without selecting
 deferred EXT or superseded PTC work.
 
 ## Exact Next Command
@@ -325,8 +338,8 @@ Run one fresh Codex pass:
 codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-The next fresh pass implements the already-pending TUI-040 task. Do not
-republish TUI-032 or publish TUI-050 before TUI-040 completes.
+The next fresh pass implements the already-pending TUI-050 task. Do not
+republish TUI-040 or publish TUI-051 before TUI-050 completes.
 
 ## Verification
 
@@ -561,5 +574,17 @@ republish TUI-032 or publish TUI-050 before TUI-040 completes.
   the only pending task.
 - `go run ./cmd/revolvr status` — PASS; TUI-040 is selected next.
 - `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestLiveOperationCell' -count=1` — PASS; 24
+  tests.
+- `go test ./internal/tui -count=1` — PASS; 177 tests.
+- `go test ./... -count=1` — PASS; 4,181 tests in 91 packages.
+- TUI-040 live replacement, 80-/40-column bounds, mode/pass/limit, elapsed,
+  literal safety/current/cancellation/next, terminal vocabulary, settlement,
+  unchanged-authority, and single-publication gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-040 is complete and TUI-050 is
+  the only pending task.
+- `go run ./cmd/revolvr status` — PASS; TUI-050 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
 
-Run the exact next command above for the pending TUI-040 implementation pass.
+Run the exact next command above for the pending TUI-050 implementation pass.

@@ -378,7 +378,163 @@ func TestHistoricalTranscriptRefreshAppendsOnlyNewIdentities(t *testing.T) {
 	}
 }
 
-func TestLiveTranscriptReconciles(t *testing.T) {
+func TestLiveOperationCellRunningModes(t *testing.T) {
+	tests := []struct {
+		name     string
+		width    int
+		state    runOnceState
+		wantMode string
+	}{
+		{
+			name:     "single pass",
+			width:    80,
+			state:    runOnceState{Mode: runModeOnce, Task: "Compact durable agent state", Current: "Running go test ./..."},
+			wantMode: "Mode: single pass",
+		},
+		{
+			name:     "bounded loop",
+			width:    40,
+			state:    runOnceState{Mode: runModeLoop, Task: "Compact durable agent state", Current: "Running go test ./...", MaxPasses: 3, Stats: app.RunLoopStats{MaxPasses: 3}},
+			wantMode: "Mode: loop · pass 1 of 3",
+		},
+		{
+			name:  "autonomous task",
+			width: 40,
+			state: runOnceState{
+				Mode: runModeTask, Task: "task-017", Current: "implement · cycle started", MaxPasses: 50, Progress: 2,
+			},
+			wantMode: "Mode: autonomous · cycle 2 of 50",
+		},
+		{
+			name:  "queue",
+			width: 40,
+			state: runOnceState{
+				Mode: runModeQueue, Task: "autonomous task queue", Current: "selected · task task-017", MaxPasses: 100, Progress: 2,
+			},
+			wantMode: "Mode: queue · tasks 2 of 100",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model := NewStatusModel(app.StatusResult{Initialized: true})
+			model.width = test.width
+			model.runOnce = test.state
+			lines := model.liveOperationLines()
+			assertMaxLineWidth(t, lines, test.width)
+			requireLines(t, lines,
+				"Running: "+test.state.Task,
+				test.wantMode,
+				"Safety: admitted",
+				"Current: "+test.state.Current,
+				"Next: wait, or press c or Esc to cancel",
+			)
+		})
+	}
+}
+
+func TestLiveOperationCellReplacesAndBoundsProgress(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	model.width = 40
+	model.runOnce = runOnceState{
+		Active: true, Started: true, Mode: runModeLoop, Token: 7,
+		Task: "Compact durable agent state", MaxPasses: 3, Stats: app.RunLoopStats{MaxPasses: 3},
+	}
+	emitted := len(model.emitted)
+	for i := range 20 {
+		message := fmt.Sprintf("progress %d with enough detail to wrap across more than two physical rows and be replaced", i)
+		model, _ = updateStatusModel(t, model, runOnceProgressMsg{token: 7, event: codexexec.ProgressEvent{Source: "codex", Message: message}})
+	}
+
+	lines := model.liveOperationLines()
+	if len(lines) != 6 {
+		t.Fatalf("live cell rows = %d, want 6: %#v", len(lines), lines)
+	}
+	if len(model.emitted) != emitted {
+		t.Fatalf("progress changed emitted transcript identities: before=%d after=%d", emitted, len(model.emitted))
+	}
+	assertMaxLineWidth(t, lines, 40)
+	requireLines(t, lines, "Safety: admitted", "Next: wait, or press c or Esc to cancel")
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "Current:") || !strings.Contains(joined, "progress 19") || strings.Contains(joined, "progress 18") || !strings.Contains(joined, "…") {
+		t.Fatalf("bounded current detail = %q", joined)
+	}
+}
+
+func TestLiveOperationCellCancellationAndLifecycleAreExplicit(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	model.width = 40
+	model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeOnce, Task: "Compact durable agent state", Current: "completed successfully"}
+	requireLines(t, model.liveOperationLines(),
+		"Running: Compact durable agent state",
+		"Current: completed successfully",
+		"Next: wait, or press c or Esc to cancel",
+	)
+
+	model.runOnce.CancelRequested = true
+	want := []string{
+		"Cancelling: Compact durable agent state",
+		"Current: waiting for the run to stop",
+		"Next: wait for settlement",
+	}
+	if got := model.liveOperationLines(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("cancelling cell = %#v, want %#v", got, want)
+	}
+}
+
+func TestLiveOperationCellShowsElapsedTimeWhenItFits(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	model.width = 80
+	model.runOnce = runOnceState{Mode: runModeOnce, Task: "task-017", Current: "working", StartedAt: time.Now().Add(-2 * time.Second)}
+	if mode := model.liveOperationLines()[1]; !strings.HasPrefix(mode, "Mode: single pass · elapsed ") {
+		t.Fatalf("mode line = %q, want elapsed time", mode)
+	}
+}
+
+func TestLiveOperationCellOwnsCancellationHint(t *testing.T) {
+	model := NewStatusModel(app.StatusResult{Initialized: true})
+	model.width = 80
+	model.view = viewTasks
+	model.composer.Active = false
+	model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeOnce, Task: "task-017", Current: "working"}
+
+	if footer := strings.Join(model.footerLines(), "\n"); strings.Contains(footer, "Cancel Run") {
+		t.Fatalf("footer duplicated live cancellation hint: %q", footer)
+	}
+	requireLines(t, model.liveOperationLines(), "Next: wait, or press c or Esc to cancel")
+}
+
+func TestLiveOperationCellTerminalVocabulary(t *testing.T) {
+	tests := []struct {
+		outcome string
+		kind    transcriptCellKind
+		want    []string
+	}{
+		{outcome: "completed", kind: transcriptCellResult, want: []string{"Completed: task-017", "Next: /run to continue"}},
+		{outcome: "failed", kind: transcriptCellWarning, want: []string{"Failed: task-017", "Reason: verification failed", "Next: /detail to inspect the failure"}},
+		{outcome: "cancelled", kind: transcriptCellWarning, want: []string{"Cancelled: task-017", "Result: no completion was recorded", "Next: /run to retry"}},
+		{outcome: "blocked", kind: transcriptCellWarning, want: []string{"Blocked: task-017", "Reason: dependency task-016 is pending", "Next: /workflow to inspect the task"}},
+		{outcome: "safety_stop", kind: transcriptCellWarning, want: []string{"Safety stop: task-017", "Reason: protected path changed", "Next: /detail to inspect the evidence"}},
+		{outcome: "needs_input", kind: transcriptCellQuestion, want: []string{"Needs input: task-017", "Question: Choose the verification scope", "Next: answer the question to continue"}},
+	}
+	reasons := map[string]string{
+		"failed":      "verification failed",
+		"blocked":     "dependency task-016 is pending",
+		"safety_stop": "protected path changed",
+		"needs_input": "Choose the verification scope",
+	}
+
+	for _, test := range tests {
+		t.Run(test.outcome, func(t *testing.T) {
+			cell := terminalTranscriptCell("terminal-1", "task-017", test.outcome, reasons[test.outcome])
+			if cell.kind != test.kind || !reflect.DeepEqual(cell.source, test.want) {
+				t.Fatalf("terminal cell = %#v, want kind=%q source=%#v", cell, test.kind, test.want)
+			}
+		})
+	}
+}
+
+func TestLiveOperationCellReconcilesTerminalResults(t *testing.T) {
 	tests := []struct {
 		name         string
 		state        runOnceState
@@ -433,6 +589,16 @@ func TestLiveTranscriptReconciles(t *testing.T) {
 			msg:          runOnceDoneMsg{token: 6, taskRun: true, taskResult: autonomoustaskrun.Result{OperationID: "operation-input", TaskID: "task-017", StopReason: autonomoustaskrun.StopNeedsInput, StopDetail: "Choose the verification scope"}},
 			wantIdentity: "task-operation:operation-input:stop:needs_input",
 			wantLine:     "Needs input: task-017",
+		},
+		{
+			name: "blocked loop",
+			state: runOnceState{
+				Active: true, Started: true, Mode: runModeLoop, Token: 7, RunID: "run-loop-blocked",
+				LastResult: runonce.Result{Outcome: runonce.OutcomeBlocked, Message: "dependency task-016 is pending", Run: ledger.Run{ID: "run-loop-blocked", Task: "task-017", Status: ledger.StatusFailed}},
+			},
+			msg:          runOnceDoneMsg{token: 7, loop: true, lastRunID: "run-loop-blocked", history: ledger.RunWithEvents{Run: ledger.Run{ID: "run-loop-blocked", Task: "task-017", Status: ledger.StatusFailed}}},
+			wantIdentity: "run:run-loop-blocked:status:failed",
+			wantLine:     "Blocked: task-017",
 		},
 	}
 
@@ -2124,9 +2290,11 @@ func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.
 	}
 	requireLines(t, normalizedViewLines(afterAdd.View()),
 		"Notice: Run is active; cancel or wait before starting another action.",
-		"Run Progress",
-		"Status: running",
-		"c Cancel Run | ? Help | q Quit",
+		"Running: run",
+		"Safety: admitted",
+		"Current: starting the run",
+		"Next: wait, or press c or Esc to cancel",
+		"? Help | q Quit",
 	)
 }
 
@@ -2202,16 +2370,9 @@ func TestStatusModelRunOnceStreamsProgressAndRefreshesCompletion(t *testing.T) {
 	}
 
 	requireLines(t, normalizedViewLines(afterRun.View()),
-		"Notice: Run completed. run-success.",
-		"Run Progress",
-		"Status: completed",
-		"Run ID: run-success",
-		"Outcome: committed",
-		"Log",
-		"system: run started",
-		"codex: thread started",
-		"codex stderr: checking worktree",
-		"system: terminal state: completed",
+		"Completed: Run from TUI",
+		"Commit: abc123",
+		"Next: /run to continue",
 	)
 }
 
@@ -2254,13 +2415,9 @@ func TestStatusModelRunOnceFailureReportsTerminalState(t *testing.T) {
 	afterRun := drainStatusModelCmds(t, afterKey, cmd)
 
 	requireLines(t, normalizedViewLines(afterRun.View()),
-		"Notice: Run failed. run-failed.",
-		"Run Progress",
-		"Status: failed",
-		"Run ID: run-failed",
-		"Outcome: verification_failed",
-		"codex: message: working",
-		"system: terminal state: failed",
+		"Failed: Run from TUI and fail",
+		"Reason: verification failed",
+		"Next: /detail to inspect the failure",
 	)
 }
 
@@ -2313,21 +2470,16 @@ func TestStatusModelRunOnceCancellationReportsTerminalState(t *testing.T) {
 		t.Fatal("cancel requested = false, want true")
 	}
 	requireLines(t, normalizedViewLines(cancelled.View()),
-		"Notice: Cancellation requested.",
-		"Status: running",
-		"Cancellation: requested",
-		"system: cancellation requested",
+		"Cancelling: run",
+		"Current: waiting for the run to stop",
+		"Next: wait for settlement",
 	)
 
 	afterCancel := drainStatusModelCmds(t, cancelled, waitCmd)
 	requireLines(t, normalizedViewLines(afterCancel.View()),
-		"Notice: Run cancelled. run-cancelled.",
-		"Run Progress",
-		"Status: cancelled",
-		"Run ID: run-cancelled",
-		"Outcome: blocked",
-		"Error: context canceled",
-		"system: terminal state: cancelled",
+		"Cancelled: Cancel a TUI run",
+		"Result: no completion was recorded",
+		"Next: /run to retry",
 	)
 }
 
@@ -2700,22 +2852,9 @@ func TestStatusModelRunLoopMaxPassCompletionRefreshesAndOpensLatestRun(t *testin
 		t.Fatalf("run detail = %+v, want run-loop-3", afterLoop.runDetails)
 	}
 	requireLines(t, normalizedViewLines(afterLoop.View()),
-		"Notice: Loop completed. Latest run run-loop-3.",
-		"Run Progress",
-		"Status: completed",
-		"Mode: loop",
-		"Max passes: 3",
-		"Passes: 3/3",
-		"Completed: 3",
-		"Failed or blocked: 0",
-		"No task: false",
-		"Stop reason: max_passes",
-		"Latest run ID: run-loop-3",
-		"codex: loop started",
-		"pass 1: run run-loop-1 completed task task-loop-1; commit abc1",
-		"pass 2: run run-loop-2 completed task task-loop-2; commit abc2",
-		"pass 3: run run-loop-3 completed task task-loop-3; commit abc3",
-		"system: terminal state: completed",
+		"Completed: Loop task 3",
+		"Commit: abc3",
+		"Next: /run to continue",
 	)
 }
 
@@ -2753,15 +2892,8 @@ func TestStatusModelRunLoopNoTaskStopRefreshesStatus(t *testing.T) {
 		t.Fatalf("calls = %#v, want loop then refresh", calls)
 	}
 	requireLines(t, normalizedViewLines(afterLoop.View()),
-		"Notice: Loop finished: no pending runnable tasks.",
-		"Status: no_task",
-		"Passes: 1/3",
-		"Completed: 0",
-		"Failed or blocked: 0",
-		"No task: true",
-		"Stop reason: no_task",
-		"pass 1: no pending runnable tasks",
-		"system: terminal state: no_task",
+		"No pending runnable tasks.",
+		"Next: add a task or wait for dependencies",
 	)
 }
 
@@ -2805,17 +2937,9 @@ func TestStatusModelRunLoopRepeatedFailureGuardrail(t *testing.T) {
 	}
 	afterLoop := drainStatusModelCmds(t, afterKey, cmd)
 	requireLines(t, normalizedViewLines(afterLoop.View()),
-		"Notice: Loop failed. Latest run run-failed-2.",
-		"Status: failed",
-		"Passes: 2/3",
-		"Completed: 0",
-		"Failed or blocked: 2",
-		"Consecutive failed or blocked: 2",
-		"Stop reason: failure_guardrail",
-		"Latest run ID: run-failed-2",
-		"Error: run loop stopped after 2 consecutive failed or blocked passes",
-		"pass 1: run run-failed-1 stopped (verification_failed): verification command 0 failed",
-		"pass 2: run run-failed-2 stopped (verification_failed): verification command 0 failed",
+		"Failed: Fail task 2",
+		"Reason: run failed",
+		"Next: /detail to inspect the failure",
 	)
 }
 
@@ -2854,14 +2978,9 @@ func TestStatusModelRunLoopBlockedStop(t *testing.T) {
 	}
 	afterLoop := drainStatusModelCmds(t, afterKey, cmd)
 	requireLines(t, normalizedViewLines(afterLoop.View()),
-		"Notice: Loop failed. Latest run run-blocked.",
-		"Status: failed",
-		"Passes: 1/3",
-		"Failed or blocked: 1",
-		"Stop reason: failed_or_blocked",
-		"Latest run ID: run-blocked",
-		"Error: run run-blocked stopped with outcome blocked",
-		"pass 1: run run-blocked stopped (blocked): blocked by preflight",
+		"Blocked: Blocked task",
+		"Reason: blocked by preflight",
+		"Next: /workflow to inspect the task",
 	)
 }
 
@@ -2901,11 +3020,9 @@ func TestStatusModelRunLoopCancellationReportsTerminalState(t *testing.T) {
 		t.Fatal("cancel requested = false, want true")
 	}
 	requireLines(t, normalizedViewLines(cancelView.View()),
-		"Notice: Cancellation requested.",
-		"Status: running",
-		"Mode: loop",
-		"Cancellation: requested",
-		"system: cancellation requested",
+		"Cancelling: run",
+		"Current: waiting for the run to stop",
+		"Next: wait for settlement",
 	)
 
 	afterCancel := drainStatusModelCmds(t, cancelView, waitCmd)
@@ -2916,11 +3033,9 @@ func TestStatusModelRunLoopCancellationReportsTerminalState(t *testing.T) {
 		t.Fatal("refresh callback was not called after cancellation")
 	}
 	requireLines(t, normalizedViewLines(afterCancel.View()),
-		"Notice: Loop cancelled.",
-		"Status: cancelled",
-		"Stop reason: context_cancelled",
-		"Error: context canceled",
-		"system: terminal state: cancelled",
+		"Cancelled: run",
+		"Result: no completion was recorded",
+		"Next: /run to retry",
 	)
 }
 
@@ -3896,7 +4011,12 @@ func TestCommandDiscoveryNarrowWindowKeepsSelectionAndCancellationVisible(t *tes
 	}
 	lines := normalizedViewLines(model.View())
 	assertMaxLineWidth(t, lines, 40)
-	requireLines(t, lines, "Cancellation: requested", "> /quit — Quit")
+	requireLines(t, lines,
+		"Cancelling: none",
+		"Current: waiting for the run to stop",
+		"Next: wait for settlement",
+		"> /quit — Quit",
+	)
 }
 
 func TestComposerFocusAndEscapeStateTable(t *testing.T) {

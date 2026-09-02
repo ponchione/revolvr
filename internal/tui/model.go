@@ -442,11 +442,16 @@ type runOnceState struct {
 	Token               int
 	Cancel              context.CancelFunc
 	Messages            <-chan tea.Msg
+	Task                string
+	StartedAt           time.Time
+	Current             string
 	Status              string
 	RunID               string
 	Outcome             string
 	MaxPasses           int
 	Stats               app.RunLoopStats
+	LastResult          runonce.Result
+	Progress            int64
 	Err                 string
 	Logs                []string
 	QueueResult         autonomousqueue.Result
@@ -725,7 +730,8 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, runProgressLine(msg.event))
-		m.message = activeRunProgressMessage(m.runOnce.Mode)
+		m.runOnce.Current = oneLine(msg.event.Message)
+		m.message = ""
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case runLoopPassMsg:
@@ -733,7 +739,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.applyRunLoopPass(msg.result)
-		m.message = "Loop in progress."
+		m.message = ""
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case taskRunProgressMsg:
@@ -744,7 +750,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.waitRunOnceMsgCmd()
 		}
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, fmt.Sprintf("task: cycle %d stage %s action %s", msg.operation.Statistics.CyclesStarted, msg.operation.Stage, msg.operation.LastAction))
-		m.message = "Autonomous task run in progress."
+		m.runOnce.Progress = msg.operation.Statistics.CyclesStarted
+		if !msg.operation.StartedAt.IsZero() {
+			m.runOnce.StartedAt = msg.operation.StartedAt
+		}
+		m.runOnce.Current = taskProgressDetail(msg.operation)
+		m.message = ""
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case queueProgressMsg:
@@ -763,7 +774,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, line)
-		m.message = "Autonomous queue in progress."
+		m.runOnce.Progress = msg.operation.Statistics.TasksRun
+		if !msg.operation.StartedAt.IsZero() {
+			m.runOnce.StartedAt = msg.operation.StartedAt
+		}
+		m.runOnce.Current = queueProgressDetail(msg.operation)
+		m.message = ""
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case runOnceDoneMsg:
@@ -774,10 +790,10 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cell := liveTranscriptResultCell(m.runOnce, msg)
 		m.applyRunOnceDone(msg)
 		m.runOnce.QuitAfterSettlement = quitAfterSettlement
-		m.updateViewportContent()
 		if cell.identity != "" {
 			if _, ok := m.emitted[cell.identity]; !ok {
 				m.settling = &transcriptSettlement{token: msg.token, cell: cell}
+				m.updateViewportContent()
 				return m, tea.Sequence(
 					tea.Println(strings.Join(cell.render(m.width), "\n")),
 					func() tea.Msg { return transcriptCommittedMsg{token: msg.token, identity: cell.identity} },
@@ -786,6 +802,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.runOnce.Started = false
 		m.runOnce.QuitAfterSettlement = false
+		m.message = ""
 		m.updateViewportContent()
 		if quitAfterSettlement {
 			return m, tea.Quit
@@ -807,6 +824,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.runOnce.Started = false
 		quitAfterSettlement := m.runOnce.QuitAfterSettlement
 		m.runOnce.QuitAfterSettlement = false
+		m.message = ""
 		m.updateViewportContent()
 		if quitAfterSettlement {
 			return m, tea.Quit
@@ -1540,11 +1558,14 @@ func (m *StatusModel) startRunOnce() tea.Cmd {
 		Token:     token,
 		Cancel:    cancel,
 		Messages:  messages,
+		Task:      m.nextLiveTaskName(),
+		StartedAt: time.Now(),
+		Current:   "starting the run",
 		Status:    "running",
 		MaxPasses: 1,
 		Logs:      []string{"system: run started"},
 	}
-	m.message = "Run started."
+	m.message = ""
 	m.updateViewportContent()
 	return m.startRunOnceCmd(token, runCtx, messages)
 }
@@ -1571,12 +1592,15 @@ func (m *StatusModel) startRunLoop() tea.Cmd {
 		Token:     token,
 		Cancel:    cancel,
 		Messages:  messages,
+		Task:      m.nextLiveTaskName(),
+		StartedAt: time.Now(),
+		Current:   "starting pass 1",
 		Status:    "running",
 		MaxPasses: maxPasses,
 		Stats:     app.RunLoopStats{MaxPasses: maxPasses},
 		Logs:      []string{fmt.Sprintf("system: loop started (max passes %d)", maxPasses)},
 	}
-	m.message = "Loop started."
+	m.message = ""
 	m.updateViewportContent()
 	return m.startRunLoopCmd(token, runCtx, messages, maxPasses)
 }
@@ -1595,8 +1619,8 @@ func (m *StatusModel) startTaskRun() tea.Cmd {
 	runCtx, cancel := context.WithCancel(base)
 	token := m.runOnce.Token + 1
 	messages := make(chan tea.Msg, 128)
-	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeTask, Token: token, Cancel: cancel, Messages: messages, Status: "running", MaxPasses: 50, Logs: []string{"system: autonomous task run started for " + task.ID}}
-	m.message = "Autonomous task run started: " + task.ID + "."
+	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeTask, Token: token, Cancel: cancel, Messages: messages, Task: liveTaskName(task), StartedAt: time.Now(), Current: "starting the autonomous task", Status: "running", MaxPasses: 50, Logs: []string{"system: autonomous task run started for " + task.ID}}
+	m.message = ""
 	m.updateViewportContent()
 	actions := m.actions
 	return func() tea.Msg {
@@ -1670,8 +1694,8 @@ func (m *StatusModel) startQueueRun() tea.Cmd {
 	runCtx, cancel := context.WithCancel(base)
 	token := m.runOnce.Token + 1
 	messages := make(chan tea.Msg, 128)
-	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeQueue, Token: token, Cancel: cancel, Messages: messages, Status: "running", Logs: []string{"system: autonomous queue started (max tasks 100, max cycles 50)"}}
-	m.message = "Autonomous queue started."
+	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeQueue, Token: token, Cancel: cancel, Messages: messages, Task: "autonomous task queue", StartedAt: time.Now(), Current: "starting the queue", Status: "running", MaxPasses: 100, Logs: []string{"system: autonomous queue started (max tasks 100, max cycles 50)"}}
+	m.message = ""
 	m.updateViewportContent()
 	actions := m.actions
 	return func() tea.Msg {
@@ -1961,11 +1985,13 @@ func liveTranscriptResultCell(state runOnceState, msg runOnceDoneMsg) transcript
 		return queueTranscriptResultCell(state.Token, msg.queueResult, msg.err, msg.cancelled)
 	}
 
-	runID := strings.TrimSpace(msg.result.Run.ID)
+	result := msg.result
+	runID := strings.TrimSpace(result.Run.ID)
 	if state.Mode == runModeLoop {
 		runID = strings.TrimSpace(msg.lastRunID)
+		result = state.LastResult
 	}
-	run := msg.result.Run
+	run := result.Run
 	if strings.TrimSpace(msg.history.Run.ID) == runID {
 		run = msg.history.Run
 	}
@@ -1994,27 +2020,30 @@ func liveTranscriptResultCell(state runOnceState, msg runOnceDoneMsg) transcript
 	}
 	name := oneLine(run.Task)
 	if name == "" {
-		name = strings.TrimSpace(msg.result.Task.ID)
+		name = strings.TrimSpace(result.Task.ID)
+	}
+	if name == "" {
+		name = oneLine(state.Task)
 	}
 	if name == "" {
 		name = "run"
 	}
-	reason := oneLine(msg.result.Message)
+	reason := oneLine(result.Message)
 	if reason == "" && msg.err != nil {
 		reason = oneLine(msg.err.Error())
 	}
 	switch {
 	case msg.cancelled:
 		return terminalTranscriptCell(identity, name, "cancelled", reason)
-	case msg.result.Receipt.Verdict == receipt.VerdictSafetyLimit:
+	case result.Receipt.Verdict == receipt.VerdictSafetyLimit:
 		return terminalTranscriptCell(identity, name, "safety_stop", reason)
-	case msg.result.Outcome == runonce.OutcomeBlocked:
+	case result.Outcome == runonce.OutcomeBlocked:
 		return terminalTranscriptCell(identity, name, "blocked", reason)
 	case canonicalOK:
 		return canonical
-	case msg.result.NoTask || msg.result.Outcome == runonce.OutcomeNoTask:
+	case result.NoTask || result.Outcome == runonce.OutcomeNoTask:
 		return transcriptCell{kind: transcriptCellStatus, identity: identity, source: []string{"No pending runnable tasks.", "Next: add a task or wait for dependencies"}}
-	case msg.err != nil || app.RunOnceOutcomeError(msg.result) != nil:
+	case msg.err != nil || app.RunOnceOutcomeError(result) != nil:
 		return terminalTranscriptCell(identity, name, "failed", reason)
 	default:
 		return terminalTranscriptCell(identity, name, "completed", reason)
@@ -2119,8 +2148,6 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 	case "ctrl+c", "q":
 		m.runOnce.QuitAfterSettlement = true
 		m.requestRunCancel()
-		m.message = "Cancellation requested; waiting for run settlement before exit."
-		m.updateViewportContent()
 		return true, nil
 	case "c", "esc":
 		m.requestRunCancel()
@@ -2153,8 +2180,6 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 
 func (m *StatusModel) requestRunCancel() {
 	if m.runOnce.CancelRequested {
-		m.message = "Cancellation already requested."
-		m.updateViewportContent()
 		return
 	}
 	m.runOnce.CancelRequested = true
@@ -2162,7 +2187,7 @@ func (m *StatusModel) requestRunCancel() {
 		m.runOnce.Cancel()
 	}
 	m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: cancellation requested")
-	m.message = "Cancellation requested."
+	m.message = ""
 	m.updateViewportContent()
 }
 
@@ -2185,6 +2210,11 @@ func (m *StatusModel) applyRunLoopPass(result runonce.Result) {
 		stats.ConsecutiveFailedOrBlocked = 0
 	}
 	m.runOnce.Stats = stats
+	m.runOnce.LastResult = result
+	if name := liveRunResultName(result); name != "" {
+		m.runOnce.Task = name
+	}
+	m.runOnce.Current = runResultSummary(result)
 	if runID := strings.TrimSpace(result.Run.ID); runID != "" {
 		m.runOnce.RunID = runID
 	}
@@ -2835,6 +2865,9 @@ func (m StatusModel) formatContent(content string) string {
 }
 
 func (m StatusModel) renderContent() string {
+	if m.settling != nil {
+		return m.renderRunProgress()
+	}
 	var content string
 	switch m.view {
 	case viewTasks:
@@ -2890,7 +2923,7 @@ func (m StatusModel) footerLines() []string {
 	if m.view == viewDashboard {
 		keys := "? Help | R Run | r Refresh | q Quit"
 		if m.runOnce.Active {
-			keys = "c Cancel Run | ? Help | q Quit"
+			keys = "? Help | q Quit"
 		}
 		return append([]string{"›"}, wrapPlainLines([]string{keys}, m.contentWidth())...)
 	}
@@ -2904,7 +2937,11 @@ func (m StatusModel) footerLines() []string {
 		case viewHelp:
 			keys = append(keys, "esc Back")
 		}
-		keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "c Cancel Run", "q Quit")
+		keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help")
+		if m.view == viewHelp {
+			keys = append(keys, "c Cancel Run")
+		}
+		keys = append(keys, "q Quit")
 		return wrapKeyLines(keys, m.width)
 	}
 	switch m.view {
@@ -2966,6 +3003,9 @@ func (m StatusModel) renderDashboard() string {
 		lines := []string{"Run `revolvr init` to initialize this repository."}
 		lines = appendNotice(lines, m.message)
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	}
+	if m.runOnce.Started {
+		return lipgloss.JoinVertical(lipgloss.Left, appendNotice(nil, m.message)...)
 	}
 
 	lines := appendNotice(nil, m.message)
@@ -3583,62 +3623,88 @@ func optionalJoined(values []string) string {
 }
 
 func (m StatusModel) renderRunProgress() string {
-	lines := []string{"Run Progress"}
-	lines = appendNotice(lines, m.message)
-	lines = append(lines, "Status: "+optionalValue(m.runOnce.Status))
-	if m.runOnce.Mode == runModeLoop {
-		stats := m.runOnce.Stats
-		if stats.MaxPasses <= 0 {
-			stats.MaxPasses = m.runOnce.MaxPasses
-		}
-		lines = append(lines,
-			"Mode: loop",
-			fmt.Sprintf("Max passes: %d", stats.MaxPasses),
-			fmt.Sprintf("Passes: %d/%d", stats.Passes, stats.MaxPasses),
-			fmt.Sprintf("Completed: %d", stats.Completed),
-			fmt.Sprintf("Failed or blocked: %d", stats.FailedOrBlocked),
-			fmt.Sprintf("No task: %t", stats.NoTask),
-			fmt.Sprintf("Consecutive failed or blocked: %d", stats.ConsecutiveFailedOrBlocked),
-		)
-		if stopReason := strings.TrimSpace(stats.StopReason); stopReason != "" {
-			lines = append(lines, "Stop reason: "+stopReason)
-		}
-		if m.runOnce.RunID != "" {
-			lines = append(lines, "Latest run ID: "+m.runOnce.RunID)
-		}
-	} else if m.runOnce.Mode == runModeQueue {
-		result := m.runOnce.QueueResult
-		lines = append(lines,
-			"Mode: autonomous queue",
-			"Operation ID: "+optionalValue(m.runOnce.RunID),
-			fmt.Sprintf("Selections: %d", result.Statistics.Selections),
-			fmt.Sprintf("Tasks run: %d", result.Statistics.TasksRun),
-		)
-		if result.StopReason != "" {
-			lines = append(lines, "Stop reason: "+string(result.StopReason), "Stop detail: "+optionalValue(result.StopDetail))
-		}
-		for _, outcome := range result.Outcomes {
-			lines = append(lines, fmt.Sprintf("Task outcome: %s stop=%s operation=%s replayed=%t", outcome.TaskID, outcome.StopReason, outcome.TaskOperationID, outcome.Replayed))
-		}
-		lines = append(lines, "Remaining ready: "+optionalJoined(result.RemainingReady), "Remaining waiting: "+optionalJoined(result.RemainingWaiting))
-	} else if m.runOnce.RunID != "" {
-		lines = append(lines, "Run ID: "+m.runOnce.RunID)
+	return lipgloss.JoinVertical(lipgloss.Left, m.liveOperationLines()...)
+}
+
+func (m StatusModel) liveOperationLines() []string {
+	if m.settling != nil {
+		return slices.Clone(m.settling.cell.source)
 	}
-	if m.runOnce.Mode != runModeLoop && m.runOnce.Outcome != "" {
-		lines = append(lines, "Outcome: "+m.runOnce.Outcome)
+
+	width := m.contentWidth()
+	name := optionalValue(m.runOnce.Task)
+	if m.runOnce.CancelRequested {
+		return []string{
+			clipDisplayLine("Cancelling: "+name, width),
+			"Current: waiting for the run to stop",
+			"Next: wait for settlement",
+		}
 	}
-	if m.runOnce.CancelRequested && m.runOnce.Active {
-		lines = append(lines, "Cancellation: requested")
+
+	mode := liveOperationModeLine(m.runOnce, width)
+	if elapsed := liveOperationElapsed(m.runOnce.StartedAt); elapsed != "" {
+		withElapsed := mode + " · elapsed " + elapsed
+		if textWidth(withElapsed) <= width {
+			mode = withElapsed
+		}
 	}
-	if m.runOnce.Err != "" {
-		lines = append(lines, "Error: "+oneLine(m.runOnce.Err))
+	lines := []string{
+		clipDisplayLine("Running: "+name, width),
+		mode,
+		"Safety: admitted",
 	}
-	lines = append(lines, "Log")
-	if len(m.runOnce.Logs) == 0 {
-		return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No progress yet.")...)
+	lines = append(lines, boundedCurrentLines(m.runOnce.Current, width)...)
+	return append(lines, "Next: wait, or press c or Esc to cancel")
+}
+
+func liveOperationModeLine(state runOnceState, width int) string {
+	switch state.Mode {
+	case runModeLoop:
+		limit := max(state.Stats.MaxPasses, state.MaxPasses)
+		pass := min(state.Stats.Passes+1, limit)
+		return fmt.Sprintf("Mode: loop · pass %d of %d", max(pass, 1), max(limit, 1))
+	case runModeTask:
+		cycle := max(state.Progress, 1)
+		label := "autonomous task"
+		if width <= 40 {
+			label = "autonomous"
+		}
+		return fmt.Sprintf("Mode: %s · cycle %d of %d", label, cycle, max(state.MaxPasses, 1))
+	case runModeQueue:
+		return fmt.Sprintf("Mode: queue · tasks %d of %d", state.Progress, max(state.MaxPasses, 1))
+	default:
+		return "Mode: single pass"
 	}
-	lines = append(lines, m.runOnce.Logs...)
-	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func liveOperationElapsed(startedAt time.Time) string {
+	if startedAt.IsZero() {
+		return ""
+	}
+	elapsed := time.Since(startedAt)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	return elapsed.Truncate(time.Second).String()
+}
+
+func boundedCurrentLines(detail string, width int) []string {
+	detail = oneLine(detail)
+	if detail == "" {
+		detail = "waiting for progress"
+	}
+	lines := wrapPlainLine("Current: "+detail, width)
+	if len(lines) <= 2 {
+		return lines
+	}
+	lines = lines[:2]
+	if width <= 1 {
+		lines[1] = "…"
+	} else {
+		prefix, _ := splitRunePrefix(lines[1], width-1)
+		lines[1] = strings.TrimRight(prefix, " ") + "…"
+	}
+	return lines
 }
 
 func (m StatusModel) renderHelp() string {
@@ -3756,6 +3822,31 @@ func taskBrief(task taskmodel.Task) string {
 		return id
 	}
 	return fmt.Sprintf("%s - %s", id, summary)
+}
+
+func liveTaskName(task taskmodel.Task) string {
+	if name := oneLine(task.Summary); name != "" {
+		return name
+	}
+	if name := oneLine(task.Task); name != "" {
+		return name
+	}
+	return strings.TrimSpace(task.ID)
+}
+
+func liveRunResultName(result runonce.Result) string {
+	if name := oneLine(result.Run.Task); name != "" {
+		return name
+	}
+	return liveTaskName(result.Task)
+}
+
+func (m StatusModel) nextLiveTaskName() string {
+	index := nextSelectedTaskIndex(m.status.Tasks)
+	if index < 0 {
+		return "run"
+	}
+	return liveTaskName(m.status.Tasks[index])
 }
 
 func renderTaskDetailLines(task taskmodel.Task) []string {
@@ -4380,11 +4471,35 @@ func runProgressLine(event codexexec.ProgressEvent) string {
 	return source + ": " + message
 }
 
-func activeRunProgressMessage(mode string) string {
-	if mode == runModeLoop {
-		return "Loop in progress."
+func taskProgressDetail(operation autonomoustaskrun.Operation) string {
+	stage := strings.ReplaceAll(strings.TrimSpace(operation.Stage), "_", " ")
+	action := strings.ReplaceAll(strings.TrimSpace(operation.LastAction), "_", " ")
+	switch {
+	case action != "" && stage != "":
+		return action + " · " + stage
+	case action != "":
+		return action
+	case stage != "":
+		return stage
+	default:
+		return "waiting for task progress"
 	}
-	return "Run in progress."
+}
+
+func queueProgressDetail(operation autonomousqueue.Operation) string {
+	parts := []string{strings.ReplaceAll(strings.TrimSpace(operation.Stage), "_", " ")}
+	if operation.InFlight != nil {
+		parts = append(parts, "task "+operation.InFlight.TaskID)
+	} else {
+		for _, slot := range operation.Slots {
+			parts = append(parts, "task "+slot.Selection.TaskID)
+		}
+	}
+	parts = compactRunDetailStrings(parts)
+	if len(parts) == 0 {
+		return "waiting for queue progress"
+	}
+	return strings.Join(parts, " · ")
 }
 
 func runPassSummaryLine(pass int, result runonce.Result) string {
