@@ -29,9 +29,9 @@ Updated: 2026-09-03
   TUI-031's reviewed idle plain-text route, TUI-032's contextual command
   discovery, TUI-040's bounded live operation cell, TUI-050's shared Help
   overlay shell, TUI-051's Tasks overlay, TUI-052's Runs/Run Detail overlay,
-  TUI-053's Preflight overlay, TUI-054's Workflow overlay, and TUI-055's Change
-  Summary overlay are complete. TUI-056 is the only pending
-  canonical task, and later TUI tasks remain unpublished drafts.
+  TUI-053's Preflight overlay, TUI-054's Workflow overlay, TUI-055's Change
+  Summary overlay, and TUI-056's Evidence overlay are complete. TUI-057 is the
+  only pending canonical task, and later TUI tasks remain unpublished drafts.
 
 ## Architecture 024 TUI
 
@@ -106,6 +106,10 @@ Updated: 2026-09-03
   tests covering both entries, renderer parity, canonical/exact-diff meaning,
   selection, refresh, active guards, scrolling, compaction, geometry, exact
   return, and stale ownership.
+- `go test ./internal/tui -run 'TestEvidence.*Overlay' -count=1` — PASS;
+  coverage includes both entries, retained-renderer parity, canonical and
+  autonomous evidence, textual status distinctions, stable refresh identity,
+  stale ownership, validation, scrolling, geometry, and exact return.
 - `go test ./internal/tui -count=1` — PASS.
 - TUI-032 command coverage, exact/prefix filtering, shared-guard, keyboard,
   dismissal, Help, 40-column, cancellation-visibility, and single-publication
@@ -132,31 +136,35 @@ Updated: 2026-09-03
   canonical/exact-diff distinction, refresh, active-guard, scrolling,
   compaction, exact-return, 80-/40-column, stale-owner, and single-publication
   gates — PASS.
+- TUI-056 Evidence-entry, retained-renderer, source-selection, provenance,
+  status/warning/missing distinctions, refresh, validation, scrolling,
+  compaction, exact-return, 80-/40-column, stale-owner, and single-publication
+  gates — PASS.
 - `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS before
   completion; local ignored runtime was restored and TUI-050 selected next.
 - `go run ./cmd/revolvr task list` and `go run ./cmd/revolvr status` — PASS
-  after completion; TUI-056 is the sole pending and next canonical task.
+  after completion; TUI-057 is the sole pending and next canonical task.
 - Application/domain callbacks, dependencies, and TUI authority are unchanged.
 
 ## Blockers And Next Task
 
 - Blockers: none. The prior socket-permission failure was specific to the
   external agent sandbox; the required full suite passes in this checkout.
-- TUI-055 is complete. TUI-056 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-055.
+- TUI-056 is complete. TUI-057 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-056.
 - Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
   TUI tasks, or reopen Architecture 025.
 
 ## Latest Pass
 
-- Task selected: `tui-055-move-change-summary-overlay`.
-- Files changed: the package-local Change Summary overlay routing/state and
-  focused parity tests, TUI-055 completion and TUI-056 publication metadata,
+- Task selected: `tui-056-move-evidence-overlay`.
+- Files changed: the package-local Evidence overlay routing/state and focused
+  parity tests, TUI-056 completion and TUI-057 publication metadata,
   and affected planning, state, task-list, reference, and handoff records.
-- Verification commands run: required `gofmt`, focused Change-Summary-overlay,
+- Verification commands run: required `gofmt`, focused Evidence-overlay,
   TUI and full Go tests, task list/status selectors, state line limit,
   publication/status audits, and `git diff --check`.
 - Verification result: PASS.
-- What remains: TUI-056 is pending for the next fresh pass; later tasks remain
+- What remains: TUI-057 is pending for the next fresh pass; later tasks remain
   unpublished drafts.
 - Blockers: none.

@@ -1,6 +1,6 @@
 # TUI-056 — Move Evidence into an Overlay
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-03
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
 - Depends on: [TUI-055](tui-055-move-change-summary-overlay.md)
 
@@ -41,3 +41,14 @@ go test ./internal/tui
 
 - No evidence schema, verifier, artifact loading boundary, old-route removal,
   or page-renderer deletion.
+
+## Completion Evidence
+
+- Both retained entries reach the shared overlay and reuse the Evidence page
+  renderer over existing app-supplied run and autonomous projections.
+- Evidence groups retain textual status, missing, invalid, warning, satisfied,
+  artifact, source, hash, run, occurrence, and criterion traceability.
+- Refresh preserves stable source identity, stale results retain the current
+  owner, receipt validation targets the loaded run, and exact dismissal passes.
+- No evidence schema, verifier, artifact reader, application authority,
+  dependency, or rollback renderer changed.

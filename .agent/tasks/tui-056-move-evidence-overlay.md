@@ -1,6 +1,6 @@
 ---
 id: tui-056-move-evidence-overlay
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-055-move-change-summary-overlay
 
 # TUI-056 — Move Evidence into an Overlay
 
-- Status: Pending
+- Status: Completed 2026-09-03
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-056 draft](../../docs/architecture/tui-overhaul/tasks/tui-056-move-evidence-overlay.md)
@@ -57,3 +57,16 @@ go test ./internal/tui
 
 - No evidence schema, verifier, artifact loading boundary, old-route removal,
   or page-renderer deletion.
+
+## Completion Evidence
+
+- `e` and `/evidence` open the shared Evidence overlay while the retained page
+  renderer remains the D4 rollback path.
+- Canonical and autonomous evidence retain run, task, criterion, status,
+  warning, artifact, source, hash, and occurrence identities from app-supplied
+  projections.
+- Stable autonomous selection and selected-run refresh survive reordering;
+  stale loads cannot replace a newer owner, and receipt validation remains on
+  the loaded canonical run.
+- Focused coverage passes renderer parity, missing/invalid/warning/satisfied
+  distinctions, scrolling, 80-/40-column bounds, and exact return.

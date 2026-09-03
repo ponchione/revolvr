@@ -403,6 +403,20 @@ Updated: 2026-09-03
 - TUI-055's completion handoff published only
   `.agent/tasks/tui-056-move-evidence-overlay.md`. TUI-056 is pending and
   unstarted; every later task remains an unpublished draft.
+- Completed TUI-056 by routing `e` and `/evidence` to the shared overlay while
+  retaining the Evidence page renderer as the D4 rollback path.
+- Canonical run evidence now keeps status, diagnostics, warnings, artifact
+  paths, receipt validation, and raw event identity together; autonomous
+  evidence keeps task, criterion, finding, verification, source, hash, run,
+  occurrence, and diagnostic identities from the existing app projection.
+- Missing, invalid, warning, and satisfied evidence remain distinct text;
+  stable source selection, refresh, scrolling, 80-/40-column wrapping, exact
+  source/composer return, and stale ownership pass.
+- Receipt validation remains callback-backed, targets only the loaded canonical
+  run, and opening or navigating the overlay grants no authority.
+- TUI-056's completion handoff published only
+  `.agent/tasks/tui-057-move-approval-overlay.md`. TUI-057 is pending and
+  unstarted; every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -410,7 +424,7 @@ Updated: 2026-09-03
 go run ./cmd/revolvr status
 ```
 
-It must report TUI-056 as the only pending and next task, without selecting
+It must report TUI-057 as the only pending and next task, without selecting
 deferred EXT or superseded PTC work.
 
 ## Exact Next Command
@@ -421,8 +435,8 @@ Run one fresh Codex pass:
 codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-The next fresh pass implements the already-pending TUI-056 task. Do not
-republish TUI-055 or publish TUI-057 before TUI-056 completes.
+The next fresh pass implements the already-pending TUI-057 task. Do not
+republish TUI-056 or publish TUI-058 before TUI-057 completes.
 
 ## Verification
 
@@ -746,4 +760,18 @@ republish TUI-055 or publish TUI-057 before TUI-056 completes.
 - `.agent/STATE.md` line limit, publication/status audits, and
   `git diff --check` — PASS.
 
-Run the exact next command above for the pending TUI-056 implementation pass.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go
+  internal/tui/architecture_024_test.go` — PASS.
+- `go test ./internal/tui -run 'TestEvidence.*Overlay' -count=1` — PASS.
+- `go test ./internal/tui -count=1` — PASS.
+- `go test ./... -count=1` — PASS in 91 packages.
+- TUI-056 Evidence-entry, retained-renderer, source-selection, provenance,
+  status/warning/missing distinctions, refresh, validation, scrolling,
+  compaction, exact-return, 80-/40-column, and stale-owner gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-056 is complete and TUI-057 is
+  the only pending canonical task.
+- `go run ./cmd/revolvr status` — PASS; TUI-057 is selected next.
+- `.agent/STATE.md` line limit, publication/status audits, and
+  `git diff --check` — PASS.
+
+Run the exact next command above for the pending TUI-057 implementation pass.

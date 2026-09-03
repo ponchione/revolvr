@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"revolvr/internal/app"
+	"revolvr/internal/autonomous"
 	"revolvr/internal/autonomousqueue"
 	"revolvr/internal/autonomoustaskrun"
 	"revolvr/internal/autonomousview"
@@ -4669,6 +4670,225 @@ func TestChangeSummaryOverlay(t *testing.T) {
 		if cmd != nil || model.overlay == nil || model.overlay.content != viewHelp || len(model.runDetails.Events) != 0 {
 			t.Fatalf("stale reload changed newer owner: overlay=%#v details=%#v cmd=%v", model.overlay, model.runDetails, cmd)
 		}
+	})
+}
+
+func TestEvidenceOverlay(t *testing.T) {
+	started := time.Date(2026, 9, 3, 15, 0, 0, 0, time.UTC)
+	history := validationDetailHistory("run-evidence")
+	history.Run.VerificationStatus = "failed"
+	history.Events = append(history.Events,
+		ledger.Event{
+			ID:        2,
+			RunID:     history.Run.ID,
+			Type:      ledger.EventVerificationCompleted,
+			Payload:   jsonPayload(t, map[string]any{"status": "failed", "failed_command_index": 1, "commands": []map[string]any{{"index": 1, "command": "go test ./...", "status": "failed", "passed": false, "exit_code": 1}}}),
+			CreatedAt: started,
+		},
+		ledger.Event{
+			ID:        3,
+			RunID:     history.Run.ID,
+			Type:      ledger.EventReceiptWarning,
+			Payload:   jsonPayload(t, map[string]any{"warning_type": "invalid_receipt", "message": "receipt hash mismatch", "receipt_path": ".revolvr/receipts/run-evidence.md"}),
+			CreatedAt: started.Add(time.Second),
+		},
+	)
+
+	t.Run("key and command entries retain canonical evidence geometry and return state", func(t *testing.T) {
+		for _, entry := range []struct {
+			name string
+			open func(t *testing.T, model StatusModel) StatusModel
+			want commandComposerState
+		}{
+			{
+				name: "key",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model.composer = commandComposerState{Text: "saved draft"}
+					model, cmd := updateStatusModel(t, model, keyRunes("e"))
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Text: "saved draft"},
+			},
+			{
+				name: "command",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model, _ = updateStatusModel(t, model, keyRunes("/evidence"))
+					model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Active: true},
+			},
+		} {
+			t.Run(entry.name, func(t *testing.T) {
+				model := NewStatusModel(app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{history.Run}, LatestEvents: history.Events})
+				model.message = "underlying notice"
+				model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 10})
+				committed := slices.Clone(model.committed)
+				model = entry.open(t, model)
+
+				if model.overlay == nil || model.overlay.content != viewEvidence || model.overlay.source != viewDashboard || model.view != viewDashboard {
+					t.Fatalf("overlay=%#v underlying view=%v, want Evidence over Dashboard", model.overlay, model.view)
+				}
+				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
+					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
+				}
+				overlayContent := model.renderOverlayContent()
+				page := model
+				page.message = page.overlay.message
+				page.overlay = nil
+				page.view = viewEvidence
+				page.focusSource = viewDashboard
+				if overlayContent != page.renderFocusedEvidence() {
+					t.Fatal("Evidence overlay content diverged from retained page renderer")
+				}
+				requireLines(t, normalizedViewLines(overlayContent),
+					"Evidence",
+					"Run: run-evidence | status: completed | verification: failed",
+					"context payload: .revolvr/runs/run-evidence/context.md",
+					"receipt: .revolvr/receipts/run-evidence.md",
+					"verification: failed",
+					"failed verification: go test ./... (exit_code=1)",
+					"warning: invalid_receipt: receipt hash mismatch (.revolvr/receipts/run-evidence.md)",
+					"Receipt Validation",
+					"Status: not run",
+					"Canonical Events",
+					"3  receipt_warning  2026-09-03T15:00:01Z",
+				)
+				requireLines(t, normalizedViewLines(model.View()), "Keys: pgup/pgdown Scroll | home/end Jump | v Validate | r Refresh | esc Close")
+				for _, width := range []int{80, 40} {
+					model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 10})
+					assertMaxLineWidth(t, normalizedViewLines(model.View()), width)
+				}
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnd})
+				if model.overlay.viewport.YOffset == 0 {
+					t.Fatal("Evidence overlay did not scroll")
+				}
+
+				model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				}
+				if !reflect.DeepEqual(model.committed, committed) {
+					t.Fatal("Evidence overlay changed committed transcript cells")
+				}
+			})
+		}
+	})
+
+	t.Run("autonomous groups keep statuses provenance missing evidence and warnings distinct", func(t *testing.T) {
+		projection := tuiAutonomousView("task-evidence", "working")
+		projection.Verification.Evidence = []autonomous.EvidenceReference{{Kind: autonomous.EvidenceKindVerification, Reference: "verify-run:verify-occurrence", Detail: "Focused verification failed."}}
+		projection.Acceptance = []autonomousview.Acceptance{
+			{ID: "criterion-satisfied", Description: "Artifact identity is preserved.", Status: "satisfied", Evidence: []autonomous.EvidenceReference{{Kind: autonomous.EvidenceKindFile, Reference: "internal/tui/model.go", Detail: "Renderer retains the reference."}}},
+			{ID: "criterion-missing", Description: "Pending evidence is explicit.", Status: "pending"},
+		}
+		projection.Findings[0].Status = "invalid"
+		projection.Findings[0].Evidence = []autonomous.EvidenceReference{{Kind: autonomous.EvidenceKindFile, Reference: "internal/tui/stale.go", Detail: "Invalid evidence target."}}
+		model := NewStatusModel(app.StatusResult{Initialized: true})
+		model.view = viewApproval
+		model.focusSource = viewDashboard
+		model.focusedFromAutonomous = true
+		model.composer = commandComposerState{Text: "workflow draft"}
+		model.autonomous.View = &projection
+		model, _ = updateStatusModel(t, model, keyRunes("e"))
+
+		if model.overlay == nil || model.overlay.content != viewEvidence || model.overlay.source != viewApproval || !model.focusedAutonomous() {
+			t.Fatalf("autonomous Evidence state: overlay=%#v source=%v", model.overlay, model.view)
+		}
+		content := normalizedViewLines(model.renderOverlayContent())
+		requireLines(t, content,
+			"Task: task-evidence",
+			"[task] path=.agent/tasks/task-evidence.md run=none sha256="+strings.Repeat("a", 64)+" bytes=120 | Canonical task.",
+			"Status: state=available result=passed run=verify-run occurrence=verify-occurrence source=source-one",
+			"[verification] verify-run:verify-occurrence | Focused verification failed.",
+			"[satisfied] criterion-satisfied: Artifact identity is preserved.",
+			"[file] internal/tui/model.go | Renderer retains the reference.",
+			"[pending] criterion-missing: Pending evidence is explicit.",
+			"Evidence: missing",
+			"[invalid/blocking] finding-one: A blocking issue remains.",
+			"[file] internal/tui/stale.go | Invalid evidence target.",
+			"Warning: [optional_history_missing/audit] Optional legacy history was unavailable. | reference=history",
+		)
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if model.overlay != nil || model.view != viewApproval || model.composer.Text != "workflow draft" {
+			t.Fatalf("autonomous return: overlay=%#v view=%v composer=%#v", model.overlay, model.view, model.composer)
+		}
+	})
+
+	t.Run("refresh preserves autonomous identity and rejects a stale load", func(t *testing.T) {
+		first := app.AutonomousTaskSelector{Selector: "task-one", TaskID: "task-one", SourceKind: autonomousview.SourceActive, Status: "pending"}
+		selected := app.AutonomousTaskSelector{Selector: "task-evidence", TaskID: "task-evidence", SourceKind: autonomousview.SourceActive, Status: "pending"}
+		projection := tuiAutonomousView(selected.TaskID, "ready")
+		listCalls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			RefreshStatus: func() (app.StatusResult, error) { return app.StatusResult{Initialized: true}, nil },
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
+				listCalls++
+				return []app.AutonomousTaskSelector{selected, first}, nil
+			},
+			LoadAutonomous: func(selector string) (autonomousview.View, error) {
+				if selector != selected.Selector {
+					t.Fatalf("loaded selector = %q, want %q", selector, selected.Selector)
+				}
+				return projection, nil
+			},
+		})
+		model.view = viewAutonomous
+		model.composer.Active = false
+		model.autonomous = autonomousState{Selectors: []app.AutonomousTaskSelector{first, selected}, Selected: 1, Selector: selected.Selector, TaskID: selected.TaskID, View: &projection}
+		for _, cell := range model.committed {
+			model.emitted[cell.identity] = struct{}{}
+		}
+		model, _ = updateStatusModel(t, model, keyRunes("e"))
+		owner := model.overlay.owner
+		model, cmd := updateStatusModel(t, model, keyRunes("r"))
+		model = drainStatusModelCmds(t, model, cmd)
+		if listCalls != 1 || model.overlay == nil || model.overlay.owner != owner || model.autonomous.Selector != selected.Selector || model.autonomous.Selected != 0 {
+			t.Fatalf("refresh: lists=%d overlay=%#v selector=%q selection=%d", listCalls, model.overlay, model.autonomous.Selector, model.autonomous.Selected)
+		}
+
+		model, cmd = updateStatusModel(t, model, keyRunes("r"))
+		model, staleLoad := runStatusModelCmd(t, model, cmd)
+		if staleLoad == nil {
+			t.Fatal("refresh returned no autonomous selector load")
+		}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		model, _ = updateStatusModel(t, model, keyRunes("?"))
+		model, next := runStatusModelCmd(t, model, staleLoad)
+		if next != nil || model.overlay == nil || model.overlay.content != viewHelp || model.overlay.owner == owner || listCalls != 2 {
+			t.Fatalf("stale load changed newer owner: overlay=%#v lists=%d cmd=%v", model.overlay, listCalls, next)
+		}
+	})
+
+	t.Run("canonical receipt validation stays in the owning overlay", func(t *testing.T) {
+		validationCalls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{history.Run}, LatestEvents: history.Events}, StatusActions{
+			ValidateReceipt: func(runID string) (receipt.ValidationResult, error) {
+				validationCalls++
+				return receipt.ValidationResult{RunID: runID, ReceiptPath: ".revolvr/receipts/run-evidence.md", Checks: []receipt.ValidationCheck{{Name: receipt.ValidationCheckIdentity, Passed: false, Details: []string{"receipt identity is invalid"}}}}, nil
+			},
+		})
+		model.composer.Active = false
+		model, _ = updateStatusModel(t, model, keyRunes("e"))
+		model, cmd := updateStatusModel(t, model, keyRunes("v"))
+		if cmd == nil || validationCalls != 0 {
+			t.Fatalf("validation started: calls=%d target=%q overlay=%#v cmd=%v", validationCalls, model.validationTargetRunID(), model.overlay, cmd)
+		}
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || validationCalls != 1 || model.overlay == nil || model.overlay.content != viewEvidence {
+			t.Fatalf("validation result: calls=%d overlay=%#v cmd=%v", validationCalls, model.overlay, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.renderOverlayContent()),
+			"Notice: Receipt validation failed.",
+			"Status: failed",
+			"FAIL identity: failed - receipt identity is invalid",
+		)
 	})
 }
 

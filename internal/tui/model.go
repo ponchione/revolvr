@@ -600,7 +600,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openRunMsg:
 		if msg.owner != 0 {
 			if m.overlay == nil || m.overlay.owner != msg.owner ||
-				msg.focused && (!m.changeSummaryOverlayActive() || m.runDetails == nil || strings.TrimSpace(m.runDetails.Run.ID) != msg.runID) ||
+				msg.focused && (!m.focusedProjectionOverlayActive() || m.runDetails == nil || strings.TrimSpace(m.runDetails.Run.ID) != msg.runID) ||
 				!msg.focused && (!m.runsOverlayActive() || m.selectedRunID() != msg.runID) {
 				return m, nil
 			}
@@ -675,7 +675,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 		return m, nil
 	case validateReceiptMsg:
-		if msg.owner != 0 && (m.overlay == nil || m.overlay.owner != msg.owner || m.overlay.content != viewRunDetail || m.runDetails == nil || strings.TrimSpace(m.runDetails.Run.ID) != msg.runID) {
+		if msg.owner != 0 && (m.overlay == nil || m.overlay.owner != msg.owner || m.overlay.content != viewRunDetail && m.overlay.content != viewEvidence || m.validationTargetRunID() != msg.runID) {
 			return m, nil
 		}
 		m.validation = receiptValidationState{
@@ -939,7 +939,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openChangeSummaryOverlay()
 			return m, nil
 		case "e":
-			m.openFocusedView(viewEvidence)
+			m.openEvidenceOverlay()
 			return m, nil
 		case "A":
 			m.openFocusedView(viewApproval)
@@ -1241,7 +1241,7 @@ func (m StatusModel) reloadFocusedRunCmd() tea.Cmd {
 		return nil
 	}
 	owner := 0
-	if m.changeSummaryOverlayActive() {
+	if m.focusedProjectionOverlayActive() {
 		owner = m.overlay.owner
 	}
 	return func() tea.Msg {
@@ -1306,21 +1306,32 @@ func (m StatusModel) retryTaskCmd(taskID string) tea.Cmd {
 }
 
 func (m StatusModel) validateRunReceiptCmd() tea.Cmd {
-	if m.runDetails == nil {
-		return nil
-	}
-	runID := strings.TrimSpace(m.runDetails.Run.ID)
+	runID := m.validationTargetRunID()
 	if runID == "" {
 		return nil
 	}
 	owner := 0
-	if m.overlay != nil && m.overlay.content == viewRunDetail {
+	if m.overlay != nil && (m.overlay.content == viewRunDetail || m.overlay.content == viewEvidence) {
 		owner = m.overlay.owner
 	}
 	return func() tea.Msg {
 		result, err := m.actions.ValidateReceipt(runID)
 		return validateReceiptMsg{runID: runID, owner: owner, result: result, err: err}
 	}
+}
+
+func (m StatusModel) validationTargetRunID() string {
+	if m.evidenceOverlayActive() {
+		history, ok := m.focusedRunHistory()
+		if !ok {
+			return ""
+		}
+		return strings.TrimSpace(history.Run.ID)
+	}
+	if m.runDetails == nil {
+		return ""
+	}
+	return strings.TrimSpace(m.runDetails.Run.ID)
 }
 
 func (m *StatusModel) startValidateRunReceipt() tea.Cmd {
@@ -2709,7 +2720,7 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		m.openChangeSummaryOverlay()
 		return m, nil
 	case "evidence":
-		m.openFocusedView(viewEvidence)
+		m.openEvidenceOverlay()
 		return m, nil
 	case "approval":
 		m.openFocusedView(viewApproval)
@@ -2866,11 +2877,15 @@ func (m *StatusModel) openChangeSummaryOverlay() {
 	m.openOverlay(viewDiff, 0)
 }
 
+func (m *StatusModel) openEvidenceOverlay() {
+	m.openOverlay(viewEvidence, 0)
+}
+
 func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.overlay.content == viewTaskEntry {
 		return m.updateTaskEntry(msg)
 	}
-	if (m.overlay.content == viewAutonomous || m.overlay.content == viewDiff) && m.runOnce.Active && msg.String() == "esc" {
+	if (m.overlay.content == viewAutonomous || m.focusedProjectionOverlayActive()) && m.runOnce.Active && msg.String() == "esc" {
 		_, cmd := m.updateActiveRunKeys(msg)
 		return m, cmd
 	}
@@ -3003,13 +3018,16 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.refreshStatusCmd()
 		}
 	}
-	if m.overlay.content == viewDiff && msg.String() == "r" {
+	if m.focusedProjectionOverlayActive() && msg.String() == "r" {
 		if blocker := m.refreshBlocker(); blocker != "" {
-			m.setChangeSummaryNotice(blocker)
+			m.setFocusedProjectionNotice(blocker)
 			m.refreshOverlayContent()
 			return m, nil
 		}
 		return m, m.refreshStatusCmd()
+	}
+	if m.evidenceOverlayActive() && msg.String() == "v" {
+		return m, m.startValidateRunReceipt()
 	}
 	switch msg.String() {
 	case "esc", "backspace":
@@ -3044,7 +3062,7 @@ func (m *StatusModel) closeOverlay() {
 		return
 	}
 	overlay := *m.overlay
-	if overlay.content == viewAutonomous || overlay.content == viewDiff && m.focusedAutonomous() {
+	if overlay.content == viewAutonomous || isFocusedProjection(overlay.content) && m.focusedAutonomous() {
 		m.autonomous.Request++
 		m.autonomous.LoadingList = false
 		m.autonomous.LoadingView = false
@@ -3093,6 +3111,8 @@ func (m StatusModel) renderOverlayContent() string {
 		return content
 	case viewDiff:
 		return m.renderFocusedDiff()
+	case viewEvidence:
+		return m.renderFocusedEvidence()
 	case viewTaskEntry:
 		return m.renderTaskEntry()
 	}
@@ -3139,6 +3159,10 @@ func (m *StatusModel) closeFocusedView() {
 
 func isFocusedView(view TUIView) bool {
 	return view == viewDiff || view == viewEvidence || view == viewApproval
+}
+
+func isFocusedProjection(view TUIView) bool {
+	return view == viewDiff || view == viewEvidence
 }
 
 func (m *StatusModel) startTaskEntry(taskText string) {
@@ -3322,6 +3346,13 @@ func (m StatusModel) footerLines() []string {
 		}
 		if m.overlay.content == viewDiff {
 			return wrapKeyLines([]string{"pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Close", "q Quit"}, m.width)
+		}
+		if m.overlay.content == viewEvidence {
+			keys := []string{"pgup/pgdown Scroll", "home/end Jump"}
+			if m.validationTargetRunID() != "" {
+				keys = append(keys, "v Validate")
+			}
+			return wrapKeyLines(append(keys, "r Refresh", "esc Close", "q Quit"), m.width)
 		}
 		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
 	}
@@ -3568,7 +3599,7 @@ func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
 
 func (m StatusModel) renderFocusedDiff() string {
 	lines := []string{"Change Summary"}
-	lines = appendNotice(lines, m.changeSummaryNotice())
+	lines = appendNotice(lines, m.focusedProjectionNotice())
 	if m.focusedAutonomous() {
 		lines = m.appendAutonomousFocusStatus(lines)
 		if m.autonomous.View == nil {
@@ -3625,8 +3656,8 @@ func (m StatusModel) renderFocusedDiff() string {
 
 func (m StatusModel) renderFocusedEvidence() string {
 	lines := []string{"Evidence"}
-	lines = appendNotice(lines, m.message)
-	if m.focusedFromAutonomous {
+	lines = appendNotice(lines, m.focusedProjectionNotice())
+	if m.focusedAutonomous() {
 		lines = m.appendAutonomousFocusStatus(lines)
 		if m.autonomous.View == nil {
 			return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No autonomous evidence projection loaded.")...)
@@ -3639,26 +3670,45 @@ func (m StatusModel) renderFocusedEvidence() string {
 		for _, reference := range view.Provenance.References {
 			lines = append(lines, fmt.Sprintf("[%s] path=%s run=%s sha256=%s bytes=%d | %s", reference.Kind, optionalValue(reference.Path), optionalValue(reference.RunID), optionalValue(reference.SHA256), reference.ByteSize, oneLine(reference.Detail)))
 		}
-		lines = append(lines, "", "Verification Evidence")
+		lines = append(lines, "", "Verification Evidence",
+			fmt.Sprintf("Status: state=%s result=%s run=%s occurrence=%s source=%s", optionalValue(view.Verification.State), optionalValue(view.Verification.Status), optionalValue(view.Verification.RunID), optionalValue(view.Verification.OccurrenceID), optionalValue(view.Verification.SourceRevision)),
+		)
 		if len(view.Verification.Evidence) == 0 {
-			lines = append(lines, "None")
+			lines = append(lines, "Evidence: missing")
 		} else {
 			lines = appendEvidenceReferences(lines, view.Verification.Evidence)
 		}
 		lines = append(lines, "", "Acceptance and Finding Evidence")
-		count := len(lines)
+		if len(view.Acceptance) == 0 && len(view.Findings) == 0 {
+			lines = append(lines, "None")
+		}
 		for _, item := range view.Acceptance {
-			lines = appendEvidenceReferences(lines, item.Evidence)
+			lines = append(lines, fmt.Sprintf("[%s] %s: %s", optionalValue(item.Status), optionalValue(item.ID), oneLine(item.Description)))
 			if item.Source != nil {
-				lines = appendEvidenceReferences(lines, []autonomous.EvidenceReference{*item.Source})
+				lines = append(lines, fmt.Sprintf("Source [%s] %s | %s", item.Source.Kind, optionalValue(item.Source.Reference), oneLine(item.Source.Detail)))
+			}
+			if len(item.Evidence) == 0 {
+				lines = append(lines, "Evidence: missing")
+			} else {
+				lines = appendEvidenceReferences(lines, item.Evidence)
 			}
 		}
 		for _, finding := range view.Findings {
-			lines = appendEvidenceReferences(lines, finding.Evidence)
-			lines = appendEvidenceReferences(lines, finding.ResolutionEvidence)
+			lines = append(lines, fmt.Sprintf("[%s/%s] %s: %s", optionalValue(finding.Status), optionalValue(finding.Significance), optionalValue(finding.ID), oneLine(finding.Summary)))
+			if len(finding.Evidence) == 0 && len(finding.ResolutionEvidence) == 0 {
+				lines = append(lines, "Evidence: missing")
+			} else {
+				lines = appendEvidenceReferences(lines, finding.Evidence)
+				lines = appendEvidenceReferences(lines, finding.ResolutionEvidence)
+			}
 		}
-		if len(lines) == count {
+		lines = append(lines, "", "Warnings")
+		if len(view.Diagnostics) == 0 {
 			lines = append(lines, "None")
+		} else {
+			for _, diagnostic := range view.Diagnostics {
+				lines = append(lines, fmt.Sprintf("Warning: [%s/%s] %s | reference=%s", optionalValue(diagnostic.Code), optionalValue(diagnostic.Section), oneLine(diagnostic.Detail), optionalValue(diagnostic.Reference)))
+			}
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
@@ -3667,8 +3717,16 @@ func (m StatusModel) renderFocusedEvidence() string {
 	if !ok {
 		return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No canonical run projection loaded.")...)
 	}
-	lines = append(lines, "Run: "+optionalValue(history.Run.ID), "", "Artifact Identities")
+	diagnostics := runDetailDiagnosticsFromHistory(history)
+	lines = append(lines,
+		fmt.Sprintf("Run: %s | status: %s | verification: %s", optionalValue(history.Run.ID), optionalValue(history.Run.Status), optionalValue(history.Run.VerificationStatus)),
+		"", "Artifact Identities",
+	)
 	lines = append(lines, focusedRunArtifactLines(history.Events)...)
+	lines = append(lines, "")
+	lines = append(lines, runDiagnosticLines(diagnostics)...)
+	lines = append(lines, "")
+	lines = append(lines, runReceiptValidationLines(m.validation, history.Run.ID)...)
 	lines = append(lines, "", "Canonical Events")
 	lines = append(lines, runEventLines(history.Events)[1:]...)
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -5311,6 +5369,7 @@ func isSectionHeading(value string) bool {
 		"Artifact Identities",
 		"Verification Evidence",
 		"Acceptance and Finding Evidence",
+		"Warnings",
 		"Approval",
 		"Acceptance",
 		"Operator Response",
@@ -5432,7 +5491,7 @@ func (m *StatusModel) setTaskNotice(message string) {
 }
 
 func (m *StatusModel) setRefreshNotice(message string) {
-	if m.tasksOverlayActive() || m.runsOverlayActive() || m.preflightOverlayActive() || m.workflowOverlayActive() || m.changeSummaryOverlayActive() {
+	if m.tasksOverlayActive() || m.runsOverlayActive() || m.preflightOverlayActive() || m.workflowOverlayActive() || m.focusedProjectionOverlayActive() {
 		m.overlay.message = message
 		return
 	}
@@ -5489,7 +5548,7 @@ func (m StatusModel) workflowNotice() string {
 }
 
 func (m *StatusModel) setWorkflowNotice(message string) {
-	if m.workflowOverlayActive() || m.changeSummaryOverlayActive() && m.focusedAutonomous() {
+	if m.workflowOverlayActive() || m.focusedProjectionOverlayActive() && m.focusedAutonomous() {
 		m.overlay.message = message
 		return
 	}
@@ -5524,7 +5583,7 @@ func (m StatusModel) runNotice() string {
 }
 
 func (m *StatusModel) setRunNotice(message string) {
-	if m.runsOverlayActive() || m.changeSummaryOverlayActive() {
+	if m.runsOverlayActive() || m.focusedProjectionOverlayActive() {
 		m.overlay.message = message
 		return
 	}
@@ -5535,12 +5594,20 @@ func (m StatusModel) changeSummaryOverlayActive() bool {
 	return m.overlay != nil && m.overlay.content == viewDiff
 }
 
+func (m StatusModel) evidenceOverlayActive() bool {
+	return m.overlay != nil && m.overlay.content == viewEvidence
+}
+
+func (m StatusModel) focusedProjectionOverlayActive() bool {
+	return m.changeSummaryOverlayActive() || m.evidenceOverlayActive()
+}
+
 func (m StatusModel) focusedProjectionActive() bool {
-	return isFocusedView(m.view) || m.changeSummaryOverlayActive()
+	return isFocusedView(m.view) || m.focusedProjectionOverlayActive()
 }
 
 func (m StatusModel) focusedSourceView() TUIView {
-	if m.changeSummaryOverlayActive() {
+	if m.focusedProjectionOverlayActive() {
 		if isFocusedView(m.overlay.source) {
 			return m.focusSource
 		}
@@ -5550,7 +5617,7 @@ func (m StatusModel) focusedSourceView() TUIView {
 }
 
 func (m StatusModel) focusedAutonomous() bool {
-	if m.changeSummaryOverlayActive() {
+	if m.focusedProjectionOverlayActive() {
 		if isFocusedView(m.overlay.source) {
 			return m.focusedFromAutonomous
 		}
@@ -5559,15 +5626,15 @@ func (m StatusModel) focusedAutonomous() bool {
 	return m.focusedFromAutonomous
 }
 
-func (m StatusModel) changeSummaryNotice() string {
-	if m.changeSummaryOverlayActive() {
+func (m StatusModel) focusedProjectionNotice() string {
+	if m.focusedProjectionOverlayActive() {
 		return m.overlay.message
 	}
 	return m.message
 }
 
-func (m *StatusModel) setChangeSummaryNotice(message string) {
-	if m.changeSummaryOverlayActive() {
+func (m *StatusModel) setFocusedProjectionNotice(message string) {
+	if m.focusedProjectionOverlayActive() {
 		m.overlay.message = message
 		return
 	}

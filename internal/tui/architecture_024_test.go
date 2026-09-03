@@ -79,16 +79,16 @@ func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *te
 	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 
 	model, cmd = updateStatusModel(t, model, keyRunes("e"))
-	if cmd != nil || model.view != viewEvidence {
-		t.Fatalf("evidence navigation view=%v cmd=%v", model.view, cmd)
+	if cmd != nil || model.overlay == nil || model.overlay.content != viewEvidence || model.view != viewDashboard {
+		t.Fatalf("evidence navigation overlay=%#v view=%v cmd=%v", model.overlay, model.view, cmd)
 	}
 	lines := normalizedViewLines(model.View())
 	requireLines(t, lines, "Evidence", "receipt: .revolvr/receipts/run-ui.md", "Canonical Events")
 	assertMaxLineWidth(t, lines, 48)
 
 	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || model.view != viewDashboard {
-		t.Fatalf("focus return view=%v cmd=%v", model.view, cmd)
+	if cmd != nil || model.overlay != nil || model.view != viewDashboard {
+		t.Fatalf("focus return overlay=%#v view=%v cmd=%v", model.overlay, model.view, cmd)
 	}
 }
 
@@ -112,7 +112,7 @@ func TestFocusedRunRefreshReloadsCanonicalHistory(t *testing.T) {
 	model.view = viewRunDetail
 	model.composer.Active = false
 	model.runDetails = &history
-	model.openFocusedView(viewEvidence)
+	model.openEvidenceOverlay()
 	model.Init()
 
 	model, cmd := sendShortcut(t, model, "r")
@@ -124,8 +124,8 @@ func TestFocusedRunRefreshReloadsCanonicalHistory(t *testing.T) {
 		t.Fatal("focused run reload command is nil")
 	}
 	model, cmd = runStatusModelCmd(t, model, cmd)
-	if cmd != nil || model.view != viewEvidence || model.runDetails == nil || len(model.runDetails.Events) != 2 {
-		t.Fatalf("focused refresh state: view=%v details=%#v cmd=%v", model.view, model.runDetails, cmd)
+	if cmd != nil || model.overlay == nil || model.overlay.content != viewEvidence || model.view != viewRunDetail || model.runDetails == nil || len(model.runDetails.Events) != 2 {
+		t.Fatalf("focused refresh state: overlay=%#v view=%v details=%#v cmd=%v", model.overlay, model.view, model.runDetails, cmd)
 	}
 	requireLines(t, normalizedViewLines(model.View()), "2  changed_files_captured  2026-08-27T16:00:01Z")
 }

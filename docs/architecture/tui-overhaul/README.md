@@ -790,6 +790,6 @@ The overhaul is complete only when:
 consistent, the 33-task epic index remains bounded, and E0 has exited. No
 implementation task was published or started by the review.
 
-TUI-010 through TUI-055 are complete. TUI-055's completion handoff published
-only [TUI-056](tasks/tui-056-move-evidence-overlay.md); every later TUI task
+TUI-010 through TUI-056 are complete. TUI-056's completion handoff published
+only [TUI-057](tasks/tui-057-move-approval-overlay.md); every later TUI task
 remains an unpublished draft.
