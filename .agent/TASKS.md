@@ -21,12 +21,12 @@
 - E0 through E4 are complete. `tui-010-prove-shell-composition`,
   `tui-011-prove-resize-reflow`, `tui-012-prove-active-settlement`, and
   `tui-013-install-terminal-shell` are complete. TUI-020 through TUI-022 are
-  complete, TUI-030 through TUI-040 are complete, and TUI-050 through TUI-051
-  are complete. TUI-052 is the only pending canonical task, and all later TUI
+  complete, TUI-030 through TUI-040 are complete, and TUI-050 through TUI-052
+  are complete. TUI-053 is the only pending canonical task, and all later TUI
   tasks remain unpublished drafts.
 - The 2026-09-02 cross-machine evaluation portability maintenance is complete:
   fixture identities now use Git-stable `0644`/`0755` modes, the golden is
-  reconciled, and TUI-052 remains the only pending canonical task.
+  reconciled, and TUI-053 remains the only pending canonical task.
 - The bounded current-state compaction audit is complete. Deferred EXT and
   superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
@@ -188,9 +188,13 @@
 - [x] TUI-051 implementation — moved Tasks into the shared overlay with local
   selection/notices, stable refresh identity, callback parity, and exact source
   return. Its completion handoff published only TUI-052.
-- [ ] TUI-052 implementation — move Runs and Run Detail into one parent/child
-  overlay flow while retaining their callbacks and rollback pages. This is the
-  only pending canonical task; later TUI tasks remain unpublished.
+- [x] TUI-052 implementation — moved Runs and Run Detail into one explicit
+  parent/child overlay flow with local selection/notices, stable refresh
+  identity, callback parity, exact child back, and exact source return. Its
+  completion handoff published only TUI-053.
+- [ ] TUI-053 implementation — move Preflight into the shared overlay while
+  retaining its checks, callbacks, guards, and rollback page. This is the only
+  pending canonical task; later TUI tasks remain unpublished.
 
 ## Superseded Programmatic Workspace And Continual Harness Sequence
 

@@ -1,6 +1,6 @@
 # TUI-052 — Move Runs and Run Detail into an Overlay
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-03
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
 - Depends on: [TUI-051](tui-051-move-tasks-overlay.md)
 
@@ -48,3 +48,15 @@ go test ./internal/tui
 
 - No Run Detail redesign, transcript history change, old-route removal, page-
   renderer deletion, or general overlay stack.
+
+## Completion Evidence
+
+- All four retained entries reach the shared overlay; direct detail entry
+  constructs the same Runs parent before showing loaded or empty detail.
+- Stable run identity, parent list offset, explicit child back, exact root
+  dismissal, and 80-/40-column bounds pass focused parity coverage.
+- Run Detail keeps its existing timeline, raw-event, artifact, warning,
+  scrolling, reload, and receipt-validation behavior through existing app
+  projections and callbacks.
+- No transcript authority, dependency, general overlay stack, domain state, or
+  rollback page renderer changed.

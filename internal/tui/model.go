@@ -93,6 +93,7 @@ type StatusModel struct {
 	taskEntry             taskEntryState
 	composer              commandComposerState
 	overlay               *overlayState
+	overlayOwner          int
 	focusSource           TUIView
 	focusedFromAutonomous bool
 	message               string
@@ -398,6 +399,8 @@ type overlayState struct {
 	selected     int
 	message      string
 	sourceOffset int
+	parentOffset int
+	owner        int
 	viewport     viewport.Model
 }
 
@@ -558,20 +561,20 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshStatusMsg:
 		var appendCmd tea.Cmd
 		if msg.err != nil {
-			m.setTaskNotice(fmt.Sprintf("Refresh failed: %s", msg.err))
+			m.setRefreshNotice(fmt.Sprintf("Refresh failed: %s", msg.err))
 		} else {
 			selectedTaskID := m.selectedTaskID()
 			selectedID := m.selectedRunID()
 			m.status = msg.status
 			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, selectedTaskID))
-			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedID)
+			m.setSelectedRun(selectedRunIndex(m.status.RecentRuns, selectedID))
 			if !m.status.Initialized {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
 			}
 			m.committed = append(m.committed[:1], historicalTranscriptCells(m.status)...)
 			appendCmd = m.appendCommitted()
-			m.setTaskNotice("Refreshed.")
+			m.setRefreshNotice("Refreshed.")
 		}
 		m.updateViewportContent()
 		if msg.err == nil && isFocusedView(m.view) && m.focusSource == viewRunDetail && !m.focusedFromAutonomous {
@@ -595,18 +598,33 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, appendCmd
 	case openRunMsg:
+		if msg.owner != 0 && (m.overlay == nil || m.overlay.owner != msg.owner || !m.runsOverlayActive() || m.selectedRunID() != msg.runID) {
+			return m, nil
+		}
+		overlayDetail := false
 		if msg.err != nil {
-			m.message = fmt.Sprintf("Open failed: %s", msg.err)
+			m.setRunNotice(fmt.Sprintf("Open failed: %s", msg.err))
 		} else {
 			m.runDetails = &msg.history
 			m.validation = receiptValidationState{RunID: strings.TrimSpace(msg.history.Run.ID)}
 			if !msg.focused {
-				m.view = viewRunDetail
+				if m.runsOverlayActive() {
+					if m.overlay.content == viewRuns {
+						m.overlay.parentOffset = m.overlay.viewport.YOffset
+					}
+					m.overlay.content = viewRunDetail
+					overlayDetail = true
+				} else {
+					m.view = viewRunDetail
+				}
 			}
-			m.message = ""
+			m.setRunNotice("")
 		}
 		m.resizeViewport()
 		m.updateViewportContent()
+		if overlayDetail {
+			m.overlay.viewport.GotoTop()
+		}
 		return m, nil
 	case addTaskMsg:
 		if msg.err != nil {
@@ -615,7 +633,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selectedRunID := m.selectedRunID()
 			m.status = msg.status
 			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, msg.task.ID))
-			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
+			m.setSelectedRun(selectedRunIndex(m.status.RecentRuns, selectedRunID))
 			if !m.status.Initialized {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
@@ -642,7 +660,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selectedRunID := m.selectedRunID()
 			m.status = msg.status
 			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, msg.task.ID))
-			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
+			m.setSelectedRun(selectedRunIndex(m.status.RecentRuns, selectedRunID))
 			if !m.status.Initialized {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
@@ -653,6 +671,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 		return m, nil
 	case validateReceiptMsg:
+		if msg.owner != 0 && (m.overlay == nil || m.overlay.owner != msg.owner || m.overlay.content != viewRunDetail || m.runDetails == nil || strings.TrimSpace(m.runDetails.Run.ID) != msg.runID) {
+			return m, nil
+		}
 		m.validation = receiptValidationState{
 			RunID:   msg.runID,
 			Checked: true,
@@ -660,11 +681,11 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.validation.Err = msg.err.Error()
-			m.message = "Receipt validation error."
+			m.setRunNotice("Receipt validation error.")
 		} else if msg.result.Passed() {
-			m.message = "Receipt validation passed."
+			m.setRunNotice("Receipt validation passed.")
 		} else {
-			m.message = "Receipt validation failed."
+			m.setRunNotice("Receipt validation failed.")
 		}
 		m.updateViewportContent()
 		return m, nil
@@ -888,10 +909,10 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openTasksOverlay()
 			return m, nil
 		case "3":
-			m.switchView(viewRuns)
+			m.openRunsOverlay()
 			return m, nil
 		case "4":
-			m.switchView(viewRunDetail)
+			m.openRunDetailOverlay()
 			return m, nil
 		case "5":
 			m.switchView(viewPreflight)
@@ -988,18 +1009,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case viewRuns:
 			switch msg.String() {
 			case "enter", "o":
-				if m.actions.OpenRun == nil {
-					m.message = "Open is unavailable."
-					m.updateViewportContent()
-					return m, nil
-				}
-				cmd := m.openSelectedRunCmd()
-				if cmd == nil {
-					m.message = "No run selected."
-					m.updateViewportContent()
-					return m, nil
-				}
-				return m, cmd
+				return m, m.startOpenSelectedRun()
 			case "up", "k":
 				m.moveSelectedRun(-1)
 				m.updateViewportContent()
@@ -1012,31 +1022,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case viewRunDetail:
 			switch msg.String() {
 			case "enter", "o":
-				if m.actions.OpenRun == nil {
-					m.message = "Open is unavailable."
-					m.updateViewportContent()
-					return m, nil
-				}
-				cmd := m.openSelectedRunCmd()
-				if cmd == nil {
-					m.message = "No run selected."
-					m.updateViewportContent()
-					return m, nil
-				}
-				return m, cmd
+				return m, m.startOpenSelectedRun()
 			case "v":
-				if m.actions.ValidateReceipt == nil {
-					m.message = "Receipt validation is unavailable."
-					m.updateViewportContent()
-					return m, nil
-				}
-				cmd := m.validateRunReceiptCmd()
-				if cmd == nil {
-					m.message = "No run detail loaded."
-					m.updateViewportContent()
-					return m, nil
-				}
-				return m, cmd
+				return m, m.startValidateRunReceipt()
 			case "home":
 				m.viewport.GotoTop()
 				return m, nil
@@ -1108,6 +1096,8 @@ type refreshStatusMsg struct {
 
 type openRunMsg struct {
 	history ledger.RunWithEvents
+	runID   string
+	owner   int
 	focused bool
 	err     error
 }
@@ -1127,6 +1117,7 @@ type retryTaskMsg struct {
 
 type validateReceiptMsg struct {
 	runID  string
+	owner  int
 	result receipt.ValidationResult
 	err    error
 }
@@ -1209,15 +1200,38 @@ func (m StatusModel) openSelectedRunCmd() tea.Cmd {
 	if len(m.status.RecentRuns) == 0 {
 		return nil
 	}
-	index := clampRunIndex(m.status.RecentRuns, m.selectedRun)
+	index := clampRunIndex(m.status.RecentRuns, m.selectedRunPosition())
 	runID := strings.TrimSpace(m.status.RecentRuns[index].ID)
 	if runID == "" {
 		return nil
 	}
+	owner := 0
+	if m.runsOverlayActive() {
+		owner = m.overlay.owner
+	}
 	return func() tea.Msg {
 		history, err := m.actions.OpenRun(runID)
-		return openRunMsg{history: history, err: err}
+		return openRunMsg{history: history, runID: runID, owner: owner, err: err}
 	}
+}
+
+func (m *StatusModel) startOpenSelectedRun() tea.Cmd {
+	if m.runOnce.Active {
+		m.setRunNotice("Run is active; cancel or wait before starting another action.")
+		m.updateViewportContent()
+		return nil
+	}
+	if m.actions.OpenRun == nil {
+		m.setRunNotice("Open is unavailable.")
+		m.updateViewportContent()
+		return nil
+	}
+	cmd := m.openSelectedRunCmd()
+	if cmd == nil {
+		m.setRunNotice("No run selected.")
+		m.updateViewportContent()
+	}
+	return cmd
 }
 
 func (m StatusModel) reloadFocusedRunCmd() tea.Cmd {
@@ -1230,7 +1244,7 @@ func (m StatusModel) reloadFocusedRunCmd() tea.Cmd {
 	}
 	return func() tea.Msg {
 		history, err := m.actions.OpenRun(runID)
-		return openRunMsg{history: history, focused: true, err: err}
+		return openRunMsg{history: history, runID: runID, focused: true, err: err}
 	}
 }
 
@@ -1297,10 +1311,33 @@ func (m StatusModel) validateRunReceiptCmd() tea.Cmd {
 	if runID == "" {
 		return nil
 	}
+	owner := 0
+	if m.overlay != nil && m.overlay.content == viewRunDetail {
+		owner = m.overlay.owner
+	}
 	return func() tea.Msg {
 		result, err := m.actions.ValidateReceipt(runID)
-		return validateReceiptMsg{runID: runID, result: result, err: err}
+		return validateReceiptMsg{runID: runID, owner: owner, result: result, err: err}
 	}
+}
+
+func (m *StatusModel) startValidateRunReceipt() tea.Cmd {
+	if m.runOnce.Active {
+		m.setRunNotice("Run is active; cancel or wait before starting another action.")
+		m.updateViewportContent()
+		return nil
+	}
+	if m.actions.ValidateReceipt == nil {
+		m.setRunNotice("Receipt validation is unavailable.")
+		m.updateViewportContent()
+		return nil
+	}
+	cmd := m.validateRunReceiptCmd()
+	if cmd == nil {
+		m.setRunNotice("No run detail loaded.")
+		m.updateViewportContent()
+	}
+	return cmd
 }
 
 func (m StatusModel) preflightCmd() tea.Cmd {
@@ -2407,7 +2444,7 @@ func (m *StatusModel) applyRunCompletionStatus(msg runOnceDoneMsg, runID string)
 	}
 	m.status = msg.status
 	m.setSelectedTask(selectedTaskIndex(m.status.Tasks, selectedTaskID))
-	m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
+	m.setSelectedRun(selectedRunIndex(m.status.RecentRuns, selectedRunID))
 	if !m.status.Initialized {
 		m.runDetails = nil
 		m.validation = receiptValidationState{}
@@ -2649,10 +2686,10 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		m.openTasksOverlay()
 		return m, nil
 	case "runs":
-		m.switchView(viewRuns)
+		m.openRunsOverlay()
 		return m, nil
 	case "detail":
-		m.switchView(viewRunDetail)
+		m.openRunDetailOverlay()
 		return m, nil
 	case "preflight":
 		m.switchView(viewPreflight)
@@ -2757,16 +2794,18 @@ func (m *StatusModel) refreshViewportContent() {
 	m.refreshOverlayContent()
 }
 
-func (m *StatusModel) openOverlay(content TUIView) {
+func (m *StatusModel) openOverlay(content TUIView, selected int) {
 	if m.overlay != nil {
 		return
 	}
+	m.overlayOwner++
 	m.overlay = &overlayState{
 		content:      content,
 		source:       m.view,
 		composer:     m.composer,
-		selected:     m.selectedTask,
+		selected:     selected,
 		sourceOffset: m.viewport.YOffset,
+		owner:        m.overlayOwner,
 		viewport:     viewport.New(defaultViewportWidth, defaultViewportHeight),
 	}
 	m.composer.Active = false
@@ -2777,11 +2816,26 @@ func (m *StatusModel) openOverlay(content TUIView) {
 }
 
 func (m *StatusModel) openHelpOverlay() {
-	m.openOverlay(viewHelp)
+	m.openOverlay(viewHelp, 0)
 }
 
 func (m *StatusModel) openTasksOverlay() {
-	m.openOverlay(viewTasks)
+	m.openOverlay(viewTasks, m.selectedTask)
+}
+
+func (m *StatusModel) openRunsOverlay() {
+	m.openOverlay(viewRuns, m.selectedRun)
+}
+
+func (m *StatusModel) openRunDetailOverlay() {
+	m.openRunsOverlay()
+	if m.overlay == nil || m.overlay.content != viewRuns {
+		return
+	}
+	m.overlay.parentOffset = m.overlay.viewport.YOffset
+	m.overlay.content = viewRunDetail
+	m.refreshOverlayContent()
+	m.overlay.viewport.GotoTop()
 }
 
 func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -2817,6 +2871,48 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, m.refreshStatusCmd()
+		}
+	}
+	if m.overlay.content == viewRuns || m.overlay.content == viewRunDetail {
+		if msg.String() == "r" {
+			if m.runOnce.Active {
+				m.setRunNotice("Run is active; cancel or wait before starting another action.")
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			if m.actions.RefreshStatus == nil {
+				m.setRunNotice("Refresh is unavailable.")
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			return m, m.refreshStatusCmd()
+		}
+	}
+	if m.overlay.content == viewRuns {
+		switch msg.String() {
+		case "up", "k":
+			m.moveSelectedRun(-1)
+			m.refreshOverlayContent()
+			return m, nil
+		case "down", "j":
+			m.moveSelectedRun(1)
+			m.refreshOverlayContent()
+			return m, nil
+		case "enter", "o":
+			return m, m.startOpenSelectedRun()
+		}
+	}
+	if m.overlay.content == viewRunDetail {
+		switch msg.String() {
+		case "esc", "backspace":
+			m.overlay.content = viewRuns
+			m.refreshOverlayContent()
+			m.overlay.viewport.SetYOffset(m.overlay.parentOffset)
+			return m, nil
+		case "enter", "o":
+			return m, m.startOpenSelectedRun()
+		case "v":
+			return m, m.startValidateRunReceipt()
 		}
 	}
 	switch msg.String() {
@@ -2879,6 +2975,13 @@ func (m StatusModel) renderOverlayContent() string {
 		return m.renderHelp()
 	case viewTasks:
 		return m.renderTasks()
+	case viewRuns:
+		return m.renderRuns()
+	case viewRunDetail:
+		if m.runDetails != nil {
+			return m.renderRunDetails(*m.runDetails)
+		}
+		return m.renderEmptyRunDetail()
 	case viewTaskEntry:
 		return m.renderTaskEntry()
 	}
@@ -3090,6 +3193,12 @@ func (m StatusModel) footerLines() []string {
 			keys = append(keys, "a Add Task", "r Refresh", "esc Close", "q Quit")
 			return wrapKeyLines(keys, m.width)
 		}
+		if m.overlay.content == viewRuns {
+			return wrapKeyLines([]string{"j/k Select", "enter Open", "r Refresh", "esc Close", "q Quit"}, m.width)
+		}
+		if m.overlay.content == viewRunDetail {
+			return wrapKeyLines([]string{"up/down Scroll", "home/end Jump", "enter Reload", "v Validate", "r Refresh", "esc Runs", "q Quit"}, m.width)
+		}
 		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
 	}
 	if m.view == viewTaskEntry {
@@ -3263,7 +3372,7 @@ func (m StatusModel) renderTasks() string {
 
 func (m StatusModel) renderRuns() string {
 	lines := []string{"Runs"}
-	lines = appendNotice(lines, m.message)
+	lines = appendNotice(lines, m.runNotice())
 	if !m.status.Initialized {
 		lines = append(lines, "State: not initialized", "Recent Runs", "Unavailable until state is initialized.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -3275,7 +3384,7 @@ func (m StatusModel) renderRuns() string {
 func (m StatusModel) renderRunDetails(history ledger.RunWithEvents) string {
 	diagnostics := runDetailDiagnosticsFromHistory(history)
 	lines := []string{"Run Detail"}
-	lines = appendNotice(lines, m.message)
+	lines = appendNotice(lines, m.runNotice())
 	lines = append(lines, runSummaryLines(history.Run)...)
 	lines = append(lines, "")
 	lines = append(lines, runTimelineLines(history)...)
@@ -3296,7 +3405,7 @@ func (m StatusModel) renderEmptyRunDetail() string {
 	lines := []string{
 		"Run Detail",
 	}
-	lines = appendNotice(lines, m.message)
+	lines = appendNotice(lines, m.runNotice())
 	if !m.status.Initialized {
 		lines = append(lines, "State: not initialized", "No run detail loaded.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -4188,7 +4297,7 @@ func (m StatusModel) recentRunLines() []string {
 	} else {
 		lines = append(lines, "ID  STATUS  VERIFICATION  COMMIT  SUMMARY")
 	}
-	selected := clampRunIndex(m.status.RecentRuns, m.selectedRun)
+	selected := clampRunIndex(m.status.RecentRuns, m.selectedRunPosition())
 	for i, run := range m.status.RecentRuns {
 		prefix := " "
 		if i == selected {
@@ -5198,6 +5307,49 @@ func (m *StatusModel) setTaskNotice(message string) {
 	m.message = message
 }
 
+func (m *StatusModel) setRefreshNotice(message string) {
+	if m.tasksOverlayActive() || m.runsOverlayActive() {
+		m.overlay.message = message
+		return
+	}
+	m.message = message
+}
+
+func (m StatusModel) runsOverlayActive() bool {
+	return m.overlay != nil && (m.overlay.content == viewRuns || m.overlay.content == viewRunDetail)
+}
+
+func (m StatusModel) selectedRunPosition() int {
+	if m.runsOverlayActive() {
+		return m.overlay.selected
+	}
+	return m.selectedRun
+}
+
+func (m *StatusModel) setSelectedRun(index int) {
+	index = clampRunIndex(m.status.RecentRuns, index)
+	if m.runsOverlayActive() {
+		m.overlay.selected = index
+		return
+	}
+	m.selectedRun = index
+}
+
+func (m StatusModel) runNotice() string {
+	if m.runsOverlayActive() {
+		return m.overlay.message
+	}
+	return m.message
+}
+
+func (m *StatusModel) setRunNotice(message string) {
+	if m.runsOverlayActive() {
+		m.overlay.message = message
+		return
+	}
+	m.message = message
+}
+
 func (m StatusModel) selectedTaskID() string {
 	if len(m.status.Tasks) == 0 {
 		return ""
@@ -5222,17 +5374,17 @@ func (m StatusModel) retrySelectedTaskAvailable() bool {
 
 func (m *StatusModel) moveSelectedRun(delta int) {
 	if len(m.status.RecentRuns) == 0 {
-		m.selectedRun = 0
+		m.setSelectedRun(0)
 		return
 	}
-	m.selectedRun = clampRunIndex(m.status.RecentRuns, m.selectedRun+delta)
+	m.setSelectedRun(m.selectedRunPosition() + delta)
 }
 
 func (m StatusModel) selectedRunID() string {
 	if len(m.status.RecentRuns) == 0 {
 		return ""
 	}
-	return strings.TrimSpace(m.status.RecentRuns[clampRunIndex(m.status.RecentRuns, m.selectedRun)].ID)
+	return strings.TrimSpace(m.status.RecentRuns[clampRunIndex(m.status.RecentRuns, m.selectedRunPosition())].ID)
 }
 
 func selectedTaskIndex(tasks []taskmodel.Task, taskID string) int {

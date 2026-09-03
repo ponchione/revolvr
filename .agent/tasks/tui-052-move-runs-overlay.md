@@ -1,6 +1,6 @@
 ---
 id: tui-052-move-runs-overlay
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-051-move-tasks-overlay
 
 # TUI-052 — Move Runs and Run Detail into an Overlay
 
-- Status: Pending
+- Status: Completed 2026-09-03
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-052 draft](../../docs/architecture/tui-overhaul/tasks/tui-052-move-runs-overlay.md)
@@ -64,3 +64,18 @@ go test ./internal/tui
 
 - No Run Detail redesign, transcript history change, old-route removal, page-
   renderer deletion, or general overlay stack.
+
+## Completion Evidence
+
+- `3`, `/runs`, `4`, and `/detail` now open the shared root overlay while the
+  retained Runs and Run Detail page renderers remain the content projections
+  and D4 rollback paths.
+- Runs selection is overlay-local, survives refresh by canonical run ID, and
+  falls back to the first run when that identity disappears.
+- Runs `Enter`/`o` opens the selected detail as the explicit child. Back
+  restores the same selection and list offset; the next Escape restores the
+  exact source/composer state without changing committed transcript cells.
+- Run Detail retains scrolling, timeline, raw events, artifacts, warnings, and
+  receipt validation through the existing callbacks. Late results cannot
+  replace a newer overlay owner.
+- Focused Runs/Run Detail overlay, full TUI, and repository-wide Go tests pass.
