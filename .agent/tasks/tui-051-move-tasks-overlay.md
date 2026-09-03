@@ -1,6 +1,6 @@
 ---
 id: tui-051-move-tasks-overlay
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-050-add-overlay-shell
 
 # TUI-051 — Move Tasks into an Overlay
 
-- Status: Pending
+- Status: Completed 2026-09-03
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-051 draft](../../docs/architecture/tui-overhaul/tasks/tui-051-move-tasks-overlay.md)
@@ -60,3 +60,18 @@ go test ./internal/tui
 
 - No task workflow redesign, task-publication change, old-route removal, or
   page-renderer deletion.
+
+## Completion Evidence
+
+- `2` and `/tasks` now open the shared root overlay over the unchanged source
+  view and saved composer state while the retained Tasks page renderer remains
+  the single content projection and rollback path.
+- Task selection, notices, and scrolling stay overlay-local. Refresh preserves
+  selection by canonical task ID and falls back to the first task when that ID
+  disappears.
+- Add Task, retry, refresh, and open-Workflow reuse the existing callbacks,
+  guards, confirmations, and result handling. Add failures retain the entry
+  state; successful Add and retry return to the owning Tasks overlay.
+- Escape restores the exact underlying source/composer state, and 80- and
+  40-column rendering remains bounded without a transcript append.
+- Focused Tasks-overlay, full TUI, and repository-wide Go tests pass.

@@ -4,8 +4,9 @@
 - Baseline date: 2026-08-27
 - Reference implementation: local `openai/codex` checkout at
   `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`
-- Implementation status: E0 through E4 and TUI-050 are complete; TUI-051 is
-  the only pending canonical task, and later tasks remain unpublished drafts
+- Implementation status: E0 through E4 and TUI-050 through TUI-051 are
+  complete; TUI-052 is the only pending canonical task, and later tasks remain
+  unpublished drafts
 - Epic and task index: [Implementation plan](#implementation-plan)
 
 ## Purpose
@@ -19,7 +20,7 @@ Revolvr's Go application services, safety policy, scheduler, ledger, receipts,
 artifacts, and task lifecycle remain authoritative.
 
 The implementation epics and tasks remain drafts until published by a
-completion handoff. TUI-010 through TUI-050 are complete and TUI-051 is the
+completion handoff. TUI-010 through TUI-051 are complete and TUI-052 is the
 only pending canonical task; all later tasks remain drafts. This document
 captures the current system, the accepted product decisions and source
 snapshots, and a bounded implementation sequence.
@@ -789,6 +790,6 @@ The overhaul is complete only when:
 consistent, the 33-task epic index remains bounded, and E0 has exited. No
 implementation task was published or started by the review.
 
-TUI-010 through TUI-050 are complete. TUI-050's completion handoff published
-only [TUI-051](tasks/tui-051-move-tasks-overlay.md); every later TUI task
+TUI-010 through TUI-051 are complete. TUI-051's completion handoff published
+only [TUI-052](tasks/tui-052-move-runs-overlay.md); every later TUI task
 remains an unpublished draft.

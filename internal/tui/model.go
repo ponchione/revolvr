@@ -396,6 +396,7 @@ type overlayState struct {
 	source       TUIView
 	composer     commandComposerState
 	selected     int
+	message      string
 	sourceOffset int
 	viewport     viewport.Model
 }
@@ -557,12 +558,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshStatusMsg:
 		var appendCmd tea.Cmd
 		if msg.err != nil {
-			m.message = fmt.Sprintf("Refresh failed: %s", msg.err)
+			m.setTaskNotice(fmt.Sprintf("Refresh failed: %s", msg.err))
 		} else {
 			selectedTaskID := m.selectedTaskID()
 			selectedID := m.selectedRunID()
 			m.status = msg.status
-			m.selectedTask = selectedTaskIndex(m.status.Tasks, selectedTaskID)
+			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, selectedTaskID))
 			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedID)
 			if !m.status.Initialized {
 				m.runDetails = nil
@@ -570,7 +571,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.committed = append(m.committed[:1], historicalTranscriptCells(m.status)...)
 			appendCmd = m.appendCommitted()
-			m.message = "Refreshed."
+			m.setTaskNotice("Refreshed.")
 		}
 		m.updateViewportContent()
 		if msg.err == nil && isFocusedView(m.view) && m.focusSource == viewRunDetail && !m.focusedFromAutonomous {
@@ -613,15 +614,19 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			selectedRunID := m.selectedRunID()
 			m.status = msg.status
-			m.selectedTask = selectedTaskIndex(m.status.Tasks, msg.task.ID)
+			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, msg.task.ID))
 			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
 			if !m.status.Initialized {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
 			}
-			m.view = viewTasks
+			if m.tasksOverlayActive() {
+				m.overlay.content = viewTasks
+			} else {
+				m.view = viewTasks
+			}
 			m.taskEntry = taskEntryState{}
-			m.message = fmt.Sprintf("Added and committed task %s.", optionalValue(msg.task.ID))
+			m.setTaskNotice(fmt.Sprintf("Added and committed task %s.", optionalValue(msg.task.ID)))
 		}
 		m.resizeViewport()
 		m.updateViewportContent()
@@ -629,20 +634,20 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case retryTaskMsg:
 		if msg.err != nil {
 			if msg.refreshFailed {
-				m.message = fmt.Sprintf("Retry refresh failed: %s", msg.err)
+				m.setTaskNotice(fmt.Sprintf("Retry refresh failed: %s", msg.err))
 			} else {
-				m.message = fmt.Sprintf("Retry failed: %s", msg.err)
+				m.setTaskNotice(fmt.Sprintf("Retry failed: %s", msg.err))
 			}
 		} else {
 			selectedRunID := m.selectedRunID()
 			m.status = msg.status
-			m.selectedTask = selectedTaskIndex(m.status.Tasks, msg.task.ID)
+			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, msg.task.ID))
 			m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
 			if !m.status.Initialized {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
 			}
-			m.message = fmt.Sprintf("Retried task %s.", optionalValue(msg.task.ID))
+			m.setTaskNotice(fmt.Sprintf("Retried task %s.", optionalValue(msg.task.ID)))
 		}
 		m.resizeViewport()
 		m.updateViewportContent()
@@ -880,7 +885,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.switchView(viewDashboard)
 			return m, nil
 		case "2":
-			m.switchView(viewTasks)
+			m.openTasksOverlay()
 			return m, nil
 		case "3":
 			m.switchView(viewRuns)
@@ -1246,26 +1251,26 @@ func (m StatusModel) addTaskCmd(input app.AddTaskInput) tea.Cmd {
 func (m *StatusModel) startRetrySelectedTask() tea.Cmd {
 	task, ok := m.selectedTaskValue()
 	if !ok {
-		m.message = "No task selected."
+		m.setTaskNotice("No task selected.")
 		m.updateViewportContent()
 		return nil
 	}
 	if task.Status != taskmodel.StatusBlocked {
-		m.message = fmt.Sprintf("Retry unavailable: selected task %s is not blocked (status: %s).", optionalValue(task.ID), optionalValue(task.Status))
+		m.setTaskNotice(fmt.Sprintf("Retry unavailable: selected task %s is not blocked (status: %s).", optionalValue(task.ID), optionalValue(task.Status)))
 		m.updateViewportContent()
 		return nil
 	}
 	if m.actions.RetryTask == nil {
-		m.message = "Retry is unavailable."
+		m.setTaskNotice("Retry is unavailable.")
 		m.updateViewportContent()
 		return nil
 	}
 	if m.actions.RefreshStatus == nil {
-		m.message = "Retry is unavailable: refresh callback is missing."
+		m.setTaskNotice("Retry is unavailable: refresh callback is missing.")
 		m.updateViewportContent()
 		return nil
 	}
-	m.message = ""
+	m.setTaskNotice("")
 	m.updateViewportContent()
 	return m.retryTaskCmd(task.ID)
 }
@@ -2260,7 +2265,7 @@ func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
 		if msg.statusErr == nil {
 			selectedTaskID := m.selectedTaskID()
 			m.status = msg.status
-			m.selectedTask = selectedTaskIndex(m.status.Tasks, selectedTaskID)
+			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, selectedTaskID))
 		} else {
 			m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: refresh failed: "+oneLine(msg.statusErr.Error()))
 		}
@@ -2281,7 +2286,7 @@ func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
 		m.message = fmt.Sprintf("Autonomous task %s stopped: %s.", msg.taskResult.TaskID, msg.taskResult.StopReason)
 		if msg.statusErr == nil {
 			m.status = msg.status
-			m.selectedTask = selectedTaskIndex(m.status.Tasks, msg.taskResult.TaskID)
+			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, msg.taskResult.TaskID))
 		}
 		return
 	}
@@ -2401,7 +2406,7 @@ func (m *StatusModel) applyRunCompletionStatus(msg runOnceDoneMsg, runID string)
 		selectedRunID = runID
 	}
 	m.status = msg.status
-	m.selectedTask = selectedTaskIndex(m.status.Tasks, selectedTaskID)
+	m.setSelectedTask(selectedTaskIndex(m.status.Tasks, selectedTaskID))
 	m.selectedRun = selectedRunIndex(m.status.RecentRuns, selectedRunID)
 	if !m.status.Initialized {
 		m.runDetails = nil
@@ -2641,7 +2646,7 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		m.switchView(viewDashboard)
 		return m, nil
 	case "tasks":
-		m.switchView(viewTasks)
+		m.openTasksOverlay()
 		return m, nil
 	case "runs":
 		m.switchView(viewRuns)
@@ -2752,14 +2757,15 @@ func (m *StatusModel) refreshViewportContent() {
 	m.refreshOverlayContent()
 }
 
-func (m *StatusModel) openHelpOverlay() {
+func (m *StatusModel) openOverlay(content TUIView) {
 	if m.overlay != nil {
 		return
 	}
 	m.overlay = &overlayState{
-		content:      viewHelp,
+		content:      content,
 		source:       m.view,
 		composer:     m.composer,
+		selected:     m.selectedTask,
 		sourceOffset: m.viewport.YOffset,
 		viewport:     viewport.New(defaultViewportWidth, defaultViewportHeight),
 	}
@@ -2770,7 +2776,49 @@ func (m *StatusModel) openHelpOverlay() {
 	m.overlay.viewport.GotoTop()
 }
 
+func (m *StatusModel) openHelpOverlay() {
+	m.openOverlay(viewHelp)
+}
+
+func (m *StatusModel) openTasksOverlay() {
+	m.openOverlay(viewTasks)
+}
+
 func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.overlay.content == viewTaskEntry {
+		return m.updateTaskEntry(msg)
+	}
+	if m.overlay.content == viewTasks {
+		switch msg.String() {
+		case "up", "k":
+			m.moveSelectedTask(-1)
+			m.refreshOverlayContent()
+			return m, nil
+		case "down", "j":
+			m.moveSelectedTask(1)
+			m.refreshOverlayContent()
+			return m, nil
+		case "a":
+			m.startTaskEntry("")
+			return m, nil
+		case "u":
+			return m, m.startRetrySelectedTask()
+		case "enter", "o":
+			taskID := m.selectedTaskID()
+			m.closeOverlay()
+			m.switchView(viewAutonomous)
+			m.autonomous.TaskID = taskID
+			m.autonomous.Selector = taskID
+			return m, m.loadAutonomousSelectorsCmd()
+		case "r":
+			if m.actions.RefreshStatus == nil {
+				m.setTaskNotice("Refresh is unavailable.")
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			return m, m.refreshStatusCmd()
+		}
+	}
 	switch msg.String() {
 	case "esc", "backspace":
 		m.closeOverlay()
@@ -2823,8 +2871,16 @@ func (m *StatusModel) refreshOverlayContent() {
 }
 
 func (m StatusModel) renderOverlayContent() string {
-	if m.overlay != nil && m.overlay.content == viewHelp {
+	if m.overlay == nil {
+		return ""
+	}
+	switch m.overlay.content {
+	case viewHelp:
 		return m.renderHelp()
+	case viewTasks:
+		return m.renderTasks()
+	case viewTaskEntry:
+		return m.renderTaskEntry()
 	}
 	return ""
 }
@@ -2877,15 +2933,29 @@ func (m *StatusModel) startTaskEntry(taskText string) {
 		field:    taskEntryTaskField,
 		taskText: taskText,
 	}
-	m.view = viewTaskEntry
+	if m.tasksOverlayActive() {
+		m.overlay.content = viewTaskEntry
+		m.overlay.message = ""
+	} else {
+		m.view = viewTaskEntry
+	}
 	m.composer.Active = false
 	m.composer.DiscoveryOpen = false
-	m.message = ""
+	if !m.tasksOverlayActive() {
+		m.message = ""
+	}
 	m.resizeViewport()
 	m.updateViewportContent()
 }
 
 func (m *StatusModel) cancelTaskEntry() {
+	if m.tasksOverlayActive() {
+		m.overlay.content = viewTasks
+		m.taskEntry = taskEntryState{}
+		m.resizeViewport()
+		m.refreshOverlayContent()
+		return
+	}
 	previous := m.taskEntry.previous
 	if previous == viewTaskEntry {
 		previous = viewTasks
@@ -3009,6 +3079,17 @@ func (m StatusModel) renderContent() string {
 
 func (m StatusModel) footerLines() []string {
 	if m.overlay != nil {
+		if m.overlay.content == viewTaskEntry {
+			return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
+		}
+		if m.overlay.content == viewTasks {
+			keys := []string{"j/k Select", "enter Workflow"}
+			if m.retrySelectedTaskAvailable() {
+				keys = append(keys, "u Retry")
+			}
+			keys = append(keys, "a Add Task", "r Refresh", "esc Close", "q Quit")
+			return wrapKeyLines(keys, m.width)
+		}
 		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
 	}
 	if m.view == viewTaskEntry {
@@ -3132,7 +3213,7 @@ func (m StatusModel) renderDashboard() string {
 
 func (m StatusModel) renderTasks() string {
 	lines := []string{"Tasks"}
-	lines = appendNotice(lines, m.message)
+	lines = appendNotice(lines, m.taskNotice())
 	if !m.status.Initialized {
 		lines = append(lines, "State: not initialized", "Task List", "Unavailable until state is initialized.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -3159,7 +3240,7 @@ func (m StatusModel) renderTasks() string {
 		)
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
-	selected := clampTaskIndex(m.status.Tasks, m.selectedTask)
+	selected := clampTaskIndex(m.status.Tasks, m.selectedTaskPosition())
 	for i, task := range m.status.Tasks {
 		prefix := taskListPrefix(i == selected, i == nextIndex)
 		summary := oneLine(task.Summary)
@@ -5076,24 +5157,59 @@ func trimTrailingBlankLines(value string) string {
 
 func (m *StatusModel) moveSelectedTask(delta int) {
 	if len(m.status.Tasks) == 0 {
-		m.selectedTask = 0
+		m.setSelectedTask(0)
 		return
 	}
-	m.selectedTask = clampTaskIndex(m.status.Tasks, m.selectedTask+delta)
+	m.setSelectedTask(m.selectedTaskPosition() + delta)
+}
+
+func (m StatusModel) tasksOverlayActive() bool {
+	return m.overlay != nil && (m.overlay.content == viewTasks || m.overlay.content == viewTaskEntry)
+}
+
+func (m StatusModel) selectedTaskPosition() int {
+	if m.tasksOverlayActive() {
+		return m.overlay.selected
+	}
+	return m.selectedTask
+}
+
+func (m *StatusModel) setSelectedTask(index int) {
+	index = clampTaskIndex(m.status.Tasks, index)
+	if m.tasksOverlayActive() {
+		m.overlay.selected = index
+		return
+	}
+	m.selectedTask = index
+}
+
+func (m StatusModel) taskNotice() string {
+	if m.tasksOverlayActive() {
+		return m.overlay.message
+	}
+	return m.message
+}
+
+func (m *StatusModel) setTaskNotice(message string) {
+	if m.tasksOverlayActive() {
+		m.overlay.message = message
+		return
+	}
+	m.message = message
 }
 
 func (m StatusModel) selectedTaskID() string {
 	if len(m.status.Tasks) == 0 {
 		return ""
 	}
-	return strings.TrimSpace(m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTask)].ID)
+	return strings.TrimSpace(m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTaskPosition())].ID)
 }
 
 func (m StatusModel) selectedTaskValue() (taskmodel.Task, bool) {
 	if len(m.status.Tasks) == 0 {
 		return taskmodel.Task{}, false
 	}
-	return m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTask)], true
+	return m.status.Tasks[clampTaskIndex(m.status.Tasks, m.selectedTaskPosition())], true
 }
 
 func (m StatusModel) retrySelectedTaskAvailable() bool {

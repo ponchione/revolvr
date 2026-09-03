@@ -1,6 +1,6 @@
 # TUI-051 — Move Tasks into an Overlay
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-03
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
 - Depends on: [TUI-050](tui-050-add-overlay-shell.md)
 
@@ -44,3 +44,13 @@ go test ./internal/tui
 
 - No task workflow redesign, task-publication change, old-route removal, or
   page-renderer deletion.
+
+## Completion Evidence
+
+- Both retained entries open Tasks through the shared root overlay and reuse
+  the retained page renderer and existing application callbacks.
+- Overlay-local selection survives refresh by canonical task identity, with
+  the existing first-task fallback when that identity disappears.
+- Add, retry, refresh, Workflow handoff, success/failure presentation, exact
+  dismissal return, and 80-/40-column bounds pass focused parity coverage.
+- No task/store authority, dependency, workflow, or rollback renderer changed.
