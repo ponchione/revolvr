@@ -2142,7 +2142,7 @@ func TestStatusModelRefreshActionReloadsStatusSnapshot(t *testing.T) {
 	}
 }
 
-func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
+func TestPreflightReadyOverlayShowsChecks(t *testing.T) {
 	called := false
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
 		Preflight: func() (app.PreflightResult, error) {
@@ -2175,6 +2175,16 @@ func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
 	if !called {
 		t.Fatal("preflight callback was not called")
 	}
+	if afterPreflight.overlay == nil || afterPreflight.overlay.content != viewPreflight || afterPreflight.view != viewDashboard {
+		t.Fatalf("overlay=%#v view=%v, want Preflight over Dashboard", afterPreflight.overlay, afterPreflight.view)
+	}
+	page := afterPreflight
+	page.message = page.overlay.message
+	page.overlay = nil
+	page.switchView(viewPreflight)
+	if afterPreflight.renderOverlayContent() != page.renderPreflight() {
+		t.Fatal("Preflight overlay content diverged from retained page renderer")
+	}
 
 	lines := normalizedViewLines(afterPreflight.View())
 	requireLines(t, lines,
@@ -2185,12 +2195,11 @@ func TestStatusModelPreflightViewShowsReadyChecks(t *testing.T) {
 		"Checks",
 		"OK state: initialized at /work/.revolvr",
 		"OK verification commands: 1 command configured",
-		"Keys: p Check | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop",
-		"      r Refresh | q Quit",
+		"Keys: p Check | R Run Once | n Passes 3 | L Run Loop | r Refresh | esc Close | q Quit",
 	)
 }
 
-func TestStatusModelPreflightViewShowsFailedChecks(t *testing.T) {
+func TestPreflightFailedOverlayShowsChecks(t *testing.T) {
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
 		Preflight: func() (app.PreflightResult, error) {
 			return app.PreflightResult{
@@ -2223,6 +2232,217 @@ func TestStatusModelPreflightViewShowsFailedChecks(t *testing.T) {
 		`FAIL codex executable: "codex" not found: executable file not found`,
 		"FAIL verification commands: no verification commands configured",
 	)
+}
+
+func TestPreflightOverlay(t *testing.T) {
+	t.Run("command entry preserves source state and narrow geometry", func(t *testing.T) {
+		calls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true, ProjectRoot: "/work/revolvr"}, StatusActions{
+			Preflight: func() (app.PreflightResult, error) {
+				calls++
+				return app.PreflightResult{Ready: true, Checks: []app.PreflightCheck{{Status: app.PreflightOK, Name: "state", Detail: "ready"}}}, nil
+			},
+		})
+		model.message = "underlying notice"
+		model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
+		committed := slices.Clone(model.committed)
+		model, _ = updateStatusModel(t, model, keyRunes("/preflight"))
+		model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		if cmd == nil || calls != 0 || model.overlay == nil || model.overlay.content != viewPreflight || model.overlay.source != viewDashboard || model.view != viewDashboard {
+			t.Fatalf("opened state: calls=%d overlay=%#v view=%v cmd=%v", calls, model.overlay, model.view, cmd)
+		}
+		if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, commandComposerState{Active: true}) {
+			t.Fatalf("composer=%#v saved=%#v, want inactive with saved focus", model.composer, model.overlay.composer)
+		}
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || calls != 1 {
+			t.Fatalf("preflight result: calls=%d cmd=%v", calls, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Status: ready", "OK state: ready")
+		for _, width := range []int{80, 40} {
+			model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 24})
+			assertMaxLineWidth(t, normalizedViewLines(model.View()), width)
+		}
+
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, commandComposerState{Active: true}) || model.message != "underlying notice" {
+			t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+		}
+		if !reflect.DeepEqual(model.committed, committed) {
+			t.Fatal("Preflight overlay changed committed transcript cells")
+		}
+	})
+
+	t.Run("check refresh and loop-pass actions use existing callbacks", func(t *testing.T) {
+		preflightCalls := 0
+		refreshCalls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			Preflight: func() (app.PreflightResult, error) {
+				preflightCalls++
+				status := app.PreflightFail
+				if preflightCalls == 1 {
+					status = app.PreflightOK
+				}
+				return app.PreflightResult{
+					Ready:  preflightCalls == 1,
+					Checks: []app.PreflightCheck{{Status: status, Name: "worktree clean", Detail: "dirty files"}},
+				}, nil
+			},
+			RefreshStatus: func() (app.StatusResult, error) {
+				refreshCalls++
+				return app.StatusResult{Initialized: true}, nil
+			},
+		})
+		model.message = "underlying notice"
+		if model.Init() == nil {
+			t.Fatal("session append command is nil")
+		}
+		model.composer.Active = false
+		model, cmd := updateStatusModel(t, model, keyRunes("5"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || preflightCalls != 1 {
+			t.Fatalf("initial check: calls=%d cmd=%v", preflightCalls, cmd)
+		}
+
+		model, cmd = updateStatusModel(t, model, keyRunes("p"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || preflightCalls != 2 || model.preflight.Result.Ready {
+			t.Fatalf("repeat check: calls=%d state=%#v cmd=%v", preflightCalls, model.preflight, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Preflight failed.", "FAIL worktree clean: dirty files")
+
+		model, cmd = updateStatusModel(t, model, keyRunes("r"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || refreshCalls != 1 || model.overlay == nil {
+			t.Fatalf("refresh: calls=%d overlay=%#v cmd=%v", refreshCalls, model.overlay, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Refreshed.")
+
+		model, cmd = updateStatusModel(t, model, keyRunes("n"))
+		if cmd != nil || model.selectedRunLoopPasses() != 5 || model.message != "underlying notice" {
+			t.Fatalf("loop passes=%d source message=%q cmd=%v", model.selectedRunLoopPasses(), model.message, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()),
+			"Notice: Loop max passes set to 5.",
+			"Keys: p Check | R Run Once | n Passes 5 | L Run Loop | r Refresh | esc Close",
+			"      q Quit",
+		)
+	})
+
+	t.Run("run actions keep admission guards and source notice", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			key     string
+			mode    string
+			actions StatusActions
+		}{
+			{
+				name: "once",
+				key:  "R",
+				mode: runModeOnce,
+				actions: StatusActions{RunOnce: func(context.Context, app.RunProgress) (runonce.Result, error) {
+					return runonce.Result{}, nil
+				}},
+			},
+			{
+				name: "loop",
+				key:  "L",
+				mode: runModeLoop,
+				actions: StatusActions{RunLoop: func(context.Context, int, app.RunProgress, app.RunPassFunc) (app.RunLoopResult, error) {
+					return app.RunLoopResult{}, nil
+				}},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				tc.actions.Preflight = func() (app.PreflightResult, error) {
+					return app.PreflightResult{Ready: true}, nil
+				}
+				model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, tc.actions)
+				model.message = "underlying notice"
+				model.composer.Active = false
+				model, cmd := updateStatusModel(t, model, keyRunes("5"))
+				model, cmd = runStatusModelCmd(t, model, cmd)
+				model, cmd = updateStatusModel(t, model, keyRunes(tc.key))
+				if cmd == nil || !model.runOnce.Active || model.runOnce.Mode != tc.mode || model.overlay == nil || model.message != "underlying notice" {
+					t.Fatalf("run state=%#v overlay=%#v source message=%q cmd=%v", model.runOnce, model.overlay, model.message, cmd)
+				}
+				model.runOnce.Cancel()
+			})
+		}
+
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			Preflight: func() (app.PreflightResult, error) { return app.PreflightResult{Ready: false}, nil },
+			RunOnce:   func(context.Context, app.RunProgress) (runonce.Result, error) { return runonce.Result{}, nil },
+		})
+		model.composer.Active = false
+		model, cmd := updateStatusModel(t, model, keyRunes("5"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		model, cmd = updateStatusModel(t, model, keyRunes("R"))
+		if cmd != nil || model.runOnce.Active {
+			t.Fatalf("blocked run state=%#v cmd=%v", model.runOnce, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Run blocked: preflight is not ready.")
+	})
+
+	t.Run("errors and active-operation refusals stay textual", func(t *testing.T) {
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			Preflight: func() (app.PreflightResult, error) { return app.PreflightResult{}, errors.New("inspection failed") },
+		})
+		model.message = "underlying notice"
+		model.composer.Active = false
+		model, cmd := updateStatusModel(t, model, keyRunes("5"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || model.overlay == nil || model.message != "underlying notice" {
+			t.Fatalf("error state: overlay=%#v source message=%q cmd=%v", model.overlay, model.message, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Preflight error.", "Status: error", "Error: inspection failed")
+
+		unavailable := NewStatusModel(app.StatusResult{Initialized: true})
+		unavailable.composer.Active = false
+		unavailable, cmd = updateStatusModel(t, unavailable, keyRunes("5"))
+		if cmd != nil || unavailable.overlay == nil {
+			t.Fatalf("unavailable state: overlay=%#v cmd=%v", unavailable.overlay, cmd)
+		}
+		requireLines(t, normalizedViewLines(unavailable.View()), "Notice: Preflight is unavailable.", "Status: not run")
+
+		activeCalls := 0
+		active := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			Preflight:     func() (app.PreflightResult, error) { activeCalls++; return app.PreflightResult{}, nil },
+			RefreshStatus: func() (app.StatusResult, error) { activeCalls++; return app.StatusResult{}, nil },
+		})
+		active.composer.Active = false
+		active.runOnce = runOnceState{Active: true, Started: true, Mode: runModeOnce, Token: 7, RunID: "run-live"}
+		active, cmd = updateStatusModel(t, active, keyRunes("5"))
+		if cmd != nil || active.overlay == nil || active.runOnce.RunID != "run-live" || activeCalls != 0 {
+			t.Fatalf("active open: run=%#v overlay=%#v calls=%d cmd=%v", active.runOnce, active.overlay, activeCalls, cmd)
+		}
+		requireLines(t, normalizedViewLines(active.View()), "Notice: Run is active; cancel or wait before checking preflight.")
+		for _, key := range []string{"p", "r", "R", "n", "L"} {
+			active, cmd = updateStatusModel(t, active, keyRunes(key))
+			if cmd != nil || activeCalls != 0 || !active.runOnce.Active || active.loopPasses != defaultRunLoopPasses {
+				t.Fatalf("active key %q: calls=%d run=%#v passes=%d cmd=%v", key, activeCalls, active.runOnce, active.loopPasses, cmd)
+			}
+		}
+	})
+
+	t.Run("late result cannot replace a newer overlay owner", func(t *testing.T) {
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			Preflight: func() (app.PreflightResult, error) { return app.PreflightResult{Ready: true}, nil },
+		})
+		model.composer.Active = false
+		model, stale := updateStatusModel(t, model, keyRunes("5"))
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		model, current := updateStatusModel(t, model, keyRunes("5"))
+		owner := model.overlay.owner
+		model, cmd := runStatusModelCmd(t, model, stale)
+		if cmd != nil || model.overlay == nil || model.overlay.owner != owner || model.preflight.Checked {
+			t.Fatalf("stale result changed owner: overlay=%#v preflight=%#v cmd=%v", model.overlay, model.preflight, cmd)
+		}
+		model, cmd = runStatusModelCmd(t, model, current)
+		if cmd != nil || !model.preflight.Checked || !model.preflight.Result.Ready {
+			t.Fatalf("current result not applied: preflight=%#v cmd=%v", model.preflight, cmd)
+		}
+	})
 }
 
 func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.T) {

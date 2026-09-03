@@ -103,8 +103,8 @@ the overhaul.
    exact focus return and narrow-height behavior for typed answers.
 
 These are evidence gaps for existing decisions and tasks, not a new backlog.
-TUI-005 closes the product-decision gate. TUI-010 through TUI-052 are complete,
-TUI-053 is pending, and later tasks remain unpublished drafts.
+TUI-005 closes the product-decision gate. TUI-010 through TUI-053 are complete,
+TUI-054 is pending, and later tasks remain unpublished drafts.
 
 ## Revolvr Evidence
 

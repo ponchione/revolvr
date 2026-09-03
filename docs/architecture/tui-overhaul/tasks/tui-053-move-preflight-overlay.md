@@ -1,6 +1,6 @@
 # TUI-053 — Move Preflight into an Overlay
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-03
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
 - Depends on: [TUI-052](tui-052-move-runs-overlay.md)
 
@@ -40,3 +40,14 @@ go test ./internal/tui
 
 - No preflight rule, safety policy, admission, old-route removal, or page-
   renderer deletion.
+
+## Completion Evidence
+
+- Both retained entries reach the shared overlay and reuse the retained
+  Preflight renderer, callback, and textual check projection.
+- Check, refresh, run-once, loop-pass, and run-loop controls retain their
+  existing callbacks and admission/active-operation guards.
+- Exact source/composer return, 80-/40-column bounds, callback errors,
+  unavailable actions, and stale result ownership pass focused coverage.
+- No preflight rule, safety authority, dependency, or rollback page renderer
+  changed.

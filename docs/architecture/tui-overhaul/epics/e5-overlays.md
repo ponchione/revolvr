@@ -1,7 +1,7 @@
 # E5 — Move Focused Work to Overlays
 
-- Status: Active planning record; TUI-050 through TUI-052 are complete and
-  TUI-053 is pending
+- Status: Active planning record; TUI-050 through TUI-053 are complete and
+  TUI-054 is pending
 - Design authority: [TUI overhaul](../README.md)
 - Depends on: [E3](e3-primary-composer.md)
 

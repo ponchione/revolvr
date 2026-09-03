@@ -690,17 +690,20 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 		return m, nil
 	case preflightMsg:
+		if msg.owner != 0 && (m.overlay == nil || m.overlay.owner != msg.owner || m.overlay.content != viewPreflight) {
+			return m, nil
+		}
 		m.preflight = preflightState{
 			Checked: true,
 			Result:  msg.result,
 		}
 		if msg.err != nil {
 			m.preflight.Err = msg.err.Error()
-			m.message = "Preflight error."
+			m.setPreflightNotice("Preflight error.")
 		} else if msg.result.Ready {
-			m.message = "Preflight ready."
+			m.setPreflightNotice("Preflight ready.")
 		} else {
-			m.message = "Preflight failed."
+			m.setPreflightNotice("Preflight failed.")
 		}
 		m.updateViewportContent()
 		return m, nil
@@ -915,16 +918,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openRunDetailOverlay()
 			return m, nil
 		case "5":
-			m.switchView(viewPreflight)
-			if m.runOnce.Active {
-				return m, nil
-			}
-			if m.actions.Preflight == nil {
-				m.message = "Preflight is unavailable."
-				m.updateViewportContent()
-				return m, nil
-			}
-			return m, m.preflightCmd()
+			return m, m.openPreflightOverlay()
 		case "6":
 			m.switchView(viewAutonomous)
 			return m, m.loadAutonomousSelectorsCmd()
@@ -1124,6 +1118,7 @@ type validateReceiptMsg struct {
 
 type preflightMsg struct {
 	result app.PreflightResult
+	owner  int
 	err    error
 }
 
@@ -1341,9 +1336,13 @@ func (m *StatusModel) startValidateRunReceipt() tea.Cmd {
 }
 
 func (m StatusModel) preflightCmd() tea.Cmd {
+	owner := 0
+	if m.preflightOverlayActive() {
+		owner = m.overlay.owner
+	}
 	return func() tea.Msg {
 		result, err := m.actions.Preflight()
-		return preflightMsg{result: result, err: err}
+		return preflightMsg{result: result, owner: owner, err: err}
 	}
 }
 
@@ -1598,7 +1597,7 @@ func (m StatusModel) autonomousAnswerSnapshotCurrent() bool {
 
 func (m *StatusModel) startRunOnce() tea.Cmd {
 	if message := m.runStartBlocker(runModeOnce); message != "" {
-		m.message = message
+		m.setPreflightNotice(message)
 		m.updateViewportContent()
 		return nil
 	}
@@ -1624,14 +1623,14 @@ func (m *StatusModel) startRunOnce() tea.Cmd {
 		MaxPasses: 1,
 		Logs:      []string{"system: run started"},
 	}
-	m.message = ""
+	m.setPreflightNotice("")
 	m.updateViewportContent()
 	return m.startRunOnceCmd(token, runCtx, messages)
 }
 
 func (m *StatusModel) startRunLoop() tea.Cmd {
 	if message := m.runStartBlocker(runModeLoop); message != "" {
-		m.message = message
+		m.setPreflightNotice(message)
 		m.updateViewportContent()
 		return nil
 	}
@@ -1659,7 +1658,7 @@ func (m *StatusModel) startRunLoop() tea.Cmd {
 		Stats:     app.RunLoopStats{MaxPasses: maxPasses},
 		Logs:      []string{fmt.Sprintf("system: loop started (max passes %d)", maxPasses)},
 	}
-	m.message = ""
+	m.setPreflightNotice("")
 	m.updateViewportContent()
 	return m.startRunLoopCmd(token, runCtx, messages, maxPasses)
 }
@@ -2376,7 +2375,7 @@ func (m *StatusModel) cycleRunLoopPasses() {
 		}
 	}
 	m.loopPasses = next
-	m.message = fmt.Sprintf("Loop max passes set to %d.", next)
+	m.setPreflightNotice(fmt.Sprintf("Loop max passes set to %d.", next))
 	m.updateViewportContent()
 }
 
@@ -2692,13 +2691,7 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		m.openRunDetailOverlay()
 		return m, nil
 	case "preflight":
-		m.switchView(viewPreflight)
-		if blocker := m.preflightBlocker(); blocker != "" {
-			m.message = blocker
-			m.updateViewportContent()
-			return m, nil
-		}
-		return m, m.preflightCmd()
+		return m, m.openPreflightOverlay()
 	case "workflow":
 		m.switchView(viewAutonomous)
 		return m, m.loadAutonomousSelectorsCmd()
@@ -2838,6 +2831,19 @@ func (m *StatusModel) openRunDetailOverlay() {
 	m.overlay.viewport.GotoTop()
 }
 
+func (m *StatusModel) openPreflightOverlay() tea.Cmd {
+	m.openOverlay(viewPreflight, 0)
+	if !m.preflightOverlayActive() {
+		return nil
+	}
+	if blocker := m.preflightBlocker(); blocker != "" {
+		m.setPreflightNotice(blocker)
+		m.refreshOverlayContent()
+		return nil
+	}
+	return m.preflightCmd()
+}
+
 func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.overlay.content == viewTaskEntry {
 		return m.updateTaskEntry(msg)
@@ -2915,6 +2921,36 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.startValidateRunReceipt()
 		}
 	}
+	if m.overlay.content == viewPreflight {
+		switch msg.String() {
+		case "p":
+			if blocker := m.preflightBlocker(); blocker != "" {
+				m.setPreflightNotice(blocker)
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			return m, m.preflightCmd()
+		case "r":
+			if blocker := m.refreshBlocker(); blocker != "" {
+				m.setPreflightNotice(blocker)
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			return m, m.refreshStatusCmd()
+		case "R":
+			return m, m.startRunOnce()
+		case "n":
+			if m.runOnce.Active {
+				m.setPreflightNotice("Run is active; cancel or wait before starting another action.")
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			m.cycleRunLoopPasses()
+			return m, nil
+		case "L":
+			return m, m.startRunLoop()
+		}
+	}
 	switch msg.String() {
 	case "esc", "backspace":
 		m.closeOverlay()
@@ -2982,6 +3018,8 @@ func (m StatusModel) renderOverlayContent() string {
 			return m.renderRunDetails(*m.runDetails)
 		}
 		return m.renderEmptyRunDetail()
+	case viewPreflight:
+		return m.renderPreflight()
 	case viewTaskEntry:
 		return m.renderTaskEntry()
 	}
@@ -3198,6 +3236,9 @@ func (m StatusModel) footerLines() []string {
 		}
 		if m.overlay.content == viewRunDetail {
 			return wrapKeyLines([]string{"up/down Scroll", "home/end Jump", "enter Reload", "v Validate", "r Refresh", "esc Runs", "q Quit"}, m.width)
+		}
+		if m.overlay.content == viewPreflight {
+			return wrapKeyLines([]string{"p Check", "R Run Once", fmt.Sprintf("n Passes %d", m.selectedRunLoopPasses()), "L Run Loop", "r Refresh", "esc Close", "q Quit"}, m.width)
 		}
 		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
 	}
@@ -3679,7 +3720,7 @@ func (m StatusModel) appendAutonomousFocusStatus(lines []string) []string {
 
 func (m StatusModel) renderPreflight() string {
 	lines := []string{"Preflight"}
-	lines = appendNotice(lines, m.message)
+	lines = appendNotice(lines, m.preflightNotice())
 	if !m.preflight.Checked {
 		lines = append(lines, "Status: not run", "No readiness result loaded.")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -5308,7 +5349,26 @@ func (m *StatusModel) setTaskNotice(message string) {
 }
 
 func (m *StatusModel) setRefreshNotice(message string) {
-	if m.tasksOverlayActive() || m.runsOverlayActive() {
+	if m.tasksOverlayActive() || m.runsOverlayActive() || m.preflightOverlayActive() {
+		m.overlay.message = message
+		return
+	}
+	m.message = message
+}
+
+func (m StatusModel) preflightOverlayActive() bool {
+	return m.overlay != nil && m.overlay.content == viewPreflight
+}
+
+func (m StatusModel) preflightNotice() string {
+	if m.preflightOverlayActive() {
+		return m.overlay.message
+	}
+	return m.message
+}
+
+func (m *StatusModel) setPreflightNotice(message string) {
+	if m.preflightOverlayActive() {
 		m.overlay.message = message
 		return
 	}

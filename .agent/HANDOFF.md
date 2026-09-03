@@ -360,6 +360,21 @@ Updated: 2026-09-03
 - TUI-052's completion handoff published only
   `.agent/tasks/tui-053-move-preflight-overlay.md`. TUI-053 is pending and
   unstarted; every later task remains an unpublished draft.
+- Completed TUI-053 by routing `5` and `/preflight` to the shared overlay while
+  retaining the Preflight page renderer as the single content projection and
+  D4 rollback path.
+- Ready, failed, callback-error, unavailable, and active-operation states stay
+  textual. Check and refresh results remain overlay-local and late callback
+  results cannot replace a newer overlay owner.
+- Check, refresh, run once, loop-pass, and run-loop actions reuse their existing
+  callbacks and admission guards. Escape restores the exact source/composer
+  state while transcript and live-operation state continue underneath.
+- Focused parity covers both entries, 80-/40-column bounds, callback and guard
+  behavior, exact return, and stale ownership; application/domain authority and
+  dependencies are unchanged.
+- TUI-053's completion handoff published only
+  `.agent/tasks/tui-054-move-workflow-overlay.md`. TUI-054 is pending and
+  unstarted; every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -367,7 +382,7 @@ Updated: 2026-09-03
 go run ./cmd/revolvr status
 ```
 
-It must report TUI-053 as the only pending and next task, without selecting
+It must report TUI-054 as the only pending and next task, without selecting
 deferred EXT or superseded PTC work.
 
 ## Exact Next Command
@@ -378,8 +393,8 @@ Run one fresh Codex pass:
 codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-The next fresh pass implements the already-pending TUI-053 task. Do not
-republish TUI-052 or publish TUI-054 before TUI-053 completes.
+The next fresh pass implements the already-pending TUI-054 task. Do not
+republish TUI-053 or publish TUI-055 before TUI-054 completes.
 
 ## Verification
 
@@ -663,5 +678,18 @@ republish TUI-052 or publish TUI-054 before TUI-053 completes.
   the only pending canonical task.
 - `go run ./cmd/revolvr status` — PASS; TUI-053 is selected next.
 - `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestPreflight.*Overlay' -count=1` — PASS; 10
+  tests.
+- `go test ./internal/tui -count=1` — PASS; 211 tests.
+- `go test ./... -count=1` — PASS; 4,215 tests in 91 packages.
+- `go run ./cmd/revolvr tui --help` — PASS.
+- TUI-053 Preflight-entry, retained-renderer, textual-state, local-notice,
+  callback/guard, run-action, exact-return, 80-/40-column, and stale-owner
+  gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-053 is complete and TUI-054 is
+  the only pending canonical task.
+- `go run ./cmd/revolvr status` — PASS; TUI-054 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
 
-Run the exact next command above for the pending TUI-053 implementation pass.
+Run the exact next command above for the pending TUI-054 implementation pass.
