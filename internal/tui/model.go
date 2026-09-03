@@ -92,6 +92,7 @@ type StatusModel struct {
 	validation            receiptValidationState
 	taskEntry             taskEntryState
 	composer              commandComposerState
+	overlay               *overlayState
 	focusSource           TUIView
 	focusedFromAutonomous bool
 	message               string
@@ -388,6 +389,15 @@ type commandComposerState struct {
 	Text            string
 	DiscoveryOpen   bool
 	SelectedCommand int
+}
+
+type overlayState struct {
+	content      TUIView
+	source       TUIView
+	composer     commandComposerState
+	selected     int
+	sourceOffset int
+	viewport     viewport.Model
 }
 
 type slashCommand struct {
@@ -834,6 +844,9 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyMsg:
+		if m.overlay != nil {
+			return m.updateOverlay(msg)
+		}
 		if m.view == viewTaskEntry {
 			return m.updateTaskEntry(msg)
 		}
@@ -890,7 +903,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.switchView(viewAutonomous)
 			return m, m.loadAutonomousSelectorsCmd()
 		case "?":
-			m.switchView(viewHelp)
+			m.openHelpOverlay()
 			return m, nil
 		case "a":
 			if m.view == viewAutonomous || m.view == viewApproval {
@@ -1073,7 +1086,11 @@ func (m *StatusModel) scrollViewport(msg tea.KeyMsg) bool {
 }
 
 func (m StatusModel) View() string {
-	sections := []string{trimTrailingBlankLines(m.viewport.View())}
+	content := m.viewport.View()
+	if m.overlay != nil {
+		content = m.overlay.viewport.View()
+	}
+	sections := []string{trimTrailingBlankLines(content)}
 	sections = append(sections, "")
 	sections = append(sections, styleFooterLines(m.footerLines())...)
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
@@ -2512,6 +2529,11 @@ func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			}
 		}
 		return m.submitCommand()
+	case "?":
+		if m.composer.Text == "" {
+			m.openHelpOverlay()
+			return m, nil
+		}
 	}
 	if msg.Type == tea.KeyRunes {
 		m.composer.Text += string(msg.Runes)
@@ -2602,8 +2624,7 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if fields[0] == "/" {
-		m.composer.DiscoveryOpen = false
-		m.switchView(viewHelp)
+		m.openHelpOverlay()
 		m.message = "Slash commands opened."
 		m.updateViewportContent()
 		return m, nil
@@ -2614,7 +2635,7 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 	command := strings.TrimPrefix(strings.ToLower(fields[0]), "/")
 	switch command {
 	case "help", "commands":
-		m.switchView(viewHelp)
+		m.openHelpOverlay()
 		return m, nil
 	case "dashboard", "transcript":
 		m.switchView(viewDashboard)
@@ -2723,10 +2744,89 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 func (m *StatusModel) updateViewportContent() {
 	m.viewport.SetContent(m.formatContent(m.renderContent()))
 	m.viewport.GotoTop()
+	m.refreshOverlayContent()
 }
 
 func (m *StatusModel) refreshViewportContent() {
 	m.viewport.SetContent(m.formatContent(m.renderContent()))
+	m.refreshOverlayContent()
+}
+
+func (m *StatusModel) openHelpOverlay() {
+	if m.overlay != nil {
+		return
+	}
+	m.overlay = &overlayState{
+		content:      viewHelp,
+		source:       m.view,
+		composer:     m.composer,
+		sourceOffset: m.viewport.YOffset,
+		viewport:     viewport.New(defaultViewportWidth, defaultViewportHeight),
+	}
+	m.composer.Active = false
+	m.composer.DiscoveryOpen = false
+	m.resizeViewport()
+	m.refreshOverlayContent()
+	m.overlay.viewport.GotoTop()
+}
+
+func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "backspace":
+		m.closeOverlay()
+		return m, nil
+	case "ctrl+c", "q", "c":
+		if handled, cmd := m.updateActiveRunKeys(msg); handled {
+			return m, cmd
+		}
+		if msg.String() != "c" {
+			return m, tea.Quit
+		}
+		return m, nil
+	case "?":
+		return m, nil
+	case "home":
+		m.overlay.viewport.GotoTop()
+		return m, nil
+	case "end":
+		m.overlay.viewport.GotoBottom()
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.overlay.viewport, cmd = m.overlay.viewport.Update(msg)
+	m.overlay.selected = max(m.overlay.selected, 0)
+	return m, cmd
+}
+
+func (m *StatusModel) closeOverlay() {
+	if m.overlay == nil {
+		return
+	}
+	overlay := *m.overlay
+	m.overlay = nil
+	m.view = overlay.source
+	m.composer = overlay.composer
+	m.resizeViewport()
+	m.refreshViewportContent()
+	m.viewport.SetYOffset(overlay.sourceOffset)
+}
+
+func (m *StatusModel) refreshOverlayContent() {
+	if m.overlay == nil {
+		return
+	}
+	m.resizeViewport()
+	offset := m.overlay.viewport.YOffset
+	m.overlay.viewport.SetContent(m.formatContent(m.renderOverlayContent()))
+	m.overlay.viewport.SetYOffset(offset)
+}
+
+func (m StatusModel) renderOverlayContent() string {
+	if m.overlay != nil && m.overlay.content == viewHelp {
+		return m.renderHelp()
+	}
+	return ""
 }
 
 func (m *StatusModel) switchView(view TUIView) {
@@ -2839,6 +2939,10 @@ func (m *StatusModel) resizeViewport() {
 	contentHeight := max(height-chromeHeight, 1)
 	m.viewport.Width = width
 	m.viewport.Height = contentHeight
+	if m.overlay != nil {
+		m.overlay.viewport.Width = width
+		m.overlay.viewport.Height = contentHeight
+	}
 }
 
 func (m StatusModel) contentWidth() int {
@@ -2904,6 +3008,9 @@ func (m StatusModel) renderContent() string {
 }
 
 func (m StatusModel) footerLines() []string {
+	if m.overlay != nil {
+		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
+	}
 	if m.view == viewTaskEntry {
 		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
 	}
@@ -3710,6 +3817,13 @@ func boundedCurrentLines(detail string, width int) []string {
 func (m StatusModel) renderHelp() string {
 	lines := []string{
 		"Help",
+		"?  Help",
+		"/help  Help",
+		"/tasks  Tasks",
+		"/runs  Runs",
+		"/detail  Run Detail",
+		"Esc closes Help",
+		"",
 		"Views",
 		"1  Dashboard",
 		"2  Tasks",
@@ -3717,7 +3831,6 @@ func (m StatusModel) renderHelp() string {
 		"4  Run Detail",
 		"5  Preflight",
 		"6  Workflow",
-		"?  Help",
 		"/  Focus command composer",
 		"d/e/A  Open change summary, evidence, or approval",
 		"a  Add task",
@@ -3736,7 +3849,7 @@ func (m StatusModel) renderHelp() string {
 		"Workflow: j/k Select, enter Reload, a Answer, pgup/pgdown Scroll",
 		"Preflight: p Run readiness checks",
 		"enter or o  Open selected run",
-		"esc  Back from help or run detail",
+		"Run Detail: esc returns to Runs",
 		"",
 		"Slash Commands",
 		"/dashboard /transcript /tasks /runs /detail /workflow",

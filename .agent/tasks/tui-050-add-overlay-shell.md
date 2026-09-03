@@ -1,6 +1,6 @@
 ---
 id: tui-050-add-overlay-shell
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-030-make-composer-primary
 
 # TUI-050 — Add the Shared Overlay Shell
 
-- Status: Pending
+- Status: Completed 2026-09-02
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-050 draft](../../docs/architecture/tui-overhaul/tasks/tui-050-add-overlay-shell.md)
@@ -62,3 +62,18 @@ go test ./internal/tui
 
 - No migration of a non-Help view, nested arbitrary overlays, or app/domain
   behavior.
+
+## Completion Evidence
+
+- One package-local overlay state owns Help identity, focus return, local
+  selection/scroll, and a width/height-bounded viewport while the source view
+  remains live underneath.
+- `?`, bare `/`, `/help`, and `/commands` reach the same Help overlay; Escape
+  restores the exact saved composer and source viewport state without a
+  transcript append.
+- Help reuses the retained page renderer, follows the accepted 80-column
+  content/footer snapshot, and reflows within 80- and 40-column bounds.
+- Matching live settlement continues behind Help and is visible correctly on
+  dismissal; existing application/domain callbacks and dependencies are
+  unchanged.
+- Focused overlay, full TUI, and repository-wide Go tests pass.

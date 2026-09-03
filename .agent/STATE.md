@@ -27,9 +27,9 @@ Updated: 2026-09-02
   TUI-020's semantic cell vocabulary, TUI-021's bounded historical projection,
   TUI-022's live-to-committed reconciliation, TUI-030's primary composer,
   TUI-031's reviewed idle plain-text route, TUI-032's contextual command
-  discovery, and TUI-040's bounded live operation cell are complete. TUI-050 is
-  the only pending canonical task, and later TUI tasks remain unpublished
-  drafts.
+  discovery, TUI-040's bounded live operation cell, and TUI-050's shared Help
+  overlay shell are complete. TUI-051 is the only pending canonical task, and
+  later TUI tasks remain unpublished drafts.
 
 ## Architecture 024 TUI
 
@@ -51,7 +51,7 @@ Updated: 2026-09-02
 
 ## Current Verification
 
-- `go test ./... -count=1` — PASS; 4,181 tests in 91 packages, including the
+- `go test ./... -count=1` — PASS; 4,189 tests in 91 packages, including the
   socket-based packages that the external agent sandbox could not execute.
 - `go test ./internal/evaluation -run
   '^TestFixtureIdentityUsesGitPortableFileModes$' -count=1` — PASS.
@@ -84,36 +84,43 @@ Updated: 2026-09-02
   post-settlement, typed-needs-input, and unchanged-authority gates — PASS.
 - `go test ./internal/tui -run 'TestCommandDiscovery' -count=1` — PASS; 25
   tests including every retained command name.
-- `go test ./internal/tui -count=1` — PASS; 177 tests.
+- `go test ./internal/tui -run 'TestOverlayShell' -count=1` — PASS; 8 tests
+  covering entry convergence, exact return, scroll/resize, and settlement.
+- `go test ./internal/tui -count=1` — PASS; 185 tests.
 - TUI-032 command coverage, exact/prefix filtering, shared-guard, keyboard,
   dismissal, Help, 40-column, cancellation-visibility, and single-publication
   gates — PASS.
 - TUI-040 live replacement, 80-/40-column bounds, mode/pass/limit, elapsed,
   literal safety/current/cancellation/next, terminal vocabulary, settlement,
   and single-publication gates — PASS.
-- `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS; local
-  ignored runtime is restored and TUI-050 is the sole next task.
+- TUI-050 entry convergence, exact composer/source return, transcript and live
+  preservation, Help parity, 80-/40-column geometry, overlay focus, settlement,
+  and single-publication gates — PASS.
+- `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS before
+  completion; local ignored runtime was restored and TUI-050 selected next.
+- `go run ./cmd/revolvr task list` and `go run ./cmd/revolvr status` — PASS
+  after completion; TUI-051 is the sole pending and next canonical task.
 - Application/domain callbacks, dependencies, and TUI authority are unchanged.
 
 ## Blockers And Next Task
 
 - Blockers: none. The prior socket-permission failure was specific to the
   external agent sandbox; the required full suite passes in this checkout.
-- TUI-040 is complete. TUI-050 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-030.
+- TUI-050 is complete. TUI-051 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-050.
 - Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
   TUI tasks, or reopen Architecture 025.
 
 ## Latest Pass
 
-- Task selected: `tui-040-render-live-operation`.
-- Files changed: the typed live operation projection and focused regression
-  tests, TUI-040 completion and TUI-050 publication metadata, and affected
+- Task selected: `tui-050-add-overlay-shell`.
+- Files changed: the package-local Help overlay shell and focused regression
+  tests, TUI-050 completion and TUI-051 publication metadata, and affected
   planning, state, task-list, reference, and handoff records.
-- Verification commands run: required `gofmt`, focused live-operation, TUI,
+- Verification commands run: required `gofmt`, focused overlay, TUI,
   and full Go tests, task list/status selectors, state line limit,
   publication/status audits, and `git diff --check`.
 - Verification result: PASS.
-- What remains: TUI-050 is pending for the next fresh pass; later tasks remain
+- What remains: TUI-051 is pending for the next fresh pass; later tasks remain
   unpublished drafts.
 - Blockers: none.

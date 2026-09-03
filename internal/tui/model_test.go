@@ -3749,16 +3749,19 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("help view cmd = %v, want nil", cmd)
 	}
+	if helpView.overlay == nil || helpView.overlay.content != viewHelp || helpView.view != viewRuns {
+		t.Fatalf("help overlay=%#v underlying view=%v, want Help over Runs", helpView.overlay, helpView.view)
+	}
 	helpLines := normalizedViewLines(helpView.View())
 	for _, want := range []string{
 		"Help",
+		"/help  Help",
+		"Esc closes Help",
 		"1  Dashboard",
 		"n  Cycle loop max passes (current 3)",
 		"L  Run loop",
 		"enter or o  Open selected run",
-		"Keys: esc Back | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight",
-		"      ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop | r Refresh",
-		"      q Quit",
+		"↑/↓ scroll · Esc close",
 	} {
 		if !containsLine(helpLines, want) {
 			t.Fatalf("help view missing %q: %#v", want, helpLines)
@@ -3769,9 +3772,189 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("escape help cmd = %v, want nil", cmd)
 	}
-	if back.view != viewRuns {
-		t.Fatalf("view after help escape = %v, want runs", back.view)
+	if back.overlay != nil || back.view != viewRuns {
+		t.Fatalf("state after help escape: overlay=%#v view=%v, want Runs without overlay", back.overlay, back.view)
 	}
+}
+
+func TestOverlayShell(t *testing.T) {
+	t.Run("retained entries and exact return", func(t *testing.T) {
+		entries := []struct {
+			name string
+			open func(t *testing.T, model StatusModel) StatusModel
+			want commandComposerState
+		}{
+			{
+				name: "question mark",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model, cmd := updateStatusModel(t, model, keyRunes("?"))
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Active: true},
+			},
+			{
+				name: "bare slash",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model, _ = updateStatusModel(t, model, keyRunes("/"))
+					model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Active: true, Text: "/", DiscoveryOpen: true},
+			},
+			{
+				name: "help command",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model, _ = updateStatusModel(t, model, keyRunes("/help"))
+					model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Active: true},
+			},
+			{
+				name: "commands alias",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model, _ = updateStatusModel(t, model, keyRunes("/commands"))
+					model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Active: true},
+			},
+		}
+
+		for _, entry := range entries {
+			t.Run(entry.name, func(t *testing.T) {
+				model := NewStatusModel(app.StatusResult{Initialized: true, ProjectRoot: "/work/revolvr"})
+				model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 80})
+				if model.Init() == nil {
+					t.Fatal("session append command is nil")
+				}
+				committed := slices.Clone(model.committed)
+				emitted := len(model.emitted)
+
+				model = entry.open(t, model)
+				if model.overlay == nil || model.overlay.content != viewHelp || model.overlay.source != viewDashboard {
+					t.Fatalf("overlay = %#v, want Help over Dashboard", model.overlay)
+				}
+				if model.view != viewDashboard || model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
+					t.Fatalf("underlying view=%v composer=%#v saved=%#v, want Dashboard, unfocused, %#v", model.view, model.composer, model.overlay.composer, entry.want)
+				}
+				if !reflect.DeepEqual(model.committed, committed) || len(model.emitted) != emitted {
+					t.Fatalf("opening overlay changed transcript: committed=%#v emitted=%#v", model.committed, model.emitted)
+				}
+				if model.renderOverlayContent() != model.renderHelp() {
+					t.Fatal("Help overlay content diverged from retained page renderer")
+				}
+				requireLines(t, normalizedViewLines(model.View()), "Help", "/refresh /cancel /validate /help /commands /quit")
+
+				focused, cmd := updateStatusModel(t, model, keyRunes("1"))
+				if cmd != nil || focused.overlay == nil || focused.view != viewDashboard {
+					t.Fatalf("overlay did not retain focus: overlay=%#v view=%v cmd=%v", focused.overlay, focused.view, cmd)
+				}
+				restored, cmd := updateStatusModel(t, focused, tea.KeyMsg{Type: tea.KeyEsc})
+				if cmd != nil || restored.overlay != nil || restored.view != viewDashboard || !reflect.DeepEqual(restored.composer, entry.want) {
+					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v cmd=%v", restored.overlay, restored.view, restored.composer, cmd)
+				}
+				if !reflect.DeepEqual(restored.committed, committed) || len(restored.emitted) != emitted {
+					t.Fatalf("closing overlay changed transcript: committed=%#v emitted=%#v", restored.committed, restored.emitted)
+				}
+			})
+		}
+	})
+
+	t.Run("scroll resize and source state stay bounded", func(t *testing.T) {
+		status := app.StatusResult{Initialized: true}
+		for i := range 30 {
+			status.RecentRuns = append(status.RecentRuns, ledger.Run{ID: fmt.Sprintf("run-%02d", i), Status: ledger.StatusCompleted})
+		}
+		model := NewStatusModel(status)
+		model.switchView(viewRuns)
+		model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyPgDown})
+		sourceOffset := model.viewport.YOffset
+		if sourceOffset == 0 {
+			t.Fatal("source viewport did not scroll")
+		}
+
+		model, _ = updateStatusModel(t, model, keyRunes("?"))
+		for range 20 {
+			model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyPgDown})
+		}
+		if model.overlay == nil || !model.overlay.viewport.AtBottom() || model.overlay.selected != 0 {
+			t.Fatalf("overlay scroll state = %#v, want bounded at bottom with no Help selection", model.overlay)
+		}
+
+		for _, width := range []int{80, 40} {
+			model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 24})
+			if model.overlay.viewport.Width != width || model.overlay.viewport.Height < 1 || model.overlay.viewport.Height >= 24 || model.overlay.viewport.YOffset < 0 {
+				t.Fatalf("width %d overlay viewport = %#v", width, model.overlay.viewport)
+			}
+			assertMaxLineWidth(t, normalizedViewLines(model.View()), width)
+		}
+
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyHome})
+		if !model.overlay.viewport.AtTop() {
+			t.Fatalf("overlay offset = %d, want top", model.overlay.viewport.YOffset)
+		}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if model.overlay != nil || model.view != viewRuns || model.viewport.YOffset != sourceOffset {
+			t.Fatalf("source return: overlay=%#v view=%v offset=%d, want Runs offset %d", model.overlay, model.view, model.viewport.YOffset, sourceOffset)
+		}
+	})
+
+	t.Run("active settlement stays behind overlay", func(t *testing.T) {
+		model := NewStatusModel(app.StatusResult{Initialized: true})
+		if model.Init() == nil {
+			t.Fatal("session append command is nil")
+		}
+		model.runOnce = runOnceState{
+			Active: true, Started: true, Mode: runModeTask, Token: 1,
+			RunID: "operation-overlay", Task: "task-overlay", Status: "running",
+		}
+		model.updateViewportContent()
+		model, _ = updateStatusModel(t, model, keyRunes("?"))
+		if model.overlay == nil || model.runOnce.RunID != "operation-overlay" {
+			t.Fatalf("opening Help changed live owner: overlay=%#v run=%#v", model.overlay, model.runOnce)
+		}
+
+		model, cmd := updateStatusModel(t, model, runOnceDoneMsg{
+			token:   1,
+			taskRun: true,
+			taskResult: autonomoustaskrun.Result{
+				OperationID: "operation-overlay",
+				TaskID:      "task-overlay",
+				StopReason:  autonomoustaskrun.StopCompleted,
+			},
+		})
+		if cmd == nil || model.overlay == nil || model.settling == nil {
+			t.Fatalf("settlement behind overlay: overlay=%#v settling=%#v cmd=%v", model.overlay, model.settling, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Help")
+		requireNoLine(t, normalizedViewLines(model.View()), "Completed: task-overlay")
+
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if cmd != nil || model.overlay != nil || model.settling == nil {
+			t.Fatalf("dismiss during settlement: overlay=%#v settling=%#v cmd=%v", model.overlay, model.settling, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Completed: task-overlay")
+
+		identity := model.settling.cell.identity
+		model, cmd = updateStatusModel(t, model, transcriptCommittedMsg{token: 1, identity: identity})
+		if cmd != nil || model.settling != nil || model.runOnce.Started || countTranscriptCells(model.committed, identity) != 1 {
+			t.Fatalf("acknowledged settlement: run=%#v settling=%#v committed=%#v cmd=%v", model.runOnce, model.settling, model.committed, cmd)
+		}
+	})
 }
 
 func TestStatusModelWideRenderSnapshot(t *testing.T) {
@@ -4072,12 +4255,12 @@ func TestComposerFocusAndEscapeStateTable(t *testing.T) {
 	popup := NewStatusModel(app.StatusResult{Initialized: true})
 	popup, _ = updateStatusModel(t, popup, keyRunes("/"))
 	popup, cmd = updateStatusModel(t, popup, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || popup.composer.Active || popup.composer.Text != "/" || popup.view != viewHelp {
-		t.Fatalf("command help state=%#v view=%v cmd=%v", popup.composer, popup.view, cmd)
+	if cmd != nil || popup.composer.Active || popup.composer.Text != "/" || popup.view != viewDashboard || popup.overlay == nil || popup.overlay.content != viewHelp {
+		t.Fatalf("command help state=%#v view=%v overlay=%#v cmd=%v", popup.composer, popup.view, popup.overlay, cmd)
 	}
 	restored, cmd := updateStatusModel(t, popup, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || !restored.composer.Active || restored.composer.Text != "/" || restored.view != viewDashboard {
-		t.Fatalf("command help return=%#v view=%v cmd=%v", restored.composer, restored.view, cmd)
+	if cmd != nil || !restored.composer.Active || restored.composer.Text != "/" || restored.view != viewDashboard || restored.overlay != nil {
+		t.Fatalf("command help return=%#v view=%v overlay=%#v cmd=%v", restored.composer, restored.view, restored.overlay, cmd)
 	}
 
 	nonComposer := NewStatusModel(app.StatusResult{Initialized: true})

@@ -1,6 +1,6 @@
 # TUI-050 — Add the Shared Overlay Shell
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-02
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
 - Depends on: [TUI-030](tui-030-make-composer-primary.md)
 
@@ -46,3 +46,13 @@ go test ./internal/tui
 
 - No migration of a non-Help view, nested arbitrary overlays, or app/domain
   behavior.
+
+## Completion Evidence
+
+- A package-local root overlay now preserves source view, composer, selection,
+  and scroll state while rendering Help in its own bounded viewport.
+- All four retained Help entries converge on that overlay, Escape restores the
+  exact source state, and active settlement continues underneath without a
+  committed-row append.
+- Focused overlay, full TUI, and repository-wide Go tests pass without an
+  application/domain change or dependency.

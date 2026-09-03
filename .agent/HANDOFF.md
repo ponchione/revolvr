@@ -320,6 +320,18 @@ Updated: 2026-09-02
 - TUI-040's completion handoff published only
   `.agent/tasks/tui-050-add-overlay-shell.md`. TUI-050 is pending and unstarted;
   every later task remains an unpublished draft.
+- Completed TUI-050 with one package-local root overlay that keeps Help focus,
+  selection/scroll, geometry, and return state separate from the underlying
+  source viewport and composer.
+- `?`, bare `/`, `/help`, and `/commands` converge on the retained Help
+  renderer. Escape restores the exact composer/source state; resize remains
+  bounded at 80 and 40 columns; opening and closing append no transcript row.
+- Matching live settlement continues underneath the overlay and is correct on
+  dismissal. Existing application/domain callbacks, dependencies, and later
+  focused views are unchanged.
+- TUI-050's completion handoff published only
+  `.agent/tasks/tui-051-move-tasks-overlay.md`. TUI-051 is pending and
+  unstarted; every later task remains an unpublished draft.
 
 ## Exact Read-Only Selector
 
@@ -327,7 +339,7 @@ Updated: 2026-09-02
 go run ./cmd/revolvr status
 ```
 
-It must report TUI-050 as the only pending and next task, without selecting
+It must report TUI-051 as the only pending and next task, without selecting
 deferred EXT or superseded PTC work.
 
 ## Exact Next Command
@@ -338,8 +350,8 @@ Run one fresh Codex pass:
 codex exec "$(cat .agent/LOOP_PROMPT.md)"
 ```
 
-The next fresh pass implements the already-pending TUI-050 task. Do not
-republish TUI-040 or publish TUI-051 before TUI-050 completes.
+The next fresh pass implements the already-pending TUI-051 task. Do not
+republish TUI-050 or publish TUI-052 before TUI-051 completes.
 
 ## Verification
 
@@ -586,5 +598,17 @@ republish TUI-040 or publish TUI-051 before TUI-050 completes.
   the only pending task.
 - `go run ./cmd/revolvr status` — PASS; TUI-050 is selected next.
 - `.agent/STATE.md` line limit and `git diff --check` — PASS.
+- `gofmt -w internal/tui/model.go internal/tui/model_test.go` — PASS.
+- `go test ./internal/tui -run 'TestOverlayShell' -count=1` — PASS; 8 tests.
+- `go test ./internal/tui -count=1` — PASS; 185 tests.
+- `go test ./... -count=1` — PASS; 4,189 tests in 91 packages.
+- `go run ./cmd/revolvr tui --help` — PASS.
+- TUI-050 Help-entry, exact-return, overlay-focus, page-parity, 80-/40-column,
+  transcript/live preservation, active-settlement, no-new-dependency, and
+  single-publication gates — PASS.
+- `go run ./cmd/revolvr task list` — PASS; TUI-050 is complete and TUI-051 is
+  the only pending canonical task.
+- `go run ./cmd/revolvr status` — PASS; TUI-051 is selected next.
+- `.agent/STATE.md` line limit and `git diff --check` — PASS.
 
-Run the exact next command above for the pending TUI-050 implementation pass.
+Run the exact next command above for the pending TUI-051 implementation pass.
