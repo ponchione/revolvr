@@ -4451,6 +4451,227 @@ func TestWorkflowOverlay(t *testing.T) {
 	})
 }
 
+func TestChangeSummaryOverlay(t *testing.T) {
+	started := time.Date(2026, 9, 3, 14, 0, 0, 0, time.UTC)
+	longPath := "internal/tui/a/very/long/path/that/remains/source-traceable/change-summary-model.go"
+	history := ledger.RunWithEvents{
+		Run: ledger.Run{ID: "run-changes", CommitSHA: "abc123def456", StartedAt: started},
+		Events: []ledger.Event{
+			{ID: 11, RunID: "run-changes", Type: ledger.EventChangedFilesCaptured, Payload: jsonPayload(t, map[string]any{"changed_files": []string{longPath, longPath, "internal/tui/model_test.go"}}), CreatedAt: started.Add(time.Second)},
+			{ID: 12, RunID: "run-changes", Type: ledger.EventCommitCreated, Payload: jsonPayload(t, map[string]any{"commit_sha": "abc123def456"}), CreatedAt: started.Add(2 * time.Second)},
+		},
+	}
+
+	t.Run("key and command entries retain canonical renderer geometry and return state", func(t *testing.T) {
+		for _, entry := range []struct {
+			name string
+			open func(t *testing.T, model StatusModel) StatusModel
+			want commandComposerState
+		}{
+			{
+				name: "key",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model.composer = commandComposerState{Text: "saved draft"}
+					model, cmd := updateStatusModel(t, model, keyRunes("d"))
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Text: "saved draft"},
+			},
+			{
+				name: "command",
+				open: func(t *testing.T, model StatusModel) StatusModel {
+					model, _ = updateStatusModel(t, model, keyRunes("/diff"))
+					model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+					if cmd != nil {
+						t.Fatalf("open command = %v, want nil", cmd)
+					}
+					return model
+				},
+				want: commandComposerState{Active: true},
+			},
+		} {
+			t.Run(entry.name, func(t *testing.T) {
+				model := NewStatusModel(app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{history.Run}, LatestEvents: history.Events})
+				model.message = "underlying notice"
+				model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 10})
+				committed := slices.Clone(model.committed)
+				model = entry.open(t, model)
+
+				if model.overlay == nil || model.overlay.content != viewDiff || model.overlay.source != viewDashboard || model.view != viewDashboard {
+					t.Fatalf("overlay=%#v underlying view=%v, want Change Summary over Dashboard", model.overlay, model.view)
+				}
+				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
+					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
+				}
+				overlayContent := model.renderOverlayContent()
+				page := model
+				page.message = page.overlay.message
+				page.overlay = nil
+				page.view = viewDiff
+				page.focusSource = viewDashboard
+				if overlayContent != page.renderFocusedDiff() {
+					t.Fatal("Change Summary overlay content diverged from retained page renderer")
+				}
+				requireLines(t, normalizedViewLines(overlayContent),
+					"Change Summary",
+					"Run: run-changes",
+					"Source: canonical changed-files events and run record",
+					"Changed Files",
+					longPath,
+					"internal/tui/model_test.go",
+					"commit: abc123def456",
+					"11  changed_files_captured  2026-09-03T14:00:01Z",
+					"12  commit_created  2026-09-03T14:00:02Z",
+				)
+				if strings.Count(overlayContent, longPath) != 1 || strings.Contains(overlayContent, "Exact Diff Artifacts") {
+					t.Fatalf("canonical metadata compaction/distinction failed:\n%s", overlayContent)
+				}
+				requireLines(t, normalizedViewLines(model.View()), "Keys: pgup/pgdown Scroll | home/end Jump | r Refresh | esc Close | q Quit")
+				for _, width := range []int{80, 40} {
+					model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 10})
+					assertMaxLineWidth(t, normalizedViewLines(model.View()), width)
+				}
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnd})
+				if model.overlay.viewport.YOffset == 0 {
+					t.Fatal("Change Summary overlay did not scroll")
+				}
+
+				model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				}
+				if !reflect.DeepEqual(model.committed, committed) {
+					t.Fatal("Change Summary overlay changed committed transcript cells")
+				}
+			})
+		}
+	})
+
+	t.Run("autonomous projection labels only exact diff artifacts as diffs", func(t *testing.T) {
+		projection := tuiAutonomousView("task-changes", "working")
+		projection.Provenance.References = append(projection.Provenance.References, autonomousview.Reference{
+			Kind: "workspace_diff", Path: ".revolvr/autonomous/tasks/task-changes/artifacts/exact-workspace.diff", SHA256: strings.Repeat("d", 64), ByteSize: 321,
+		})
+		model := NewStatusModel(app.StatusResult{Initialized: true})
+		model.view = viewApproval
+		model.focusSource = viewDashboard
+		model.focusedFromAutonomous = true
+		model.composer = commandComposerState{Text: "workflow draft"}
+		model.autonomous.View = &projection
+		model, _ = updateStatusModel(t, model, keyRunes("d"))
+
+		if model.overlay == nil || model.overlay.content != viewDiff || model.overlay.source != viewApproval || !model.focusedAutonomous() {
+			t.Fatalf("autonomous Change Summary state: overlay=%#v source=%v", model.overlay, model.view)
+		}
+		content := normalizedViewLines(model.renderOverlayContent())
+		requireLines(t, content,
+			"Task: task-changes",
+			"Workspace: ready",
+			"Source revision: source-one",
+			"Checkpoint commit: abc123",
+			"Exact Diff Artifacts",
+			"[workspace_diff] path=.revolvr/autonomous/tasks/task-changes/artifacts/exact-workspace.diff sha256="+strings.Repeat("d", 64)+" bytes=321",
+		)
+		requireNoLine(t, content, "Changed Files")
+		requireNoLine(t, content, "Source: canonical changed-files events and run record")
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if model.overlay != nil || model.view != viewApproval || model.composer.Text != "workflow draft" {
+			t.Fatalf("autonomous return: overlay=%#v view=%v composer=%#v", model.overlay, model.view, model.composer)
+		}
+	})
+
+	t.Run("refresh reloads selected run and guards the active operation", func(t *testing.T) {
+		refreshed := history
+		refreshed.Events = append(refreshed.Events, ledger.Event{ID: 13, RunID: history.Run.ID, Type: ledger.EventChangedFilesCaptured, Payload: jsonPayload(t, map[string]any{"changed_files": []string{"internal/tui/refreshed.go"}}), CreatedAt: started.Add(3 * time.Second)})
+		refreshCalls := 0
+		openCalls := 0
+		cancelled := false
+		refreshFailure := false
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{history.Run}}, StatusActions{
+			RefreshStatus: func() (app.StatusResult, error) {
+				refreshCalls++
+				if refreshFailure {
+					return app.StatusResult{}, errors.New("status offline")
+				}
+				return app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{history.Run}}, nil
+			},
+			OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+				openCalls++
+				if runID != history.Run.ID {
+					t.Fatalf("opened run = %q, want %q", runID, history.Run.ID)
+				}
+				return refreshed, nil
+			},
+		})
+		model.view = viewRunDetail
+		model.composer.Active = false
+		model.runDetails = &history
+		for _, cell := range model.committed {
+			model.emitted[cell.identity] = struct{}{}
+		}
+		model, _ = updateStatusModel(t, model, keyRunes("d"))
+		owner := model.overlay.owner
+		model, cmd := updateStatusModel(t, model, keyRunes("r"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd == nil || refreshCalls != 1 || model.overlay == nil || model.overlay.owner != owner {
+			t.Fatalf("refresh state: calls=%d overlay=%#v cmd=%v", refreshCalls, model.overlay, cmd)
+		}
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || openCalls != 1 || model.runDetails == nil || len(model.runDetails.Events) != 3 || model.overlay == nil {
+			t.Fatalf("reload state: calls=%d details=%#v overlay=%#v cmd=%v", openCalls, model.runDetails, model.overlay, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.renderOverlayContent()), "internal/tui/refreshed.go", "13  changed_files_captured  2026-09-03T14:00:03Z")
+		refreshFailure = true
+		model, cmd = updateStatusModel(t, model, keyRunes("r"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd != nil || refreshCalls != 2 || model.overlay == nil {
+			t.Fatalf("failed refresh: calls=%d overlay=%#v cmd=%v", refreshCalls, model.overlay, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Refresh failed: status offline")
+
+		model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeOnce, Cancel: func() { cancelled = true }}
+		model, cmd = updateStatusModel(t, model, keyRunes("r"))
+		if cmd != nil || refreshCalls != 2 || model.overlay == nil {
+			t.Fatalf("guarded refresh: calls=%d overlay=%#v cmd=%v", refreshCalls, model.overlay, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Run is active; cancel or wait before refreshing.")
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if !cancelled || !model.runOnce.CancelRequested || model.overlay == nil {
+			t.Fatalf("active Escape: cancelled=%t run=%#v overlay=%#v", cancelled, model.runOnce, model.overlay)
+		}
+	})
+
+	t.Run("late selected-run reload cannot replace a newer overlay", func(t *testing.T) {
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{history.Run}}, StatusActions{
+			RefreshStatus: func() (app.StatusResult, error) {
+				return app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{history.Run}}, nil
+			},
+			OpenRun: func(string) (ledger.RunWithEvents, error) { return history, nil },
+		})
+		model.view = viewRunDetail
+		model.composer.Active = false
+		model.runDetails = &ledger.RunWithEvents{Run: history.Run}
+		for _, cell := range model.committed {
+			model.emitted[cell.identity] = struct{}{}
+		}
+		model, _ = updateStatusModel(t, model, keyRunes("d"))
+		model, cmd := updateStatusModel(t, model, keyRunes("r"))
+		model, reload := runStatusModelCmd(t, model, cmd)
+		if reload == nil {
+			t.Fatal("refresh returned no selected-run reload")
+		}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		model, _ = updateStatusModel(t, model, keyRunes("?"))
+		model, cmd = runStatusModelCmd(t, model, reload)
+		if cmd != nil || model.overlay == nil || model.overlay.content != viewHelp || len(model.runDetails.Events) != 0 {
+			t.Fatalf("stale reload changed newer owner: overlay=%#v details=%#v cmd=%v", model.overlay, model.runDetails, cmd)
+		}
+	})
+}
+
 func TestTasksOverlay(t *testing.T) {
 	t.Run("entries render the retained page and restore source state", func(t *testing.T) {
 		for _, entry := range []struct {

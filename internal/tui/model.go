@@ -577,7 +577,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setRefreshNotice("Refreshed.")
 		}
 		m.updateViewportContent()
-		if msg.err == nil && isFocusedView(m.view) && m.focusSource == viewRunDetail && !m.focusedFromAutonomous {
+		if msg.err == nil && m.focusedProjectionActive() && m.focusedSourceView() == viewRunDetail && !m.focusedAutonomous() {
 			reloadCmd := m.reloadFocusedRunCmd()
 			if appendCmd != nil && reloadCmd != nil {
 				return m, tea.Sequence(appendCmd, reloadCmd)
@@ -587,7 +587,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, appendCmd
 		}
-		if (m.workflowActive() || isFocusedView(m.view) && m.focusedFromAutonomous) && msg.err == nil {
+		if (m.workflowActive() || m.focusedProjectionActive() && m.focusedAutonomous()) && msg.err == nil {
 			loadCmd := m.loadAutonomousSelectorsCmd()
 			if appendCmd != nil && loadCmd != nil {
 				return m, tea.Sequence(appendCmd, loadCmd)
@@ -598,8 +598,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, appendCmd
 	case openRunMsg:
-		if msg.owner != 0 && (m.overlay == nil || m.overlay.owner != msg.owner || !m.runsOverlayActive() || m.selectedRunID() != msg.runID) {
-			return m, nil
+		if msg.owner != 0 {
+			if m.overlay == nil || m.overlay.owner != msg.owner ||
+				msg.focused && (!m.changeSummaryOverlayActive() || m.runDetails == nil || strings.TrimSpace(m.runDetails.Run.ID) != msg.runID) ||
+				!msg.focused && (!m.runsOverlayActive() || m.selectedRunID() != msg.runID) {
+				return m, nil
+			}
 		}
 		overlayDetail := false
 		if msg.err != nil {
@@ -932,7 +936,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.startTaskEntry("")
 			return m, nil
 		case "d":
-			m.openFocusedView(viewDiff)
+			m.openChangeSummaryOverlay()
 			return m, nil
 		case "e":
 			m.openFocusedView(viewEvidence)
@@ -1236,9 +1240,13 @@ func (m StatusModel) reloadFocusedRunCmd() tea.Cmd {
 	if runID == "" {
 		return nil
 	}
+	owner := 0
+	if m.changeSummaryOverlayActive() {
+		owner = m.overlay.owner
+	}
 	return func() tea.Msg {
 		history, err := m.actions.OpenRun(runID)
-		return openRunMsg{history: history, runID: runID, focused: true, err: err}
+		return openRunMsg{history: history, runID: runID, focused: true, owner: owner, err: err}
 	}
 }
 
@@ -2698,7 +2706,7 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 	case "workflow":
 		return m, m.openWorkflowOverlay()
 	case "diff":
-		m.openFocusedView(viewDiff)
+		m.openChangeSummaryOverlay()
 		return m, nil
 	case "evidence":
 		m.openFocusedView(viewEvidence)
@@ -2854,11 +2862,15 @@ func (m *StatusModel) openWorkflowOverlay() tea.Cmd {
 	return m.loadAutonomousSelectorsCmd()
 }
 
+func (m *StatusModel) openChangeSummaryOverlay() {
+	m.openOverlay(viewDiff, 0)
+}
+
 func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.overlay.content == viewTaskEntry {
 		return m.updateTaskEntry(msg)
 	}
-	if m.overlay.content == viewAutonomous && m.runOnce.Active && msg.String() == "esc" {
+	if (m.overlay.content == viewAutonomous || m.overlay.content == viewDiff) && m.runOnce.Active && msg.String() == "esc" {
 		_, cmd := m.updateActiveRunKeys(msg)
 		return m, cmd
 	}
@@ -2991,6 +3003,14 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.refreshStatusCmd()
 		}
 	}
+	if m.overlay.content == viewDiff && msg.String() == "r" {
+		if blocker := m.refreshBlocker(); blocker != "" {
+			m.setChangeSummaryNotice(blocker)
+			m.refreshOverlayContent()
+			return m, nil
+		}
+		return m, m.refreshStatusCmd()
+	}
 	switch msg.String() {
 	case "esc", "backspace":
 		m.closeOverlay()
@@ -3024,7 +3044,7 @@ func (m *StatusModel) closeOverlay() {
 		return
 	}
 	overlay := *m.overlay
-	if overlay.content == viewAutonomous {
+	if overlay.content == viewAutonomous || overlay.content == viewDiff && m.focusedAutonomous() {
 		m.autonomous.Request++
 		m.autonomous.LoadingList = false
 		m.autonomous.LoadingView = false
@@ -3071,6 +3091,8 @@ func (m StatusModel) renderOverlayContent() string {
 			return lipgloss.JoinVertical(lipgloss.Left, m.renderRunProgress(), "", content)
 		}
 		return content
+	case viewDiff:
+		return m.renderFocusedDiff()
 	case viewTaskEntry:
 		return m.renderTaskEntry()
 	}
@@ -3297,6 +3319,9 @@ func (m StatusModel) footerLines() []string {
 				keys = append(keys, "esc Close")
 			}
 			return wrapKeyLines(append(keys, "q Quit"), m.width)
+		}
+		if m.overlay.content == viewDiff {
+			return wrapKeyLines([]string{"pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Close", "q Quit"}, m.width)
 		}
 		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
 	}
@@ -3526,13 +3551,13 @@ func (m StatusModel) latestRunHistory() (ledger.RunWithEvents, bool) {
 }
 
 func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
-	if m.focusedFromAutonomous {
+	if m.focusedAutonomous() {
 		return ledger.RunWithEvents{}, false
 	}
-	if m.focusSource == viewRunDetail && m.runDetails != nil {
+	if m.focusedSourceView() == viewRunDetail && m.runDetails != nil {
 		return *m.runDetails, true
 	}
-	if m.focusSource == viewRuns && m.selectedRun != 0 {
+	if m.focusedSourceView() == viewRuns && m.selectedRun != 0 {
 		if m.runDetails != nil && m.runDetails.Run.ID == m.selectedRunID() {
 			return *m.runDetails, true
 		}
@@ -3543,8 +3568,8 @@ func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
 
 func (m StatusModel) renderFocusedDiff() string {
 	lines := []string{"Change Summary"}
-	lines = appendNotice(lines, m.message)
-	if m.focusedFromAutonomous {
+	lines = appendNotice(lines, m.changeSummaryNotice())
+	if m.focusedAutonomous() {
 		lines = m.appendAutonomousFocusStatus(lines)
 		if m.autonomous.View == nil {
 			return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No autonomous change summary loaded.")...)
@@ -5407,7 +5432,7 @@ func (m *StatusModel) setTaskNotice(message string) {
 }
 
 func (m *StatusModel) setRefreshNotice(message string) {
-	if m.tasksOverlayActive() || m.runsOverlayActive() || m.preflightOverlayActive() || m.workflowOverlayActive() {
+	if m.tasksOverlayActive() || m.runsOverlayActive() || m.preflightOverlayActive() || m.workflowOverlayActive() || m.changeSummaryOverlayActive() {
 		m.overlay.message = message
 		return
 	}
@@ -5464,7 +5489,7 @@ func (m StatusModel) workflowNotice() string {
 }
 
 func (m *StatusModel) setWorkflowNotice(message string) {
-	if m.workflowOverlayActive() {
+	if m.workflowOverlayActive() || m.changeSummaryOverlayActive() && m.focusedAutonomous() {
 		m.overlay.message = message
 		return
 	}
@@ -5499,7 +5524,50 @@ func (m StatusModel) runNotice() string {
 }
 
 func (m *StatusModel) setRunNotice(message string) {
-	if m.runsOverlayActive() {
+	if m.runsOverlayActive() || m.changeSummaryOverlayActive() {
+		m.overlay.message = message
+		return
+	}
+	m.message = message
+}
+
+func (m StatusModel) changeSummaryOverlayActive() bool {
+	return m.overlay != nil && m.overlay.content == viewDiff
+}
+
+func (m StatusModel) focusedProjectionActive() bool {
+	return isFocusedView(m.view) || m.changeSummaryOverlayActive()
+}
+
+func (m StatusModel) focusedSourceView() TUIView {
+	if m.changeSummaryOverlayActive() {
+		if isFocusedView(m.overlay.source) {
+			return m.focusSource
+		}
+		return m.overlay.source
+	}
+	return m.focusSource
+}
+
+func (m StatusModel) focusedAutonomous() bool {
+	if m.changeSummaryOverlayActive() {
+		if isFocusedView(m.overlay.source) {
+			return m.focusedFromAutonomous
+		}
+		return m.overlay.source == viewAutonomous
+	}
+	return m.focusedFromAutonomous
+}
+
+func (m StatusModel) changeSummaryNotice() string {
+	if m.changeSummaryOverlayActive() {
+		return m.overlay.message
+	}
+	return m.message
+}
+
+func (m *StatusModel) setChangeSummaryNotice(message string) {
+	if m.changeSummaryOverlayActive() {
 		m.overlay.message = message
 		return
 	}

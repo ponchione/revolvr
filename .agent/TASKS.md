@@ -21,12 +21,12 @@
 - E0 through E4 are complete. `tui-010-prove-shell-composition`,
   `tui-011-prove-resize-reflow`, `tui-012-prove-active-settlement`, and
   `tui-013-install-terminal-shell` are complete. TUI-020 through TUI-022 are
-  complete, TUI-030 through TUI-040 are complete, and TUI-050 through TUI-054
-  are complete. TUI-055 is the only pending canonical task, and all later TUI
+  complete, TUI-030 through TUI-040 are complete, and TUI-050 through TUI-055
+  are complete. TUI-056 is the only pending canonical task, and all later TUI
   tasks remain unpublished drafts.
 - The 2026-09-02 cross-machine evaluation portability maintenance is complete:
   fixture identities now use Git-stable `0644`/`0755` modes, the golden is
-  reconciled, and TUI-055 remains the only pending canonical task.
+  reconciled, and TUI-056 remains the only pending canonical task.
 - The bounded current-state compaction audit is complete. Deferred EXT and
   superseded PTC work remain non-selectable.
 - The 2026-08-27 attended-runtime compatibility and receipt-evidence
@@ -198,8 +198,12 @@
 - [x] TUI-054 implementation — moved Workflow into the shared overlay while
   retaining its controls, live updates, needs-input state, and rollback page.
   Its completion handoff published only TUI-055.
-- [ ] TUI-055 implementation — move Change Summary into the shared overlay
+- [x] TUI-055 implementation — moved Change Summary into the shared overlay
   while retaining its metadata/evidence distinction, refresh, scrolling, and
+  rollback page.
+  Its completion handoff published only TUI-056.
+- [ ] TUI-056 implementation — move Evidence into the shared overlay while
+  retaining provenance, refresh, scrolling, validation routes, and the
   rollback page.
   This is the only pending canonical task; later TUI tasks remain unpublished.
 

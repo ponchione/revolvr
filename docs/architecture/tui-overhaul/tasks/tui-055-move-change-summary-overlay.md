@@ -1,6 +1,6 @@
 # TUI-055 — Move Change Summary into an Overlay
 
-- Status: Draft; not canonical or runnable
+- Status: Completed 2026-09-03
 - Epic: [E5 — Move focused work to overlays](../epics/e5-overlays.md)
 - Depends on: [TUI-054](tui-054-move-workflow-overlay.md)
 
@@ -41,3 +41,14 @@ go test ./internal/tui
 
 - No diff generation, Git query, evidence migration, old-route removal, or
   page-renderer deletion.
+
+## Completion Evidence
+
+- Both retained entries reach the shared overlay and reuse the existing Change
+  Summary renderer over app-supplied run and autonomous projections.
+- Changed-file, commit, event, and exact-diff artifact identities retain their
+  source labels and distinct evidence meaning.
+- Refresh, active-operation guards, scrolling, narrow rendering, selected-run
+  context, stale-result rejection, and exact source/composer return pass.
+- No Git query, artifact read, application authority, dependency, or rollback
+  page renderer changed.

@@ -1,6 +1,6 @@
 ---
 id: tui-055-move-change-summary-overlay
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-054-move-workflow-overlay
 
 # TUI-055 — Move Change Summary into an Overlay
 
-- Status: Pending
+- Status: Completed 2026-09-03
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-055 draft](../../docs/architecture/tui-overhaul/tasks/tui-055-move-change-summary-overlay.md)
@@ -57,3 +57,15 @@ go test ./internal/tui
 
 - No diff generation, Git query, evidence migration, old-route removal, or
   page-renderer deletion.
+
+## Completion Evidence
+
+- `d` and `/diff` now open the shared Change Summary overlay while the retained
+  page renderer remains the D4 rollback path.
+- Canonical changed-file, commit, and event metadata remain distinct from
+  provenance-backed exact-diff artifact identities.
+- Existing status and run-detail callbacks supply refresh data; overlay-local
+  notices, active-run guards, and owner checks preserve focus and reject stale
+  reloads.
+- Focused coverage passes both entries, renderer parity, source selection,
+  scrolling, long-path compaction, 80-/40-column bounds, and exact return.

@@ -72,10 +72,11 @@ func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *te
 
 	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 	model, cmd := updateStatusModel(t, model, keyRunes("d"))
-	if cmd != nil || model.view != viewDiff {
-		t.Fatalf("diff navigation view=%v cmd=%v", model.view, cmd)
+	if cmd != nil || model.overlay == nil || model.overlay.content != viewDiff || model.view != viewDashboard {
+		t.Fatalf("diff navigation overlay=%#v view=%v cmd=%v", model.overlay, model.view, cmd)
 	}
 	requireLines(t, normalizedViewLines(model.View()), "Change Summary", "Changed Files", "internal/tui/model.go", "6 changed_files_captured 2026-08-27T15:00:05Z")
+	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 
 	model, cmd = updateStatusModel(t, model, keyRunes("e"))
 	if cmd != nil || model.view != viewEvidence {
