@@ -587,7 +587,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, appendCmd
 		}
-		if (m.view == viewAutonomous || isFocusedView(m.view) && m.focusedFromAutonomous) && msg.err == nil {
+		if (m.workflowActive() || isFocusedView(m.view) && m.focusedFromAutonomous) && msg.err == nil {
 			loadCmd := m.loadAutonomousSelectorsCmd()
 			if appendCmd != nil && loadCmd != nil {
 				return m, tea.Sequence(appendCmd, loadCmd)
@@ -714,7 +714,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.autonomous.LoadingList = false
 		if msg.err != nil {
 			m.autonomous.Err = msg.err.Error()
-			m.message = "Workflow selector load failed."
+			m.setWorkflowNotice("Workflow selector load failed.")
 			m.updateViewportContent()
 			return m, nil
 		}
@@ -736,13 +736,13 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.autonomous.LoadingView = false
 		if msg.err != nil {
 			m.autonomous.Err = msg.err.Error()
-			m.message = "Workflow evidence load failed."
+			m.setWorkflowNotice("Workflow evidence load failed.")
 		} else {
 			view := msg.view
 			m.autonomous.View = &view
 			m.autonomous.TaskID = view.Identity.TaskID
 			m.autonomous.Err = ""
-			m.message = "Workflow evidence loaded."
+			m.setWorkflowNotice("Workflow evidence loaded.")
 		}
 		m.updateViewportContent()
 		return m, nil
@@ -755,12 +755,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.autonomous.Answer.Err = msg.err.Error()
 			if msg.result.AnswerPersisted {
-				m.message = "Answer persisted; resume failed."
+				m.setWorkflowNotice("Answer persisted; resume failed.")
 			} else {
-				m.message = "Answer failed."
+				m.setWorkflowNotice("Answer failed.")
 			}
 		} else {
-			m.message = "Answer persisted and task resumed."
+			m.setWorkflowNotice("Answer persisted and task resumed.")
 		}
 		m.updateViewportContent()
 		return m, m.reloadCurrentAutonomousViewCmd()
@@ -794,7 +794,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.runOnce.StartedAt = msg.operation.StartedAt
 		}
 		m.runOnce.Current = taskProgressDetail(msg.operation)
-		m.message = ""
+		m.setWorkflowNotice("")
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case queueProgressMsg:
@@ -818,7 +818,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.runOnce.StartedAt = msg.operation.StartedAt
 		}
 		m.runOnce.Current = queueProgressDetail(msg.operation)
-		m.message = ""
+		m.setWorkflowNotice("")
 		m.updateViewportContent()
 		return m, m.waitRunOnceMsgCmd()
 	case runOnceDoneMsg:
@@ -841,12 +841,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.runOnce.Started = false
 		m.runOnce.QuitAfterSettlement = false
-		m.message = ""
+		m.setWorkflowNotice("")
 		m.updateViewportContent()
 		if quitAfterSettlement {
 			return m, tea.Quit
 		}
-		if m.view == viewAutonomous && (msg.taskRun || msg.queue) {
+		if m.workflowActive() && (msg.taskRun || msg.queue) {
 			return m, m.loadAutonomousSelectorsCmd()
 		}
 		return m, nil
@@ -863,12 +863,12 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.runOnce.Started = false
 		quitAfterSettlement := m.runOnce.QuitAfterSettlement
 		m.runOnce.QuitAfterSettlement = false
-		m.message = ""
+		m.setWorkflowNotice("")
 		m.updateViewportContent()
 		if quitAfterSettlement {
 			return m, tea.Quit
 		}
-		if m.view == viewAutonomous && (m.runOnce.Mode == runModeTask || m.runOnce.Mode == runModeQueue) {
+		if m.workflowActive() && (m.runOnce.Mode == runModeTask || m.runOnce.Mode == runModeQueue) {
 			return m, m.loadAutonomousSelectorsCmd()
 		}
 		return m, nil
@@ -920,8 +920,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "5":
 			return m, m.openPreflightOverlay()
 		case "6":
-			m.switchView(viewAutonomous)
-			return m, m.loadAutonomousSelectorsCmd()
+			return m, m.openWorkflowOverlay()
 		case "?":
 			m.openHelpOverlay()
 			return m, nil
@@ -1373,7 +1372,7 @@ func (m StatusModel) autonomousListBlocker() string {
 
 func (m *StatusModel) preserveAutonomousSelection() {
 	if len(m.autonomous.Selectors) == 0 {
-		m.autonomous.Selected = 0
+		m.setSelectedAutonomous(0)
 		return
 	}
 	selected := -1
@@ -1392,9 +1391,9 @@ func (m *StatusModel) preserveAutonomousSelection() {
 		}
 	}
 	if selected < 0 {
-		selected = clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected)
+		selected = clampAutonomousIndex(m.autonomous.Selectors, m.selectedAutonomousPosition())
 	}
-	m.autonomous.Selected = selected
+	m.setSelectedAutonomous(selected)
 	item := m.autonomous.Selectors[selected]
 	m.autonomous.Selector = item.Selector
 	m.autonomous.TaskID = item.TaskID
@@ -1404,8 +1403,8 @@ func (m *StatusModel) loadSelectedAutonomousViewCmd() tea.Cmd {
 	if len(m.autonomous.Selectors) == 0 {
 		return nil
 	}
-	m.autonomous.Selected = clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected)
-	item := m.autonomous.Selectors[m.autonomous.Selected]
+	m.setSelectedAutonomous(clampAutonomousIndex(m.autonomous.Selectors, m.selectedAutonomousPosition()))
+	item := m.autonomous.Selectors[m.selectedAutonomousPosition()]
 	m.autonomous.Selector = item.Selector
 	m.autonomous.TaskID = item.TaskID
 	return m.reloadCurrentAutonomousViewCmd()
@@ -1437,21 +1436,25 @@ func (m *StatusModel) moveAutonomousSelection(delta int) tea.Cmd {
 	if len(m.autonomous.Selectors) == 0 {
 		return nil
 	}
-	m.autonomous.Selected = clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected+delta)
+	m.setSelectedAutonomous(clampAutonomousIndex(m.autonomous.Selectors, m.selectedAutonomousPosition()+delta))
 	m.autonomous.Answer = autonomousAnswerState{}
 	m.autonomous.View = nil
-	m.viewport.GotoTop()
+	if m.workflowOverlayActive() {
+		m.overlay.viewport.GotoTop()
+	} else {
+		m.viewport.GotoTop()
+	}
 	return m.loadSelectedAutonomousViewCmd()
 }
 
 func (m *StatusModel) beginAutonomousAnswer() {
 	if blocker := m.answerBlocker(); blocker != "" {
-		m.message = blocker
+		m.setWorkflowNotice(blocker)
 		m.updateViewportContent()
 		return
 	}
 	m.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
-	m.message = "Choose an option explicitly; the recommendation is not preselected."
+	m.setWorkflowNotice("Choose an option explicitly; the recommendation is not preselected.")
 	m.updateViewportContent()
 }
 
@@ -1473,7 +1476,7 @@ func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		m.message = "Answer submission is in progress."
+		m.setWorkflowNotice("Answer submission is in progress.")
 		m.updateViewportContent()
 		return m, nil
 	}
@@ -1488,7 +1491,7 @@ func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		return m, tea.Quit
 	case "esc":
 		m.autonomous.Answer = autonomousAnswerState{}
-		m.message = "Answer cancelled."
+		m.setWorkflowNotice("Answer cancelled.")
 		m.updateViewportContent()
 		return m, nil
 	case "up", "k":
@@ -1499,7 +1502,7 @@ func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		return m, nil
 	case "enter":
 		if m.autonomous.Answer.Selected < 0 {
-			m.message = "Select an offered option before confirming."
+			m.setWorkflowNotice("Select an offered option before confirming.")
 			m.updateViewportContent()
 			return m, nil
 		}
@@ -1507,19 +1510,19 @@ func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			if !m.confirmAutonomousAnswer(m.autonomous.Answer.Selected) {
 				return m, nil
 			}
-			m.message = "Press enter again to persist this answer and resume the task."
+			m.setWorkflowNotice("Press enter again to persist this answer and resume the task.")
 			m.updateViewportContent()
 			return m, nil
 		}
 		if !m.autonomousAnswerSnapshotCurrent() {
 			m.autonomous.Answer = autonomousAnswerState{}
-			m.message = "Answer not submitted: the selected question changed; review the current options."
+			m.setWorkflowNotice("Answer not submitted: the selected question changed; review the current options.")
 			m.updateViewportContent()
 			return m, nil
 		}
 		snapshot := m.autonomous.Answer.Snapshot
 		m.autonomous.Answer.Submitting = true
-		m.message = "Persisting answer."
+		m.setWorkflowNotice("Persisting answer.")
 		m.updateViewportContent()
 		request := app.AnswerAutonomousInputRequest{TaskID: snapshot.TaskID, QuestionID: snapshot.QuestionID, Revision: snapshot.Revision, ContentSHA: snapshot.ContentSHA, OptionID: snapshot.OptionID, Operator: "tui-operator"}
 		return m, func() tea.Msg {
@@ -1551,14 +1554,14 @@ func (m *StatusModel) moveAutonomousAnswerOption(delta int) {
 	}
 	m.autonomous.Answer.Confirming = false
 	m.autonomous.Answer.Snapshot = autonomousAnswerSnapshot{}
-	m.message = "Option selected; press enter to review confirmation."
+	m.setWorkflowNotice("Option selected; press enter to review confirmation.")
 	m.updateViewportContent()
 }
 
 func (m *StatusModel) confirmAutonomousAnswer(selected int) bool {
 	if m.autonomous.View == nil || selected < 0 || selected >= len(m.autonomous.View.Input.Options) {
 		m.autonomous.Answer = autonomousAnswerState{}
-		m.message = "Answer not submitted: the selected question changed; review the current options."
+		m.setWorkflowNotice("Answer not submitted: the selected question changed; review the current options.")
 		m.updateViewportContent()
 		return false
 	}
@@ -1666,7 +1669,7 @@ func (m *StatusModel) startRunLoop() tea.Cmd {
 func (m *StatusModel) startTaskRun() tea.Cmd {
 	task, message := m.autonomousTaskRunBlocker()
 	if message != "" {
-		m.message = message
+		m.setWorkflowNotice(message)
 		m.updateViewportContent()
 		return nil
 	}
@@ -1678,7 +1681,7 @@ func (m *StatusModel) startTaskRun() tea.Cmd {
 	token := m.runOnce.Token + 1
 	messages := make(chan tea.Msg, 128)
 	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeTask, Token: token, Cancel: cancel, Messages: messages, Task: liveTaskName(task), StartedAt: time.Now(), Current: "starting the autonomous task", Status: "running", MaxPasses: 50, Logs: []string{"system: autonomous task run started for " + task.ID}}
-	m.message = ""
+	m.setWorkflowNotice("")
 	m.updateViewportContent()
 	actions := m.actions
 	return func() tea.Msg {
@@ -1709,7 +1712,7 @@ func (m StatusModel) autonomousTaskRunBlocker() (taskmodel.Task, string) {
 		return taskmodel.Task{}, message
 	}
 	task, ok := m.selectedTaskValue()
-	if m.view == viewAutonomous && m.autonomous.View != nil {
+	if m.workflowActive() && m.autonomous.View != nil {
 		view := m.autonomous.View
 		ok = false
 		if view.Identity.SourceKind == autonomousview.SourceActive {
@@ -1723,7 +1726,7 @@ func (m StatusModel) autonomousTaskRunBlocker() (taskmodel.Task, string) {
 		}
 	}
 	notReady := ok && task.ReadinessReason != "" && !task.AutonomousReady
-	if ok && m.view == viewAutonomous && m.autonomous.View != nil && m.autonomous.View.Why.SchedulerReadiness != "ready" {
+	if ok && m.workflowActive() && m.autonomous.View != nil && m.autonomous.View.Why.SchedulerReadiness != "ready" {
 		notReady = true
 		if task.ReadinessReason == "" {
 			task.ReadinessReason = m.autonomous.View.Why.SchedulerReadiness
@@ -1741,7 +1744,7 @@ func (m StatusModel) autonomousTaskRunBlocker() (taskmodel.Task, string) {
 
 func (m *StatusModel) startQueueRun() tea.Cmd {
 	if message := m.runStartBlocker(runModeQueue); message != "" {
-		m.message = message
+		m.setWorkflowNotice(message)
 		m.updateViewportContent()
 		return nil
 	}
@@ -1753,7 +1756,7 @@ func (m *StatusModel) startQueueRun() tea.Cmd {
 	token := m.runOnce.Token + 1
 	messages := make(chan tea.Msg, 128)
 	m.runOnce = runOnceState{Active: true, Started: true, Mode: runModeQueue, Token: token, Cancel: cancel, Messages: messages, Task: "autonomous task queue", StartedAt: time.Now(), Current: "starting the queue", Status: "running", MaxPasses: 100, Logs: []string{"system: autonomous queue started (max tasks 100, max cycles 50)"}}
-	m.message = ""
+	m.setWorkflowNotice("")
 	m.updateViewportContent()
 	actions := m.actions
 	return func() tea.Msg {
@@ -2211,7 +2214,7 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.requestRunCancel()
 		return true, nil
 	case "R", "L", "U", "Q", "n", "r", "a", "u":
-		m.message = "Run is active; cancel or wait before starting another action."
+		m.setWorkflowNotice("Run is active; cancel or wait before starting another action.")
 		m.updateViewportContent()
 		return true, nil
 	case "p":
@@ -2245,7 +2248,7 @@ func (m *StatusModel) requestRunCancel() {
 		m.runOnce.Cancel()
 	}
 	m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: cancellation requested")
-	m.message = ""
+	m.setWorkflowNotice("")
 	m.updateViewportContent()
 }
 
@@ -2297,7 +2300,7 @@ func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
 			m.runOnce.Outcome = "cancelled"
 		}
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: terminal state: "+optionalValue(m.runOnce.Status))
-		m.message = "Autonomous queue stopped: " + optionalValue(m.runOnce.Status) + "."
+		m.setWorkflowNotice("Autonomous queue stopped: " + optionalValue(m.runOnce.Status) + ".")
 		if msg.statusErr == nil {
 			selectedTaskID := m.selectedTaskID()
 			m.status = msg.status
@@ -2319,7 +2322,7 @@ func (m *StatusModel) applyRunOnceDone(msg runOnceDoneMsg) {
 		}
 		m.runOnce.Status = string(msg.taskResult.StopReason)
 		m.runOnce.Logs = appendRunLog(m.runOnce.Logs, "system: terminal state: "+string(msg.taskResult.StopReason))
-		m.message = fmt.Sprintf("Autonomous task %s stopped: %s.", msg.taskResult.TaskID, msg.taskResult.StopReason)
+		m.setWorkflowNotice(fmt.Sprintf("Autonomous task %s stopped: %s.", msg.taskResult.TaskID, msg.taskResult.StopReason))
 		if msg.statusErr == nil {
 			m.status = msg.status
 			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, msg.taskResult.TaskID))
@@ -2693,8 +2696,7 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 	case "preflight":
 		return m, m.openPreflightOverlay()
 	case "workflow":
-		m.switchView(viewAutonomous)
-		return m, m.loadAutonomousSelectorsCmd()
+		return m, m.openWorkflowOverlay()
 	case "diff":
 		m.openFocusedView(viewDiff)
 		return m, nil
@@ -2844,9 +2846,24 @@ func (m *StatusModel) openPreflightOverlay() tea.Cmd {
 	return m.preflightCmd()
 }
 
+func (m *StatusModel) openWorkflowOverlay() tea.Cmd {
+	m.openOverlay(viewAutonomous, m.autonomous.Selected)
+	if !m.workflowOverlayActive() {
+		return nil
+	}
+	return m.loadAutonomousSelectorsCmd()
+}
+
 func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.overlay.content == viewTaskEntry {
 		return m.updateTaskEntry(msg)
+	}
+	if m.overlay.content == viewAutonomous && m.runOnce.Active && msg.String() == "esc" {
+		_, cmd := m.updateActiveRunKeys(msg)
+		return m, cmd
+	}
+	if m.overlay.content == viewAutonomous && m.autonomous.Answer.Active {
+		return m.updateAutonomousAnswer(msg)
 	}
 	if m.overlay.content == viewTasks {
 		switch msg.String() {
@@ -2866,10 +2883,9 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter", "o":
 			taskID := m.selectedTaskID()
 			m.closeOverlay()
-			m.switchView(viewAutonomous)
 			m.autonomous.TaskID = taskID
 			m.autonomous.Selector = taskID
-			return m, m.loadAutonomousSelectorsCmd()
+			return m, m.openWorkflowOverlay()
 		case "r":
 			if m.actions.RefreshStatus == nil {
 				m.setTaskNotice("Refresh is unavailable.")
@@ -2951,6 +2967,30 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.startRunLoop()
 		}
 	}
+	if m.overlay.content == viewAutonomous {
+		switch msg.String() {
+		case "up", "k":
+			return m, m.moveAutonomousSelection(-1)
+		case "down", "j":
+			return m, m.moveAutonomousSelection(1)
+		case "enter", "o":
+			return m, m.reloadCurrentAutonomousViewCmd()
+		case "a":
+			m.beginAutonomousAnswer()
+			return m, nil
+		case "U":
+			return m, m.startTaskRun()
+		case "Q":
+			return m, m.startQueueRun()
+		case "r":
+			if blocker := m.refreshBlocker(); blocker != "" {
+				m.setWorkflowNotice(blocker)
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			return m, m.refreshStatusCmd()
+		}
+	}
 	switch msg.String() {
 	case "esc", "backspace":
 		m.closeOverlay()
@@ -2984,6 +3024,11 @@ func (m *StatusModel) closeOverlay() {
 		return
 	}
 	overlay := *m.overlay
+	if overlay.content == viewAutonomous {
+		m.autonomous.Request++
+		m.autonomous.LoadingList = false
+		m.autonomous.LoadingView = false
+	}
 	m.overlay = nil
 	m.view = overlay.source
 	m.composer = overlay.composer
@@ -3020,6 +3065,12 @@ func (m StatusModel) renderOverlayContent() string {
 		return m.renderEmptyRunDetail()
 	case viewPreflight:
 		return m.renderPreflight()
+	case viewAutonomous:
+		content := m.renderAutonomousWorkflow()
+		if m.runOnce.Started {
+			return lipgloss.JoinVertical(lipgloss.Left, m.renderRunProgress(), "", content)
+		}
+		return content
 	case viewTaskEntry:
 		return m.renderTaskEntry()
 	}
@@ -3239,6 +3290,13 @@ func (m StatusModel) footerLines() []string {
 		}
 		if m.overlay.content == viewPreflight {
 			return wrapKeyLines([]string{"p Check", "R Run Once", fmt.Sprintf("n Passes %d", m.selectedRunLoopPasses()), "L Run Loop", "r Refresh", "esc Close", "q Quit"}, m.width)
+		}
+		if m.overlay.content == viewAutonomous {
+			keys := []string{"j/k Select", "enter Reload", "a Answer", "U Run Task", "Q Run Queue", "r Refresh", "pgup/pgdown Scroll", "home/end Jump"}
+			if !m.runOnce.Active {
+				keys = append(keys, "esc Close")
+			}
+			return wrapKeyLines(append(keys, "q Quit"), m.width)
 		}
 		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
 	}
@@ -3750,7 +3808,7 @@ func (m StatusModel) renderPreflight() string {
 
 func (m StatusModel) renderAutonomousWorkflow() string {
 	lines := []string{"Autonomous Workflow"}
-	lines = appendNotice(lines, m.message)
+	lines = appendNotice(lines, m.workflowNotice())
 	if m.autonomous.LoadingList {
 		lines = append(lines, "Status: loading selectors")
 	}
@@ -3758,7 +3816,7 @@ func (m StatusModel) renderAutonomousWorkflow() string {
 	if len(m.autonomous.Selectors) == 0 {
 		lines = append(lines, "none")
 	} else {
-		selected := clampAutonomousIndex(m.autonomous.Selectors, m.autonomous.Selected)
+		selected := clampAutonomousIndex(m.autonomous.Selectors, m.selectedAutonomousPosition())
 		for i, item := range m.autonomous.Selectors {
 			prefix := " "
 			if i == selected {
@@ -5349,7 +5407,7 @@ func (m *StatusModel) setTaskNotice(message string) {
 }
 
 func (m *StatusModel) setRefreshNotice(message string) {
-	if m.tasksOverlayActive() || m.runsOverlayActive() || m.preflightOverlayActive() {
+	if m.tasksOverlayActive() || m.runsOverlayActive() || m.preflightOverlayActive() || m.workflowOverlayActive() {
 		m.overlay.message = message
 		return
 	}
@@ -5369,6 +5427,44 @@ func (m StatusModel) preflightNotice() string {
 
 func (m *StatusModel) setPreflightNotice(message string) {
 	if m.preflightOverlayActive() {
+		m.overlay.message = message
+		return
+	}
+	m.message = message
+}
+
+func (m StatusModel) workflowOverlayActive() bool {
+	return m.overlay != nil && m.overlay.content == viewAutonomous
+}
+
+func (m StatusModel) workflowActive() bool {
+	return m.view == viewAutonomous || m.workflowOverlayActive()
+}
+
+func (m StatusModel) selectedAutonomousPosition() int {
+	if m.workflowOverlayActive() {
+		return m.overlay.selected
+	}
+	return m.autonomous.Selected
+}
+
+func (m *StatusModel) setSelectedAutonomous(index int) {
+	if m.workflowOverlayActive() {
+		m.overlay.selected = index
+		return
+	}
+	m.autonomous.Selected = index
+}
+
+func (m StatusModel) workflowNotice() string {
+	if m.workflowOverlayActive() {
+		return m.overlay.message
+	}
+	return m.message
+}
+
+func (m *StatusModel) setWorkflowNotice(message string) {
+	if m.workflowOverlayActive() {
 		m.overlay.message = message
 		return
 	}

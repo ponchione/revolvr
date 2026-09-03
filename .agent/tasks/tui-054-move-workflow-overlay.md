@@ -1,6 +1,6 @@
 ---
 id: tui-054-move-workflow-overlay
-status: pending
+status: completed
 workflow: mixed-pass-v1
 phase: implement
 priority: 0
@@ -9,7 +9,7 @@ depends_on: tui-053-move-preflight-overlay
 
 # TUI-054 — Move Workflow into an Overlay
 
-- Status: Pending
+- Status: Completed 2026-09-03
 - Accepted publication source: `f12690b2be02ce3677aa0ab947b8910ad4f3f8e5`
 - Accepted source:
   [TUI-054 draft](../../docs/architecture/tui-overhaul/tasks/tui-054-move-workflow-overlay.md)
@@ -58,3 +58,15 @@ go test ./internal/tui
 
 - No workflow policy, typed-answer migration, queue behavior, old-route
   removal, or page-renderer deletion.
+
+## Completion Evidence
+
+- `6`, `/workflow`, and the Tasks handoff now open the shared Workflow overlay
+  while the retained page renderer remains the D4 rollback path.
+- Selector identity, notices, scrolling, refresh, loading results, and stale
+  callback ownership remain local to the overlay.
+- Existing autonomous task, queue, cancellation, refresh, and typed-answer
+  callbacks and guards remain authoritative and reachable.
+- Focused coverage passes renderer parity, every lifecycle projection, current
+  task/run/pass/stop evidence, 80-/40-column bounds, live exact-once
+  settlement, needs-input handling, and exact source/composer return.

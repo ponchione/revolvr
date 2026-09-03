@@ -4171,6 +4171,286 @@ func TestOverlayShell(t *testing.T) {
 	})
 }
 
+func TestWorkflowOverlay(t *testing.T) {
+	selector := app.AutonomousTaskSelector{Selector: "task-one", TaskID: "task-one", SourceKind: autonomousview.SourceActive, Status: "pending", Title: "One"}
+	projection := tuiAutonomousView("task-one", "working")
+	projection.Attempts.Stops = []string{"verification_required"}
+
+	t.Run("key and command entries retain the page renderer and restore source state", func(t *testing.T) {
+		for _, entry := range []struct {
+			name string
+			open func(t *testing.T, model StatusModel) (StatusModel, tea.Cmd)
+			want commandComposerState
+		}{
+			{
+				name: "key",
+				open: func(t *testing.T, model StatusModel) (StatusModel, tea.Cmd) {
+					model.composer = commandComposerState{Text: "saved draft"}
+					return updateStatusModel(t, model, keyRunes("6"))
+				},
+				want: commandComposerState{Text: "saved draft"},
+			},
+			{
+				name: "command",
+				open: func(t *testing.T, model StatusModel) (StatusModel, tea.Cmd) {
+					model, _ = updateStatusModel(t, model, keyRunes("/workflow"))
+					return updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+				},
+				want: commandComposerState{Active: true},
+			},
+		} {
+			t.Run(entry.name, func(t *testing.T) {
+				listCalls := 0
+				loadCalls := 0
+				model := NewStatusModelWithActions(app.StatusResult{Initialized: true, ProjectRoot: "/work/revolvr"}, StatusActions{
+					ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
+						listCalls++
+						return []app.AutonomousTaskSelector{selector}, nil
+					},
+					LoadAutonomous: func(got string) (autonomousview.View, error) {
+						loadCalls++
+						if got != selector.Selector {
+							t.Fatalf("selector = %q, want %q", got, selector.Selector)
+						}
+						return projection, nil
+					},
+				})
+				model.message = "underlying notice"
+				model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
+				committed := slices.Clone(model.committed)
+				model, cmd := entry.open(t, model)
+				if cmd == nil || listCalls != 0 || model.overlay == nil || model.overlay.content != viewAutonomous || model.overlay.source != viewDashboard || model.view != viewDashboard {
+					t.Fatalf("opened state: calls=%d overlay=%#v view=%v cmd=%v", listCalls, model.overlay, model.view, cmd)
+				}
+				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
+					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
+				}
+				model = drainStatusModelCmds(t, model, cmd)
+				if listCalls != 1 || loadCalls != 1 || model.autonomous.View == nil {
+					t.Fatalf("loads=%d/%d workflow=%#v", listCalls, loadCalls, model.autonomous.View)
+				}
+
+				page := model
+				page.message = page.overlay.message
+				page.overlay = nil
+				page.view = viewAutonomous
+				if model.renderOverlayContent() != page.renderAutonomousWorkflow() {
+					t.Fatal("Workflow overlay content diverged from retained page renderer")
+				}
+				content := normalizedViewLines(model.renderOverlayContent())
+				requireLines(t, content,
+					"Autonomous Workflow",
+					"Status: pending | lifecycle: working | phase: working",
+					"Task: task-one | title: Autonomous task",
+					"Stops: verification_required",
+					"Worker runs: worker-one",
+				)
+				requireLines(t, normalizedViewLines(model.View()),
+					"Keys: j/k Select | enter Reload | a Answer | U Run Task | Q Run Queue",
+					"      r Refresh | pgup/pgdown Scroll | home/end Jump | esc Close | q Quit",
+				)
+				for _, width := range []int{80, 40} {
+					model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 24})
+					assertMaxLineWidth(t, normalizedViewLines(model.View()), width)
+				}
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnd})
+				if model.overlay.viewport.YOffset == 0 {
+					t.Fatal("Workflow overlay did not scroll")
+				}
+
+				model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				}
+				if !reflect.DeepEqual(model.committed, committed) {
+					t.Fatal("Workflow overlay changed committed transcript cells")
+				}
+			})
+		}
+	})
+
+	t.Run("selection and refresh retain identity while stale results retain the newer owner", func(t *testing.T) {
+		second := app.AutonomousTaskSelector{Selector: "task-two", TaskID: "task-two", SourceKind: autonomousview.SourceActive, Status: "pending", Title: "Two"}
+		listCalls := 0
+		refreshCalls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
+				listCalls++
+				if listCalls == 1 {
+					return []app.AutonomousTaskSelector{selector, second}, nil
+				}
+				return []app.AutonomousTaskSelector{second, selector}, nil
+			},
+			LoadAutonomous: func(got string) (autonomousview.View, error) {
+				return tuiAutonomousView(got, "ready"), nil
+			},
+			RefreshStatus: func() (app.StatusResult, error) {
+				refreshCalls++
+				return app.StatusResult{Initialized: true}, nil
+			},
+		})
+		model.composer.Active = false
+		model, cmd := updateStatusModel(t, model, keyRunes("6"))
+		model = drainStatusModelCmds(t, model, cmd)
+		for _, cell := range model.committed {
+			model.emitted[cell.identity] = struct{}{}
+		}
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+		if cmd == nil || model.selectedAutonomousPosition() != 1 || model.autonomous.Selected != 0 {
+			t.Fatalf("local selection=%d page selection=%d cmd=%v", model.selectedAutonomousPosition(), model.autonomous.Selected, cmd)
+		}
+		model = drainStatusModelCmds(t, model, cmd)
+		model, cmd = updateStatusModel(t, model, keyRunes("r"))
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if cmd == nil {
+			t.Fatalf("refresh returned no Workflow reload: overlay=%#v", model.overlay)
+		}
+		model = drainStatusModelCmds(t, model, cmd)
+		if refreshCalls != 1 || listCalls != 2 || model.autonomous.Selector != "task-two" || model.selectedAutonomousPosition() != 0 {
+			t.Fatalf("refresh=%d lists=%d selector=%q selection=%d", refreshCalls, listCalls, model.autonomous.Selector, model.selectedAutonomousPosition())
+		}
+
+		staleModel := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
+				return []app.AutonomousTaskSelector{selector}, nil
+			},
+		})
+		staleModel.composer.Active = false
+		staleModel, staleCmd := updateStatusModel(t, staleModel, keyRunes("6"))
+		owner := staleModel.overlay.owner
+		staleModel, _ = updateStatusModel(t, staleModel, tea.KeyMsg{Type: tea.KeyEsc})
+		staleModel, _ = updateStatusModel(t, staleModel, keyRunes("?"))
+		staleModel, next := runStatusModelCmd(t, staleModel, staleCmd)
+		if next != nil || staleModel.overlay == nil || staleModel.overlay.content != viewHelp || staleModel.overlay.owner == owner || len(staleModel.autonomous.Selectors) != 0 {
+			t.Fatalf("stale result changed owner: overlay=%#v selectors=%#v cmd=%v", staleModel.overlay, staleModel.autonomous.Selectors, next)
+		}
+	})
+
+	t.Run("needs input keeps the existing typed answer path", func(t *testing.T) {
+		question := tuiAutonomousView("task-one", "needs_input")
+		question.Input = autonomousview.OperatorInput{
+			State:         "waiting",
+			QuestionID:    "scope",
+			Revision:      2,
+			ContentSHA256: strings.Repeat("c", 64),
+			Question:      "Choose scope.",
+			Options:       []autonomousview.InputOption{{ID: "focused", Meaning: "Run focused tests."}},
+		}
+		var request app.AnswerAutonomousInputRequest
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) { return []app.AutonomousTaskSelector{selector}, nil },
+			LoadAutonomous: func(string) (autonomousview.View, error) { return question, nil },
+			AnswerInput: func(got app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+				request = got
+				return app.AnswerAutonomousInputResult{TaskID: got.TaskID, QuestionID: got.QuestionID, Revision: got.Revision, OptionID: got.OptionID, AnswerPersisted: true, Resumed: true}, nil
+			},
+		})
+		model.composer.Active = false
+		model, cmd := updateStatusModel(t, model, keyRunes("6"))
+		model = drainStatusModelCmds(t, model, cmd)
+		requireLines(t, normalizedViewLines(model.renderOverlayContent()), "State: waiting", "Question: scope | revision: 2 | sha256: "+strings.Repeat("c", 64))
+		model, _ = updateStatusModel(t, model, keyRunes("a"))
+		model, _ = updateStatusModel(t, model, keyRunes("j"))
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		if cmd == nil || model.overlay == nil || !model.autonomous.Answer.Submitting {
+			t.Fatalf("answer state=%#v overlay=%#v cmd=%v", model.autonomous.Answer, model.overlay, cmd)
+		}
+		model = drainStatusModelCmds(t, model, cmd)
+		if request.TaskID != "task-one" || request.QuestionID != "scope" || request.Revision != 2 || request.ContentSHA != strings.Repeat("c", 64) || request.OptionID != "focused" || request.Operator != "tui-operator" {
+			t.Fatalf("answer request = %#v", request)
+		}
+		if model.overlay == nil || model.overlay.content != viewAutonomous || !model.autonomous.Answer.Result.AnswerPersisted {
+			t.Fatalf("answer result=%#v overlay=%#v", model.autonomous.Answer, model.overlay)
+		}
+	})
+
+	t.Run("callback errors and active guards stay with the owning overlay", func(t *testing.T) {
+		refreshCalls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) { return []app.AutonomousTaskSelector{selector}, nil },
+			LoadAutonomous: func(string) (autonomousview.View, error) {
+				return autonomousview.View{}, errors.New("evidence offline")
+			},
+			RefreshStatus: func() (app.StatusResult, error) {
+				refreshCalls++
+				return app.StatusResult{}, nil
+			},
+		})
+		model.message = "underlying notice"
+		model.composer.Active = false
+		model, cmd := updateStatusModel(t, model, keyRunes("6"))
+		model = drainStatusModelCmds(t, model, cmd)
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Workflow evidence load failed.", "Evidence error: evidence offline")
+
+		model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeTask, Cancel: func() {}}
+		for key, want := range map[string]string{
+			"r": "Notice: Run is active; cancel or wait before refreshing.",
+			"U": "Notice: Run already active.",
+			"a": "Notice: Run is active; cancel or wait before answering input.",
+		} {
+			var guarded tea.Cmd
+			model, guarded = updateStatusModel(t, model, keyRunes(key))
+			if guarded != nil || model.overlay == nil || model.overlay.content != viewAutonomous {
+				t.Fatalf("guard %q changed owner: overlay=%#v cmd=%v", key, model.overlay, guarded)
+			}
+			requireLines(t, normalizedViewLines(model.View()), want)
+		}
+		if refreshCalls != 0 {
+			t.Fatalf("guarded refresh calls = %d, want 0", refreshCalls)
+		}
+		model.runOnce = runOnceState{}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if model.overlay != nil || model.message != "underlying notice" {
+			t.Fatalf("error return: overlay=%#v message=%q", model.overlay, model.message)
+		}
+	})
+
+	t.Run("task progress and cancellation stay live behind the overlay", func(t *testing.T) {
+		status := app.StatusResult{Initialized: true, Tasks: []taskmodel.Task{{ID: "task-one", Status: taskmodel.StatusPending, Workflow: taskfile.WorkflowAutonomousV1}}}
+		model := NewStatusModelWithActions(status, StatusActions{
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) { return []app.AutonomousTaskSelector{selector}, nil },
+			LoadAutonomous: func(string) (autonomousview.View, error) { return projection, nil },
+			RunTask: func(ctx context.Context, taskID string, max int64, progress autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
+				progress(autonomoustaskrun.Operation{OperationID: "operation-one", Stage: "cycle_started", LastAction: "implement", Statistics: autonomoustaskrun.Statistics{CyclesStarted: 1}})
+				<-ctx.Done()
+				return autonomoustaskrun.Result{TaskID: taskID, OperationID: "operation-one", StopReason: autonomoustaskrun.StopOperationCancelled}, ctx.Err()
+			},
+			RefreshStatus: func() (app.StatusResult, error) { return status, nil },
+		})
+		model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+		model.composer.Active = false
+		model, cmd := updateStatusModel(t, model, keyRunes("6"))
+		model = drainStatusModelCmds(t, model, cmd)
+		before := len(model.committed)
+		model, cmd = updateStatusModel(t, model, keyRunes("U"))
+		model, wait := runStatusModelCmd(t, model, cmd)
+		requireLines(t, normalizedViewLines(model.View()), "Running: task-one", "Safety: admitted", "Current: implement · cycle started")
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		requireLines(t, normalizedViewLines(model.View()), "Cancelling: task-one", "Current: waiting for the run to stop")
+		if model.overlay == nil || !model.runOnce.CancelRequested {
+			t.Fatalf("Escape dismissed Workflow or missed cancellation: overlay=%#v run=%#v", model.overlay, model.runOnce)
+		}
+		model, appendCmd := runStatusModelCmd(t, model, wait)
+		if appendCmd == nil || model.settling == nil {
+			t.Fatalf("terminal result was not awaiting transcript append: settling=%#v cmd=%v", model.settling, appendCmd)
+		}
+		settling := *model.settling
+		model, reload := updateStatusModel(t, model, transcriptCommittedMsg{token: settling.token, identity: settling.cell.identity})
+		model = drainStatusModelCmds(t, model, reload)
+		if model.overlay == nil || model.overlay.content != viewAutonomous || model.runOnce.Active || model.runOnce.Outcome != "operation_cancelled" || len(model.committed) != before+1 {
+			t.Fatalf("settled state: overlay=%#v run=%#v committed=%d, want %d", model.overlay, model.runOnce, len(model.committed), before+1)
+		}
+		seen := map[string]bool{}
+		for _, cell := range model.committed {
+			if seen[cell.identity] {
+				t.Fatalf("duplicate committed identity %q", cell.identity)
+			}
+			seen[cell.identity] = true
+		}
+	})
+}
+
 func TestTasksOverlay(t *testing.T) {
 	t.Run("entries render the retained page and restore source state", func(t *testing.T) {
 		for _, entry := range []struct {
@@ -4390,19 +4670,19 @@ func TestTasksOverlay(t *testing.T) {
 		workflow, _ = updateStatusModel(t, workflow, keyRunes("2"))
 		workflow, _ = updateStatusModel(t, workflow, tea.KeyMsg{Type: tea.KeyDown})
 		workflow, cmd = updateStatusModel(t, workflow, tea.KeyMsg{Type: tea.KeyEnter})
-		if cmd == nil || workflow.overlay != nil || workflow.view != viewAutonomous || workflow.autonomous.TaskID != "task-blocked" || workflowCalls != 0 {
+		if cmd == nil || workflow.overlay == nil || workflow.overlay.content != viewAutonomous || workflow.view != viewDashboard || workflow.autonomous.TaskID != "task-blocked" || workflowCalls != 0 {
 			t.Fatalf("workflow transition: overlay=%#v view=%v task=%q calls=%d cmd=%v", workflow.overlay, workflow.view, workflow.autonomous.TaskID, workflowCalls, cmd)
 		}
 		workflow, cmd = runStatusModelCmd(t, workflow, cmd)
-		if cmd != nil || workflowCalls != 1 || workflow.view != viewAutonomous {
-			t.Fatalf("workflow load: view=%v calls=%d cmd=%v", workflow.view, workflowCalls, cmd)
+		if cmd != nil || workflowCalls != 1 || workflow.overlay == nil || workflow.overlay.content != viewAutonomous {
+			t.Fatalf("workflow load: overlay=%#v calls=%d cmd=%v", workflow.overlay, workflowCalls, cmd)
 		}
 
 		unavailable := NewStatusModel(app.StatusResult{Initialized: true, Tasks: tasks})
 		unavailable.composer.Active = false
 		unavailable, _ = updateStatusModel(t, unavailable, keyRunes("2"))
 		unavailable, cmd = updateStatusModel(t, unavailable, tea.KeyMsg{Type: tea.KeyEnter})
-		if cmd != nil || unavailable.overlay != nil || unavailable.view != viewAutonomous || unavailable.autonomous.Err != "Workflow selector loading is unavailable." {
+		if cmd != nil || unavailable.overlay == nil || unavailable.overlay.content != viewAutonomous || unavailable.view != viewDashboard || unavailable.autonomous.Err != "Workflow selector loading is unavailable." {
 			t.Fatalf("workflow guard: overlay=%#v view=%v error=%q cmd=%v", unavailable.overlay, unavailable.view, unavailable.autonomous.Err, cmd)
 		}
 	})

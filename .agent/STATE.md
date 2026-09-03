@@ -29,7 +29,8 @@ Updated: 2026-09-03
   TUI-031's reviewed idle plain-text route, TUI-032's contextual command
   discovery, TUI-040's bounded live operation cell, TUI-050's shared Help
   overlay shell, TUI-051's Tasks overlay, TUI-052's Runs/Run Detail overlay,
-  and TUI-053's Preflight overlay are complete. TUI-054 is the only pending
+  TUI-053's Preflight overlay, and TUI-054's Workflow overlay are complete.
+  TUI-055 is the only pending
   canonical task, and later TUI tasks remain unpublished drafts.
 
 ## Architecture 024 TUI
@@ -52,7 +53,7 @@ Updated: 2026-09-03
 
 ## Current Verification
 
-- `go test ./... -count=1` — PASS; 4,215 tests in 91 packages, including the
+- `go test ./... -count=1` — PASS; 4,223 tests in 91 packages, including the
   socket-based packages that the external agent sandbox could not execute.
 - `go test ./internal/evaluation -run
   '^TestFixtureIdentityUsesGitPortableFileModes$' -count=1` — PASS.
@@ -97,7 +98,11 @@ Updated: 2026-09-03
 - `go test ./internal/tui -run 'TestPreflight.*Overlay' -count=1` — PASS; 10
   tests covering both entries, textual ready/failure/error/refusal states,
   callbacks, guards, run actions, geometry, exact return, and stale ownership.
-- `go test ./internal/tui -count=1` — PASS; 211 tests.
+- `go test ./internal/tui -run 'TestWorkflow.*Overlay' -count=1` — PASS; 8
+  tests covering both entries, renderer parity, local selector identity,
+  refresh, stale ownership, typed answers, live settlement, geometry, and exact
+  return.
+- `go test ./internal/tui -count=1` — PASS; 219 tests.
 - TUI-032 command coverage, exact/prefix filtering, shared-guard, keyboard,
   dismissal, Help, 40-column, cancellation-visibility, and single-publication
   gates — PASS.
@@ -116,31 +121,34 @@ Updated: 2026-09-03
 - TUI-053 Preflight-entry, retained-renderer, textual-state, local-notice,
   callback/guard, run-action, exact-return, 80-/40-column, stale-owner, and
   single-publication gates — PASS.
+- TUI-054 Workflow-entry, retained-renderer, selector/notice ownership,
+  refresh, typed-answer, active-settlement, exact-return, 80-/40-column,
+  stale-owner, and single-publication gates — PASS.
 - `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS before
   completion; local ignored runtime was restored and TUI-050 selected next.
 - `go run ./cmd/revolvr task list` and `go run ./cmd/revolvr status` — PASS
-  after completion; TUI-054 is the sole pending and next canonical task.
+  after completion; TUI-055 is the sole pending and next canonical task.
 - Application/domain callbacks, dependencies, and TUI authority are unchanged.
 
 ## Blockers And Next Task
 
 - Blockers: none. The prior socket-permission failure was specific to the
   external agent sandbox; the required full suite passes in this checkout.
-- TUI-053 is complete. TUI-054 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-053.
+- TUI-054 is complete. TUI-055 is the only pending canonical task and is
+  dependency-satisfied by completed TUI-054.
 - Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
   TUI tasks, or reopen Architecture 025.
 
 ## Latest Pass
 
-- Task selected: `tui-053-move-preflight-overlay`.
-- Files changed: the package-local Preflight overlay routing/state and focused
-  parity tests, TUI-053 completion and TUI-054 publication metadata, and
+- Task selected: `tui-054-move-workflow-overlay`.
+- Files changed: the package-local Workflow overlay routing/state and focused
+  parity tests, TUI-054 completion and TUI-055 publication metadata, and
   affected planning, state, task-list, reference, and handoff records.
-- Verification commands run: required `gofmt`, focused Preflight-overlay, TUI,
+- Verification commands run: required `gofmt`, focused Workflow-overlay, TUI,
   and full Go tests, task list/status selectors, state line limit,
   publication/status audits, and `git diff --check`.
 - Verification result: PASS.
-- What remains: TUI-054 is pending for the next fresh pass; later tasks remain
+- What remains: TUI-055 is pending for the next fresh pass; later tasks remain
   unpublished drafts.
 - Blockers: none.
