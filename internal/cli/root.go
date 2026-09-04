@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"revolvr/internal/app"
@@ -62,6 +63,7 @@ type Options struct {
 	StartSequentialQueue   SequentialQueueStartFunc
 	SequentialQueueStatus  SequentialQueueStatusFunc
 	CancelSequentialQueue  SequentialQueueCancelFunc
+	IsTerminal             func(any) bool
 }
 
 type TaskRunFunc func(context.Context, app.Config, app.TaskRunInput) (autonomoustaskrun.Result, error)
@@ -79,7 +81,7 @@ type SequentialQueueStatusFunc func(context.Context, app.Config, string, string)
 type SequentialQueueCancelFunc func(context.Context, app.Config, string, string) (queue.Status, bool, error)
 
 type RunOnceFunc = app.RunOnceRunner
-type TUIRunFunc func(context.Context, app.StatusResult, tuiapp.RunOptions) error
+type TUIRunFunc func(context.Context, tuiapp.RunOptions) error
 
 func NewRootCommand(opts Options) *cobra.Command {
 	version := opts.Version
@@ -98,8 +100,9 @@ func NewRootCommand(opts Options) *cobra.Command {
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+		Args:          cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runTUI(cmd, opts)
 		},
 	}
 	root.SetVersionTemplate("revolvr {{.Version}}\n")
@@ -1679,98 +1682,112 @@ func newStatusCommand(opts Options) *cobra.Command {
 }
 
 func newTUICommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "tui",
+		Short: "Open the Revolvr TUI",
+		Long: `Open the Revolvr TUI.
+
+Bare revolvr and revolvr tui are equivalent when stdin and stdout are
+terminals. Use an existing subcommand for non-interactive work.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runTUI(cmd, opts)
+		},
+	}
+}
+
+func runTUI(cmd *cobra.Command, opts Options) error {
+	input := cmd.InOrStdin()
+	output := cmd.OutOrStdout()
+	isTerminal := opts.IsTerminal
+	if isTerminal == nil {
+		isTerminal = streamIsTerminal
+	}
+	if !isTerminal(input) {
+		return errors.New("stdin is not a terminal")
+	}
+	if !isTerminal(output) {
+		return errors.New("stdout is not a terminal")
+	}
+
 	runner := opts.TUIRunner
 	if runner == nil {
 		runner = tuiapp.RunStatus
 	}
-	return &cobra.Command{
-		Use:   "tui",
-		Short: "Open the transcript-first operator TUI",
-		Long: `Open the transcript-first operator TUI.
-
-Committed results append once to terminal scrollback, current work replaces one
-live cell, and the composer stays focused when no overlay owns input. Tasks,
-Runs, Run Detail, Preflight, Workflow, Change Summary, Evidence, Approval,
-typed needs-input questions, and Help open as overlays.
-
-Inside the TUI, press / to discover commands or ? for complete key help. Plain
-text entered while initialized and idle opens the reviewed Add Task flow; it
-never steers or queues input for active work. Use c to request cancellation.
-While work is active, q, /quit, and Ctrl-C wait for settlement before exit.`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg := app.Config{WorkDir: opts.WorkDir}
-			ctx := cmd.Context()
-			status, err := app.Status(ctx, cfg)
-			if err != nil {
-				return err
-			}
-			return runner(cmd.Context(), status, tuiapp.RunOptions{
-				Input:  cmd.InOrStdin(),
-				Output: cmd.OutOrStdout(),
-				RefreshStatus: func() (app.StatusResult, error) {
-					return app.Status(ctx, cfg)
-				},
-				OpenRun: func(runID string) (ledger.RunWithEvents, error) {
-					return app.ShowRun(ctx, cfg, runID)
-				},
-				AddTask: func(input app.AddTaskInput) (taskmodel.Task, error) {
-					return app.AddTaskAndCommit(ctx, cfg, input, opts.DoctorCommandRunner)
-				},
-				RetryTask: func(taskID string) (taskmodel.Task, error) {
-					return app.RetryTask(ctx, cfg, taskID)
-				},
-				ValidateReceipt: func(runID string) (receipt.ValidationResult, error) {
-					return app.ValidateReceipt(ctx, cfg, runID)
-				},
-				Preflight: func() (app.PreflightResult, error) {
-					return app.Preflight(ctx, cfg, app.PreflightInput{
-						CommandRunner:          opts.DoctorCommandRunner,
-						LookPath:               opts.ExecutableLookPath,
-						ExecutableInspector:    opts.ExecutableInspector,
-						CodexIdentityInspector: opts.CodexIdentityInspector,
-					})
-				},
-				RunOnce: func(runCtx context.Context, progress app.RunProgress) (runonce.Result, error) {
-					return app.RunOnce(runCtx, cfg, app.RunOnceInput{
-						Runner:   opts.RunOnce,
-						Progress: progress,
-					})
-				},
-				RunLoop: func(runCtx context.Context, maxPasses int, progress app.RunProgress, onPass app.RunPassFunc) (app.RunLoopResult, error) {
-					return app.RunLoop(runCtx, cfg, app.RunLoopInput{
-						MaxPasses: maxPasses,
-						Runner:    opts.RunOnce,
-						Progress:  progress,
-						OnPass:    onPass,
-					})
-				},
-				RunTask: func(runCtx context.Context, taskID string, maxCycles int64, progress autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
-					runner := opts.RunTaskUntilTerminal
-					if runner == nil {
-						runner = app.RunTaskUntilTerminal
-					}
-					return runner(runCtx, cfg, app.TaskRunInput{TaskID: taskID, MaxCycles: maxCycles, Progress: progress})
-				},
-				ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
-					return app.ListAutonomousTaskSelectors(ctx, cfg)
-				},
-				LoadAutonomous: func(selector string) (autonomousview.View, error) {
-					return app.ShowAutonomousTask(ctx, cfg, selector)
-				},
-				AnswerInput: func(input app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
-					return app.AnswerAutonomousInput(ctx, cfg, input)
-				},
-				RunQueue: func(runCtx context.Context, maxTasks, maxCycles int64, progress autonomousqueue.Progress) (autonomousqueue.Result, error) {
-					runner := opts.RunQueue
-					if runner == nil {
-						runner = app.RunQueue
-					}
-					return runner(runCtx, cfg, app.QueueInput{MaxTasks: maxTasks, MaxCycles: maxCycles, MaximumWorkers: 1, Progress: progress})
-				},
+	cfg := app.Config{WorkDir: opts.WorkDir}
+	ctx := cmd.Context()
+	return runner(ctx, tuiapp.RunOptions{
+		Input:  input,
+		Output: output,
+		BootstrapStatus: func() (app.StatusResult, error) {
+			return app.Status(ctx, cfg)
+		},
+		RefreshStatus: func() (app.StatusResult, error) {
+			return app.Status(ctx, cfg)
+		},
+		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
+			return app.ShowRun(ctx, cfg, runID)
+		},
+		AddTask: func(input app.AddTaskInput) (taskmodel.Task, error) {
+			return app.AddTaskAndCommit(ctx, cfg, input, opts.DoctorCommandRunner)
+		},
+		RetryTask: func(taskID string) (taskmodel.Task, error) {
+			return app.RetryTask(ctx, cfg, taskID)
+		},
+		ValidateReceipt: func(runID string) (receipt.ValidationResult, error) {
+			return app.ValidateReceipt(ctx, cfg, runID)
+		},
+		Preflight: func() (app.PreflightResult, error) {
+			return app.Preflight(ctx, cfg, app.PreflightInput{
+				CommandRunner:          opts.DoctorCommandRunner,
+				LookPath:               opts.ExecutableLookPath,
+				ExecutableInspector:    opts.ExecutableInspector,
+				CodexIdentityInspector: opts.CodexIdentityInspector,
 			})
 		},
-	}
+		RunOnce: func(runCtx context.Context, progress app.RunProgress) (runonce.Result, error) {
+			return app.RunOnce(runCtx, cfg, app.RunOnceInput{
+				Runner:   opts.RunOnce,
+				Progress: progress,
+			})
+		},
+		RunLoop: func(runCtx context.Context, maxPasses int, progress app.RunProgress, onPass app.RunPassFunc) (app.RunLoopResult, error) {
+			return app.RunLoop(runCtx, cfg, app.RunLoopInput{
+				MaxPasses: maxPasses,
+				Runner:    opts.RunOnce,
+				Progress:  progress,
+				OnPass:    onPass,
+			})
+		},
+		RunTask: func(runCtx context.Context, taskID string, maxCycles int64, progress autonomoustaskrun.Progress) (autonomoustaskrun.Result, error) {
+			runner := opts.RunTaskUntilTerminal
+			if runner == nil {
+				runner = app.RunTaskUntilTerminal
+			}
+			return runner(runCtx, cfg, app.TaskRunInput{TaskID: taskID, MaxCycles: maxCycles, Progress: progress})
+		},
+		ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
+			return app.ListAutonomousTaskSelectors(ctx, cfg)
+		},
+		LoadAutonomous: func(selector string) (autonomousview.View, error) {
+			return app.ShowAutonomousTask(ctx, cfg, selector)
+		},
+		AnswerInput: func(input app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+			return app.AnswerAutonomousInput(ctx, cfg, input)
+		},
+		RunQueue: func(runCtx context.Context, maxTasks, maxCycles int64, progress autonomousqueue.Progress) (autonomousqueue.Result, error) {
+			runner := opts.RunQueue
+			if runner == nil {
+				runner = app.RunQueue
+			}
+			return runner(runCtx, cfg, app.QueueInput{MaxTasks: maxTasks, MaxCycles: maxCycles, MaximumWorkers: 1, Progress: progress})
+		},
+	})
+}
+
+func streamIsTerminal(stream any) bool {
+	file, ok := stream.(interface{ Fd() uintptr })
+	return ok && term.IsTerminal(file.Fd())
 }
 
 func newShowCommand(opts Options) *cobra.Command {

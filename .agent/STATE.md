@@ -21,49 +21,60 @@ Updated: 2026-09-04
 - CTUI-001 accepted the authoritative ordinary initialized launch contract in
   `docs/architecture/codex-tui/launch-contract.md` from fresh fixed-geometry
   executable evidence and pinned source citations.
+- CTUI-010 implemented that contract's shared launch dispatcher, exact TTY
+  gate, early inline Bubble Tea ownership, asynchronous bootstrap, and removal
+  of startup history emission without implementing CTUI-020 presentation.
 
 ## Task State
 
-- Canonical task files: 2: one completed and one pending.
-- Completed tasks: 1: `ctui-001-lock-launch-contract`.
-- Pending tasks: 1: `ctui-010-launch-tui-by-default`.
-- Accepted unpublished drafts: 10.
-- CTUI-010 was published as CTUI-001's exact completion successor and was not
+- Canonical task files: 3: two completed and one pending.
+- Completed tasks: 2: `ctui-001-lock-launch-contract` and
+  `ctui-010-launch-tui-by-default`.
+- Pending tasks: 1: `ctui-020-match-initial-frame`.
+- Accepted unpublished drafts: 9.
+- CTUI-020 was published as CTUI-010's exact completion successor and was not
   executed in the completion pass.
 - The former canonical and TUI-overhaul planning task trees are retired; Git
   history preserves them.
 
 ## Repository State
 
-- Local `main` remains at
-  `ac61907f7469f8a5836e9ee57a59066c854f2b4d`, exactly one commit ahead of
-  `origin/main`; no history operation was performed.
-- CTUI-001 changes are uncommitted documentation and durable task-state changes
-  ready for review.
-- No replacement UI code was implemented by CTUI-001.
-- No dependency was added.
+- Local `main`, `HEAD`, and `origin/main` remain at
+  `e0b6372f54f8721aa59a767376b0266d29f97876`; no history operation was
+  performed.
+- CTUI-010 product code, tests, existing-dependency source replacement,
+  documentation, and durable task-state changes are uncommitted and ready for
+  review.
+- Bubble Tea remains v1.3.4 and the normalized 77-module identity/version set
+  is unchanged. A provenance-recorded local source replacement removes only
+  v1.3.4's pre-main terminal probe so the accepted gate can emit zero bytes.
+- No dependency or Codex source was added.
 
 ## Next Action
 
-- Start a fresh pass and execute only
-  `ctui-010-launch-tui-by-default` from its canonical task file.
-- Treat `docs/architecture/codex-tui/launch-contract.md` as authoritative; do
-  not reopen its launch, stream, help, field, or fixture decisions.
+- Start a fresh pass and execute only `ctui-020-match-initial-frame` from its
+  canonical task file.
+- Treat `docs/architecture/codex-tui/launch-contract.md` as authoritative and
+  replace CTUI-010's disposable `Loading…` tracer with the locked initialized
+  loading and ready fixtures without reopening launch or stream decisions.
 - Do not recover or execute any later unpublished draft in the same pass.
 
-## CTUI-001 Completion Verification
+## CTUI-010 Completion Verification
 
-- Fresh authenticated Codex and initialized Revolvr launches were captured in
-  fixed `standard-80x24` and `narrow-60x20` PTYs. Redirected stdin and stdout
-  were probed separately.
-- Literal Codex loading/ready evidence, Revolvr fixtures and field mapping,
-  route/I/O matrix, exact help, terminal ownership, and task boundaries are
-  locked in the accepted contract.
-- All 16 acceptance-coverage checks passed; all 36 local Markdown links and
-  source line anchors in the 8 changed files resolved. All 48 literal card
-  rows have their locked 41- or 51-column width.
-- `git diff --check` and both untracked-file no-index checks passed. The final
-  selector reported 2 total, 1 pending, 0 blocked, and 1 completed task, with
-  only `ctui-010-launch-tui-by-default` next. The task inventory reported it
-  pending, ready, and selected.
+- Focused tests cover shared dispatch, exact help, parsing and version bypass,
+  stdin-first stream checks, every TTY matrix row, zero pre-bootstrap refusal,
+  process initialization, blocked bootstrap, same-program completion, and no
+  startup history. `go test ./...` passed.
+- All six redirected 80x24 PTY rows exited 1 with empty stdout and exact
+  24-byte stdin or 25-byte stdout errors. Bare and explicit interactive 80x24
+  captures were byte-identical at 241 bytes, exited 0 after Ctrl-C, and had
+  empty stderr; inspected live replays contained no startup history or new
+  fixture presentation.
+- Root/TUI help, `--version`, `config check`, `status`, unknown inputs,
+  positional arguments, and malformed flags passed focused executable checks.
+- `gofmt`, `git diff --check`, and no-index whitespace checks for every
+  untracked path passed. The normalized module list retained all 77 baseline
+  identities and versions.
+- The final selector reported 3 total, 1 pending, 0 blocked, and 2 completed
+  tasks, with only `ctui-020-match-initial-frame` next and ready.
 - Blockers: none.

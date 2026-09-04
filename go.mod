@@ -50,3 +50,5 @@ require (
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.8.0 // indirect
 )
+
+replace github.com/charmbracelet/bubbletea v1.3.4 => ./third_party/bubbletea

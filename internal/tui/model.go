@@ -39,6 +39,7 @@ const (
 )
 
 var _ tea.Model = StatusModel{}
+var _ tea.Model = launchModel{}
 
 var runLoopPassOptions = []int{2, 3, 5}
 
@@ -319,6 +320,7 @@ type StatusActions struct {
 type RunOptions struct {
 	Input           io.Reader
 	Output          io.Writer
+	BootstrapStatus RefreshStatusFunc
 	RefreshStatus   RefreshStatusFunc
 	OpenRun         OpenRunFunc
 	AddTask         AddTaskFunc
@@ -484,7 +486,20 @@ func NewStatusModelWithActions(status app.StatusResult, actions StatusActions) S
 	return model
 }
 
-func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) error {
+type launchModel struct {
+	status    StatusModel
+	actions   StatusActions
+	bootstrap RefreshStatusFunc
+	ready     bool
+	err       error
+}
+
+type bootstrapStatusMsg struct {
+	status app.StatusResult
+	err    error
+}
+
+func RunStatus(ctx context.Context, opts RunOptions) error {
 	options := []tea.ProgramOption{
 		tea.WithContext(ctx),
 		tea.WithInput(opts.Input),
@@ -493,23 +508,70 @@ func RunStatus(ctx context.Context, status app.StatusResult, opts RunOptions) er
 		options = append(options, tea.WithOutput(opts.Output))
 	}
 
-	_, err := tea.NewProgram(NewStatusModelWithActions(status, StatusActions{
-		Context:         ctx,
-		RefreshStatus:   opts.RefreshStatus,
-		OpenRun:         opts.OpenRun,
-		AddTask:         opts.AddTask,
-		RetryTask:       opts.RetryTask,
-		ValidateReceipt: opts.ValidateReceipt,
-		Preflight:       opts.Preflight,
-		RunOnce:         opts.RunOnce,
-		RunLoop:         opts.RunLoop,
-		RunTask:         opts.RunTask,
-		ListAutonomous:  opts.ListAutonomous,
-		LoadAutonomous:  opts.LoadAutonomous,
-		AnswerInput:     opts.AnswerInput,
-		RunQueue:        opts.RunQueue,
-	}), options...).Run()
-	return err
+	model := launchModel{
+		bootstrap: opts.BootstrapStatus,
+		actions: StatusActions{
+			Context:         ctx,
+			RefreshStatus:   opts.RefreshStatus,
+			OpenRun:         opts.OpenRun,
+			AddTask:         opts.AddTask,
+			RetryTask:       opts.RetryTask,
+			ValidateReceipt: opts.ValidateReceipt,
+			Preflight:       opts.Preflight,
+			RunOnce:         opts.RunOnce,
+			RunLoop:         opts.RunLoop,
+			RunTask:         opts.RunTask,
+			ListAutonomous:  opts.ListAutonomous,
+			LoadAutonomous:  opts.LoadAutonomous,
+			AnswerInput:     opts.AnswerInput,
+			RunQueue:        opts.RunQueue,
+		},
+	}
+	final, err := tea.NewProgram(model, options...).Run()
+	if err != nil {
+		return err
+	}
+	return final.(launchModel).err
+}
+
+func (m launchModel) Init() tea.Cmd {
+	return func() tea.Msg {
+		status, err := m.bootstrap()
+		return bootstrapStatusMsg{status: status, err: err}
+	}
+}
+
+func (m launchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if !m.ready {
+		switch msg := msg.(type) {
+		case bootstrapStatusMsg:
+			if msg.err != nil {
+				m.err = msg.err
+				return m, tea.Quit
+			}
+			m.status = NewStatusModelWithActions(msg.status, m.actions)
+			for _, cell := range m.status.committed {
+				m.status.emitted[cell.identity] = struct{}{}
+			}
+			m.ready = true
+		case tea.KeyMsg:
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+		}
+		return m, nil
+	}
+
+	updated, cmd := m.status.Update(msg)
+	m.status = updated.(StatusModel)
+	return m, cmd
+}
+
+func (m launchModel) View() string {
+	if !m.ready {
+		return "Loading…"
+	}
+	return m.status.View()
 }
 
 func (m StatusModel) Init() tea.Cmd {

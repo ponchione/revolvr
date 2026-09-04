@@ -20,8 +20,9 @@ func TestTUIRunnerReceivesAutonomousEvidenceInputTaskAndQueueCallbacks(t *testin
 			}
 			return autonomousqueue.Result{OperationID: "queue-tui", StopReason: autonomousqueue.StopDrained}, nil
 		},
-		TUIRunner: func(_ context.Context, _ app.StatusResult, opts tuiapp.RunOptions) error {
-			if opts.ListAutonomous == nil || opts.LoadAutonomous == nil || opts.AnswerInput == nil || opts.RunTask == nil || opts.RunQueue == nil || opts.Preflight == nil || opts.RefreshStatus == nil {
+		IsTerminal: alwaysTerminal,
+		TUIRunner: func(_ context.Context, opts tuiapp.RunOptions) error {
+			if opts.BootstrapStatus == nil || opts.ListAutonomous == nil || opts.LoadAutonomous == nil || opts.AnswerInput == nil || opts.RunTask == nil || opts.RunQueue == nil || opts.Preflight == nil || opts.RefreshStatus == nil {
 				t.Fatalf("missing autonomous TUI callback: %#v", opts)
 			}
 			_, err := opts.RunQueue(context.Background(), 100, 50, func(autonomousqueue.Operation) {})

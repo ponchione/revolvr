@@ -1,5 +1,28 @@
 # Agent Decisions
 
+## Early TUI Ownership Requires An Inert Bubble Tea V1 Initializer (2026-09-04)
+
+- CTUI-010 routes bare `revolvr` and explicit `revolvr tui` through one shared
+  dispatcher after Cobra has resolved help, version, parse failures, and all
+  existing non-TUI commands. The dispatcher checks effective stdin before
+  stdout and refuses before bootstrap or terminal output.
+- Bubble Tea v1.3.4 unconditionally queried the default terminal background
+  during package initialization, before Revolvr could apply that gate. Revolvr
+  retains the same v1.3.4 module identity and dependency graph through the
+  provenance-recorded `third_party/bubbletea` source replacement, whose only
+  source delta makes `tea_init.go` inert. Remove the replacement when a future
+  Bubble Tea migration provides lazy terminal detection.
+- One inline Bubble Tea launch model owns the terminal and paints the
+  disposable unstyled `Loading…` tracer before its initial command can begin
+  asynchronous status bootstrap. Bootstrap completion installs the existing
+  status model in that same program.
+- Startup committed cells are marked emitted without `tea.Println`, so launch
+  no longer appends session or historical runs to terminal scrollback. Existing
+  post-launch result append behavior remains unchanged.
+- CTUI-020 is the only accepted successor. It owns the locked loading and ready
+  card, composer, footer, styles, editable draft, action gating, and transfer;
+  CTUI-025 still exclusively owns startup branches.
+
 ## Ordinary Initialized TUI Launch Is Locked (2026-09-04)
 
 - CTUI-001 accepts

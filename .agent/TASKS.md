@@ -7,8 +7,9 @@ Updated: 2026-09-04
 - The accepted task graph and publication order are in
   `docs/architecture/codex-tui/README.md`.
 - `ctui-001-lock-launch-contract` is completed.
-- `ctui-010-launch-tui-by-default` is the only canonical pending task.
-- CTUI-020 through CTUI-070 remain accepted unpublished drafts. Publish them
+- `ctui-010-launch-tui-by-default` is completed.
+- `ctui-020-match-initial-frame` is the only canonical pending task.
+- CTUI-025 through CTUI-070 remain accepted unpublished drafts. Publish them
   one at a time in numbered order only after the current task completes and
   its direct dependencies are satisfied.
 - The former architecture, PTC, EXT, and transcript-first TUI task inventories
@@ -28,6 +29,9 @@ Updated: 2026-09-04
 - [x] CTUI-001 — accepted the ordinary initialized launch contract from fresh
   `standard-80x24` and `narrow-60x20` evidence without changing product code or
   dependencies.
-- [ ] CTUI-010 — implement shared bare/explicit launch and early terminal
-  ownership from the accepted contract in a separate fresh pass.
-- Do not execute CTUI-010 in the CTUI-001 completion pass.
+- [x] CTUI-010 — implemented shared bare/explicit launch, the exact TTY gate,
+  early inline terminal ownership, asynchronous bootstrap delivery, and no
+  startup history.
+- [ ] CTUI-020 — implement the accepted initialized loading and ready frames in
+  a separate fresh pass.
+- Do not execute CTUI-020 in the CTUI-010 completion pass.

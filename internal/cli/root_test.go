@@ -119,7 +119,7 @@ func TestRunHelpDocumentsBareOnePassDefault(t *testing.T) {
 	}
 }
 
-func TestTUIHelpDescribesTranscriptInterface(t *testing.T) {
+func TestTUIHelpDescribesSharedLaunch(t *testing.T) {
 	var out bytes.Buffer
 	root := NewRootCommand(Options{Version: "test", Out: &out})
 	root.SetArgs([]string{"tui", "--help"})
@@ -128,15 +128,9 @@ func TestTUIHelpDescribesTranscriptInterface(t *testing.T) {
 	}
 	help := out.String()
 	for _, want := range []string{
-		"transcript-first operator TUI",
-		"terminal scrollback",
-		"live cell",
-		"composer",
-		"Change Summary",
-		"typed needs-input",
-		"press / to discover commands",
-		"reviewed Add Task flow",
-		"wait for settlement before exit",
+		"Open the Revolvr TUI.",
+		"Bare revolvr and revolvr tui are equivalent",
+		"Use an existing subcommand for non-interactive work.",
 	} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("tui help missing %q:\n%s", want, help)
@@ -347,11 +341,16 @@ func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T)
 	var out bytes.Buffer
 	called := false
 	root := NewRootCommand(Options{
-		Version: "test",
-		Out:     &out,
-		WorkDir: workDir,
-		TUIRunner: func(_ context.Context, status app.StatusResult, opts tuiapp.RunOptions) error {
+		Version:    "test",
+		Out:        &out,
+		WorkDir:    workDir,
+		IsTerminal: alwaysTerminal,
+		TUIRunner: func(_ context.Context, opts tuiapp.RunOptions) error {
 			called = true
+			status, err := opts.BootstrapStatus()
+			if err != nil {
+				return err
+			}
 			if status.Initialized {
 				t.Fatalf("tui status initialized = true, want false")
 			}
@@ -360,7 +359,7 @@ func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T)
 			if cmd != nil {
 				t.Fatalf("window size update cmd = %v, want nil", cmd)
 			}
-			_, err := fmt.Fprint(opts.Output, updated.View())
+			_, err = fmt.Fprint(opts.Output, updated.View())
 			return err
 		},
 	})
@@ -437,11 +436,16 @@ func TestTUIRendersTranscriptAndFocusedTaskRunViewsFromAppStatus(t *testing.T) {
 	var out bytes.Buffer
 	called := false
 	root := NewRootCommand(Options{
-		Version: "test",
-		Out:     &out,
-		WorkDir: workDir,
-		TUIRunner: func(_ context.Context, status app.StatusResult, opts tuiapp.RunOptions) error {
+		Version:    "test",
+		Out:        &out,
+		WorkDir:    workDir,
+		IsTerminal: alwaysTerminal,
+		TUIRunner: func(_ context.Context, opts tuiapp.RunOptions) error {
 			called = true
+			status, err := opts.BootstrapStatus()
+			if err != nil {
+				return err
+			}
 			if !status.Initialized {
 				t.Fatalf("tui status initialized = false, want true")
 			}
@@ -479,7 +483,7 @@ func TestTUIRendersTranscriptAndFocusedTaskRunViewsFromAppStatus(t *testing.T) {
 					t.Fatalf("tui tasks view missing %q:\n%s", want, tasksView.View())
 				}
 			}
-			_, err := fmt.Fprint(opts.Output, updated.View())
+			_, err = fmt.Fprint(opts.Output, updated.View())
 			return err
 		},
 	})
@@ -610,8 +614,13 @@ verification:
 		},
 		ExecutableInspector:    cliTestExecutableInspector,
 		CodexIdentityInspector: cliTestCodexIdentityInspector,
-		TUIRunner: func(_ context.Context, status app.StatusResult, opts tuiapp.RunOptions) error {
+		IsTerminal:             alwaysTerminal,
+		TUIRunner: func(_ context.Context, opts tuiapp.RunOptions) error {
 			called = true
+			status, err := opts.BootstrapStatus()
+			if err != nil {
+				return err
+			}
 			if !status.Initialized {
 				t.Fatal("initial tui status initialized = false, want true")
 			}

@@ -1,7 +1,8 @@
 # CTUI-010 — Establish Early TUI Ownership
 
-- Status: Accepted 2026-09-04; unpublished draft
+- Status: Completed 2026-09-04
 - Source: [Codex TUI baseline](../../codex-tui-baseline.md)
+- Canonical task: [CTUI-010](../../../../.agent/tasks/ctui-010-launch-tui-by-default.md)
 - Depends on: CTUI-001
 
 ## Outcome

@@ -1,9 +1,20 @@
+---
+id: ctui-020-match-initial-frame
+status: pending
+workflow: mixed-pass-v1
+phase: implement
+priority: 3
+depends_on: ctui-010-launch-tui-by-default
+---
+
 # CTUI-020 — Match Initialized Loading and Ready Frames
 
-- Status: Accepted 2026-09-04; published as the only canonical pending task
-- Source: [Codex TUI baseline](../../codex-tui-baseline.md)
-- Canonical task: [CTUI-020](../../../../.agent/tasks/ctui-020-match-initial-frame.md)
-- Depends on: CTUI-010
+- Status: Pending
+- Accepted plan: [Codex TUI task plan](../../docs/architecture/codex-tui/README.md)
+- Accepted draft: [CTUI-020](../../docs/architecture/codex-tui/tasks/ctui-020-match-initial-frame.md)
+- Authoritative contract: [Ordinary initialized launch contract](../../docs/architecture/codex-tui/launch-contract.md)
+- Depends on: CTUI-010 (completed)
+- Completion handoff: publish only CTUI-025; do not execute it in the same pass
 
 ## Outcome
 

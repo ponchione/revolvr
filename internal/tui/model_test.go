@@ -147,20 +147,21 @@ func TestStatusModelInstallsTranscriptShell(t *testing.T) {
 		_, _ = inputWriter.Write([]byte("/quit\r"))
 		_ = inputWriter.Close()
 	}()
-	if err := RunStatus(context.Background(), status, RunOptions{
-		Input:  input,
-		Output: &output,
+	if err := RunStatus(context.Background(), RunOptions{
+		Input:           input,
+		Output:          &output,
+		BootstrapStatus: func() (app.StatusResult, error) { return status, nil },
 	}); err != nil {
 		t.Fatalf("run installed transcript shell: %v", err)
 	}
 	rendered := output.String()
 	for _, line := range []string{"Revolvr", "Project: /work/revolvr", "At start: initialized"} {
-		if got := strings.Count(rendered, line); got != 1 {
-			t.Fatalf("session line %q count = %d, want 1 in %q", line, got, rendered)
+		if got := strings.Count(rendered, line); got != 0 {
+			t.Fatalf("startup history line %q count = %d, want 0 in %q", line, got, rendered)
 		}
 	}
-	if session, panel := strings.Index(rendered, "Revolvr"), strings.Index(rendered, "Ready"); session < 0 || panel < 0 || session >= panel {
-		t.Fatalf("session start did not precede migration panel in %q", rendered)
+	if !strings.Contains(rendered, "Ready") {
+		t.Fatalf("launch output missing ready state in %q", rendered)
 	}
 	if strings.Contains(rendered, "\x1b[2J") {
 		t.Fatalf("installed shell cleared terminal history in %q", rendered)
