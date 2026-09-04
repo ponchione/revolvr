@@ -1,5 +1,27 @@
 # Agent Decisions
 
+## Ordinary Initialized TUI Launch Is Locked (2026-09-04)
+
+- CTUI-001 accepts
+  `docs/architecture/codex-tui/launch-contract.md` as the authoritative
+  ordinary authenticated/initialized launch contract. Fresh Codex 0.153.2 and
+  Revolvr captures cover fixed `standard-80x24` and explicitly named
+  `narrow-60x20` PTYs.
+- Bare `revolvr` and `revolvr tui` share one inline TUI path only when stdin and
+  stdout are terminals. Help, `--version`, parse errors, and every existing
+  explicit non-TUI subcommand remain Cobra routes before that launch gate.
+- The TUI path checks stdin first and stdout second. Either non-TTY stream
+  fails before status/config reads or terminal bytes with the exact message
+  and exit status in the contract.
+- CTUI-010 owns shared dispatch, early terminal ownership, asynchronous
+  bootstrap, and one disposable minimal pending tracer. CTUI-020 owns the
+  accepted 41-column loading and resolved-ready fixtures, style, atomic field
+  replacement, and lossless editable-draft transfer.
+- Unsupported Codex hints, volatile notices, and launch history are omitted.
+  CTUI-025 exclusively owns uninitialized and startup-error fixtures.
+- The retired transcript-first plan remains historical evidence. CTUI-010 is
+  the only accepted successor to CTUI-001 and must not reopen these decisions.
+
 ## Codex-Like TUI Task Graph Is Accepted (2026-09-04)
 
 - The accepted plan is `docs/architecture/codex-tui/README.md`, grounded in
@@ -14,10 +36,10 @@
 - Ordinary launch stays inline. Existing Bubble Tea facilities remain the
   default; CTUI-045 may authorize only one bounded renderer follow-up when
   captured failure evidence demonstrates a concrete gap.
-- Tasks publish sequentially in the plan's numbered order. CTUI-001 is the only
-  canonical pending task; every later task remains an accepted unpublished
-  draft. Completion may publish one successor and must not execute it in the
-  same pass.
+- Tasks publish sequentially in the plan's numbered order. CTUI-001 was the
+  first canonical pending task; its completion published CTUI-010 only, leaving
+  every later task an accepted unpublished draft. Completion may publish one
+  successor and must not execute it in the same pass.
 
 ## Codex TUI Becomes The Visual Baseline (2026-09-03)
 

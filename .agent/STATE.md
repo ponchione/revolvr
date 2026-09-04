@@ -18,41 +18,52 @@ Updated: 2026-09-04
   decision changes that boundary.
 - The accepted task graph and publication order are recorded in
   `docs/architecture/codex-tui/README.md`.
+- CTUI-001 accepted the authoritative ordinary initialized launch contract in
+  `docs/architecture/codex-tui/launch-contract.md` from fresh fixed-geometry
+  executable evidence and pinned source citations.
 
 ## Task State
 
-- Canonical task files: 1.
-- Pending tasks: 1: `ctui-001-lock-launch-contract`.
-- Accepted unpublished drafts: 11.
-- CTUI-010 is the exact completion successor for CTUI-001.
+- Canonical task files: 2: one completed and one pending.
+- Completed tasks: 1: `ctui-001-lock-launch-contract`.
+- Pending tasks: 1: `ctui-010-launch-tui-by-default`.
+- Accepted unpublished drafts: 10.
+- CTUI-010 was published as CTUI-001's exact completion successor and was not
+  executed in the completion pass.
 - The former canonical and TUI-overhaul planning task trees are retired; Git
   history preserves them.
 
 ## Repository State
 
-- The preserved TUI-overhaul implementation, planning reset, Codex research,
-  accepted replacement plan, and CTUI-001 publication form the clean baseline
-  for the next fresh pass.
-- No replacement UI code was implemented in this reset.
+- Local `main` remains at
+  `ac61907f7469f8a5836e9ee57a59066c854f2b4d`, exactly one commit ahead of
+  `origin/main`; no history operation was performed.
+- CTUI-001 changes are uncommitted documentation and durable task-state changes
+  ready for review.
+- No replacement UI code was implemented by CTUI-001.
 - No dependency was added.
 
 ## Next Action
 
-- Start a fresh thread and execute only the canonical CTUI-001 documentation
-  task.
-- Capture and accept the ordinary initialized loading/ready launch contract at
-  80x24 and one named narrow geometry, including field and CLI/I/O matrices.
-- After CTUI-001 is terminally complete and verified, publish CTUI-010 only and
-  stop without implementing it.
+- Start a fresh pass and execute only
+  `ctui-010-launch-tui-by-default` from its canonical task file.
+- Treat `docs/architecture/codex-tui/launch-contract.md` as authoritative; do
+  not reopen its launch, stream, help, field, or fixture decisions.
+- Do not recover or execute any later unpublished draft in the same pass.
 
-## Baseline Verification
+## CTUI-001 Completion Verification
 
-- Task selected: CTUI-001 for the next fresh pass; it is not started here.
-- Changed Go files match `gofmt`; `go test ./...` passes.
-- `go run ./cmd/revolvr task list` and `go run ./cmd/revolvr status` pass with
-  one ready pending task and select `ctui-001-lock-launch-contract`.
-- Root and TUI help checks, documentation-link validation, and
-  `git diff --check` pass.
-- What remains: execute the accepted CTUI task sequence one fresh task at a
-  time.
+- Fresh authenticated Codex and initialized Revolvr launches were captured in
+  fixed `standard-80x24` and `narrow-60x20` PTYs. Redirected stdin and stdout
+  were probed separately.
+- Literal Codex loading/ready evidence, Revolvr fixtures and field mapping,
+  route/I/O matrix, exact help, terminal ownership, and task boundaries are
+  locked in the accepted contract.
+- All 16 acceptance-coverage checks passed; all 36 local Markdown links and
+  source line anchors in the 8 changed files resolved. All 48 literal card
+  rows have their locked 41- or 51-column width.
+- `git diff --check` and both untracked-file no-index checks passed. The final
+  selector reported 2 total, 1 pending, 0 blocked, and 1 completed task, with
+  only `ctui-010-launch-tui-by-default` next. The task inventory reported it
+  pending, ready, and selected.
 - Blockers: none.

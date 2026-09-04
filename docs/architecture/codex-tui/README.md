@@ -2,9 +2,11 @@
 
 - Status: Accepted 2026-09-04
 
-This index links the [research baseline](../codex-tui-baseline.md) and every
-task in the accepted Codex-like TUI sequence. CTUI-001 is the only canonical
-pending task; every later task remains an accepted unpublished draft.
+This index links the [research baseline](../codex-tui-baseline.md), the
+[accepted ordinary launch contract](launch-contract.md), and every task in the
+accepted Codex-like TUI sequence. CTUI-001 completed the decision gate;
+CTUI-010 is the only canonical pending task. Every later task remains an
+accepted unpublished draft.
 
 Repository fresh-pass rules apply: one fresh pass executes one bounded task,
 and completion may publish exactly one accepted, dependency-satisfied successor
@@ -28,6 +30,10 @@ CTUI-060 <- CTUI-055
 CTUI-065 <- CTUI-050, CTUI-060
 CTUI-070 <- CTUI-065
 ```
+
+CTUI-010 consumes the accepted launch contract without reopening its route,
+stream, field, loading, omission, or ordinary initialized fixture decisions.
+Uninitialized and startup-error fixtures remain exclusively CTUI-025 work.
 
 ## Drafts
 
