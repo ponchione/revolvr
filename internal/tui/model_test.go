@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"reflect"
 	"regexp"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"revolvr/internal/app"
@@ -117,8 +119,7 @@ func TestStatusModelInstallsTranscriptShell(t *testing.T) {
 	if cmd := model.appendCommitted(); cmd != nil {
 		t.Fatal("second append command replayed session start")
 	}
-	requireNoLine(t, normalizedViewLines(model.View()), "Revolvr  Dashboard  initialized")
-	requireLines(t, normalizedViewLines(model.View()), "Idle", "No runs recorded.", "›", "Enter submit · / commands · ? shortcuts")
+	requireLines(t, normalizedViewLines(model.View()), "Ready", "Next: type a task or use /run", "›", "Enter submit · / commands · ? shortcuts")
 
 	model, _ = updateStatusModel(t, model, keyRunes("/refresh"))
 	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
@@ -158,11 +159,11 @@ func TestStatusModelInstallsTranscriptShell(t *testing.T) {
 			t.Fatalf("session line %q count = %d, want 1 in %q", line, got, rendered)
 		}
 	}
-	if session, panel := strings.Index(rendered, "Revolvr"), strings.Index(rendered, "Idle"); session < 0 || panel < 0 || session >= panel {
+	if session, panel := strings.Index(rendered, "Revolvr"), strings.Index(rendered, "Ready"); session < 0 || panel < 0 || session >= panel {
 		t.Fatalf("session start did not precede migration panel in %q", rendered)
 	}
-	if strings.Contains(rendered, "Revolvr  Dashboard  initialized") {
-		t.Fatalf("installed shell retained persistent header in %q", rendered)
+	if strings.Contains(rendered, "\x1b[2J") {
+		t.Fatalf("installed shell cleared terminal history in %q", rendered)
 	}
 }
 
@@ -312,7 +313,7 @@ func TestHistoricalTranscriptBoundsAndFiltersTimeline(t *testing.T) {
 	}
 
 	cells := historicalTranscriptCells(status)
-	if got, want := len(cells), maxDashboardEvents+2; got != want {
+	if got, want := len(cells), maxTranscriptEvents+2; got != want {
 		t.Fatalf("bounded cells = %d, want %d: %#v", got, want, cells)
 	}
 	if got, want := cells[0].source, []string{"… 3 earlier · 4 Run Detail"}; !reflect.DeepEqual(got, want) {
@@ -495,8 +496,6 @@ func TestLiveOperationCellShowsElapsedTimeWhenItFits(t *testing.T) {
 func TestLiveOperationCellOwnsCancellationHint(t *testing.T) {
 	model := NewStatusModel(app.StatusResult{Initialized: true})
 	model.width = 80
-	model.view = viewTasks
-	model.composer.Active = false
 	model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeOnce, Task: "task-017", Current: "working"}
 
 	if footer := strings.Join(model.footerLines(), "\n"); strings.Contains(footer, "Cancel Run") {
@@ -854,9 +853,6 @@ func assertTranscriptShellProofOutput(t *testing.T, output io.Writer, contents f
 	if session, history := strings.Index(rendered, model.committed[0].lines[0]), strings.Index(rendered, model.committed[1].lines[0]); session < 0 || history < 0 || session >= history {
 		t.Fatalf("committed order session=%d history=%d in %q", session, history, rendered)
 	}
-	if strings.Contains(rendered, "Revolvr  Dashboard  initialized") {
-		t.Fatalf("proof output retained dashboard composition: %q", rendered)
-	}
 }
 
 type transcriptShellProofCell struct {
@@ -1058,7 +1054,8 @@ func TestStatusModelRendersUninitializedSnapshot(t *testing.T) {
 
 	lines := normalizedViewLines(model.View())
 	want := []string{
-		"Run `revolvr init` to initialize this repository.",
+		"Not initialized",
+		"Next: run revolvr init in this repository",
 		"",
 		"›",
 		"Enter submit · / commands · ? shortcuts",
@@ -1121,18 +1118,17 @@ func TestStatusModelTasksViewRendersEmptyTaskState(t *testing.T) {
 		"No task files found.",
 		"Task Detail",
 		"No task selected.",
-		"Keys: j/k Select | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
-		"      n Passes 3 | L Run Loop | r Refresh | q Quit",
+		"Keys: j/k Select | enter Workflow | a Add Task | r Refresh | esc Close | q Quit",
 	)
 }
 
 func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 	tests := []struct {
-		name          string
-		tasks         []taskmodel.Task
-		dashboardWant []string
-		tasksWant     []string
-		tasksNotWant  []string
+		name         string
+		tasks        []taskmodel.Task
+		readyWant    []string
+		tasksWant    []string
+		tasksNotWant []string
 	}{
 		{
 			name: "pending",
@@ -1141,9 +1137,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 				{ID: "task-ready", Status: taskmodel.StatusPending, Summary: "ship change", NextRunnable: true},
 				{ID: "task-later", Status: taskmodel.StatusPending, Task: "later task"},
 			},
-			dashboardWant: []string{
-				"Idle",
-				"No runs recorded.",
+			readyWant: []string{
+				"Ready",
 				"Next task: task-ready - ship change",
 			},
 			tasksWant: []string{
@@ -1164,8 +1159,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 				{ID: "task-filename-first", Status: taskmodel.StatusPending, Summary: "shown first"},
 				{ID: "task-priority-first", Status: taskmodel.StatusPending, Summary: "runs first", NextRunnable: true},
 			},
-			dashboardWant: []string{
-				"Idle",
+			readyWant: []string{
+				"Ready",
 				"Next task: task-priority-first - runs first",
 			},
 			tasksWant: []string{
@@ -1181,9 +1176,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 			tasks: []taskmodel.Task{
 				{ID: "task-blocked", Status: taskmodel.StatusBlocked, Summary: "waiting on access"},
 			},
-			dashboardWant: []string{
-				"Idle",
-				"No runs recorded.",
+			readyWant: []string{
+				"Ready",
 				"Next task: none",
 			},
 			tasksWant: []string{
@@ -1201,9 +1195,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 			tasks: []taskmodel.Task{
 				{ID: "task-completed", Status: taskmodel.StatusCompleted, Summary: "done"},
 			},
-			dashboardWant: []string{
-				"Idle",
-				"No runs recorded.",
+			readyWant: []string{
+				"Ready",
 				"Next task: none",
 			},
 			tasksWant: []string{
@@ -1219,9 +1212,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 		{
 			name:  "empty",
 			tasks: nil,
-			dashboardWant: []string{
-				"Idle",
-				"No runs recorded.",
+			readyWant: []string{
+				"Ready",
 				"Next task: none",
 			},
 			tasksWant: []string{
@@ -1243,8 +1235,8 @@ func TestStatusModelRendersNextRunnableTaskStates(t *testing.T) {
 				Tasks:       tt.tasks,
 			})
 
-			dashboardLines := normalizedViewLines(model.View())
-			requireLines(t, dashboardLines, tt.dashboardWant...)
+			readyLines := normalizedViewLines(model.View())
+			requireLines(t, readyLines, tt.readyWant...)
 
 			tasksView := openTasksView(t, model)
 			tasksLines := normalizedViewLines(tasksView.View())
@@ -1269,9 +1261,9 @@ func TestStatusModelDoesNotFallbackToPendingWaitingTask(t *testing.T) {
 		}},
 	})
 
-	dashboard := normalizedViewLines(model.View())
-	requireLines(t, dashboard, "Idle", "Next task: none")
-	requireNoLine(t, dashboard, "Next task: task-dependent")
+	ready := normalizedViewLines(model.View())
+	requireLines(t, ready, "Ready", "Next task: none")
+	requireNoLine(t, ready, "Next task: task-dependent")
 
 	tasksView := openTasksView(t, model)
 	lines := normalizedViewLines(tasksView.View())
@@ -1301,9 +1293,9 @@ func TestStatusModelRendersSharedInvalidGraphDiagnostics(t *testing.T) {
 		Schedule: taskscheduler.Result{InvalidGraph: []taskscheduler.Diagnostic{diagnostic}},
 	})
 
-	dashboard := normalizedViewLines(model.View())
-	requireLines(t, dashboard, "Idle", "Next task: none")
-	requireNoLine(t, dashboard, `Scheduling diagnostic: missing_dependency: task-invalid -> task-missing`)
+	ready := normalizedViewLines(model.View())
+	requireLines(t, ready, "Ready", "Next task: none")
+	requireNoLine(t, ready, `Scheduling diagnostic: missing_dependency: task-invalid -> task-missing`)
 	tasksView := openTasksView(t, model)
 	requireLines(t, normalizedViewLines(tasksView.View()),
 		"Readiness: invalid_graph",
@@ -1489,7 +1481,7 @@ func TestStatusModelTasksViewRetriesBlockedTaskRefreshesAndSelects(t *testing.T)
 		t.Fatalf("move selection cmd = %v, want nil", cmd)
 	}
 	requireLines(t, normalizedViewLines(blockedView.View()),
-		"Keys: j/k Select | u Retry | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail | 5 Preflight | ? Help | a Add Task | R Run Once",
+		"Keys: j/k Select | enter Workflow | u Retry | a Add Task | r Refresh | esc Close | q Quit",
 	)
 
 	afterKey, cmd := updateStatusModel(t, blockedView, keyRunes("u"))
@@ -1715,8 +1707,8 @@ func TestStatusModelTaskEntryRejectsEmptyTaskTextInline(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("add key cmd = %v, want nil", cmd)
 	}
-	if entryView.view != viewTaskEntry {
-		t.Fatalf("view = %v, want task entry", entryView.view)
+	if entryView.overlay == nil || entryView.overlay.content != viewTaskEntry {
+		t.Fatalf("overlay = %#v, want task entry", entryView.overlay)
 	}
 
 	afterSubmit, cmd := updateStatusModel(t, entryView, tea.KeyMsg{Type: tea.KeyEnter})
@@ -1759,8 +1751,7 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	runsView := resized
-	runsView.switchView(viewRuns)
+	runsView := openTasksView(t, resized)
 
 	entryView, cmd := updateStatusModel(t, runsView, keyRunes("a"))
 	if cmd != nil {
@@ -1778,14 +1769,14 @@ func TestStatusModelTaskEntryCancelReturnsToPreviousViewWithoutWrite(t *testing.
 	if addCalled {
 		t.Fatal("add callback ran after cancel")
 	}
-	if cancelled.view != viewRuns {
-		t.Fatalf("view = %v, want runs", cancelled.view)
+	if cancelled.overlay == nil || cancelled.overlay.content != viewTasks {
+		t.Fatalf("overlay = %#v, want tasks", cancelled.overlay)
 	}
 	if cancelled.taskEntry.taskText != "" || cancelled.taskEntry.summary != "" {
 		t.Fatalf("task entry state = %+v, want cleared", cancelled.taskEntry)
 	}
 	requireLines(t, normalizedViewLines(cancelled.View()),
-		"> run-one  completed  none  none  done",
+		"Tasks",
 	)
 }
 
@@ -1864,8 +1855,8 @@ func TestStatusModelTaskEntrySubmitAddsRefreshesAndSelectsNewTask(t *testing.T) 
 	if got, want := input.Summary, "TUI add"; got != want {
 		t.Fatalf("add input summary = %q, want %q", got, want)
 	}
-	if afterAdd.view != viewTasks {
-		t.Fatalf("view = %v, want tasks", afterAdd.view)
+	if afterAdd.overlay == nil || afterAdd.overlay.content != viewTasks {
+		t.Fatalf("overlay = %#v, want tasks", afterAdd.overlay)
 	}
 	if got, want := afterAdd.selectedTaskID(), "task-new"; got != want {
 		t.Fatalf("selected task = %q, want %q", got, want)
@@ -1903,14 +1894,14 @@ func TestPlainTextComposerOpensReviewedTaskDraft(t *testing.T) {
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, actions)
 
 	unchanged, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || unchanged.view != viewDashboard || unchanged.composer != model.composer || addCalled || refreshCalled {
-		t.Fatalf("empty submission changed state: cmd=%v view=%v composer=%#v add=%t refresh=%t", cmd, unchanged.view, unchanged.composer, addCalled, refreshCalled)
+	if cmd != nil || unchanged.composer != model.composer || addCalled || refreshCalled {
+		t.Fatalf("empty submission changed state: cmd=%v composer=%#v add=%t refresh=%t", cmd, unchanged.composer, addCalled, refreshCalled)
 	}
 	unchanged, _ = typeIntoStatusModel(t, unchanged, "   ")
 	beforeWhitespace := unchanged
 	unchanged, cmd = updateStatusModel(t, unchanged, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || unchanged.view != beforeWhitespace.view || unchanged.composer != beforeWhitespace.composer || unchanged.message != beforeWhitespace.message || addCalled || refreshCalled {
-		t.Fatalf("whitespace submission changed state: cmd=%v view=%v composer=%#v message=%q add=%t refresh=%t", cmd, unchanged.view, unchanged.composer, unchanged.message, addCalled, refreshCalled)
+	if cmd != nil || unchanged.composer != beforeWhitespace.composer || unchanged.message != beforeWhitespace.message || addCalled || refreshCalled {
+		t.Fatalf("whitespace submission changed state: cmd=%v composer=%#v message=%q add=%t refresh=%t", cmd, unchanged.composer, unchanged.message, addCalled, refreshCalled)
 	}
 
 	model = NewStatusModelWithActions(app.StatusResult{Initialized: true}, actions)
@@ -1919,14 +1910,14 @@ func TestPlainTextComposerOpensReviewedTaskDraft(t *testing.T) {
 	if cmd != nil || addCalled || refreshCalled {
 		t.Fatalf("draft transition: cmd=%v add=%t refresh=%t", cmd, addCalled, refreshCalled)
 	}
-	if review.view != viewTaskEntry || review.taskEntry.taskText != "  draft task  " || review.composer.Text != "" {
-		t.Fatalf("draft state: view=%v entry=%#v composer=%#v", review.view, review.taskEntry, review.composer)
+	if review.overlay == nil || review.overlay.content != viewTaskEntry || review.taskEntry.taskText != "  draft task  " || review.composer.Text != "" {
+		t.Fatalf("draft state: overlay=%#v entry=%#v composer=%#v", review.overlay, review.taskEntry, review.composer)
 	}
 	requireLines(t, normalizedViewLines(review.View()), "Add Task", "> Task:   draft task", "  Summary:")
 
 	cancelled, cmd := updateStatusModel(t, review, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || addCalled || refreshCalled || cancelled.view != viewDashboard || !cancelled.composer.Active || cancelled.composer.Text != "" {
-		t.Fatalf("cancelled draft: cmd=%v add=%t refresh=%t view=%v composer=%#v", cmd, addCalled, refreshCalled, cancelled.view, cancelled.composer)
+	if cmd != nil || addCalled || refreshCalled || cancelled.overlay != nil || !cancelled.composer.Active || cancelled.composer.Text != "" {
+		t.Fatalf("cancelled draft: cmd=%v add=%t refresh=%t overlay=%#v composer=%#v", cmd, addCalled, refreshCalled, cancelled.overlay, cancelled.composer)
 	}
 
 	model = NewStatusModelWithActions(app.StatusResult{Initialized: true}, actions)
@@ -2014,8 +2005,8 @@ func TestPlainTextComposerRejectsUnavailableStates(t *testing.T) {
 			beforeCommitted := slices.Clone(model.committed)
 			model, _ = typeIntoStatusModel(t, model, "keep this draft")
 			rejected, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-			if cmd != nil || calls != 0 || rejected.view != viewDashboard || rejected.composer.Text != "keep this draft" || rejected.message != tt.want {
-				t.Fatalf("rejected state: cmd=%v calls=%d view=%v composer=%#v message=%q", cmd, calls, rejected.view, rejected.composer, rejected.message)
+			if cmd != nil || calls != 0 || rejected.composer.Text != "keep this draft" || rejected.message != tt.want {
+				t.Fatalf("rejected state: cmd=%v calls=%d composer=%#v message=%q", cmd, calls, rejected.composer, rejected.message)
 			}
 			if !reflect.DeepEqual(rejected.committed, beforeCommitted) || rejected.taskEntry.taskText != "" {
 				t.Fatalf("rejection changed durable presentation: committed=%#v entry=%#v", rejected.committed, rejected.taskEntry)
@@ -2030,16 +2021,16 @@ func TestPlainTextComposerRejectsUnavailableStates(t *testing.T) {
 				result: runonce.Result{NoTask: true, Outcome: runonce.OutcomeNoTask},
 				status: app.StatusResult{Initialized: true},
 			})
-			if cmd == nil || settling.settling == nil || calls != 0 || settling.composer.Text != "keep this draft" || settling.view != viewDashboard {
-				t.Fatalf("settlement consumed input: cmd=%v calls=%d settling=%#v composer=%#v view=%v", cmd, calls, settling.settling, settling.composer, settling.view)
+			if cmd == nil || settling.settling == nil || calls != 0 || settling.composer.Text != "keep this draft" {
+				t.Fatalf("settlement consumed input: cmd=%v calls=%d settling=%#v composer=%#v", cmd, calls, settling.settling, settling.composer)
 			}
 			settled, cmd := updateStatusModel(t, settling, transcriptCommittedMsg{token: 41, identity: settling.settling.cell.identity})
-			if cmd != nil || settled.runOnce.Started || calls != 0 || settled.composer.Text != "keep this draft" || settled.view != viewDashboard {
-				t.Fatalf("settled input changed: cmd=%v calls=%d run=%#v composer=%#v view=%v", cmd, calls, settled.runOnce, settled.composer, settled.view)
+			if cmd != nil || settled.runOnce.Started || calls != 0 || settled.composer.Text != "keep this draft" {
+				t.Fatalf("settled input changed: cmd=%v calls=%d run=%#v composer=%#v", cmd, calls, settled.runOnce, settled.composer)
 			}
 			review, cmd := updateStatusModel(t, settled, tea.KeyMsg{Type: tea.KeyEnter})
-			if cmd != nil || calls != 0 || review.view != viewTaskEntry || review.taskEntry.taskText != "keep this draft" {
-				t.Fatalf("explicit retry: cmd=%v calls=%d view=%v entry=%#v", cmd, calls, review.view, review.taskEntry)
+			if cmd != nil || calls != 0 || review.overlay == nil || review.overlay.content != viewTaskEntry || review.taskEntry.taskText != "keep this draft" {
+				t.Fatalf("explicit retry: cmd=%v calls=%d overlay=%#v entry=%#v", cmd, calls, review.overlay, review.taskEntry)
 			}
 		})
 	}
@@ -2054,16 +2045,22 @@ func TestPlainTextComposerCannotBypassTypedNeedsInput(t *testing.T) {
 		},
 		RefreshStatus: func() (app.StatusResult, error) { return app.StatusResult{}, nil },
 	})
+	question := tuiAutonomousView("input-task", "needs_input")
+	question.Input = autonomousview.OperatorInput{State: "waiting", QuestionID: "question-one", Options: []autonomousview.InputOption{{ID: "choice-one", Meaning: "Use the choice."}}}
+	model.autonomous.View = &question
+	model.autonomous.TaskID = "input-task"
+	model.composer.Text = "preserved draft"
+	model.openOverlay(viewNeedsInput, 0)
+	model.overlay.parent = viewApproval
 	model.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
-	model.composer = commandComposerState{Active: false, Text: "preserved draft"}
 
 	model, cmd := updateStatusModel(t, model, keyRunes("free-form answer"))
-	if cmd != nil || addCalled || model.composer.Text != "preserved draft" {
-		t.Fatalf("typed input runes changed composer: cmd=%v add=%t composer=%#v", cmd, addCalled, model.composer)
+	if cmd != nil || addCalled || model.overlay.composer.Text != "preserved draft" {
+		t.Fatalf("typed input runes changed composer: cmd=%v add=%t composer=%#v", cmd, addCalled, model.overlay.composer)
 	}
 	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || addCalled || !model.autonomous.Answer.Active || model.message != "Select an offered option before confirming." {
-		t.Fatalf("typed input enter: cmd=%v add=%t answer=%#v message=%q", cmd, addCalled, model.autonomous.Answer, model.message)
+	if cmd != nil || addCalled || !model.autonomous.Answer.Active || model.overlay.message != "Select an offered option before confirming." {
+		t.Fatalf("typed input enter: cmd=%v add=%t answer=%#v message=%q", cmd, addCalled, model.autonomous.Answer, model.overlay.message)
 	}
 }
 
@@ -2176,15 +2173,8 @@ func TestPreflightReadyOverlayShowsChecks(t *testing.T) {
 	if !called {
 		t.Fatal("preflight callback was not called")
 	}
-	if afterPreflight.overlay == nil || afterPreflight.overlay.content != viewPreflight || afterPreflight.view != viewDashboard {
-		t.Fatalf("overlay=%#v view=%v, want Preflight over Dashboard", afterPreflight.overlay, afterPreflight.view)
-	}
-	page := afterPreflight
-	page.message = page.overlay.message
-	page.overlay = nil
-	page.switchView(viewPreflight)
-	if afterPreflight.renderOverlayContent() != page.renderPreflight() {
-		t.Fatal("Preflight overlay content diverged from retained page renderer")
+	if afterPreflight.overlay == nil || afterPreflight.overlay.content != viewPreflight {
+		t.Fatalf("overlay=%#v, want Preflight", afterPreflight.overlay)
 	}
 
 	lines := normalizedViewLines(afterPreflight.View())
@@ -2249,8 +2239,8 @@ func TestPreflightOverlay(t *testing.T) {
 		committed := slices.Clone(model.committed)
 		model, _ = updateStatusModel(t, model, keyRunes("/preflight"))
 		model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-		if cmd == nil || calls != 0 || model.overlay == nil || model.overlay.content != viewPreflight || model.overlay.source != viewDashboard || model.view != viewDashboard {
-			t.Fatalf("opened state: calls=%d overlay=%#v view=%v cmd=%v", calls, model.overlay, model.view, cmd)
+		if cmd == nil || calls != 0 || model.overlay == nil || model.overlay.content != viewPreflight {
+			t.Fatalf("opened state: calls=%d overlay=%#v cmd=%v", calls, model.overlay, cmd)
 		}
 		if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, commandComposerState{Active: true}) {
 			t.Fatalf("composer=%#v saved=%#v, want inactive with saved focus", model.composer, model.overlay.composer)
@@ -2266,8 +2256,8 @@ func TestPreflightOverlay(t *testing.T) {
 		}
 
 		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-		if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, commandComposerState{Active: true}) || model.message != "underlying notice" {
-			t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+		if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, commandComposerState{Active: true}) || model.message != "underlying notice" {
+			t.Fatalf("restored state: overlay=%#v composer=%#v message=%q cmd=%v", model.overlay, model.composer, model.message, cmd)
 		}
 		if !reflect.DeepEqual(model.committed, committed) {
 			t.Fatal("Preflight overlay changed committed transcript cells")
@@ -2504,7 +2494,7 @@ func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.
 	if addCmd != nil {
 		t.Fatalf("add while running cmd = %v, want nil", addCmd)
 	}
-	if afterAdd.view == viewTaskEntry {
+	if afterAdd.overlay != nil && afterAdd.overlay.content == viewTaskEntry {
 		t.Fatal("add task entry opened while run was active")
 	}
 	requireLines(t, normalizedViewLines(afterAdd.View()),
@@ -2513,7 +2503,7 @@ func TestStatusModelRunOnceRequiresReadyPreflightAndRejectsActiveRun(t *testing.
 		"Safety: admitted",
 		"Current: starting the run",
 		"Next: wait, or press c or Esc to cancel",
-		"? Help | q Quit",
+		"Enter submit · / commands · ? shortcuts",
 	)
 }
 
@@ -2984,7 +2974,7 @@ func TestStatusModelRunLoopCyclesPassCount(t *testing.T) {
 	}
 	requireLines(t, normalizedViewLines(afterFirst.View()),
 		"Notice: Loop max passes set to 5.",
-		"? Help | R Run | r Refresh | q Quit",
+		"Enter submit · / commands · ? shortcuts",
 	)
 	if afterFirst.selectedRunLoopPasses() != 5 {
 		t.Fatalf("loop passes = %d, want 5", afterFirst.selectedRunLoopPasses())
@@ -3393,8 +3383,8 @@ func TestStatusModelRunsViewOpensSelectedRunDetail(t *testing.T) {
 	if openedRunID != "run-old" {
 		t.Fatalf("opened run id = %q, want run-old", openedRunID)
 	}
-	if afterOpen.overlay == nil || afterOpen.overlay.content != viewRunDetail || afterOpen.view != viewDashboard {
-		t.Fatalf("overlay=%#v view=%v, want run detail over dashboard", afterOpen.overlay, afterOpen.view)
+	if afterOpen.overlay == nil || afterOpen.overlay.content != viewRunDetail {
+		t.Fatalf("overlay=%#v, want run detail", afterOpen.overlay)
 	}
 	requireLines(t, normalizedViewLines(afterOpen.View()),
 		"Run Detail",
@@ -3729,8 +3719,8 @@ func TestStatusModelRunDetailShowsMissingReceiptValidationError(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("validation message cmd = %v, want nil", cmd)
 	}
-	if afterValidation.view != viewRunDetail {
-		t.Fatalf("view = %v, want run detail", afterValidation.view)
+	if afterValidation.overlay == nil || afterValidation.overlay.content != viewRunDetail {
+		t.Fatalf("overlay = %#v, want run detail", afterValidation.overlay)
 	}
 	requireLines(t, normalizedViewLines(afterValidation.View()),
 		"Notice: Receipt validation error.",
@@ -3856,10 +3846,7 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 	}
 
 	runsView := model
-	runsView.switchView(viewRuns)
-	if runsView.view != viewRuns {
-		t.Fatalf("view = %v, want runs", runsView.view)
-	}
+	runsView.openRunsOverlay()
 
 	afterDown, cmd := updateStatusModel(t, runsView, tea.KeyMsg{Type: tea.KeyDown})
 	if cmd != nil {
@@ -3907,12 +3894,14 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 		}
 	}
 
-	tasksView, cmd := updateStatusModel(t, afterOpen, keyRunes("2"))
+	tasksView, _ := updateStatusModel(t, afterOpen, tea.KeyMsg{Type: tea.KeyEsc})
+	tasksView, _ = updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyEsc})
+	tasksView, cmd = sendShortcut(t, tasksView, "2")
 	if cmd != nil {
 		t.Fatalf("tasks overlay cmd = %v, want nil", cmd)
 	}
-	if tasksView.overlay == nil || tasksView.overlay.content != viewTasks || tasksView.view != viewRunDetail {
-		t.Fatalf("overlay = %#v over view %v, want Tasks over Run Detail", tasksView.overlay, tasksView.view)
+	if tasksView.overlay == nil || tasksView.overlay.content != viewTasks {
+		t.Fatalf("overlay = %#v, want Tasks", tasksView.overlay)
 	}
 	if tasksView.runDetails == nil {
 		t.Fatal("run details were cleared after switching views")
@@ -3921,7 +3910,8 @@ func TestStatusModelSwitchesViewsWithoutLosingLoadedRunDetail(t *testing.T) {
 		t.Fatalf("tasks view missing heading:\n%s", tasksView.View())
 	}
 
-	backToDetail, cmd := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyEsc})
+	backToDetail, _ := updateStatusModel(t, tasksView, tea.KeyMsg{Type: tea.KeyEsc})
+	backToDetail, cmd = sendShortcut(t, backToDetail, "4")
 	if cmd != nil {
 		t.Fatalf("close tasks overlay cmd = %v, want nil", cmd)
 	}
@@ -3942,40 +3932,50 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 			Summary: "done",
 		}},
 	})
-	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 40})
+	model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 60})
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
 
 	runsView := model
-	runsView.switchView(viewRuns)
+	runsView.composer.Active = false
+	runsView, _ = updateStatusModel(t, runsView, keyRunes("3"))
 	runsLines := normalizedViewLines(runsView.View())
 	for _, want := range []string{
-		"Keys: j/k Select | enter Open | 1 Dashboard | 2 Tasks | 3 Runs | 4 Detail",
-		"      5 Preflight | ? Help | a Add Task | R Run Once | n Passes 3 | L Run Loop",
-		"      r Refresh | q Quit",
+		"Keys: j/k Select | enter Open | r Refresh | esc Close | q Quit",
 	} {
 		if !containsLine(runsLines, want) {
 			t.Fatalf("runs footer/header missing %q: %#v", want, runsLines)
 		}
 	}
 
-	helpView, cmd := updateStatusModel(t, runsView, keyRunes("?"))
+	helpView, _ := updateStatusModel(t, runsView, tea.KeyMsg{Type: tea.KeyEsc})
+	helpView, cmd = updateStatusModel(t, helpView, keyRunes("?"))
 	if cmd != nil {
 		t.Fatalf("help view cmd = %v, want nil", cmd)
 	}
-	if helpView.overlay == nil || helpView.overlay.content != viewHelp || helpView.view != viewRuns {
-		t.Fatalf("help overlay=%#v underlying view=%v, want Help over Runs", helpView.overlay, helpView.view)
+	if helpView.overlay == nil || helpView.overlay.content != viewHelp {
+		t.Fatalf("help overlay=%#v, want Help", helpView.overlay)
 	}
 	helpLines := normalizedViewLines(helpView.View())
 	for _, want := range []string{
 		"Help",
-		"/help  Help",
-		"Esc closes Help",
-		"1  Dashboard",
+		"Committed results stay in terminal scrollback",
+		"Current work replaces one live cell",
+		"Active rows use Running, Safety, Current, and Next labels",
+		"Results say Completed, Failed, Cancelled, Blocked, Safety stop, or Needs input",
+		"? or bare / or /help or /commands  Help",
+		"2 or /tasks  Tasks",
+		"4 or /detail  Run Detail",
+		"a or /answer <option-id>  Answer typed needs-input",
+		"Esc or Backspace returns; Run Detail returns to Runs",
+		"Typed input returns to Workflow or Approval",
 		"n  Cycle loop max passes (current 3)",
-		"L  Run loop",
-		"enter or o  Open selected run",
+		"L or /loop  Run bounded loop",
+		"q or /quit or Ctrl-C  Quit after active work settles",
+		"Tested: XTerm 390 and tmux 3.4; other terminals are unclaimed",
+		"40x24 is the supported minimum; below 40 columns is best effort",
+		"Ctrl-Z and external suspend/continue are unsupported",
 		"↑/↓ scroll · Esc close",
 	} {
 		if !containsLine(helpLines, want) {
@@ -3987,8 +3987,8 @@ func TestStatusModelHelpAndFooterRenderingFollowActiveView(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("escape help cmd = %v, want nil", cmd)
 	}
-	if back.overlay != nil || back.view != viewRuns {
-		t.Fatalf("state after help escape: overlay=%#v view=%v, want Runs without overlay", back.overlay, back.view)
+	if back.overlay != nil {
+		t.Fatalf("state after help escape: overlay=%#v, want none", back.overlay)
 	}
 }
 
@@ -4059,27 +4059,24 @@ func TestOverlayShell(t *testing.T) {
 				emitted := len(model.emitted)
 
 				model = entry.open(t, model)
-				if model.overlay == nil || model.overlay.content != viewHelp || model.overlay.source != viewDashboard {
-					t.Fatalf("overlay = %#v, want Help over Dashboard", model.overlay)
+				if model.overlay == nil || model.overlay.content != viewHelp {
+					t.Fatalf("overlay = %#v, want Help", model.overlay)
 				}
-				if model.view != viewDashboard || model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
-					t.Fatalf("underlying view=%v composer=%#v saved=%#v, want Dashboard, unfocused, %#v", model.view, model.composer, model.overlay.composer, entry.want)
+				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
+					t.Fatalf("composer=%#v saved=%#v, want unfocused with %#v", model.composer, model.overlay.composer, entry.want)
 				}
 				if !reflect.DeepEqual(model.committed, committed) || len(model.emitted) != emitted {
 					t.Fatalf("opening overlay changed transcript: committed=%#v emitted=%#v", model.committed, model.emitted)
 				}
-				if model.renderOverlayContent() != model.renderHelp() {
-					t.Fatal("Help overlay content diverged from retained page renderer")
-				}
 				requireLines(t, normalizedViewLines(model.View()), "Help", "/refresh /cancel /validate /help /commands /quit")
 
 				focused, cmd := updateStatusModel(t, model, keyRunes("1"))
-				if cmd != nil || focused.overlay == nil || focused.view != viewDashboard {
-					t.Fatalf("overlay did not retain focus: overlay=%#v view=%v cmd=%v", focused.overlay, focused.view, cmd)
+				if cmd != nil || focused.overlay == nil {
+					t.Fatalf("overlay did not retain focus: overlay=%#v cmd=%v", focused.overlay, cmd)
 				}
 				restored, cmd := updateStatusModel(t, focused, tea.KeyMsg{Type: tea.KeyEsc})
-				if cmd != nil || restored.overlay != nil || restored.view != viewDashboard || !reflect.DeepEqual(restored.composer, entry.want) {
-					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v cmd=%v", restored.overlay, restored.view, restored.composer, cmd)
+				if cmd != nil || restored.overlay != nil || !reflect.DeepEqual(restored.composer, entry.want) {
+					t.Fatalf("restored state: overlay=%#v composer=%#v cmd=%v", restored.overlay, restored.composer, cmd)
 				}
 				if !reflect.DeepEqual(restored.committed, committed) || len(restored.emitted) != emitted {
 					t.Fatalf("closing overlay changed transcript: committed=%#v emitted=%#v", restored.committed, restored.emitted)
@@ -4094,14 +4091,7 @@ func TestOverlayShell(t *testing.T) {
 			status.RecentRuns = append(status.RecentRuns, ledger.Run{ID: fmt.Sprintf("run-%02d", i), Status: ledger.StatusCompleted})
 		}
 		model := NewStatusModel(status)
-		model.switchView(viewRuns)
 		model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
-		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyPgDown})
-		sourceOffset := model.viewport.YOffset
-		if sourceOffset == 0 {
-			t.Fatal("source viewport did not scroll")
-		}
-
 		model, _ = updateStatusModel(t, model, keyRunes("?"))
 		for range 20 {
 			model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyPgDown})
@@ -4123,8 +4113,8 @@ func TestOverlayShell(t *testing.T) {
 			t.Fatalf("overlay offset = %d, want top", model.overlay.viewport.YOffset)
 		}
 		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-		if model.overlay != nil || model.view != viewRuns || model.viewport.YOffset != sourceOffset {
-			t.Fatalf("source return: overlay=%#v view=%v offset=%d, want Runs offset %d", model.overlay, model.view, model.viewport.YOffset, sourceOffset)
+		if model.overlay != nil || !model.composer.Active {
+			t.Fatalf("source return: overlay=%#v composer=%#v", model.overlay, model.composer)
 		}
 	})
 
@@ -4177,7 +4167,7 @@ func TestWorkflowOverlay(t *testing.T) {
 	projection := tuiAutonomousView("task-one", "working")
 	projection.Attempts.Stops = []string{"verification_required"}
 
-	t.Run("key and command entries retain the page renderer and restore source state", func(t *testing.T) {
+	t.Run("key and command entries retain overlay geometry and restore composer state", func(t *testing.T) {
 		for _, entry := range []struct {
 			name string
 			open func(t *testing.T, model StatusModel) (StatusModel, tea.Cmd)
@@ -4220,8 +4210,8 @@ func TestWorkflowOverlay(t *testing.T) {
 				model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
 				committed := slices.Clone(model.committed)
 				model, cmd := entry.open(t, model)
-				if cmd == nil || listCalls != 0 || model.overlay == nil || model.overlay.content != viewAutonomous || model.overlay.source != viewDashboard || model.view != viewDashboard {
-					t.Fatalf("opened state: calls=%d overlay=%#v view=%v cmd=%v", listCalls, model.overlay, model.view, cmd)
+				if cmd == nil || listCalls != 0 || model.overlay == nil || model.overlay.content != viewAutonomous {
+					t.Fatalf("opened state: calls=%d overlay=%#v cmd=%v", listCalls, model.overlay, cmd)
 				}
 				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
 					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
@@ -4231,13 +4221,6 @@ func TestWorkflowOverlay(t *testing.T) {
 					t.Fatalf("loads=%d/%d workflow=%#v", listCalls, loadCalls, model.autonomous.View)
 				}
 
-				page := model
-				page.message = page.overlay.message
-				page.overlay = nil
-				page.view = viewAutonomous
-				if model.renderOverlayContent() != page.renderAutonomousWorkflow() {
-					t.Fatal("Workflow overlay content diverged from retained page renderer")
-				}
 				content := normalizedViewLines(model.renderOverlayContent())
 				requireLines(t, content,
 					"Autonomous Workflow",
@@ -4247,8 +4230,8 @@ func TestWorkflowOverlay(t *testing.T) {
 					"Worker runs: worker-one",
 				)
 				requireLines(t, normalizedViewLines(model.View()),
-					"Keys: j/k Select | enter Reload | a Answer | U Run Task | Q Run Queue",
-					"      r Refresh | pgup/pgdown Scroll | home/end Jump | esc Close | q Quit",
+					"Keys: j/k Select | enter Reload | a Answer | d Changes | e Evidence | U Run Task",
+					"      Q Run Queue | r Refresh | pgup/pgdown Scroll | home/end Jump | esc Close",
 				)
 				for _, width := range []int{80, 40} {
 					model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 24})
@@ -4260,8 +4243,8 @@ func TestWorkflowOverlay(t *testing.T) {
 				}
 
 				model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
-					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v composer=%#v message=%q cmd=%v", model.overlay, model.composer, model.message, cmd)
 				}
 				if !reflect.DeepEqual(model.committed, committed) {
 					t.Fatal("Workflow overlay changed committed transcript cells")
@@ -4338,11 +4321,20 @@ func TestWorkflowOverlay(t *testing.T) {
 			Options:       []autonomousview.InputOption{{ID: "focused", Meaning: "Run focused tests."}},
 		}
 		var request app.AnswerAutonomousInputRequest
+		answered := false
 		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
 			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) { return []app.AutonomousTaskSelector{selector}, nil },
-			LoadAutonomous: func(string) (autonomousview.View, error) { return question, nil },
+			LoadAutonomous: func(string) (autonomousview.View, error) {
+				if answered {
+					resumed := question
+					resumed.Input = autonomousview.OperatorInput{State: "none"}
+					return resumed, nil
+				}
+				return question, nil
+			},
 			AnswerInput: func(got app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
 				request = got
+				answered = true
 				return app.AnswerAutonomousInputResult{TaskID: got.TaskID, QuestionID: got.QuestionID, Revision: got.Revision, OptionID: got.OptionID, AnswerPersisted: true, Resumed: true}, nil
 			},
 		})
@@ -4361,7 +4353,7 @@ func TestWorkflowOverlay(t *testing.T) {
 		if request.TaskID != "task-one" || request.QuestionID != "scope" || request.Revision != 2 || request.ContentSHA != strings.Repeat("c", 64) || request.OptionID != "focused" || request.Operator != "tui-operator" {
 			t.Fatalf("answer request = %#v", request)
 		}
-		if model.overlay == nil || model.overlay.content != viewAutonomous || !model.autonomous.Answer.Result.AnswerPersisted {
+		if model.overlay == nil || model.overlay.content != viewAutonomous || !model.autonomous.Answer.Result.AnswerPersisted || model.autonomous.View.Input.State != "none" {
 			t.Fatalf("answer result=%#v overlay=%#v", model.autonomous.Answer, model.overlay)
 		}
 	})
@@ -4501,21 +4493,13 @@ func TestChangeSummaryOverlay(t *testing.T) {
 				committed := slices.Clone(model.committed)
 				model = entry.open(t, model)
 
-				if model.overlay == nil || model.overlay.content != viewDiff || model.overlay.source != viewDashboard || model.view != viewDashboard {
-					t.Fatalf("overlay=%#v underlying view=%v, want Change Summary over Dashboard", model.overlay, model.view)
+				if model.overlay == nil || model.overlay.content != viewDiff {
+					t.Fatalf("overlay=%#v, want Change Summary", model.overlay)
 				}
 				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
 					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
 				}
 				overlayContent := model.renderOverlayContent()
-				page := model
-				page.message = page.overlay.message
-				page.overlay = nil
-				page.view = viewDiff
-				page.focusSource = viewDashboard
-				if overlayContent != page.renderFocusedDiff() {
-					t.Fatal("Change Summary overlay content diverged from retained page renderer")
-				}
 				requireLines(t, normalizedViewLines(overlayContent),
 					"Change Summary",
 					"Run: run-changes",
@@ -4541,8 +4525,8 @@ func TestChangeSummaryOverlay(t *testing.T) {
 				}
 
 				model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
-					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v composer=%#v message=%q cmd=%v", model.overlay, model.composer, model.message, cmd)
 				}
 				if !reflect.DeepEqual(model.committed, committed) {
 					t.Fatal("Change Summary overlay changed committed transcript cells")
@@ -4557,15 +4541,13 @@ func TestChangeSummaryOverlay(t *testing.T) {
 			Kind: "workspace_diff", Path: ".revolvr/autonomous/tasks/task-changes/artifacts/exact-workspace.diff", SHA256: strings.Repeat("d", 64), ByteSize: 321,
 		})
 		model := NewStatusModel(app.StatusResult{Initialized: true})
-		model.view = viewApproval
-		model.focusSource = viewDashboard
-		model.focusedFromAutonomous = true
 		model.composer = commandComposerState{Text: "workflow draft"}
 		model.autonomous.View = &projection
+		model.openOverlay(viewApproval, 0)
 		model, _ = updateStatusModel(t, model, keyRunes("d"))
 
-		if model.overlay == nil || model.overlay.content != viewDiff || model.overlay.source != viewApproval || !model.focusedAutonomous() {
-			t.Fatalf("autonomous Change Summary state: overlay=%#v source=%v", model.overlay, model.view)
+		if model.overlay == nil || model.overlay.content != viewDiff || model.overlay.parent != viewApproval || !model.focusedAutonomous() {
+			t.Fatalf("autonomous Change Summary state: overlay=%#v", model.overlay)
 		}
 		content := normalizedViewLines(model.renderOverlayContent())
 		requireLines(t, content,
@@ -4579,8 +4561,8 @@ func TestChangeSummaryOverlay(t *testing.T) {
 		requireNoLine(t, content, "Changed Files")
 		requireNoLine(t, content, "Source: canonical changed-files events and run record")
 		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-		if model.overlay != nil || model.view != viewApproval || model.composer.Text != "workflow draft" {
-			t.Fatalf("autonomous return: overlay=%#v view=%v composer=%#v", model.overlay, model.view, model.composer)
+		if model.overlay == nil || model.overlay.content != viewApproval || model.composer.Text != "workflow draft" {
+			t.Fatalf("autonomous return: overlay=%#v composer=%#v", model.overlay, model.composer)
 		}
 	})
 
@@ -4607,9 +4589,8 @@ func TestChangeSummaryOverlay(t *testing.T) {
 				return refreshed, nil
 			},
 		})
-		model.view = viewRunDetail
-		model.composer.Active = false
 		model.runDetails = &history
+		model.openChangeSummaryOverlay()
 		for _, cell := range model.committed {
 			model.emitted[cell.identity] = struct{}{}
 		}
@@ -4652,9 +4633,8 @@ func TestChangeSummaryOverlay(t *testing.T) {
 			},
 			OpenRun: func(string) (ledger.RunWithEvents, error) { return history, nil },
 		})
-		model.view = viewRunDetail
-		model.composer.Active = false
 		model.runDetails = &ledger.RunWithEvents{Run: history.Run}
+		model.openChangeSummaryOverlay()
 		for _, cell := range model.committed {
 			model.emitted[cell.identity] = struct{}{}
 		}
@@ -4664,6 +4644,7 @@ func TestChangeSummaryOverlay(t *testing.T) {
 		if reload == nil {
 			t.Fatal("refresh returned no selected-run reload")
 		}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 		model, _ = updateStatusModel(t, model, keyRunes("?"))
 		model, cmd = runStatusModelCmd(t, model, reload)
@@ -4732,21 +4713,13 @@ func TestEvidenceOverlay(t *testing.T) {
 				committed := slices.Clone(model.committed)
 				model = entry.open(t, model)
 
-				if model.overlay == nil || model.overlay.content != viewEvidence || model.overlay.source != viewDashboard || model.view != viewDashboard {
-					t.Fatalf("overlay=%#v underlying view=%v, want Evidence over Dashboard", model.overlay, model.view)
+				if model.overlay == nil || model.overlay.content != viewEvidence {
+					t.Fatalf("overlay=%#v, want Evidence", model.overlay)
 				}
 				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
 					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
 				}
 				overlayContent := model.renderOverlayContent()
-				page := model
-				page.message = page.overlay.message
-				page.overlay = nil
-				page.view = viewEvidence
-				page.focusSource = viewDashboard
-				if overlayContent != page.renderFocusedEvidence() {
-					t.Fatal("Evidence overlay content diverged from retained page renderer")
-				}
 				requireLines(t, normalizedViewLines(overlayContent),
 					"Evidence",
 					"Run: run-evidence | status: completed | verification: failed",
@@ -4771,8 +4744,8 @@ func TestEvidenceOverlay(t *testing.T) {
 				}
 
 				model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
-					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v composer=%#v message=%q cmd=%v", model.overlay, model.composer, model.message, cmd)
 				}
 				if !reflect.DeepEqual(model.committed, committed) {
 					t.Fatal("Evidence overlay changed committed transcript cells")
@@ -4791,15 +4764,13 @@ func TestEvidenceOverlay(t *testing.T) {
 		projection.Findings[0].Status = "invalid"
 		projection.Findings[0].Evidence = []autonomous.EvidenceReference{{Kind: autonomous.EvidenceKindFile, Reference: "internal/tui/stale.go", Detail: "Invalid evidence target."}}
 		model := NewStatusModel(app.StatusResult{Initialized: true})
-		model.view = viewApproval
-		model.focusSource = viewDashboard
-		model.focusedFromAutonomous = true
 		model.composer = commandComposerState{Text: "workflow draft"}
 		model.autonomous.View = &projection
+		model.openOverlay(viewApproval, 0)
 		model, _ = updateStatusModel(t, model, keyRunes("e"))
 
-		if model.overlay == nil || model.overlay.content != viewEvidence || model.overlay.source != viewApproval || !model.focusedAutonomous() {
-			t.Fatalf("autonomous Evidence state: overlay=%#v source=%v", model.overlay, model.view)
+		if model.overlay == nil || model.overlay.content != viewEvidence || model.overlay.parent != viewApproval || !model.focusedAutonomous() {
+			t.Fatalf("autonomous Evidence state: overlay=%#v", model.overlay)
 		}
 		content := normalizedViewLines(model.renderOverlayContent())
 		requireLines(t, content,
@@ -4816,8 +4787,8 @@ func TestEvidenceOverlay(t *testing.T) {
 			"Warning: [optional_history_missing/audit] Optional legacy history was unavailable. | reference=history",
 		)
 		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-		if model.overlay != nil || model.view != viewApproval || model.composer.Text != "workflow draft" {
-			t.Fatalf("autonomous return: overlay=%#v view=%v composer=%#v", model.overlay, model.view, model.composer)
+		if model.overlay == nil || model.overlay.content != viewApproval || model.composer.Text != "workflow draft" {
+			t.Fatalf("autonomous return: overlay=%#v composer=%#v", model.overlay, model.composer)
 		}
 	})
 
@@ -4839,9 +4810,8 @@ func TestEvidenceOverlay(t *testing.T) {
 				return projection, nil
 			},
 		})
-		model.view = viewAutonomous
-		model.composer.Active = false
 		model.autonomous = autonomousState{Selectors: []app.AutonomousTaskSelector{first, selected}, Selected: 1, Selector: selected.Selector, TaskID: selected.TaskID, View: &projection}
+		model.openOverlay(viewAutonomous, model.autonomous.Selected)
 		for _, cell := range model.committed {
 			model.emitted[cell.identity] = struct{}{}
 		}
@@ -4858,6 +4828,7 @@ func TestEvidenceOverlay(t *testing.T) {
 		if staleLoad == nil {
 			t.Fatal("refresh returned no autonomous selector load")
 		}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 		model, _ = updateStatusModel(t, model, keyRunes("?"))
 		model, next := runStatusModelCmd(t, model, staleLoad)
@@ -4892,8 +4863,359 @@ func TestEvidenceOverlay(t *testing.T) {
 	})
 }
 
+func TestApprovalOverlay(t *testing.T) {
+	question := tuiAutonomousView("task-approval", "needs_input")
+	question.Input = autonomousview.OperatorInput{
+		State:                   "waiting",
+		QuestionID:              "deployment-mode",
+		Revision:                2,
+		ContentSHA256:           strings.Repeat("c", 64),
+		Question:                "Choose a mode.",
+		BlockingReason:          "The task is ambiguous.",
+		Options:                 []autonomousview.InputOption{{ID: "change", Meaning: "Change behavior."}, {ID: "keep", Meaning: "Keep behavior."}},
+		RecommendationOption:    "keep",
+		RecommendationRationale: "Compatibility.",
+	}
+	selector := app.AutonomousTaskSelector{Selector: "task-approval", TaskID: "task-approval", SourceKind: autonomousview.SourceActive, Status: "pending"}
+
+	t.Run("key and command entries retain the page renderer and restore source state", func(t *testing.T) {
+		for _, entry := range []struct {
+			name string
+			open func(t *testing.T, model StatusModel) (StatusModel, tea.Cmd)
+			want commandComposerState
+		}{
+			{
+				name: "key",
+				open: func(t *testing.T, model StatusModel) (StatusModel, tea.Cmd) {
+					model.composer = commandComposerState{Text: "saved draft"}
+					return updateStatusModel(t, model, keyRunes("A"))
+				},
+				want: commandComposerState{Text: "saved draft"},
+			},
+			{
+				name: "command",
+				open: func(t *testing.T, model StatusModel) (StatusModel, tea.Cmd) {
+					model, _ = updateStatusModel(t, model, keyRunes("/approval"))
+					return updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+				},
+				want: commandComposerState{Active: true},
+			},
+		} {
+			t.Run(entry.name, func(t *testing.T) {
+				calls := 0
+				model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+					AnswerInput: func(app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+						calls++
+						return app.AnswerAutonomousInputResult{}, nil
+					},
+				})
+				model.message = "underlying notice"
+				model.autonomous = autonomousState{Selectors: []app.AutonomousTaskSelector{selector}, Selector: selector.Selector, TaskID: selector.TaskID, View: &question}
+				model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 10})
+				committed := slices.Clone(model.committed)
+				model, cmd := entry.open(t, model)
+				if cmd != nil || calls != 0 || model.overlay == nil || model.overlay.content != viewApproval {
+					t.Fatalf("opened state: calls=%d overlay=%#v cmd=%v", calls, model.overlay, cmd)
+				}
+				if model.composer.Active || !reflect.DeepEqual(model.overlay.composer, entry.want) {
+					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
+				}
+
+				requireLines(t, normalizedViewLines(model.renderOverlayContent()),
+					"Approval",
+					"Task: task-approval",
+					"Status: pending | lifecycle: needs_input",
+					"Latest decision: implement",
+					"[satisfied] criterion-one: The feature works.",
+					"State: waiting",
+					"Question: deployment-mode | revision: 2 | sha256: "+strings.Repeat("c", 64),
+					"  Option change: Change behavior.",
+					"  Option keep: Keep behavior.",
+					"Recommendation (not selected): keep | Compatibility.",
+				)
+				requireLines(t, normalizedViewLines(model.View()), "Keys: a Answer | d Changes | e Evidence | pgup/pgdown Scroll | home/end Jump")
+				for _, width := range []int{80, 40} {
+					model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 10})
+					assertMaxLineWidth(t, normalizedViewLines(model.View()), width)
+				}
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnd})
+				if model.overlay.viewport.YOffset == 0 {
+					t.Fatal("Approval overlay did not scroll")
+				}
+
+				model, _ = updateStatusModel(t, model, keyRunes("a"))
+				if model.overlay == nil || model.overlay.content != viewNeedsInput || model.overlay.parent != viewApproval {
+					t.Fatalf("typed child = %#v, want Needs Input over Approval", model.overlay)
+				}
+				requireLines(t, normalizedViewLines(model.renderOverlayContent()), "Needs Input", "Question: deployment-mode | revision: 2 | sha256: "+strings.Repeat("c", 64), "  change: Change behavior.", "  keep: Keep behavior.")
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+				if calls != 0 || !model.autonomous.Answer.Confirming {
+					t.Fatalf("unconfirmed state=%#v calls=%d", model.autonomous.Answer, calls)
+				}
+				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+				if model.overlay == nil || model.overlay.content != viewApproval || model.autonomous.Answer.Active || calls != 0 {
+					t.Fatalf("cancelled answer: overlay=%#v answer=%#v calls=%d", model.overlay, model.autonomous.Answer, calls)
+				}
+				model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+				if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v composer=%#v message=%q cmd=%v", model.overlay, model.composer, model.message, cmd)
+				}
+				if !reflect.DeepEqual(model.committed, committed) {
+					t.Fatal("Approval overlay changed committed transcript cells")
+				}
+			})
+		}
+	})
+
+	t.Run("confirmed decision submits one exact identity and remains visible", func(t *testing.T) {
+		calls := 0
+		var request app.AnswerAutonomousInputRequest
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			AnswerInput: func(got app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+				calls++
+				request = got
+				return app.AnswerAutonomousInputResult{TaskID: got.TaskID, QuestionID: got.QuestionID, Revision: got.Revision, OptionID: got.OptionID, AnswerID: "answer-one", AnswerPersisted: true, Resumed: true}, nil
+			},
+			LoadAutonomous: func(got string) (autonomousview.View, error) {
+				if got != selector.Selector {
+					t.Fatalf("reloaded selector = %q, want %q", got, selector.Selector)
+				}
+				resumed := question
+				resumed.Input = autonomousview.OperatorInput{State: "none"}
+				return resumed, nil
+			},
+		})
+		model.composer.Active = false
+		model.autonomous = autonomousState{Selectors: []app.AutonomousTaskSelector{selector}, Selector: selector.Selector, TaskID: selector.TaskID, View: &question}
+		model, _ = updateStatusModel(t, model, keyRunes("A"))
+		model, _ = updateStatusModel(t, model, keyRunes("a"))
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+		model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		if cmd != nil || calls != 0 || !model.autonomous.Answer.Confirming {
+			t.Fatalf("first confirmation state=%#v calls=%d cmd=%v", model.autonomous.Answer, calls, cmd)
+		}
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		if cmd == nil || calls != 0 || !model.autonomous.Answer.Submitting {
+			t.Fatalf("submission state=%#v calls=%d cmd=%v", model.autonomous.Answer, calls, cmd)
+		}
+		model, cmd = runStatusModelCmd(t, model, cmd)
+		if calls != 1 || cmd == nil || request.TaskID != "task-approval" || request.QuestionID != "deployment-mode" || request.Revision != 2 || request.ContentSHA != strings.Repeat("c", 64) || request.OptionID != "change" || request.Operator != "tui-operator" {
+			t.Fatalf("calls=%d request=%#v reload=%v", calls, request, cmd)
+		}
+		if model.overlay == nil || model.overlay.content != viewNeedsInput || model.overlay.parent != viewApproval || !model.autonomous.Answer.Result.AnswerPersisted {
+			t.Fatalf("answer result=%#v overlay=%#v", model.autonomous.Answer, model.overlay)
+		}
+		requireLines(t, normalizedViewLines(model.renderOverlayContent()), "Notice: Answer persisted and task resumed.", "Last answer: id=answer-one option=change persisted=true resumed=true")
+		model = drainStatusModelCmds(t, model, cmd)
+		if model.overlay == nil || model.overlay.content != viewApproval || model.autonomous.View.Input.State != "none" {
+			t.Fatalf("reloaded approval state: overlay=%#v input=%#v", model.overlay, model.autonomous.View.Input)
+		}
+	})
+
+	t.Run("stale rejection and active guards stay with the owning overlay", func(t *testing.T) {
+		calls := 0
+		refreshCalls := 0
+		cancelled := false
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			AnswerInput: func(got app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+				calls++
+				return app.AnswerAutonomousInputResult{TaskID: got.TaskID, QuestionID: got.QuestionID, Revision: got.Revision, OptionID: got.OptionID}, errors.New("stale approval request")
+			},
+			RefreshStatus: func() (app.StatusResult, error) {
+				refreshCalls++
+				return app.StatusResult{Initialized: true}, nil
+			},
+			LoadAutonomous: func(string) (autonomousview.View, error) { return question, nil },
+		})
+		model.composer.Active = false
+		model.autonomous = autonomousState{Selectors: []app.AutonomousTaskSelector{selector}, Selector: selector.Selector, TaskID: selector.TaskID, View: &question}
+		model, _ = updateStatusModel(t, model, keyRunes("A"))
+		model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeTask, Cancel: func() { cancelled = true }}
+		model, cmd := updateStatusModel(t, model, keyRunes("a"))
+		if cmd != nil || model.autonomous.Answer.Active || calls != 0 {
+			t.Fatalf("guarded answer=%#v calls=%d cmd=%v", model.autonomous.Answer, calls, cmd)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Run is active; cancel or wait before answering input.")
+		model, cmd = updateStatusModel(t, model, keyRunes("r"))
+		if cmd != nil || refreshCalls != 0 || model.overlay == nil {
+			t.Fatalf("guarded refresh: calls=%d overlay=%#v cmd=%v", refreshCalls, model.overlay, cmd)
+		}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+		if !cancelled || !model.runOnce.CancelRequested || model.overlay == nil {
+			t.Fatalf("active Escape: cancelled=%t run=%#v overlay=%#v", cancelled, model.runOnce, model.overlay)
+		}
+
+		model.runOnce = runOnceState{}
+		model, _ = updateStatusModel(t, model, keyRunes("a"))
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		changed := question
+		changed.Input.Revision++
+		model.autonomous.View = &changed
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		if cmd != nil || calls != 0 || !model.autonomous.Answer.Active || model.autonomous.Answer.Selected != -1 || model.overlay == nil || model.overlay.content != viewNeedsInput {
+			t.Fatalf("stale confirmation: calls=%d answer=%#v overlay=%#v cmd=%v", calls, model.autonomous.Answer, model.overlay, cmd)
+		}
+		if !strings.Contains(oneLine(model.View()), "Answer not submitted: the selected question changed; review the current options.") {
+			t.Fatalf("stale refusal not visible:\n%s", model.View())
+		}
+		requireNoLine(t, normalizedViewLines(model.View()), "Last answer:")
+
+		model.autonomous.View = &question
+		model, _ = updateStatusModel(t, model, keyRunes("a"))
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, reload := runStatusModelCmd(t, model, cmd)
+		if reload == nil || calls != 1 || model.overlay == nil || model.overlay.content != viewNeedsInput || !model.autonomous.Answer.Active || model.autonomous.Answer.Selected != 0 || model.autonomous.Answer.Result.AnswerPersisted {
+			t.Fatalf("rejected result: calls=%d answer=%#v overlay=%#v reload=%v", calls, model.autonomous.Answer, model.overlay, reload)
+		}
+		requireLines(t, normalizedViewLines(model.renderOverlayContent()), "Notice: Answer failed.", "Answer error: stale approval request")
+		requireNoLine(t, normalizedViewLines(model.renderOverlayContent()), "Last answer:")
+	})
+
+	t.Run("refresh retains exact selection and stale loads cannot replace a newer owner", func(t *testing.T) {
+		first := app.AutonomousTaskSelector{Selector: "task-first", TaskID: "task-first", SourceKind: autonomousview.SourceActive, Status: "pending"}
+		listCalls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			RefreshStatus: func() (app.StatusResult, error) { return app.StatusResult{Initialized: true}, nil },
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) {
+				listCalls++
+				return []app.AutonomousTaskSelector{selector, first}, nil
+			},
+			LoadAutonomous: func(got string) (autonomousview.View, error) {
+				if got != selector.Selector {
+					t.Fatalf("loaded selector = %q, want %q", got, selector.Selector)
+				}
+				return question, nil
+			},
+		})
+		model.composer.Active = false
+		model.autonomous = autonomousState{Selectors: []app.AutonomousTaskSelector{first, selector}, Selected: 1, Selector: selector.Selector, TaskID: selector.TaskID, View: &question}
+		for _, cell := range model.committed {
+			model.emitted[cell.identity] = struct{}{}
+		}
+		model, _ = updateStatusModel(t, model, keyRunes("A"))
+		owner := model.overlay.owner
+		model, cmd := updateStatusModel(t, model, keyRunes("r"))
+		model = drainStatusModelCmds(t, model, cmd)
+		if listCalls != 1 || model.overlay == nil || model.overlay.owner != owner || model.autonomous.Selector != selector.Selector || model.selectedAutonomousPosition() != 0 || model.autonomous.Selected != 1 {
+			t.Fatalf("refresh: lists=%d overlay=%#v selector=%q selection=%d page=%d", listCalls, model.overlay, model.autonomous.Selector, model.selectedAutonomousPosition(), model.autonomous.Selected)
+		}
+
+		stale := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			ListAutonomous: func() ([]app.AutonomousTaskSelector, error) { return []app.AutonomousTaskSelector{selector}, nil },
+		})
+		stale.composer.Active = false
+		stale, staleCmd := updateStatusModel(t, stale, keyRunes("A"))
+		staleOwner := stale.overlay.owner
+		stale, _ = updateStatusModel(t, stale, tea.KeyMsg{Type: tea.KeyEsc})
+		stale, _ = updateStatusModel(t, stale, keyRunes("?"))
+		stale, next := runStatusModelCmd(t, stale, staleCmd)
+		if next != nil || stale.overlay == nil || stale.overlay.content != viewHelp || stale.overlay.owner == staleOwner || len(stale.autonomous.Selectors) != 0 {
+			t.Fatalf("stale result changed owner: overlay=%#v selectors=%#v cmd=%v", stale.overlay, stale.autonomous.Selectors, next)
+		}
+	})
+}
+
+func TestNeedsInputChildOverlay(t *testing.T) {
+	question := tuiAutonomousView("task-input", "needs_input")
+	question.Input = autonomousview.OperatorInput{
+		State:                   "waiting",
+		QuestionID:              "deployment-mode",
+		Revision:                2,
+		ContentSHA256:           strings.Repeat("c", 64),
+		Question:                "Choose a mode.",
+		BlockingReason:          "The task is ambiguous.",
+		Options:                 []autonomousview.InputOption{{ID: "change", Meaning: "Change behavior."}, {ID: "keep", Meaning: "Keep behavior."}},
+		RecommendationOption:    "keep",
+		RecommendationRationale: "Compatibility.",
+	}
+
+	for _, parent := range []TUIView{viewAutonomous, viewApproval} {
+		t.Run(fmt.Sprintf("parent_%d_preserves_selection_scroll_and_composer", parent), func(t *testing.T) {
+			calls := 0
+			model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{AnswerInput: func(app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+				calls++
+				return app.AnswerAutonomousInputResult{}, nil
+			}})
+			model.composer = commandComposerState{Active: true, Text: "saved draft"}
+			model.autonomous = autonomousState{Selected: 1, Selector: "task-input", TaskID: "task-input", View: &question}
+			model.openOverlay(parent, 1)
+			model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 40, Height: 10})
+			model.overlay.viewport.GotoBottom()
+			parentOffset := model.overlay.viewport.YOffset
+
+			model, _ = updateStatusModel(t, model, keyRunes("a"))
+			if model.overlay == nil || model.overlay.content != viewNeedsInput || model.overlay.parent != parent || model.overlay.selected != 1 || model.overlay.parentOffset != parentOffset || model.composer.Active {
+				t.Fatalf("child state = %#v composer=%#v", model.overlay, model.composer)
+			}
+			content := normalizedViewLines(model.renderOverlayContent())
+			requireLines(t, content, "Needs Input", "Task: task-input", "Question: deployment-mode | revision: 2 | sha256: "+strings.Repeat("c", 64), "  change: Change behavior.", "  keep: Keep behavior.")
+			lines := normalizedViewLines(model.View())
+			requireLines(t, lines, "Keys: j/k Choose option | enter Confirm", "      esc Back | ctrl+c Quit")
+			assertMaxLineWidth(t, lines, 40)
+
+			model, _ = updateStatusModel(t, model, keyRunes("free-form answer"))
+			if calls != 0 || !model.autonomous.Answer.Active || model.autonomous.Answer.Selected != -1 {
+				t.Fatalf("free-form input changed answer: calls=%d answer=%#v", calls, model.autonomous.Answer)
+			}
+			model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+			if model.overlay == nil || model.overlay.content != parent || model.overlay.selected != 1 || model.overlay.viewport.YOffset != parentOffset || model.composer.Active {
+				t.Fatalf("parent return = %#v composer=%#v", model.overlay, model.composer)
+			}
+			model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+			if model.overlay != nil || !reflect.DeepEqual(model.composer, commandComposerState{Active: true, Text: "saved draft"}) {
+				t.Fatalf("source return overlay=%#v composer=%#v", model.overlay, model.composer)
+			}
+		})
+	}
+
+	t.Run("failure preserves selection and stale result cannot dismiss replacement", func(t *testing.T) {
+		calls := 0
+		model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
+			AnswerInput: func(got app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+				calls++
+				return app.AnswerAutonomousInputResult{TaskID: got.TaskID, QuestionID: got.QuestionID, Revision: got.Revision, OptionID: got.OptionID}, errors.New("answer rejected")
+			},
+			LoadAutonomous: func(string) (autonomousview.View, error) { return question, nil },
+		})
+		model.autonomous = autonomousState{Selector: "task-input", TaskID: "task-input", View: &question}
+		model.openOverlay(viewAutonomous, 0)
+		model.beginAutonomousAnswer()
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, reload := runStatusModelCmd(t, model, cmd)
+		if calls != 1 || reload == nil || model.overlay == nil || model.overlay.content != viewNeedsInput || !model.autonomous.Answer.Active || model.autonomous.Answer.Selected != 0 {
+			t.Fatalf("failure state calls=%d overlay=%#v answer=%#v reload=%v", calls, model.overlay, model.autonomous.Answer, reload)
+		}
+		requireLines(t, normalizedViewLines(model.View()), "Notice: Answer failed.", "Answer error: answer rejected")
+
+		model.actions.AnswerInput = func(got app.AnswerAutonomousInputRequest) (app.AnswerAutonomousInputResult, error) {
+			calls++
+			return app.AnswerAutonomousInputResult{TaskID: got.TaskID, QuestionID: got.QuestionID, Revision: got.Revision, OptionID: got.OptionID, AnswerPersisted: true}, nil
+		}
+		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+		replacement := question
+		replacement.Input.QuestionID = "replacement"
+		replacement.Input.Revision++
+		replacement.Input.ContentSHA256 = strings.Repeat("d", 64)
+		replacement.Input.Options = []autonomousview.InputOption{{ID: "replacement", Meaning: "Use the replacement."}}
+		updated, _ := model.Update(autonomousViewMsg{token: model.autonomous.Request, selector: model.autonomous.Selector, view: replacement})
+		model = updated.(StatusModel)
+		model, next := runStatusModelCmd(t, model, cmd)
+		if next != nil || calls != 2 || model.overlay == nil || model.overlay.content != viewNeedsInput || model.autonomous.Answer.Result.AnswerPersisted || model.autonomous.Answer.Selected != -1 || model.autonomous.View.Input.QuestionID != "replacement" {
+			t.Fatalf("stale result state calls=%d overlay=%#v answer=%#v cmd=%v", calls, model.overlay, model.autonomous.Answer, next)
+		}
+	})
+}
+
 func TestTasksOverlay(t *testing.T) {
-	t.Run("entries render the retained page and restore source state", func(t *testing.T) {
+	t.Run("entries render the task list and restore composer state", func(t *testing.T) {
 		for _, entry := range []struct {
 			name string
 			open func(t *testing.T, model StatusModel) StatusModel
@@ -4930,16 +5252,11 @@ func TestTasksOverlay(t *testing.T) {
 				committed := slices.Clone(model.committed)
 				model = entry.open(t, model)
 
-				if model.overlay == nil || model.overlay.content != viewTasks || model.overlay.source != viewDashboard || model.view != viewDashboard {
-					t.Fatalf("overlay=%#v underlying view=%v, want Tasks over Dashboard", model.overlay, model.view)
+				if model.overlay == nil || model.overlay.content != viewTasks {
+					t.Fatalf("overlay=%#v, want Tasks", model.overlay)
 				}
 				if !reflect.DeepEqual(model.overlay.composer, entry.want) || model.composer.Active {
 					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
-				}
-				page := NewStatusModel(app.StatusResult{Initialized: true, Tasks: sampleTasks()})
-				page.switchView(viewTasks)
-				if model.renderOverlayContent() != page.renderTasks() {
-					t.Fatal("Tasks overlay content diverged from retained page renderer")
 				}
 				requireLines(t, normalizedViewLines(model.View()), "Tasks", "Task List", "Task Detail", "Keys: j/k Select | enter Workflow | a Add Task | r Refresh | esc Close | q Quit")
 				assertMaxLineWidth(t, normalizedViewLines(model.View()), 80)
@@ -4950,12 +5267,9 @@ func TestTasksOverlay(t *testing.T) {
 				if got := model.selectedTaskID(); got != "task-blocked" {
 					t.Fatalf("overlay selection = %q, want task-blocked", got)
 				}
-				if model.selectedTask != 0 {
-					t.Fatalf("page selection = %d, want unchanged", model.selectedTask)
-				}
 				model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) {
-					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v cmd=%v", model.overlay, model.view, model.composer, cmd)
+				if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, entry.want) {
+					t.Fatalf("restored state: overlay=%#v composer=%#v cmd=%v", model.overlay, model.composer, cmd)
 				}
 				if !reflect.DeepEqual(model.committed, committed) {
 					t.Fatal("Tasks overlay changed committed transcript cells")
@@ -5072,8 +5386,8 @@ func TestTasksOverlay(t *testing.T) {
 		model.composer.Active = false
 		model, _ = updateStatusModel(t, model, keyRunes("2"))
 		entry, cmd := updateStatusModel(t, model, keyRunes("a"))
-		if cmd != nil || entry.overlay == nil || entry.overlay.content != viewTaskEntry || entry.view != viewDashboard {
-			t.Fatalf("task entry state: overlay=%#v view=%v cmd=%v", entry.overlay, entry.view, cmd)
+		if cmd != nil || entry.overlay == nil || entry.overlay.content != viewTaskEntry {
+			t.Fatalf("task entry state: overlay=%#v cmd=%v", entry.overlay, cmd)
 		}
 		empty, cmd := updateStatusModel(t, entry, tea.KeyMsg{Type: tea.KeyEnter})
 		if cmd != nil || len(calls) != 0 {
@@ -5096,8 +5410,8 @@ func TestTasksOverlay(t *testing.T) {
 		requireLines(t, normalizedViewLines(addedModel.View()), "Notice: Added and committed task task-new.", "> - task-new  pending  new task")
 
 		addedModel, _ = updateStatusModel(t, addedModel, tea.KeyMsg{Type: tea.KeyEsc})
-		if addedModel.message != "underlying notice" || addedModel.view != viewDashboard || addedModel.overlay != nil {
-			t.Fatalf("add return state: message=%q view=%v overlay=%#v", addedModel.message, addedModel.view, addedModel.overlay)
+		if addedModel.message != "underlying notice" || addedModel.overlay != nil {
+			t.Fatalf("add return state: message=%q overlay=%#v", addedModel.message, addedModel.overlay)
 		}
 
 		workflowCalls := 0
@@ -5111,8 +5425,8 @@ func TestTasksOverlay(t *testing.T) {
 		workflow, _ = updateStatusModel(t, workflow, keyRunes("2"))
 		workflow, _ = updateStatusModel(t, workflow, tea.KeyMsg{Type: tea.KeyDown})
 		workflow, cmd = updateStatusModel(t, workflow, tea.KeyMsg{Type: tea.KeyEnter})
-		if cmd == nil || workflow.overlay == nil || workflow.overlay.content != viewAutonomous || workflow.view != viewDashboard || workflow.autonomous.TaskID != "task-blocked" || workflowCalls != 0 {
-			t.Fatalf("workflow transition: overlay=%#v view=%v task=%q calls=%d cmd=%v", workflow.overlay, workflow.view, workflow.autonomous.TaskID, workflowCalls, cmd)
+		if cmd == nil || workflow.overlay == nil || workflow.overlay.content != viewAutonomous || workflow.autonomous.TaskID != "task-blocked" || workflowCalls != 0 {
+			t.Fatalf("workflow transition: overlay=%#v task=%q calls=%d cmd=%v", workflow.overlay, workflow.autonomous.TaskID, workflowCalls, cmd)
 		}
 		workflow, cmd = runStatusModelCmd(t, workflow, cmd)
 		if cmd != nil || workflowCalls != 1 || workflow.overlay == nil || workflow.overlay.content != viewAutonomous {
@@ -5123,8 +5437,8 @@ func TestTasksOverlay(t *testing.T) {
 		unavailable.composer.Active = false
 		unavailable, _ = updateStatusModel(t, unavailable, keyRunes("2"))
 		unavailable, cmd = updateStatusModel(t, unavailable, tea.KeyMsg{Type: tea.KeyEnter})
-		if cmd != nil || unavailable.overlay == nil || unavailable.overlay.content != viewAutonomous || unavailable.view != viewDashboard || unavailable.autonomous.Err != "Workflow selector loading is unavailable." {
-			t.Fatalf("workflow guard: overlay=%#v view=%v error=%q cmd=%v", unavailable.overlay, unavailable.view, unavailable.autonomous.Err, cmd)
+		if cmd != nil || unavailable.overlay == nil || unavailable.overlay.content != viewAutonomous || unavailable.autonomous.Err != "Workflow selector loading is unavailable." {
+			t.Fatalf("workflow guard: overlay=%#v error=%q cmd=%v", unavailable.overlay, unavailable.autonomous.Err, cmd)
 		}
 	})
 
@@ -5165,7 +5479,7 @@ func TestRunsOverlay(t *testing.T) {
 		{ID: "run-c", Status: ledger.StatusRunning, Summary: "third"},
 	}
 
-	t.Run("entries retain the page renderer and restore source state", func(t *testing.T) {
+	t.Run("entries render run history and restore composer state", func(t *testing.T) {
 		for _, entry := range []struct {
 			name string
 			open func(t *testing.T, model StatusModel) StatusModel
@@ -5203,16 +5517,11 @@ func TestRunsOverlay(t *testing.T) {
 				committed := slices.Clone(model.committed)
 				model = entry.open(t, model)
 
-				if model.overlay == nil || model.overlay.content != viewRuns || model.overlay.source != viewDashboard || model.view != viewDashboard {
-					t.Fatalf("overlay=%#v underlying view=%v, want Runs over Dashboard", model.overlay, model.view)
+				if model.overlay == nil || model.overlay.content != viewRuns {
+					t.Fatalf("overlay=%#v, want Runs", model.overlay)
 				}
 				if !reflect.DeepEqual(model.overlay.composer, entry.want) || model.composer.Active {
 					t.Fatalf("composer=%#v saved=%#v, want inactive and %#v", model.composer, model.overlay.composer, entry.want)
-				}
-				page := NewStatusModel(app.StatusResult{Initialized: true, RecentRuns: runs})
-				page.switchView(viewRuns)
-				if model.renderOverlayContent() != page.renderRuns() {
-					t.Fatal("Runs overlay content diverged from retained page renderer")
 				}
 				requireLines(t, normalizedViewLines(model.View()), "Runs", "Recent Runs", "Keys: j/k Select | enter Open | r Refresh | esc Close | q Quit")
 				assertMaxLineWidth(t, normalizedViewLines(model.View()), 80)
@@ -5220,12 +5529,12 @@ func TestRunsOverlay(t *testing.T) {
 				assertMaxLineWidth(t, normalizedViewLines(model.View()), 40)
 
 				model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyDown})
-				if model.selectedRunID() != "run-b" || model.selectedRun != 0 {
-					t.Fatalf("overlay selection=%q page selection=%d, want run-b and unchanged page", model.selectedRunID(), model.selectedRun)
+				if model.selectedRunID() != "run-b" {
+					t.Fatalf("overlay selection=%q, want run-b", model.selectedRunID())
 				}
 				model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
-					t.Fatalf("restored state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("restored state: overlay=%#v composer=%#v message=%q cmd=%v", model.overlay, model.composer, model.message, cmd)
 				}
 				if !reflect.DeepEqual(model.committed, committed) {
 					t.Fatal("Runs overlay changed committed transcript cells")
@@ -5259,8 +5568,8 @@ func TestRunsOverlay(t *testing.T) {
 			model, cmd = updateStatusModel(t, model, keyRunes("r"))
 			model, cmd = runStatusModelCmd(t, model, cmd)
 			model = drainStatusModelCmds(t, model, cmd)
-			if model.selectedRunID() != want || model.selectedRun != 0 {
-				t.Fatalf("refresh %d selection=%q page=%d, want %q", refreshes, model.selectedRunID(), model.selectedRun, want)
+			if model.selectedRunID() != want {
+				t.Fatalf("refresh %d selection=%q, want %q", refreshes, model.selectedRunID(), want)
 			}
 		}
 		model, cmd := updateStatusModel(t, model, keyRunes("r"))
@@ -5316,8 +5625,8 @@ func TestRunDetailOverlay(t *testing.T) {
 				model.message = "underlying notice"
 				model, _ = updateStatusModel(t, model, tea.WindowSizeMsg{Width: 80, Height: 24})
 				model = entry.open(t, model)
-				if model.overlay == nil || model.overlay.content != viewRunDetail || model.overlay.source != viewDashboard || model.view != viewDashboard {
-					t.Fatalf("overlay=%#v view=%v, want direct detail over Dashboard", model.overlay, model.view)
+				if model.overlay == nil || model.overlay.content != viewRunDetail {
+					t.Fatalf("overlay=%#v, want direct Run Detail", model.overlay)
 				}
 				requireLines(t, normalizedViewLines(model.View()), "Run Detail", "No run detail loaded.", "Selected run: run-00", "Keys: up/down Scroll | home/end Jump | enter Reload | v Validate | r Refresh")
 				assertMaxLineWidth(t, normalizedViewLines(model.View()), 80)
@@ -5329,8 +5638,8 @@ func TestRunDetailOverlay(t *testing.T) {
 					t.Fatalf("detail back state: overlay=%#v selection=%q", model.overlay, model.selectedRunID())
 				}
 				model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-				if cmd != nil || model.overlay != nil || model.view != viewDashboard || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
-					t.Fatalf("root close state: overlay=%#v view=%v composer=%#v message=%q cmd=%v", model.overlay, model.view, model.composer, model.message, cmd)
+				if cmd != nil || model.overlay != nil || !reflect.DeepEqual(model.composer, entry.want) || model.message != "underlying notice" {
+					t.Fatalf("root close state: overlay=%#v composer=%#v message=%q cmd=%v", model.overlay, model.composer, model.message, cmd)
 				}
 			})
 		}
@@ -5369,10 +5678,7 @@ func TestRunDetailOverlay(t *testing.T) {
 		if cmd != nil || openedRunID != "run-12" || model.overlay == nil || model.overlay.content != viewRunDetail || model.overlay.parentOffset != parentOffset {
 			t.Fatalf("opened detail: run=%q overlay=%#v cmd=%v", openedRunID, model.overlay, cmd)
 		}
-		page := runDetailView(t, history, 80, 12)
-		if model.renderOverlayContent() != page.renderRunDetails(history) {
-			t.Fatal("Run Detail overlay content diverged from retained page renderer")
-		}
+		requireLines(t, normalizedViewLines(model.renderOverlayContent()), "Run Detail", "ID: run-12", "Task: Inspect overlay detail")
 
 		model, cmd = updateStatusModel(t, model, keyRunes("v"))
 		if cmd == nil || validatedRunID != "" {
@@ -5391,8 +5697,8 @@ func TestRunDetailOverlay(t *testing.T) {
 			t.Fatalf("child back: overlay=%#v selection=%q, want run-12 at offset %d", model.overlay, model.selectedRunID(), parentOffset)
 		}
 		model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-		if model.overlay != nil || model.view != viewDashboard || model.composer.Text != "saved draft" {
-			t.Fatalf("root return: overlay=%#v view=%v composer=%#v", model.overlay, model.view, model.composer)
+		if model.overlay != nil || model.composer.Text != "saved draft" {
+			t.Fatalf("root return: overlay=%#v composer=%#v", model.overlay, model.composer)
 		}
 	})
 
@@ -5488,6 +5794,234 @@ func TestStatusModelNarrowRenderSnapshot(t *testing.T) {
 		t.Fatalf("narrow committed narrative = %q", got)
 	}
 	assertMaxLineWidth(t, append(lines, committed...), 40)
+}
+
+func TestStatusModelWideNarrowGeometryMatrix(t *testing.T) {
+	status := app.StatusResult{
+		Initialized: true,
+		ProjectRoot: "/home/alex/source/revolvr",
+		Tasks:       []taskmodel.Task{{ID: "task-017", Status: taskmodel.StatusPending, Summary: "Compact durable agent state", NextRunnable: true}},
+		RecentRuns:  []ledger.Run{{ID: "run-017", TaskID: "task-017", Task: "Compact durable agent state", Status: ledger.StatusCompleted, VerificationStatus: "passed"}},
+	}
+	newModel := func() StatusModel {
+		model := NewStatusModel(status)
+		projection := tuiAutonomousView("task-017", "needs_input")
+		projection.Input = autonomousview.OperatorInput{
+			State:                   "waiting",
+			QuestionID:              "verification-scope",
+			Revision:                1,
+			ContentSHA256:           strings.Repeat("c", 64),
+			Question:                "Choose the verification scope.",
+			BlockingReason:          "The task requires an exact scope.",
+			Options:                 []autonomousview.InputOption{{ID: "focused", Meaning: "Run package tests and preserve the exact selected option identity."}, {ID: "full", Meaning: "Run all tests."}},
+			RecommendationOption:    "focused",
+			RecommendationRationale: "Use the smallest sufficient check.",
+		}
+		model.autonomous.View = &projection
+		model.autonomous.TaskID = projection.Identity.TaskID
+		model.autonomous.Selector = projection.Identity.TaskID
+		model.runDetails = &ledger.RunWithEvents{Run: status.RecentRuns[0]}
+		model.preflight = preflightState{Checked: true, Result: app.PreflightResult{Ready: true}}
+		return model
+	}
+
+	states := []struct {
+		name  string
+		model func() StatusModel
+		want  []string
+	}{
+		{name: "ready", model: func() StatusModel {
+			readyStatus := status
+			readyStatus.RecentRuns = nil
+			return NewStatusModel(readyStatus)
+		}, want: []string{"Ready", "Next task: task-017 - Compact durable agent state"}},
+		{name: "uninitialized", model: func() StatusModel { return NewStatusModel(app.StatusResult{}) }, want: []string{"Not initialized", "Next: run revolvr init in this repository"}},
+		{name: "running", model: func() StatusModel {
+			model := newModel()
+			model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeLoop, Task: "task-017", MaxPasses: 3, Current: "Running go test ./..."}
+			model.updateViewportContent()
+			return model
+		}, want: []string{"Safety: admitted", "Current: Running go test ./...", "Next: wait, or press c or Esc to cancel"}},
+		{name: "cancelling", model: func() StatusModel {
+			model := newModel()
+			model.runOnce = runOnceState{Active: true, Started: true, CancelRequested: true, Mode: runModeLoop, Task: "task-017"}
+			model.updateViewportContent()
+			return model
+		}, want: []string{"Cancelling: task-017", "Current: waiting for the run to stop", "Next: wait for settlement"}},
+		{name: "composer", model: func() StatusModel {
+			model := newModel()
+			model.composer.Text = "draft task"
+			model.updateViewportContent()
+			return model
+		}, want: []string{"› draft task"}},
+		{name: "discovery", model: func() StatusModel {
+			model := newModel()
+			model.composer = commandComposerState{Active: true, Text: "/", DiscoveryOpen: true, SelectedCommand: len(slashCommands) - 1}
+			model.updateViewportContent()
+			return model
+		}, want: []string{"> /quit — Quit", "› /"}},
+	}
+	for _, state := range states {
+		for _, width := range []int{80, 40} {
+			t.Run(fmt.Sprintf("state/%s/%d", state.name, width), func(t *testing.T) {
+				model, cmd := updateStatusModel(t, state.model(), tea.WindowSizeMsg{Width: width, Height: 24})
+				if cmd != nil {
+					t.Fatalf("resize command = %v, want nil", cmd)
+				}
+				lines := normalizedViewLines(model.View())
+				assertMaxLineWidth(t, lines, width)
+				visible := strings.Join(strings.Fields(strings.Join(lines, "\n")), " ")
+				for _, want := range state.want {
+					if !strings.Contains(visible, want) {
+						t.Fatalf("view missing %q: %#v", want, lines)
+					}
+				}
+				for _, cell := range model.committed {
+					assertMaxLineWidth(t, normalizedViewLines(strings.Join(cell.render(width), "\n")), width)
+				}
+			})
+		}
+	}
+
+	terminalReasons := map[string]string{
+		"failed": "verification failed", "blocked": "dependency task-016 is pending",
+		"safety_stop": "protected path changed", "needs_input": "Choose the verification scope",
+	}
+	for _, outcome := range []string{"completed", "failed", "cancelled", "blocked", "safety_stop", "needs_input"} {
+		for _, width := range []int{80, 40} {
+			t.Run(fmt.Sprintf("terminal/%s/%d", outcome, width), func(t *testing.T) {
+				cell := terminalTranscriptCell("terminal-1", "task-017", outcome, terminalReasons[outcome])
+				lines := normalizedViewLines(strings.Join(cell.render(width), "\n"))
+				assertMaxLineWidth(t, lines, width)
+				if got, want := strings.Join(strings.Fields(strings.Join(lines, "\n")), " "), strings.Join(strings.Fields(strings.Join(cell.source, "\n")), " "); got != want {
+					t.Fatalf("wrapped terminal meaning = %q, want %q", got, want)
+				}
+			})
+		}
+	}
+
+	overlays := []struct {
+		name  string
+		view  TUIView
+		want  string
+		setup func(*StatusModel)
+	}{
+		{name: "help", view: viewHelp, want: "Help"},
+		{name: "tasks", view: viewTasks, want: "Tasks"},
+		{name: "task entry", view: viewTaskEntry, want: "Add Task", setup: func(model *StatusModel) { model.taskEntry.taskText = "Write geometry tests" }},
+		{name: "runs", view: viewRuns, want: "Runs"},
+		{name: "run detail", view: viewRunDetail, want: "Run Detail"},
+		{name: "preflight", view: viewPreflight, want: "Preflight"},
+		{name: "workflow", view: viewAutonomous, want: "Autonomous Workflow"},
+		{name: "change summary", view: viewDiff, want: "Change Summary"},
+		{name: "evidence", view: viewEvidence, want: "Evidence"},
+		{name: "approval", view: viewApproval, want: "Approval"},
+		{name: "needs input", view: viewNeedsInput, want: "Needs Input", setup: func(model *StatusModel) {
+			model.autonomous.Answer = autonomousAnswerState{Active: true, Selected: 0}
+		}},
+	}
+	for _, overlay := range overlays {
+		for _, width := range []int{80, 40} {
+			t.Run(fmt.Sprintf("overlay/%s/%d", overlay.name, width), func(t *testing.T) {
+				model := newModel()
+				if model.Init() == nil {
+					t.Fatal("startup append command is nil")
+				}
+				if overlay.setup != nil {
+					overlay.setup(&model)
+				}
+				model.openOverlay(overlay.view, 0)
+				model, cmd := updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 24})
+				if cmd != nil {
+					t.Fatalf("resize command = %v, want nil", cmd)
+				}
+				lines := normalizedViewLines(model.View())
+				assertMaxLineWidth(t, lines, width)
+				requireLines(t, lines, overlay.want)
+				if overlay.view == viewNeedsInput {
+					visible := strings.Join(strings.Fields(strings.Join(lines, "\n")), " ")
+					if !strings.Contains(visible, "> focused: Run package tests and preserve the exact selected option identity.") {
+						t.Fatalf("selected typed option was truncated: %#v", lines)
+					}
+				}
+				if countTranscriptCells(model.committed, "session-start") != 1 || model.appendCommitted() != nil {
+					t.Fatalf("overlay changed or replayed session history: committed=%#v emitted=%#v", model.committed, model.emitted)
+				}
+				model.closeOverlay()
+				if model.overlay != nil || countTranscriptCells(model.committed, "session-start") != 1 || model.appendCommitted() != nil {
+					t.Fatalf("overlay dismissal changed or replayed session history: overlay=%#v committed=%#v emitted=%#v", model.overlay, model.committed, model.emitted)
+				}
+			})
+		}
+	}
+}
+
+func TestStatusModelResizeRetainsGeometryAndSession(t *testing.T) {
+	status := app.StatusResult{
+		Initialized: true,
+		ProjectRoot: "/home/alex/source/revolvr",
+		RecentRuns:  []ledger.Run{{ID: "run-017", Task: "Compact durable agent state", Status: ledger.StatusCompleted, VerificationStatus: "passed"}},
+	}
+	model := NewStatusModel(status)
+	if model.Init() == nil {
+		t.Fatal("startup append command is nil")
+	}
+	wantIdentities := make([]string, len(model.committed))
+	for i, cell := range model.committed {
+		wantIdentities[i] = cell.identity
+	}
+	model.runOnce = runOnceState{Active: true, Started: true, Mode: runModeLoop, Task: "Compact durable agent state", MaxPasses: 3, Current: "Running go test ./..."}
+	model.composer = commandComposerState{Active: true, Text: "/", DiscoveryOpen: true, SelectedCommand: len(slashCommands) - 1}
+	model.updateViewportContent()
+
+	for _, width := range []int{80, 40, 24, 80} {
+		var cmd tea.Cmd
+		model, cmd = updateStatusModel(t, model, tea.WindowSizeMsg{Width: width, Height: 24})
+		if cmd != nil {
+			t.Fatalf("resize to %d returned command %v, want nil", width, cmd)
+		}
+		gotIdentities := make([]string, len(model.committed))
+		for i, cell := range model.committed {
+			gotIdentities[i] = cell.identity
+			rendered := normalizedViewLines(strings.Join(cell.render(width), "\n"))
+			assertMaxLineWidth(t, rendered, width)
+			if got, want := strings.Join(strings.Fields(strings.Join(rendered, "\n")), ""), strings.Join(strings.Fields(strings.Join(cell.source, "\n")), ""); got != want {
+				t.Fatalf("resize to %d changed committed meaning to %q, want %q", width, got, want)
+			}
+		}
+		if !reflect.DeepEqual(gotIdentities, wantIdentities) || countTranscriptCells(model.committed, "session-start") != 1 || model.appendCommitted() != nil {
+			t.Fatalf("resize to %d changed or replayed committed history: identities=%#v emitted=%#v", width, gotIdentities, model.emitted)
+		}
+		if model.runOnce.Current != "Running go test ./..." || model.composer.Text != "/" || model.composer.SelectedCommand != len(slashCommands)-1 {
+			t.Fatalf("resize to %d corrupted live/composer state: run=%#v composer=%#v", width, model.runOnce, model.composer)
+		}
+		assertMaxLineWidth(t, normalizedViewLines(model.View()), width)
+	}
+
+	for _, width := range []int{80, 40} {
+		t.Run(fmt.Sprintf("lifecycle/%d", width), func(t *testing.T) {
+			started := NewStatusModel(status)
+			started, cmd := updateStatusModel(t, started, tea.WindowSizeMsg{Width: width, Height: 24})
+			if cmd != nil || started.Init() == nil || started.committed[0].identity != "session-start" || countTranscriptCells(started.committed, "session-start") != 1 {
+				t.Fatalf("startup history at width %d: committed=%#v cmd=%v", width, started.committed, cmd)
+			}
+			started, cmd = updateStatusModel(t, started, refreshStatusMsg{status: status})
+			if cmd != nil || countTranscriptCells(started.committed, "session-start") != 1 || started.appendCommitted() != nil {
+				t.Fatalf("refresh replayed session at width %d: committed=%#v emitted=%#v cmd=%v", width, started.committed, started.emitted, cmd)
+			}
+			started.openHelpOverlay()
+			started.closeOverlay()
+			if countTranscriptCells(started.committed, "session-start") != 1 || started.appendCommitted() != nil {
+				t.Fatalf("overlay transition replayed session at width %d: committed=%#v emitted=%#v", width, started.committed, started.emitted)
+			}
+
+			restarted := NewStatusModel(status)
+			restarted, cmd = updateStatusModel(t, restarted, tea.WindowSizeMsg{Width: width, Height: 24})
+			if cmd != nil || restarted.Init() == nil || restarted.committed[0].identity != "session-start" || countTranscriptCells(restarted.committed, "session-start") != 1 {
+				t.Fatalf("restart history at width %d: committed=%#v cmd=%v", width, restarted.committed, cmd)
+			}
+		})
+	}
 }
 
 func TestCommandDiscoveryFindsAndExecutesEveryCommand(t *testing.T) {
@@ -5588,8 +6122,8 @@ func TestCommandDiscoveryFiltersSelectsAndUsesCommandGuards(t *testing.T) {
 	requireLines(t, normalizedViewLines(model.View()), "> /task-run — [disabled] Autonomous task run is unavailable.")
 	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyUp})
 	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || model.view != viewDashboard || model.overlay == nil || model.overlay.content != viewTasks || model.composer.DiscoveryOpen || model.composer.Text != "" {
-		t.Fatalf("selected command state: view=%v overlay=%#v composer=%#v cmd=%v", model.view, model.overlay, model.composer, cmd)
+	if cmd != nil || model.overlay == nil || model.overlay.content != viewTasks || model.composer.DiscoveryOpen || model.composer.Text != "" {
+		t.Fatalf("selected command state: overlay=%#v composer=%#v cmd=%v", model.overlay, model.composer, cmd)
 	}
 
 	guarded := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{
@@ -5668,9 +6202,7 @@ func TestComposerFocusAndEscapeStateTable(t *testing.T) {
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	if wide.viewport.Height < 20 {
-		t.Fatalf("dashboard viewport height = %d, want at least 20", wide.viewport.Height)
-	}
+	requireLines(t, normalizedViewLines(wide.View()), "Ready", "Next: type a task or use /run")
 
 	narrow, cmd := updateStatusModel(t, wide, tea.WindowSizeMsg{Width: 40, Height: 24})
 	if cmd != nil {
@@ -5680,7 +6212,6 @@ func TestComposerFocusAndEscapeStateTable(t *testing.T) {
 		t.Fatalf("narrow composer rows = %d, want 3", got)
 	}
 	lines := normalizedViewLines(narrow.View())
-	requireNoLine(t, lines, "Revolvr  Dashboard  initialized")
 	requireLines(t, lines, "›", "Enter submit · / commands", "? shortcuts")
 	assertMaxLineWidth(t, lines, 40)
 
@@ -5689,8 +6220,8 @@ func TestComposerFocusAndEscapeStateTable(t *testing.T) {
 		t.Fatalf("populated composer=%#v cmd=%v", populated.composer, cmd)
 	}
 	preserved, cmd := updateStatusModel(t, populated, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || !preserved.composer.Active || preserved.composer.Text != "draft task" || preserved.view != viewDashboard {
-		t.Fatalf("plain submit state=%#v view=%v cmd=%v", preserved.composer, preserved.view, cmd)
+	if cmd != nil || !preserved.composer.Active || preserved.composer.Text != "draft task" {
+		t.Fatalf("plain submit state=%#v cmd=%v", preserved.composer, cmd)
 	}
 	preserved, cmd = updateStatusModel(t, preserved, tea.KeyMsg{Type: tea.KeyEsc})
 	if cmd != nil || !preserved.composer.Active || preserved.composer.Text != "draft task" {
@@ -5699,40 +6230,35 @@ func TestComposerFocusAndEscapeStateTable(t *testing.T) {
 
 	empty := NewStatusModel(app.StatusResult{Initialized: true})
 	empty, cmd = updateStatusModel(t, empty, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || empty.composer.Active || empty.view != viewDashboard {
-		t.Fatalf("empty escape state=%#v view=%v cmd=%v", empty.composer, empty.view, cmd)
+	if cmd != nil || empty.composer.Active {
+		t.Fatalf("empty escape state=%#v cmd=%v", empty.composer, cmd)
 	}
-	requireLines(t, normalizedViewLines(empty.View()), "›", "? Help | R Run | r Refresh | q Quit")
+	requireLines(t, normalizedViewLines(empty.View()), "›", "Enter submit · / commands · ? shortcuts")
 
 	command, _ := updateStatusModel(t, empty, keyRunes("/"))
 	command, _ = updateStatusModel(t, command, keyRunes("tasks"))
 	submitted, cmd := updateStatusModel(t, command, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || submitted.composer.Active || submitted.composer.Text != "" || submitted.view != viewDashboard || submitted.overlay == nil || submitted.overlay.content != viewTasks {
-		t.Fatalf("submitted command state=%#v view=%v overlay=%#v cmd=%v", submitted.composer, submitted.view, submitted.overlay, cmd)
+	if cmd != nil || submitted.composer.Active || submitted.composer.Text != "" || submitted.overlay == nil || submitted.overlay.content != viewTasks {
+		t.Fatalf("submitted command state=%#v overlay=%#v cmd=%v", submitted.composer, submitted.overlay, cmd)
 	}
 
 	popup := NewStatusModel(app.StatusResult{Initialized: true})
 	popup, _ = updateStatusModel(t, popup, keyRunes("/"))
 	popup, cmd = updateStatusModel(t, popup, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || popup.composer.Active || popup.composer.Text != "/" || popup.view != viewDashboard || popup.overlay == nil || popup.overlay.content != viewHelp {
-		t.Fatalf("command help state=%#v view=%v overlay=%#v cmd=%v", popup.composer, popup.view, popup.overlay, cmd)
+	if cmd != nil || popup.composer.Active || popup.composer.Text != "/" || popup.overlay == nil || popup.overlay.content != viewHelp {
+		t.Fatalf("command help state=%#v overlay=%#v cmd=%v", popup.composer, popup.overlay, cmd)
 	}
 	restored, cmd := updateStatusModel(t, popup, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || !restored.composer.Active || restored.composer.Text != "/" || restored.view != viewDashboard || restored.overlay != nil {
-		t.Fatalf("command help return=%#v view=%v overlay=%#v cmd=%v", restored.composer, restored.view, restored.overlay, cmd)
+	if cmd != nil || !restored.composer.Active || restored.composer.Text != "/" || restored.overlay != nil {
+		t.Fatalf("command help return=%#v overlay=%#v cmd=%v", restored.composer, restored.overlay, cmd)
 	}
 
 	nonComposer := NewStatusModel(app.StatusResult{Initialized: true})
 	nonComposer.composer.Text = "saved draft"
-	nonComposer.openFocusedView(viewDiff)
+	nonComposer.openChangeSummaryOverlay()
 	nonComposer, cmd = updateStatusModel(t, nonComposer, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || !nonComposer.composer.Active || nonComposer.composer.Text != "saved draft" || nonComposer.view != viewDashboard {
-		t.Fatalf("focused view return=%#v view=%v cmd=%v", nonComposer.composer, nonComposer.view, cmd)
-	}
-	nonComposer.autonomous.Answer.Active = true
-	nonComposer, cmd = updateStatusModel(t, nonComposer, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || nonComposer.autonomous.Answer.Active || !nonComposer.composer.Active || nonComposer.composer.Text != "saved draft" {
-		t.Fatalf("typed question return: answer=%#v composer=%#v cmd=%v", nonComposer.autonomous.Answer, nonComposer.composer, cmd)
+	if cmd != nil || !nonComposer.composer.Active || nonComposer.composer.Text != "saved draft" {
+		t.Fatalf("focused view return=%#v cmd=%v", nonComposer.composer, cmd)
 	}
 }
 
@@ -5747,6 +6273,77 @@ func TestStatusModelQuitActionReturnsQuitCommand(t *testing.T) {
 	msg := cmd()
 	if _, ok := msg.(tea.QuitMsg); !ok {
 		t.Fatalf("quit cmd returned %T, want tea.QuitMsg", msg)
+	}
+}
+
+func TestStyleAccessibility(t *testing.T) {
+	roles := []struct {
+		name       string
+		style      lipgloss.Style
+		foreground lipgloss.TerminalColor
+		bold       bool
+		faint      bool
+	}{
+		{name: "section", style: sectionStyle, foreground: lipgloss.NoColor{}, bold: true},
+		{name: "selected", style: selectedStyle, foreground: lipgloss.Color("6"), bold: true},
+		{name: "success", style: successStyle, foreground: lipgloss.Color("2")},
+		{name: "warning", style: warningStyle, foreground: lipgloss.NoColor{}, bold: true},
+		{name: "danger", style: dangerStyle, foreground: lipgloss.Color("1")},
+		{name: "muted", style: mutedStyle, foreground: lipgloss.NoColor{}, faint: true},
+	}
+	for _, role := range roles {
+		if got := role.style.GetForeground(); !reflect.DeepEqual(got, role.foreground) {
+			t.Errorf("%s foreground = %#v, want %#v", role.name, got, role.foreground)
+		}
+		if got := role.style.GetBackground(); !reflect.DeepEqual(got, lipgloss.NoColor{}) {
+			t.Errorf("%s background = %#v, want terminal default", role.name, got)
+		}
+		if got := role.style.GetBold(); got != role.bold {
+			t.Errorf("%s bold = %t, want %t", role.name, got, role.bold)
+		}
+		if got := role.style.GetFaint(); got != role.faint {
+			t.Errorf("%s faint = %t, want %t", role.name, got, role.faint)
+		}
+	}
+
+	want := []string{
+		"> task-017  pending",
+		"Status: completed",
+		"Status: failed",
+		"Warning: evidence incomplete",
+		"Safety: admitted",
+		"Current: running verification",
+		"Cancelled: task-017",
+		"Needs input: task-017",
+		"! /run — disabled: run already active",
+		"› /run",
+	}
+	styled := []string{
+		styleContentLine(want[0]),
+		styleContentLine(want[1]),
+		styleContentLine(want[2]),
+		styleContentLine(want[3]),
+		styleContentLine(want[4]),
+		styleContentLine(want[5]),
+		styleContentLine(want[6]),
+		styleContentLine(want[7]),
+		styleContentLine(want[8]),
+		styleFooterLines(want[9:])[0],
+	}
+	if got := normalizedViewLines(strings.Join(styled, "\n")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("text-only semantic states = %#v, want %#v", got, want)
+	}
+
+	if os.Getenv("REVOLVR_TEST_NO_COLOR") == "1" {
+		if strings.Contains(strings.Join(styled, "\n"), "\x1b[") {
+			t.Fatal("NO_COLOR rendering contains an ANSI style escape")
+		}
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestStyleAccessibility$")
+	cmd.Env = append(os.Environ(), "REVOLVR_TEST_NO_COLOR=1", "NO_COLOR=1", "CLICOLOR_FORCE=1")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("NO_COLOR subprocess failed: %v\n%s", err, output)
 	}
 }
 
@@ -5829,7 +6426,7 @@ func openTasksView(t *testing.T, model StatusModel) StatusModel {
 	if cmd != nil {
 		t.Fatalf("window size update cmd = %v, want nil", cmd)
 	}
-	resized.switchView(viewTasks)
+	resized.openTasksOverlay()
 	return resized
 }
 
@@ -5853,12 +6450,10 @@ func runDetailView(t *testing.T, history ledger.RunWithEvents, width int, height
 		Initialized: true,
 		RecentRuns:  []ledger.Run{history.Run},
 	})
-	model.view = viewRunDetail
-	model.previous = viewRuns
-	model.composer.Active = false
 	model.runDetails = &history
 	model.width = width
 	model.height = height
+	model.openRunDetailOverlay()
 	model.resizeViewport()
 	model.updateViewportContent()
 	return model

@@ -1,170 +1,58 @@
 # Agent State
 
-Updated: 2026-09-03
+Updated: 2026-09-04
 
-## Architecture Status
+## Current Direction
 
-- Architecture 001-025 are complete, including the approved Architecture 016a
-  compatibility task. No architecture task is pending.
-- The legacy EXT backlog remains deferred. PTC-101 through PTC-108B are
-  terminally superseded and non-selectable.
+- The transcript-first Revolvr TUI overhaul is rejected as the product
+  baseline. Its preserved implementation is only the starting code for the
+  accepted replacement sequence.
+- The visible Codex TUI is now the baseline for Revolvr's TUI appearance and
+  interaction presentation. Match it first; add Revolvr-specific presentation
+  only after the baseline is established.
+- The local baseline anchors are installed `codex-cli 0.153.2` and the pinned
+  `.reference/codex` checkout at
+  `8228e9b867251f544a5e0c6c80bb5ebc9d5446a1`.
+- Visual fidelity does not authorize copying, vendoring, or porting Codex
+  source. Reimplementation remains in Go/Bubble Tea unless a later explicit
+  decision changes that boundary.
+- The accepted task graph and publication order are recorded in
+  `docs/architecture/codex-tui/README.md`.
 
-## Current Authority
+## Task State
 
-- ADR-025 is current authority. Revolvr is terminal-first and extends the
-  existing Go/Bubble Tea TUI through existing application services.
-- Direct tools remain the default harness. No desktop/Wails/Vue/REST/SSE or
-  custom Python workspace, execution, skill, scratch, or refinement roadmap is
-  authorized.
-- Canonical truth remains in the Go/PostgreSQL ledger, artifacts, verification,
-  audit, and completion model.
-- The accepted TUI-overhaul decisions retain a native Go/Bubble Tea
-  reimplementation, terminal-owned committed history, managed live/composer/
-  overlay state, reviewed idle task drafts, no active steering or deferred
-  operator messages, parity-gated focused-view migration, and one startup-only
-  session cell. TUI-010's composition proof, TUI-011's managed-resize proof,
-  TUI-012's active-settlement proof, TUI-013's installed terminal shell,
-  TUI-020's semantic cell vocabulary, TUI-021's bounded historical projection,
-  TUI-022's live-to-committed reconciliation, TUI-030's primary composer,
-  TUI-031's reviewed idle plain-text route, TUI-032's contextual command
-  discovery, TUI-040's bounded live operation cell, TUI-050's shared Help
-  overlay shell, TUI-051's Tasks overlay, TUI-052's Runs/Run Detail overlay,
-  TUI-053's Preflight overlay, TUI-054's Workflow overlay, TUI-055's Change
-  Summary overlay, and TUI-056's Evidence overlay are complete. TUI-057 is the
-  only pending canonical task, and later TUI tasks remain unpublished drafts.
+- Canonical task files: 1.
+- Pending tasks: 1: `ctui-001-lock-launch-contract`.
+- Accepted unpublished drafts: 11.
+- CTUI-010 is the exact completion successor for CTUI-001.
+- The former canonical and TUI-overhaul planning task trees are retired; Git
+  history preserves them.
 
-## Architecture 024 TUI
+## Repository State
 
-- Architecture 024 completed at `phase: simplify` on 2026-08-27.
-- The TUI centers canonical run events and provides a command composer, typed
-  operator responses, compact status and command discovery, and focused change
-  summary, evidence, and approval views over existing application services.
-- Business, lifecycle, scheduling, verification, approval, and completion
-  authority remain outside the TUI.
+- The preserved TUI-overhaul implementation, planning reset, Codex research,
+  accepted replacement plan, and CTUI-001 publication form the clean baseline
+  for the next fresh pass.
+- No replacement UI code was implemented in this reset.
+- No dependency was added.
 
-## Architecture 025 Graphiti Gate
+## Next Action
 
-- Architecture 025 completed at `phase: simplify` with decision **defer**.
-- Retrieval/context baselines exist, but qualifying current-brain usage,
-  repeated source-linked failures, and smaller-fix insufficiency evidence do
-  not. No Graphiti comparison prototype or implementation is authorized.
-- The exact re-evaluation trigger is in
-  [the Architecture 025 phase-gate record](../docs/architecture/memory-graphiti-phase-gate.md).
+- Start a fresh thread and execute only the canonical CTUI-001 documentation
+  task.
+- Capture and accept the ordinary initialized loading/ready launch contract at
+  80x24 and one named narrow geometry, including field and CLI/I/O matrices.
+- After CTUI-001 is terminally complete and verified, publish CTUI-010 only and
+  stop without implementing it.
 
-## Current Verification
+## Baseline Verification
 
-- `go test ./... -count=1` — PASS in 91 packages, including the
-  socket-based packages that the external agent sandbox could not execute.
-- `go test ./internal/evaluation -run
-  '^TestFixtureIdentityUsesGitPortableFileModes$' -count=1` — PASS.
-- `go test ./internal/evaluation -count=2` — PASS; 28 test executions.
-- Architecture 022 golden audit — PASS; after recursively removing SHA-256
-  fields, the prior and regenerated baselines are byte-equivalent.
-- `go test ./internal/tui -run
-  'Test(TranscriptShellProof|TranscriptShellResize|TranscriptShellSettlement|StatusModelInstallsTranscriptShell)'`
-  — PASS.
-- `go test ./internal/tui -run 'TestTranscriptShellSettlement'` — PASS.
-- `go test ./internal/tui -run 'TestTranscriptCell'` — PASS.
-- `go test ./internal/tui -run 'TestHistoricalTranscript'` — PASS.
-- `go test ./internal/tui -run 'TestLiveOperationCell' -count=1` — PASS; 24
-  tests across all modes, bounded replacement, cancellation, elapsed time,
-  footer ownership, typed lifecycle, and terminal vocabulary.
-- `go test ./internal/tui -run 'TestComposer|TestCommand'` — PASS.
-- `go test ./internal/tui -run
-  'TestPlainTextComposer|TestStatusModelTaskEntry' -count=1` — PASS; 13 tests.
-- `go test ./internal/app` — PASS.
-- `go test ./internal/tui` — PASS.
-- Compiled settlement proof on a pseudo-terminal — PASS; modes restored and
-  the returned prompt accepted `printf 'PROMPT_OK\n'`.
-- `go run ./cmd/revolvr tui --help` — PASS.
-- `.agent/STATE.md` line limit — PASS; fewer than 200 lines.
-- `git diff --check` — PASS.
-- TUI-030 immediate-focus, accepted footer, plain-text preservation, Escape,
-  retained shortcut, slash-command, typed-question, active-settlement, and
-  single-publication gates — PASS.
-- TUI-031 reviewed-draft, single-publication, cancellation, rejected-state,
-  post-settlement, typed-needs-input, and unchanged-authority gates — PASS.
-- `go test ./internal/tui -run 'TestCommandDiscovery' -count=1` — PASS; 25
-  tests including every retained command name.
-- `go test ./internal/tui -run 'TestOverlayShell' -count=1` — PASS; 8 tests
-  covering entry convergence, exact return, scroll/resize, and settlement.
-- `go test ./internal/tui -run 'TestTasks.*Overlay' -count=1` — PASS; 7 tests
-  covering both entries, page parity, exact return, 80-/40-column bounds,
-  stable refresh selection/fallback, and action success/guard/failure paths.
-- `go test ./internal/tui -run 'Test(Runs|RunDetail).*Overlay' -count=1` — PASS;
-  11 tests covering every retained entry, renderer parity, stable refresh,
-  explicit child back, list offset, validation, geometry, exact return, and
-  stale owner rejection.
-- `go test ./internal/tui -run 'TestPreflight.*Overlay' -count=1` — PASS; 10
-  tests covering both entries, textual ready/failure/error/refusal states,
-  callbacks, guards, run actions, geometry, exact return, and stale ownership.
-- `go test ./internal/tui -run 'TestWorkflow.*Overlay' -count=1` — PASS; 8
-  tests covering both entries, renderer parity, local selector identity,
-  refresh, stale ownership, typed answers, live settlement, geometry, and exact
-  return.
-- `go test ./internal/tui -run 'TestChangeSummary.*Overlay' -count=1` — PASS; 7
-  tests covering both entries, renderer parity, canonical/exact-diff meaning,
-  selection, refresh, active guards, scrolling, compaction, geometry, exact
-  return, and stale ownership.
-- `go test ./internal/tui -run 'TestEvidence.*Overlay' -count=1` — PASS;
-  coverage includes both entries, retained-renderer parity, canonical and
-  autonomous evidence, textual status distinctions, stable refresh identity,
-  stale ownership, validation, scrolling, geometry, and exact return.
-- `go test ./internal/tui -count=1` — PASS.
-- TUI-032 command coverage, exact/prefix filtering, shared-guard, keyboard,
-  dismissal, Help, 40-column, cancellation-visibility, and single-publication
-  gates — PASS.
-- TUI-040 live replacement, 80-/40-column bounds, mode/pass/limit, elapsed,
-  literal safety/current/cancellation/next, terminal vocabulary, settlement,
-  and single-publication gates — PASS.
-- TUI-050 entry convergence, exact composer/source return, transcript and live
-  preservation, Help parity, 80-/40-column geometry, overlay focus, settlement,
-  and single-publication gates — PASS.
-- TUI-051 Tasks-entry, retained-renderer, local-selection/notice, stable-refresh,
-  Add/retry/Workflow, exact-return, no-direct-store, and single-publication
-  gates — PASS.
-- TUI-052 Runs/detail-entry, retained-renderer, local-selection/notice,
-  stable-refresh, child-back/list-offset, complete-evidence/validation,
-  exact-return, stale-owner, and single-publication gates — PASS.
-- TUI-053 Preflight-entry, retained-renderer, textual-state, local-notice,
-  callback/guard, run-action, exact-return, 80-/40-column, stale-owner, and
-  single-publication gates — PASS.
-- TUI-054 Workflow-entry, retained-renderer, selector/notice ownership,
-  refresh, typed-answer, active-settlement, exact-return, 80-/40-column,
-  stale-owner, and single-publication gates — PASS.
-- TUI-055 Change-Summary-entry, retained-renderer, source-selection,
-  canonical/exact-diff distinction, refresh, active-guard, scrolling,
-  compaction, exact-return, 80-/40-column, stale-owner, and single-publication
-  gates — PASS.
-- TUI-056 Evidence-entry, retained-renderer, source-selection, provenance,
-  status/warning/missing distinctions, refresh, validation, scrolling,
-  compaction, exact-return, 80-/40-column, stale-owner, and single-publication
-  gates — PASS.
-- `go run ./cmd/revolvr init` and `go run ./cmd/revolvr status` — PASS before
-  completion; local ignored runtime was restored and TUI-050 selected next.
-- `go run ./cmd/revolvr task list` and `go run ./cmd/revolvr status` — PASS
-  after completion; TUI-057 is the sole pending and next canonical task.
-- Application/domain callbacks, dependencies, and TUI authority are unchanged.
-
-## Blockers And Next Task
-
-- Blockers: none. The prior socket-permission failure was specific to the
-  external agent sandbox; the required full suite passes in this checkout.
-- TUI-056 is complete. TUI-057 is the only pending canonical task and is
-  dependency-satisfied by completed TUI-056.
-- Do not revive deferred EXT/PTC work, republish TUI-013, bulk-publish later
-  TUI tasks, or reopen Architecture 025.
-
-## Latest Pass
-
-- Task selected: `tui-056-move-evidence-overlay`.
-- Files changed: the package-local Evidence overlay routing/state and focused
-  parity tests, TUI-056 completion and TUI-057 publication metadata,
-  and affected planning, state, task-list, reference, and handoff records.
-- Verification commands run: required `gofmt`, focused Evidence-overlay,
-  TUI and full Go tests, task list/status selectors, state line limit,
-  publication/status audits, and `git diff --check`.
-- Verification result: PASS.
-- What remains: TUI-057 is pending for the next fresh pass; later tasks remain
-  unpublished drafts.
+- Task selected: CTUI-001 for the next fresh pass; it is not started here.
+- Changed Go files match `gofmt`; `go test ./...` passes.
+- `go run ./cmd/revolvr task list` and `go run ./cmd/revolvr status` pass with
+  one ready pending task and select `ctui-001-lock-launch-contract`.
+- Root and TUI help checks, documentation-link validation, and
+  `git diff --check` pass.
+- What remains: execute the accepted CTUI task sequence one fresh task at a
+  time.
 - Blockers: none.

@@ -119,6 +119,31 @@ func TestRunHelpDocumentsBareOnePassDefault(t *testing.T) {
 	}
 }
 
+func TestTUIHelpDescribesTranscriptInterface(t *testing.T) {
+	var out bytes.Buffer
+	root := NewRootCommand(Options{Version: "test", Out: &out})
+	root.SetArgs([]string{"tui", "--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	help := out.String()
+	for _, want := range []string{
+		"transcript-first operator TUI",
+		"terminal scrollback",
+		"live cell",
+		"composer",
+		"Change Summary",
+		"typed needs-input",
+		"press / to discover commands",
+		"reviewed Add Task flow",
+		"wait for settlement before exit",
+	} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("tui help missing %q:\n%s", want, help)
+		}
+	}
+}
+
 func TestVersionOutputWorks(t *testing.T) {
 	var out bytes.Buffer
 	root := NewRootCommand(Options{Version: "test-version", Out: &out})
@@ -347,8 +372,8 @@ func TestTUIUninitializedRendersStatusSnapshotWithoutCreatingState(t *testing.T)
 	if !called {
 		t.Fatal("tui runner was not called")
 	}
-	if strings.Contains(out.String(), "Revolvr  Dashboard  not initialized") ||
-		!strings.Contains(out.String(), "Run `revolvr init` to initialize this repository.") {
+	if !strings.Contains(out.String(), "Not initialized") ||
+		!strings.Contains(out.String(), "Next: run revolvr init in this repository") {
 		t.Fatalf("tui output missing uninitialized state:\n%s", out.String())
 	}
 

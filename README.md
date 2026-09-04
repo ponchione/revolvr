@@ -303,9 +303,9 @@ next phase; Revolvr applies policy to the harness outcome.
 
 Use `revolvr task list` for workflow, phase, profile, and next-state columns,
 and `revolvr status` for the next runnable task, its next pass, and recent pass
-state. The TUI Dashboard and Tasks views show the current workflow state. Use
-`revolvr show <run-id>` or TUI Run Detail to inspect task-selection timeline
-metadata and the underlying event sequence.
+state. The TUI live cell and Tasks overlay show the current workflow state. Use
+`revolvr show <run-id>` or the TUI Run Detail overlay to inspect task-selection
+timeline metadata and the underlying event sequence.
 
 ### Canonical metadata and scheduling
 
@@ -447,8 +447,8 @@ If the TUI is already open, press `r` to refresh the shared task state. To run a
 single pass from the TUI, press `5` to open Preflight, press `p` to run the
 readiness check, then press `R` once preflight is ready. To run a bounded
 multi-pass loop from the TUI, press `n` to choose 2, 3, or 5 max passes
-(default 3), then press `L`; the progress pane shows pass summaries as the loop
-runs. The closest CLI equivalents are:
+(default 3), then press `L`; the live cell shows the current pass without
+growing the transcript. The closest CLI equivalents are:
 
 ```bash
 go run ./cmd/revolvr doctor
@@ -791,52 +791,112 @@ Open the interactive terminal UI from the repository root:
 go run ./cmd/revolvr tui
 ```
 
-This Bubble Tea interface is the operator UI refined by Architecture 024. The
-dashboard centers the latest canonical run-event transcript, with a compact
-task/run/safety status, command composer and typed operator responses, command
-discovery, and focused change-summary/evidence/approval views over existing app
-services and dependencies.
+The TUI is transcript-first. Committed results are appended once to ordinary
+terminal scrollback. Current work replaces one bounded live cell, so progress
+does not grow the transcript. The `›` composer is focused whenever an overlay
+does not own input, and Tasks, Runs, Run Detail, Preflight, Workflow, Change
+Summary, Evidence, Approval, typed questions, and Help open as overlays over the
+same app-backed state.
 
-The TUI shows the same app-backed state as the CLI: task counts, task details,
-recent runs, run diagnostics, artifacts, receipt validation results, preflight
-readiness checks, and a live progress pane while a TUI-started operation is
-active. Press `6` for the Workflow view. It renders the AW-27 active/archive
-projection, including decisions and readiness, plans, acceptance, findings,
-attempts and budgets, typed input, verification/audit, workspace/checkpoint,
-terminal/archive, provenance, and diagnostics. The detail remains scrollable
-at narrow widths; archive evidence is explicitly unverified until the separate
-CLI verification boundary runs.
+At startup, one committed session cell records `Revolvr`, the inspected project
+root, and either `At start: initialized` or `At start: not initialized`. Refresh,
+resize, and overlay changes do not emit it again. Starting a new TUI process
+emits a new session cell before bounded history replay. Revolvr has no clear
+command and never tries to reconstruct what a prior process left in terminal
+scrollback.
 
-Use number keys to switch views, `j`/`k` or arrow keys to move list selections,
-`a` to add a task, `p` in Preflight to check readiness, `R` to run one
-mixed-pass pass after preflight is ready, `U` to run the selected
-`autonomous-v1` task until a terminal-for-now outcome, `n` to cycle the
-mixed-pass loop max through 2/3/5 (default 3), `L` to start that bounded loop,
-and `Q` to start a bounded sequential autonomous queue sweep. The TUI control
-intentionally stays at one worker; use CLI/config for bounded parallelism. In
-Workflow,
-`a` opens answer selection only for a current typed needs-input question; no
-option or recommendation is preselected, and submission requires an explicit
-choice plus confirmation. Press `c` to request cancellation of the active
-TUI-started run, loop, task run, or queue, `v` in Run Detail to validate the
-loaded receipt, `r` to refresh, and `?` for in-app key help.
-TUI task creation requires a clean worktree and commits only the new canonical
-task file, so the following preflight remains clean. CLI task add/import keeps
-the review-and-commit workflow for operator-authored task authority.
-Press `/` to open the command composer. `/diff`, `/evidence`, and `/approval`
-open the focused views; `d`, `e`, and `A` are their keyboard shortcuts. The
-`/diff` compatibility command is labeled `Change Summary`: it renders canonical
-changed-file, commit, and event metadata, plus exact diff artifact identities
-only when the underlying projection supplies them. A waiting typed question
-can also be answered with `/answer <option-id>` and the explicit confirmation
-that follows. `esc` returns from a focused view, and all focused content remains
-scrollable at narrow terminal widths.
+The live and committed cells use literal text for meaning. Active work includes
+`Running:`, `Safety: admitted`, `Current:`, and `Next:`. After cancellation is
+requested it shows `Cancelling:` and `Next: wait for settlement`. Terminal
+results begin with `Completed:`, `Failed:`, `Cancelled:`, `Blocked:`,
+`Safety stop:`, or `Needs input:` and include a textual next action; color is
+only redundant emphasis.
 
-Current limitations: the TUI is still a local terminal view over the same
-runtime and `.agent/tasks/*.md` task state. It does not verify/create/reopen
-archives, install or control the daemon, run retention operations, or change
-configuration. Use the CLI for those operations, the non-TUI run alternatives,
-and receipt validation outside the loaded run detail.
+### Composer and command discovery
+
+Press `/` to show the five-row command popup. Type a command prefix, use
+Up/Down to choose a match, and press Enter to complete or run it. Enter on bare
+`/`, `?`, `/help`, and `/commands` all open Help. Escape closes discovery or an
+overlay without discarding the saved composer buffer. With an empty buffer,
+Escape yields to the retained single-key shortcuts; `/` focuses the composer
+again.
+
+Nonblank plain text has one meaning only while Revolvr is initialized and idle:
+Enter opens the existing editable Add Task review. Only confirmation writes and
+commits the new canonical task; cancellation writes nothing. In uninitialized,
+active, or unavailable states, Enter preserves the text and reports
+`Input unavailable:` with the reason. Plain text never steers current work, is
+never queued for later, and cannot answer a typed `needs_input` question. Text
+entered during active work remains inert after settlement until Enter is
+pressed again.
+
+The retained focused-view entries are:
+
+| Key | Command | Overlay or action |
+| --- | --- | --- |
+| `?` | bare `/`, `/help`, `/commands` | Help |
+| `2` | `/tasks` | Tasks |
+| `3` | `/runs` | Runs |
+| `4` | `/detail` | Run Detail |
+| `5` | `/preflight` | Preflight and readiness check |
+| `6` | `/workflow` | Workflow |
+| `d` | `/diff` | Change Summary |
+| `e` | `/evidence` | Evidence |
+| `A` | `/approval` | Approval |
+| context-specific `a` | `/answer <option-id>` | typed needs-input answer |
+
+`/diff` is intentionally labeled `Change Summary`: it shows canonical changed
+file, commit, and event metadata, and shows an exact diff only when the app
+projection supplies an exact diff artifact. Runs opens Run Detail with Enter or
+`o`; Escape or Backspace returns to the same Runs selection and list offset,
+and a second Escape closes the overlay. Change Summary and Evidence opened from
+Workflow or Approval return to that same parent. Escape from the typed
+needs-input child returns to its Workflow or Approval parent.
+
+Typed needs-input answers are option-only. In Workflow or Approval, press `a`
+to open the question, use `j`/`k` to choose an option, press Enter to review it,
+and press Enter again to submit the exact answer and resume the task.
+`/answer <option-id>` chooses the named offered option but still requires the
+same explicit confirmation. No recommendation is preselected.
+
+### Running and navigation
+
+| Key | Command | Action |
+| --- | --- | --- |
+| `a` | — | review a new task while idle, or add one from Tasks |
+| `u` | — | retry the selected blocked task in Tasks |
+| `R` | `/run` | run one mixed-pass pass after preflight is ready |
+| `n` | — | cycle the loop maximum through 2, 3, and 5 passes |
+| `L` | `/loop` | start the bounded mixed-pass loop |
+| `U` | `/task-run` | run the selected autonomous task until terminal-for-now |
+| `Q` | `/queue` | run a bounded sequential autonomous queue sweep |
+| `r` | `/refresh` | refresh app-backed status |
+| `c` | `/cancel` | request cancellation of active TUI-started work |
+| `v` | `/validate` | validate the loaded receipt in Run Detail or Evidence |
+| `q` | `/quit` | quit; active work is cancelled and settled first |
+
+Ctrl-C also quits. While work is active, `q`, `/quit`, and Ctrl-C wait for
+cooperative cancellation, cleanup, refresh, the matching terminal result, and
+its transcript append before exiting. `c` requests the same cancellation but
+keeps the TUI open. Active steering and queued/deferred operator messages are
+not supported. The TUI queue control remains sequential; use CLI configuration
+for admitted bounded parallelism.
+
+Use `j`/`k` or arrow keys for list and option selection. Overlay content uses
+Up/Down or PageUp/PageDown for scrolling and Home/End to jump. The terminal or
+multiplexer—not a Revolvr viewport—owns committed-history navigation,
+selection, copying, and resize reflow. XTerm 390 and tmux 3.4 were exercised;
+SSH, Zellij, Windows Terminal, and other terminal environments are unclaimed.
+Revolvr's emitted hard wraps remain newline boundaries when copied. For easier
+copying, use at least 80 columns; use focused evidence or the underlying
+artifact for an unwrapped logical value. The supported minimum is 40x24;
+widths below 40 are best effort.
+
+Ctrl-Z and external suspend/continue are unsupported. The TUI uses the normal
+screen and restores terminal modes on supported exit, cancellation, startup
+failure, and runtime-error paths. It does not verify/create/reopen archives,
+install or control the daemon, run retention operations, or change
+configuration; use the CLI for those operations.
 
 ## Run
 

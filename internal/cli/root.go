@@ -1685,8 +1685,19 @@ func newTUICommand(opts Options) *cobra.Command {
 	}
 	return &cobra.Command{
 		Use:   "tui",
-		Short: "Open status TUI",
-		Args:  cobra.NoArgs,
+		Short: "Open the transcript-first operator TUI",
+		Long: `Open the transcript-first operator TUI.
+
+Committed results append once to terminal scrollback, current work replaces one
+live cell, and the composer stays focused when no overlay owns input. Tasks,
+Runs, Run Detail, Preflight, Workflow, Change Summary, Evidence, Approval,
+typed needs-input questions, and Help open as overlays.
+
+Inside the TUI, press / to discover commands or ? for complete key help. Plain
+text entered while initialized and idle opens the reviewed Add Task flow; it
+never steers or queues input for active work. Use c to request cancellation.
+While work is active, q, /quit, and Ctrl-C wait for settlement before exit.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := app.Config{WorkDir: opts.WorkDir}
 			ctx := cmd.Context()

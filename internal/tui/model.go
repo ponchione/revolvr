@@ -33,8 +33,8 @@ const (
 	maxRunLogLines        = 200
 	compactLayoutWidth    = 72
 	defaultRunLoopPasses  = 3
-	maxDashboardEvents    = 8
-	maxDashboardDetail    = 56
+	maxTranscriptEvents   = 8
+	maxTranscriptDetail   = 56
 	maxCommandRows        = 5
 )
 
@@ -54,8 +54,7 @@ var (
 type TUIView int
 
 const (
-	viewDashboard TUIView = iota
-	viewTasks
+	viewTasks TUIView = iota
 	viewRuns
 	viewRunDetail
 	viewPreflight
@@ -65,6 +64,7 @@ const (
 	viewDiff
 	viewEvidence
 	viewApproval
+	viewNeedsInput
 )
 
 const (
@@ -75,31 +75,26 @@ const (
 )
 
 type StatusModel struct {
-	status                app.StatusResult
-	actions               StatusActions
-	committed             []transcriptCell
-	emitted               map[string]struct{}
-	settling              *transcriptSettlement
-	view                  TUIView
-	previous              TUIView
-	selectedTask          int
-	selectedRun           int
-	loopPasses            int
-	runDetails            *ledger.RunWithEvents
-	runOnce               runOnceState
-	preflight             preflightState
-	autonomous            autonomousState
-	validation            receiptValidationState
-	taskEntry             taskEntryState
-	composer              commandComposerState
-	overlay               *overlayState
-	overlayOwner          int
-	focusSource           TUIView
-	focusedFromAutonomous bool
-	message               string
-	width                 int
-	height                int
-	viewport              viewport.Model
+	status       app.StatusResult
+	actions      StatusActions
+	committed    []transcriptCell
+	emitted      map[string]struct{}
+	settling     *transcriptSettlement
+	selectedTask int
+	selectedRun  int
+	loopPasses   int
+	runDetails   *ledger.RunWithEvents
+	runOnce      runOnceState
+	preflight    preflightState
+	autonomous   autonomousState
+	validation   receiptValidationState
+	taskEntry    taskEntryState
+	composer     commandComposerState
+	overlay      *overlayState
+	overlayOwner int
+	message      string
+	width        int
+	height       int
 }
 
 type transcriptCell struct {
@@ -162,7 +157,7 @@ func historicalTranscriptCells(status app.StatusResult) []transcriptCell {
 		visible = append(visible, timelineRow{index: index, row: row})
 	}
 
-	start := max(len(visible)-maxDashboardEvents, 0)
+	start := max(len(visible)-maxTranscriptEvents, 0)
 	cells := make([]transcriptCell, 0, len(visible)-start+2)
 	if start > 0 {
 		cells = append(cells, transcriptCell{
@@ -182,7 +177,7 @@ func historicalTranscriptCells(status app.StatusResult) []transcriptCell {
 		cells = append(cells, transcriptCell{
 			kind:     kind,
 			identity: fmt.Sprintf("run:%s:timeline:%d:%s:%s", history.Run.ID, item.index, item.row.Phase, item.row.Status),
-			source:   []string{dashboardTimelineLine(item.row)},
+			source:   []string{transcriptTimelineLine(item.row)},
 		})
 	}
 	if cell, ok := historicalRunResultCell(history.Run); ok {
@@ -378,7 +373,6 @@ const (
 )
 
 type taskEntryState struct {
-	previous TUIView
 	field    taskEntryField
 	taskText string
 	summary  string
@@ -394,11 +388,10 @@ type commandComposerState struct {
 
 type overlayState struct {
 	content      TUIView
-	source       TUIView
+	parent       TUIView
 	composer     commandComposerState
 	selected     int
 	message      string
-	sourceOffset int
 	parentOffset int
 	owner        int
 	viewport     viewport.Model
@@ -413,8 +406,6 @@ type slashCommand struct {
 var slashCommands = []slashCommand{
 	{name: "help", usage: "/help", description: "Open full Help"},
 	{name: "commands", usage: "/commands", description: "Alias for /help"},
-	{name: "transcript", usage: "/transcript", description: "Open transcript"},
-	{name: "dashboard", usage: "/dashboard", description: "Alias for /transcript"},
 	{name: "tasks", usage: "/tasks", description: "Open Tasks"},
 	{name: "runs", usage: "/runs", description: "Open Runs"},
 	{name: "detail", usage: "/detail", description: "Open Run Detail"},
@@ -482,19 +473,14 @@ func NewStatusModelWithActions(status app.StatusResult, actions StatusActions) S
 		actions:      actions,
 		committed:    committed,
 		emitted:      make(map[string]struct{}),
-		view:         viewDashboard,
-		previous:     viewDashboard,
 		composer:     commandComposerState{Active: true},
 		selectedTask: clampTaskIndex(status.Tasks, 0),
 		selectedRun:  clampRunIndex(status.RecentRuns, 0),
 		loopPasses:   defaultRunLoopPasses,
-		focusSource:  viewDashboard,
 		width:        defaultViewportWidth,
 		height:       defaultViewportHeight,
-		viewport:     viewport.New(defaultViewportWidth, defaultViewportHeight),
 	}
 	model.resizeViewport()
-	model.updateViewportContent()
 	return model
 }
 
@@ -557,7 +543,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.resizeViewport()
-		m.refreshViewportContent()
+		m.refreshOverlayContent()
 	case refreshStatusMsg:
 		var appendCmd tea.Cmd
 		if msg.err != nil {
@@ -568,6 +554,10 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = msg.status
 			m.setSelectedTask(selectedTaskIndex(m.status.Tasks, selectedTaskID))
 			m.setSelectedRun(selectedRunIndex(m.status.RecentRuns, selectedID))
+			if m.runDetails != nil && len(m.status.RecentRuns) > 0 && m.runDetails.Run.ID == m.status.RecentRuns[0].ID {
+				history := ledger.RunWithEvents{Run: m.status.RecentRuns[0], Events: m.status.LatestEvents}
+				m.runDetails = &history
+			}
 			if !m.status.Initialized {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
@@ -577,16 +567,6 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setRefreshNotice("Refreshed.")
 		}
 		m.updateViewportContent()
-		if msg.err == nil && m.focusedProjectionActive() && m.focusedSourceView() == viewRunDetail && !m.focusedAutonomous() {
-			reloadCmd := m.reloadFocusedRunCmd()
-			if appendCmd != nil && reloadCmd != nil {
-				return m, tea.Sequence(appendCmd, reloadCmd)
-			}
-			if reloadCmd != nil {
-				return m, reloadCmd
-			}
-			return m, appendCmd
-		}
 		if (m.workflowActive() || m.focusedProjectionActive() && m.focusedAutonomous()) && msg.err == nil {
 			loadCmd := m.loadAutonomousSelectorsCmd()
 			if appendCmd != nil && loadCmd != nil {
@@ -594,6 +574,15 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if loadCmd != nil {
 				return m, loadCmd
+			}
+		}
+		if m.focusedProjectionActive() && !m.focusedAutonomous() && msg.err == nil {
+			reloadCmd := m.reloadFocusedRunCmd()
+			if appendCmd != nil && reloadCmd != nil {
+				return m, tea.Sequence(appendCmd, reloadCmd)
+			}
+			if reloadCmd != nil {
+				return m, reloadCmd
 			}
 		}
 		return m, appendCmd
@@ -612,15 +601,11 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.runDetails = &msg.history
 			m.validation = receiptValidationState{RunID: strings.TrimSpace(msg.history.Run.ID)}
 			if !msg.focused {
-				if m.runsOverlayActive() {
-					if m.overlay.content == viewRuns {
-						m.overlay.parentOffset = m.overlay.viewport.YOffset
-					}
-					m.overlay.content = viewRunDetail
-					overlayDetail = true
-				} else {
-					m.view = viewRunDetail
+				if m.overlay.content == viewRuns {
+					m.overlay.parentOffset = m.overlay.viewport.YOffset
 				}
+				m.overlay.content = viewRunDetail
+				overlayDetail = true
 			}
 			m.setRunNotice("")
 		}
@@ -642,11 +627,7 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.runDetails = nil
 				m.validation = receiptValidationState{}
 			}
-			if m.tasksOverlayActive() {
-				m.overlay.content = viewTasks
-			} else {
-				m.view = viewTasks
-			}
+			m.overlay.content = viewTasks
 			m.taskEntry = taskEntryState{}
 			m.setTaskNotice(fmt.Sprintf("Added and committed task %s.", optionalValue(msg.task.ID)))
 		}
@@ -747,12 +728,33 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.autonomous.TaskID = view.Identity.TaskID
 			m.autonomous.Err = ""
 			m.setWorkflowNotice("Workflow evidence loaded.")
+			if m.needsInputOverlayActive() && !m.autonomousAnswerSnapshotCurrent() {
+				if view.Identity.SourceKind != autonomousview.SourceActive || view.Input.State != "waiting" || view.Input.QuestionID == "" || len(view.Input.Options) == 0 {
+					m.autonomous.Answer.Active = false
+					m.autonomous.Answer.Confirming = false
+					m.autonomous.Answer.Submitting = false
+					m.closeNeedsInputOverlay()
+				} else if m.autonomous.Answer.Snapshot.QuestionID != "" {
+					m.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
+					m.setWorkflowNotice("The question changed; review the current options.")
+				}
+			}
 		}
 		m.updateViewportContent()
 		return m, nil
 	case autonomousAnswerMsg:
+		if !m.autonomous.Answer.Submitting || m.autonomous.Answer.Snapshot != msg.snapshot ||
+			msg.owner != 0 && (!m.needsInputOverlayActive() || m.overlay.owner != msg.owner) {
+			return m, nil
+		}
+		if !m.autonomousAnswerSnapshotCurrent() {
+			m.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
+			m.setWorkflowNotice("Answer result ignored: the question changed; review the current options.")
+			m.updateViewportContent()
+			return m, nil
+		}
 		m.autonomous.Answer.Submitting = false
-		m.autonomous.Answer.Active = false
+		m.autonomous.Answer.Active = msg.err != nil && !msg.result.AnswerPersisted
 		m.autonomous.Answer.Confirming = false
 		m.autonomous.Answer.Result = msg.result
 		m.autonomous.Answer.Err = ""
@@ -880,12 +882,6 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.overlay != nil {
 			return m.updateOverlay(msg)
 		}
-		if m.view == viewTaskEntry {
-			return m.updateTaskEntry(msg)
-		}
-		if m.autonomous.Answer.Active {
-			return m.updateAutonomousAnswer(msg)
-		}
 		if m.runOnce.Active {
 			switch msg.String() {
 			case "ctrl+c", "q", "c", "esc":
@@ -905,57 +901,35 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if handled, cmd := m.updateActiveRunKeys(msg); handled {
 			return m, cmd
 		}
-
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "1":
-			m.switchView(viewDashboard)
-			return m, nil
 		case "2":
 			m.openTasksOverlay()
-			return m, nil
 		case "3":
 			m.openRunsOverlay()
-			return m, nil
 		case "4":
 			m.openRunDetailOverlay()
-			return m, nil
 		case "5":
 			return m, m.openPreflightOverlay()
 		case "6":
 			return m, m.openWorkflowOverlay()
 		case "?":
 			m.openHelpOverlay()
-			return m, nil
 		case "a":
-			if m.view == viewAutonomous || m.view == viewApproval {
-				m.beginAutonomousAnswer()
-				return m, nil
-			}
 			m.startTaskEntry("")
-			return m, nil
 		case "d":
 			m.openChangeSummaryOverlay()
-			return m, nil
 		case "e":
 			m.openEvidenceOverlay()
-			return m, nil
 		case "A":
-			m.openFocusedView(viewApproval)
-			if m.autonomous.View == nil {
-				return m, m.loadAutonomousSelectorsCmd()
-			}
-			return m, nil
+			return m, m.openApprovalOverlay()
 		case "R":
-			cmd := m.startRunOnce()
-			return m, cmd
+			return m, m.startRunOnce()
 		case "n":
 			m.cycleRunLoopPasses()
-			return m, nil
 		case "L":
-			cmd := m.startRunLoop()
-			return m, cmd
+			return m, m.startRunLoop()
 		case "U":
 			return m, m.startTaskRun()
 		case "Q":
@@ -967,116 +941,15 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, m.refreshStatusCmd()
-		case "esc", "backspace":
-			switch m.view {
-			case viewHelp:
-				m.switchView(m.previous)
-				return m, nil
-			case viewRunDetail:
-				m.switchView(viewRuns)
-				return m, nil
-			case viewDiff, viewEvidence, viewApproval:
-				m.closeFocusedView()
-				return m, nil
-			}
 		}
-		if (m.view == viewAutonomous || isFocusedView(m.view)) && m.scrollViewport(msg) {
-			return m, nil
-		}
-
-		switch m.view {
-		case viewTasks:
-			switch msg.String() {
-			case "up", "k":
-				m.moveSelectedTask(-1)
-				m.updateViewportContent()
-				return m, nil
-			case "down", "j":
-				m.moveSelectedTask(1)
-				m.updateViewportContent()
-				return m, nil
-			case "u":
-				return m, m.startRetrySelectedTask()
-			case "enter", "o":
-				m.switchView(viewAutonomous)
-				m.autonomous.TaskID = m.selectedTaskID()
-				m.autonomous.Selector = m.selectedTaskID()
-				return m, m.loadAutonomousSelectorsCmd()
-			}
-		case viewRuns:
-			switch msg.String() {
-			case "enter", "o":
-				return m, m.startOpenSelectedRun()
-			case "up", "k":
-				m.moveSelectedRun(-1)
-				m.updateViewportContent()
-				return m, nil
-			case "down", "j":
-				m.moveSelectedRun(1)
-				m.updateViewportContent()
-				return m, nil
-			}
-		case viewRunDetail:
-			switch msg.String() {
-			case "enter", "o":
-				return m, m.startOpenSelectedRun()
-			case "v":
-				return m, m.startValidateRunReceipt()
-			case "home":
-				m.viewport.GotoTop()
-				return m, nil
-			case "end":
-				m.viewport.GotoBottom()
-				return m, nil
-			}
-		case viewPreflight:
-			switch msg.String() {
-			case "p":
-				if m.actions.Preflight == nil {
-					m.message = "Preflight is unavailable."
-					m.updateViewportContent()
-					return m, nil
-				}
-				return m, m.preflightCmd()
-			}
-		case viewAutonomous:
-			switch msg.String() {
-			case "up", "k":
-				return m, m.moveAutonomousSelection(-1)
-			case "down", "j":
-				return m, m.moveAutonomousSelection(1)
-			case "enter", "o":
-				return m, m.reloadCurrentAutonomousViewCmd()
-			case "a":
-				m.beginAutonomousAnswer()
-				return m, nil
-			}
-		}
+		return m, nil
 	}
 
-	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
-	return m, cmd
-}
-
-func (m *StatusModel) scrollViewport(msg tea.KeyMsg) bool {
-	switch msg.String() {
-	case "home":
-		m.viewport.GotoTop()
-	case "end":
-		m.viewport.GotoBottom()
-	case "pgup":
-		m.viewport.ViewUp()
-	case "pgdown":
-		m.viewport.ViewDown()
-	default:
-		return false
-	}
-	return true
+	return m, nil
 }
 
 func (m StatusModel) View() string {
-	content := m.viewport.View()
+	content := m.formatContent(m.renderLiveState())
 	if m.overlay != nil {
 		content = m.overlay.viewport.View()
 	}
@@ -1183,8 +1056,10 @@ type autonomousViewMsg struct {
 }
 
 type autonomousAnswerMsg struct {
-	result app.AnswerAutonomousInputResult
-	err    error
+	snapshot autonomousAnswerSnapshot
+	owner    int
+	result   app.AnswerAutonomousInputResult
+	err      error
 }
 
 func (m StatusModel) refreshStatusCmd() tea.Cmd {
@@ -1458,11 +1333,7 @@ func (m *StatusModel) moveAutonomousSelection(delta int) tea.Cmd {
 	m.setSelectedAutonomous(clampAutonomousIndex(m.autonomous.Selectors, m.selectedAutonomousPosition()+delta))
 	m.autonomous.Answer = autonomousAnswerState{}
 	m.autonomous.View = nil
-	if m.workflowOverlayActive() {
-		m.overlay.viewport.GotoTop()
-	} else {
-		m.viewport.GotoTop()
-	}
+	m.overlay.viewport.GotoTop()
 	return m.loadSelectedAutonomousViewCmd()
 }
 
@@ -1473,8 +1344,16 @@ func (m *StatusModel) beginAutonomousAnswer() {
 		return
 	}
 	m.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
+	if m.overlay != nil && (m.overlay.content == viewAutonomous || m.overlay.content == viewApproval) {
+		m.overlay.parent = m.overlay.content
+		m.overlay.parentOffset = m.overlay.viewport.YOffset
+		m.overlay.content = viewNeedsInput
+	}
 	m.setWorkflowNotice("Choose an option explicitly; the recommendation is not preselected.")
 	m.updateViewportContent()
+	if m.needsInputOverlayActive() {
+		m.overlay.viewport.GotoTop()
+	}
 }
 
 func (m StatusModel) answerBlocker() string {
@@ -1511,6 +1390,7 @@ func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	case "esc":
 		m.autonomous.Answer = autonomousAnswerState{}
 		m.setWorkflowNotice("Answer cancelled.")
+		m.closeNeedsInputOverlay()
 		m.updateViewportContent()
 		return m, nil
 	case "up", "k":
@@ -1534,19 +1414,23 @@ func (m StatusModel) updateAutonomousAnswer(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			return m, nil
 		}
 		if !m.autonomousAnswerSnapshotCurrent() {
-			m.autonomous.Answer = autonomousAnswerState{}
+			m.autonomous.Answer = autonomousAnswerState{Active: true, Selected: -1}
 			m.setWorkflowNotice("Answer not submitted: the selected question changed; review the current options.")
 			m.updateViewportContent()
 			return m, nil
 		}
 		snapshot := m.autonomous.Answer.Snapshot
+		owner := 0
+		if m.needsInputOverlayActive() {
+			owner = m.overlay.owner
+		}
 		m.autonomous.Answer.Submitting = true
 		m.setWorkflowNotice("Persisting answer.")
 		m.updateViewportContent()
 		request := app.AnswerAutonomousInputRequest{TaskID: snapshot.TaskID, QuestionID: snapshot.QuestionID, Revision: snapshot.Revision, ContentSHA: snapshot.ContentSHA, OptionID: snapshot.OptionID, Operator: "tui-operator"}
 		return m, func() tea.Msg {
 			result, err := m.actions.AnswerInput(request)
-			return autonomousAnswerMsg{result: result, err: err}
+			return autonomousAnswerMsg{snapshot: snapshot, owner: owner, result: result, err: err}
 		}
 	}
 	return m, nil
@@ -2236,24 +2120,6 @@ func (m *StatusModel) updateActiveRunKeys(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.setWorkflowNotice("Run is active; cancel or wait before starting another action.")
 		m.updateViewportContent()
 		return true, nil
-	case "p":
-		if m.view == viewPreflight {
-			m.message = "Run is active; cancel or wait before starting another action."
-			m.updateViewportContent()
-			return true, nil
-		}
-	case "v":
-		if m.view == viewRunDetail {
-			m.message = "Run is active; cancel or wait before starting another action."
-			m.updateViewportContent()
-			return true, nil
-		}
-	case "enter", "o":
-		if m.view == viewRuns || m.view == viewRunDetail {
-			m.message = "Run is active; cancel or wait before starting another action."
-			m.updateViewportContent()
-			return true, nil
-		}
 	}
 	return false, nil
 }
@@ -2563,7 +2429,6 @@ func (m StatusModel) updateCommandComposer(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			return m, nil
 		}
 		m.composer.Active = false
-		m.resizeViewport()
 		return m, nil
 	case "up":
 		if m.composer.DiscoveryOpen {
@@ -2700,9 +2565,6 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 	case "help", "commands":
 		m.openHelpOverlay()
 		return m, nil
-	case "dashboard", "transcript":
-		m.switchView(viewDashboard)
-		return m, nil
 	case "tasks":
 		m.openTasksOverlay()
 		return m, nil
@@ -2723,18 +2585,14 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 		m.openEvidenceOverlay()
 		return m, nil
 	case "approval":
-		m.openFocusedView(viewApproval)
-		if m.autonomous.View == nil {
-			return m, m.loadAutonomousSelectorsCmd()
-		}
-		return m, nil
+		return m, m.openApprovalOverlay()
 	case "answer":
 		if len(fields) != 2 {
 			m.message = "Usage: /answer <option-id>."
 			m.updateViewportContent()
 			return m, nil
 		}
-		m.openFocusedView(viewApproval)
+		m.openApprovalOverlay()
 		m.beginAutonomousAnswer()
 		if !m.autonomous.Answer.Active {
 			return m, nil
@@ -2744,13 +2602,12 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 				if !m.confirmAutonomousAnswer(i) {
 					return m, nil
 				}
-				m.message = "Press enter to persist this answer and resume the task."
+				m.setWorkflowNotice("Press enter to persist this answer and resume the task.")
 				m.updateViewportContent()
 				return m, nil
 			}
 		}
-		m.autonomous.Answer = autonomousAnswerState{}
-		m.message = "Answer option not offered: " + oneLine(fields[1])
+		m.setWorkflowNotice("Answer option not offered: " + oneLine(fields[1]))
 		m.updateViewportContent()
 		return m, nil
 	case "refresh":
@@ -2798,13 +2655,10 @@ func (m StatusModel) submitCommand() (tea.Model, tea.Cmd) {
 }
 
 func (m *StatusModel) updateViewportContent() {
-	m.viewport.SetContent(m.formatContent(m.renderContent()))
-	m.viewport.GotoTop()
 	m.refreshOverlayContent()
 }
 
 func (m *StatusModel) refreshViewportContent() {
-	m.viewport.SetContent(m.formatContent(m.renderContent()))
 	m.refreshOverlayContent()
 }
 
@@ -2814,13 +2668,11 @@ func (m *StatusModel) openOverlay(content TUIView, selected int) {
 	}
 	m.overlayOwner++
 	m.overlay = &overlayState{
-		content:      content,
-		source:       m.view,
-		composer:     m.composer,
-		selected:     selected,
-		sourceOffset: m.viewport.YOffset,
-		owner:        m.overlayOwner,
-		viewport:     viewport.New(defaultViewportWidth, defaultViewportHeight),
+		content:  content,
+		composer: m.composer,
+		selected: selected,
+		owner:    m.overlayOwner,
+		viewport: viewport.New(defaultViewportWidth, defaultViewportHeight),
 	}
 	m.composer.Active = false
 	m.composer.DiscoveryOpen = false
@@ -2874,11 +2726,35 @@ func (m *StatusModel) openWorkflowOverlay() tea.Cmd {
 }
 
 func (m *StatusModel) openChangeSummaryOverlay() {
+	if m.approvalOverlayActive() || m.workflowOverlayActive() {
+		m.overlay.parent = m.overlay.content
+		m.overlay.parentOffset = m.overlay.viewport.YOffset
+		m.overlay.content = viewDiff
+		m.refreshOverlayContent()
+		m.overlay.viewport.GotoTop()
+		return
+	}
 	m.openOverlay(viewDiff, 0)
 }
 
 func (m *StatusModel) openEvidenceOverlay() {
+	if m.approvalOverlayActive() || m.workflowOverlayActive() {
+		m.overlay.parent = m.overlay.content
+		m.overlay.parentOffset = m.overlay.viewport.YOffset
+		m.overlay.content = viewEvidence
+		m.refreshOverlayContent()
+		m.overlay.viewport.GotoTop()
+		return
+	}
 	m.openOverlay(viewEvidence, 0)
+}
+
+func (m *StatusModel) openApprovalOverlay() tea.Cmd {
+	m.openOverlay(viewApproval, m.autonomous.Selected)
+	if !m.approvalOverlayActive() || m.autonomous.View != nil {
+		return nil
+	}
+	return m.loadAutonomousSelectorsCmd()
 }
 
 func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -2889,8 +2765,17 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		_, cmd := m.updateActiveRunKeys(msg)
 		return m, cmd
 	}
-	if m.overlay.content == viewAutonomous && m.autonomous.Answer.Active {
+	if (m.overlay.content == viewAutonomous || m.approvalOverlayActive() || m.needsInputOverlayActive()) && m.autonomous.Answer.Active {
 		return m.updateAutonomousAnswer(msg)
+	}
+	if m.needsInputOverlayActive() {
+		switch msg.String() {
+		case "esc", "backspace":
+			m.closeNeedsInputOverlay()
+			return m, nil
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		}
 	}
 	if m.overlay.content == viewTasks {
 		switch msg.String() {
@@ -2964,6 +2849,16 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.startValidateRunReceipt()
 		}
 	}
+	if (m.changeSummaryOverlayActive() || m.evidenceOverlayActive()) && (m.overlay.parent == viewApproval || m.overlay.parent == viewAutonomous) {
+		switch msg.String() {
+		case "esc", "backspace":
+			m.overlay.content = m.overlay.parent
+			m.overlay.parent = viewTasks
+			m.refreshOverlayContent()
+			m.overlay.viewport.SetYOffset(m.overlay.parentOffset)
+			return m, nil
+		}
+	}
 	if m.overlay.content == viewPreflight {
 		switch msg.String() {
 		case "p":
@@ -3005,6 +2900,12 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "a":
 			m.beginAutonomousAnswer()
 			return m, nil
+		case "d":
+			m.openChangeSummaryOverlay()
+			return m, nil
+		case "e":
+			m.openEvidenceOverlay()
+			return m, nil
 		case "U":
 			return m, m.startTaskRun()
 		case "Q":
@@ -3028,6 +2929,26 @@ func (m StatusModel) updateOverlay(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.evidenceOverlayActive() && msg.String() == "v" {
 		return m, m.startValidateRunReceipt()
+	}
+	if m.approvalOverlayActive() {
+		switch msg.String() {
+		case "a":
+			m.beginAutonomousAnswer()
+			return m, nil
+		case "d":
+			m.openChangeSummaryOverlay()
+			return m, nil
+		case "e":
+			m.openEvidenceOverlay()
+			return m, nil
+		case "r":
+			if blocker := m.refreshBlocker(); blocker != "" {
+				m.setFocusedProjectionNotice(blocker)
+				m.refreshOverlayContent()
+				return m, nil
+			}
+			return m, m.refreshStatusCmd()
+		}
 	}
 	switch msg.String() {
 	case "esc", "backspace":
@@ -3062,17 +2983,29 @@ func (m *StatusModel) closeOverlay() {
 		return
 	}
 	overlay := *m.overlay
-	if overlay.content == viewAutonomous || isFocusedProjection(overlay.content) && m.focusedAutonomous() {
+	if overlay.content == viewAutonomous || overlay.content == viewNeedsInput || isFocusedProjection(overlay.content) && m.focusedAutonomous() {
 		m.autonomous.Request++
 		m.autonomous.LoadingList = false
 		m.autonomous.LoadingView = false
 	}
+	if overlay.content == viewNeedsInput {
+		m.autonomous.Answer = autonomousAnswerState{}
+	}
 	m.overlay = nil
-	m.view = overlay.source
 	m.composer = overlay.composer
 	m.resizeViewport()
 	m.refreshViewportContent()
-	m.viewport.SetYOffset(overlay.sourceOffset)
+}
+
+func (m *StatusModel) closeNeedsInputOverlay() {
+	if !m.needsInputOverlayActive() {
+		return
+	}
+	offset := m.overlay.parentOffset
+	m.overlay.content = m.overlay.parent
+	m.overlay.parent = viewTasks
+	m.refreshOverlayContent()
+	m.overlay.viewport.SetYOffset(offset)
 }
 
 func (m *StatusModel) refreshOverlayContent() {
@@ -3113,96 +3046,48 @@ func (m StatusModel) renderOverlayContent() string {
 		return m.renderFocusedDiff()
 	case viewEvidence:
 		return m.renderFocusedEvidence()
+	case viewApproval:
+		return m.renderFocusedApproval()
+	case viewNeedsInput:
+		return m.renderNeedsInput()
 	case viewTaskEntry:
 		return m.renderTaskEntry()
 	}
 	return ""
 }
 
-func (m *StatusModel) switchView(view TUIView) {
-	if m.view != view && view != viewHelp {
-		m.previous = m.view
-	}
-	if view == viewHelp && m.view != viewHelp {
-		m.previous = m.view
-	}
-	m.view = view
-	m.composer.Active = view == viewDashboard
-	m.composer.DiscoveryOpen = false
-	m.resizeViewport()
-	m.updateViewportContent()
-}
-
-func (m *StatusModel) openFocusedView(view TUIView) {
-	if !isFocusedView(m.view) {
-		m.focusSource = m.view
-		m.focusedFromAutonomous = m.view == viewAutonomous
-	}
-	if view == viewApproval {
-		m.focusedFromAutonomous = true
-	}
-	m.view = view
-	m.composer.Active = false
-	m.composer.DiscoveryOpen = false
-	m.resizeViewport()
-	m.updateViewportContent()
-}
-
-func (m *StatusModel) closeFocusedView() {
-	view := m.focusSource
-	if isFocusedView(view) || view == viewTaskEntry {
-		view = viewDashboard
-	}
-	m.focusedFromAutonomous = false
-	m.switchView(view)
-}
-
-func isFocusedView(view TUIView) bool {
-	return view == viewDiff || view == viewEvidence || view == viewApproval
-}
-
 func isFocusedProjection(view TUIView) bool {
-	return view == viewDiff || view == viewEvidence
+	return view == viewDiff || view == viewEvidence || view == viewApproval
 }
 
 func (m *StatusModel) startTaskEntry(taskText string) {
 	m.taskEntry = taskEntryState{
-		previous: m.view,
 		field:    taskEntryTaskField,
 		taskText: taskText,
 	}
-	if m.tasksOverlayActive() {
+	if m.overlay != nil && m.overlay.content == viewTasks {
+		m.overlay.parent = viewTasks
 		m.overlay.content = viewTaskEntry
 		m.overlay.message = ""
 	} else {
-		m.view = viewTaskEntry
+		m.openOverlay(viewTaskEntry, 0)
+		m.overlay.parent = viewTaskEntry
 	}
-	m.composer.Active = false
 	m.composer.DiscoveryOpen = false
-	if !m.tasksOverlayActive() {
-		m.message = ""
-	}
 	m.resizeViewport()
 	m.updateViewportContent()
 }
 
 func (m *StatusModel) cancelTaskEntry() {
-	if m.tasksOverlayActive() {
+	if m.overlay != nil && m.overlay.content == viewTaskEntry && m.overlay.parent == viewTasks {
 		m.overlay.content = viewTasks
 		m.taskEntry = taskEntryState{}
 		m.resizeViewport()
 		m.refreshOverlayContent()
 		return
 	}
-	previous := m.taskEntry.previous
-	if previous == viewTaskEntry {
-		previous = viewTasks
-	}
-	m.view = previous
-	m.composer.Active = previous == viewDashboard
 	m.taskEntry = taskEntryState{}
-	m.resizeViewport()
-	m.updateViewportContent()
+	m.closeOverlay()
 }
 
 func (m *StatusModel) toggleTaskEntryField() {
@@ -3243,11 +3128,9 @@ func (m *StatusModel) resizeViewport() {
 	if height <= 0 {
 		height = defaultViewportHeight
 	}
-	chromeHeight := len(m.footerLines()) + 1
-	contentHeight := max(height-chromeHeight, 1)
-	m.viewport.Width = width
-	m.viewport.Height = contentHeight
 	if m.overlay != nil {
+		chromeHeight := len(m.footerLines()) + 1
+		contentHeight := max(height-chromeHeight, 1)
 		m.overlay.viewport.Width = width
 		m.overlay.viewport.Height = contentHeight
 	}
@@ -3276,43 +3159,14 @@ func (m StatusModel) formatContent(content string) string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
-func (m StatusModel) renderContent() string {
+func (m StatusModel) renderLiveState() string {
 	if m.settling != nil {
 		return m.renderRunProgress()
 	}
-	var content string
-	switch m.view {
-	case viewTasks:
-		content = m.renderTasks()
-	case viewRuns:
-		content = m.renderRuns()
-	case viewRunDetail:
-		if m.runDetails != nil {
-			content = m.renderRunDetails(*m.runDetails)
-			break
-		}
-		content = m.renderEmptyRunDetail()
-	case viewPreflight:
-		content = m.renderPreflight()
-	case viewAutonomous:
-		content = m.renderAutonomousWorkflow()
-	case viewHelp:
-		content = m.renderHelp()
-	case viewTaskEntry:
-		content = m.renderTaskEntry()
-	case viewDiff:
-		content = m.renderFocusedDiff()
-	case viewEvidence:
-		content = m.renderFocusedEvidence()
-	case viewApproval:
-		content = m.renderFocusedApproval()
-	default:
-		content = m.renderDashboard()
+	if m.runOnce.Started {
+		return m.renderRunProgress()
 	}
-	if m.runOnce.Started && m.view != viewHelp && m.view != viewTaskEntry {
-		return lipgloss.JoinVertical(lipgloss.Left, m.renderRunProgress(), "", content)
-	}
-	return content
+	return m.renderReadyState()
 }
 
 func (m StatusModel) footerLines() []string {
@@ -3338,7 +3192,7 @@ func (m StatusModel) footerLines() []string {
 			return wrapKeyLines([]string{"p Check", "R Run Once", fmt.Sprintf("n Passes %d", m.selectedRunLoopPasses()), "L Run Loop", "r Refresh", "esc Close", "q Quit"}, m.width)
 		}
 		if m.overlay.content == viewAutonomous {
-			keys := []string{"j/k Select", "enter Reload", "a Answer", "U Run Task", "Q Run Queue", "r Refresh", "pgup/pgdown Scroll", "home/end Jump"}
+			keys := []string{"j/k Select", "enter Reload", "a Answer", "d Changes", "e Evidence", "U Run Task", "Q Run Queue", "r Refresh", "pgup/pgdown Scroll", "home/end Jump"}
 			if !m.runOnce.Active {
 				keys = append(keys, "esc Close")
 			}
@@ -3354,71 +3208,25 @@ func (m StatusModel) footerLines() []string {
 			}
 			return wrapKeyLines(append(keys, "r Refresh", "esc Close", "q Quit"), m.width)
 		}
+		if m.overlay.content == viewApproval {
+			if m.autonomous.Answer.Active {
+				return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
+			}
+			return wrapKeyLines([]string{"a Answer", "d Changes", "e Evidence", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Close", "q Quit"}, m.width)
+		}
+		if m.overlay.content == viewNeedsInput {
+			return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Back", "ctrl+c Quit"}, m.width)
+		}
 		return wrapPlainLines([]string{"↑/↓ scroll · Esc close"}, m.contentWidth())
 	}
-	if m.view == viewTaskEntry {
-		return wrapKeyLines([]string{"tab Field", "enter Submit", "esc Cancel", "ctrl+c Quit"}, m.width)
+	lines := m.commandDiscoveryLines()
+	composer := wrapPlainLines([]string{"› " + m.composer.Text}, m.contentWidth())
+	footer := []string{"Enter submit · / commands · ? shortcuts"}
+	if m.contentWidth() <= 40 {
+		footer = []string{"Enter submit · / commands", "? shortcuts"}
 	}
-	if m.autonomous.Answer.Active {
-		return wrapKeyLines([]string{"j/k Choose option", "enter Confirm", "esc Cancel answer", "ctrl+c Quit"}, m.width)
-	}
-	if m.composer.Active {
-		lines := m.commandDiscoveryLines()
-		composer := wrapPlainLines([]string{"› " + m.composer.Text}, m.contentWidth())
-		footer := []string{"Enter submit · / commands · ? shortcuts"}
-		if m.contentWidth() <= 40 {
-			footer = []string{"Enter submit · / commands", "? shortcuts"}
-		}
-		lines = append(lines, composer...)
-		return append(lines, wrapPlainLines(footer, m.contentWidth())...)
-	}
-	if m.view == viewDashboard {
-		keys := "? Help | R Run | r Refresh | q Quit"
-		if m.runOnce.Active {
-			keys = "? Help | q Quit"
-		}
-		return append([]string{"›"}, wrapPlainLines([]string{keys}, m.contentWidth())...)
-	}
-	keys := []string{}
-	if m.runOnce.Active {
-		switch m.view {
-		case viewTasks, viewRuns:
-			keys = append(keys, "j/k Select")
-		case viewRunDetail:
-			keys = append(keys, "up/down Scroll", "home/end Jump")
-		case viewHelp:
-			keys = append(keys, "esc Back")
-		}
-		keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help")
-		if m.view == viewHelp {
-			keys = append(keys, "c Cancel Run")
-		}
-		keys = append(keys, "q Quit")
-		return wrapKeyLines(keys, m.width)
-	}
-	switch m.view {
-	case viewTasks:
-		keys = append(keys, "j/k Select")
-		if m.retrySelectedTaskAvailable() {
-			keys = append(keys, "u Retry")
-		}
-	case viewRuns:
-		keys = append(keys, "j/k Select", "enter Open")
-	case viewRunDetail:
-		keys = append(keys, "up/down Scroll", "home/end Jump", "enter Reload", "v Validate", "esc Runs")
-	case viewPreflight:
-		keys = append(keys, "p Check")
-	case viewAutonomous:
-		return wrapKeyLines([]string{"j/k Select", "enter Reload", "a Answer", "pgup/pgdown Scroll", "home/end Jump", "U Run Task", "Q Run Queue", "r Refresh", "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "q Quit"}, m.width)
-	case viewDiff, viewEvidence:
-		return wrapKeyLines([]string{"d Changes", "e Evidence", "A Approval", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
-	case viewApproval:
-		return wrapKeyLines([]string{"a Answer", "d Changes", "e Evidence", "pgup/pgdown Scroll", "home/end Jump", "r Refresh", "esc Back", "/ Commands", "q Quit"}, m.width)
-	case viewHelp:
-		keys = append(keys, "esc Back")
-	}
-	keys = append(keys, "1 Dashboard", "2 Tasks", "3 Runs", "4 Detail", "5 Preflight", "? Help", "a Add Task", "R Run Once", fmt.Sprintf("n Passes %d", m.selectedRunLoopPasses()), "L Run Loop", "r Refresh", "q Quit")
-	return wrapKeyLines(keys, m.width)
+	lines = append(lines, composer...)
+	return append(lines, wrapPlainLines(footer, m.contentWidth())...)
 }
 
 func (m StatusModel) commandDiscoveryLines() []string {
@@ -3450,9 +3258,9 @@ func (m StatusModel) commandDiscoveryLines() []string {
 	return lines
 }
 
-func (m StatusModel) renderDashboard() string {
+func (m StatusModel) renderReadyState() string {
 	if !m.status.Initialized {
-		lines := []string{"Run `revolvr init` to initialize this repository."}
+		lines := []string{"Not initialized", "Next: run revolvr init in this repository"}
 		lines = appendNotice(lines, m.message)
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
@@ -3463,13 +3271,14 @@ func (m StatusModel) renderDashboard() string {
 	lines := appendNotice(nil, m.message)
 	_, ok := m.latestRunHistory()
 	if !ok {
-		lines = append(lines, "Idle", "No runs recorded.")
+		lines = append(lines, "Ready")
 		nextIndex := nextSelectedTaskIndex(m.status.Tasks)
 		if nextIndex >= 0 {
 			lines = append(lines, "Next task: "+taskBrief(m.status.Tasks[nextIndex]))
 		} else {
 			lines = append(lines, "Next task: none")
 		}
+		lines = append(lines, "Next: type a task or use /run")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -3585,14 +3394,8 @@ func (m StatusModel) focusedRunHistory() (ledger.RunWithEvents, bool) {
 	if m.focusedAutonomous() {
 		return ledger.RunWithEvents{}, false
 	}
-	if m.focusedSourceView() == viewRunDetail && m.runDetails != nil {
+	if m.runDetails != nil {
 		return *m.runDetails, true
-	}
-	if m.focusedSourceView() == viewRuns && m.selectedRun != 0 {
-		if m.runDetails != nil && m.runDetails.Run.ID == m.selectedRunID() {
-			return *m.runDetails, true
-		}
-		return ledger.RunWithEvents{}, false
 	}
 	return m.latestRunHistory()
 }
@@ -3790,7 +3593,7 @@ func runArtifactPathLines(artifacts ledger.RunArtifacts, includeRequiredMissing 
 
 func (m StatusModel) renderFocusedApproval() string {
 	lines := []string{"Approval"}
-	lines = appendNotice(lines, m.message)
+	lines = appendNotice(lines, m.focusedProjectionNotice())
 	lines = m.appendAutonomousFocusStatus(lines)
 	if m.autonomous.View == nil {
 		return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No autonomous approval projection loaded.")...)
@@ -3840,6 +3643,45 @@ func (m StatusModel) renderFocusedApproval() string {
 		}
 		lines = append(lines, "Answer control: "+state)
 	}
+	if m.autonomous.Answer.Result.AnswerPersisted {
+		lines = append(lines, fmt.Sprintf("Last answer: id=%s option=%s persisted=true resumed=%t", optionalValue(m.autonomous.Answer.Result.AnswerID), optionalValue(m.autonomous.Answer.Result.OptionID), m.autonomous.Answer.Result.Resumed))
+	}
+	if m.autonomous.Answer.Err != "" {
+		lines = append(lines, "Answer error: "+oneLine(m.autonomous.Answer.Err))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m StatusModel) renderNeedsInput() string {
+	lines := []string{"Needs Input"}
+	lines = appendNotice(lines, m.workflowNotice())
+	if m.autonomous.View == nil {
+		return lipgloss.JoinVertical(lipgloss.Left, append(lines, "No typed question loaded.")...)
+	}
+	view := m.autonomous.View
+	lines = append(lines,
+		"Task: "+optionalValue(view.Identity.TaskID),
+		"State: "+optionalValue(view.Input.State),
+		fmt.Sprintf("Question: %s | revision: %d | sha256: %s", optionalValue(view.Input.QuestionID), view.Input.Revision, optionalValue(view.Input.ContentSHA256)),
+		"Prompt: "+oneLine(view.Input.Question),
+		"Blocking reason: "+oneLine(view.Input.BlockingReason),
+		"Options",
+	)
+	for i, option := range view.Input.Options {
+		prefix := " "
+		if m.autonomous.Answer.Selected == i {
+			prefix = ">"
+		}
+		lines = append(lines, fmt.Sprintf("%s %s: %s", prefix, option.ID, oneLine(option.Meaning)))
+	}
+	lines = append(lines, fmt.Sprintf("Recommendation (not selected): %s | %s", optionalValue(view.Input.RecommendationOption), optionalValue(view.Input.RecommendationRationale)))
+	state := "choose an option"
+	if m.autonomous.Answer.Submitting {
+		state = "submitting"
+	} else if m.autonomous.Answer.Confirming {
+		state = "confirmation required: press enter again"
+	}
+	lines = append(lines, "Answer control: "+state)
 	if m.autonomous.Answer.Result.AnswerPersisted {
 		lines = append(lines, fmt.Sprintf("Last answer: id=%s option=%s persisted=true resumed=%t", optionalValue(m.autonomous.Answer.Result.AnswerID), optionalValue(m.autonomous.Answer.Result.OptionID), m.autonomous.Answer.Result.Resumed))
 	}
@@ -4102,7 +3944,7 @@ func optionalJoined(values []string) string {
 }
 
 func (m StatusModel) renderRunProgress() string {
-	return lipgloss.JoinVertical(lipgloss.Left, m.liveOperationLines()...)
+	return lipgloss.JoinVertical(lipgloss.Left, append(appendNotice(nil, m.message), m.liveOperationLines()...)...)
 }
 
 func (m StatusModel) liveOperationLines() []string {
@@ -4189,45 +4031,63 @@ func boundedCurrentLines(detail string, width int) []string {
 func (m StatusModel) renderHelp() string {
 	lines := []string{
 		"Help",
-		"?  Help",
-		"/help  Help",
-		"/tasks  Tasks",
-		"/runs  Runs",
-		"/detail  Run Detail",
-		"Esc closes Help",
+		"Committed results stay in terminal scrollback",
+		"Current work replaces one live cell",
+		"The › composer is focused unless an overlay owns input",
+		"Idle plain text opens the reviewed Add Task flow",
+		"Plain text never steers active work or answers typed input",
+		"Session rows record project and initialization at process start",
+		"Restart emits a new session cell; Revolvr has no clear command",
+		"Active rows use Running, Safety, Current, and Next labels",
+		"Cancellation uses Cancelling and Next: wait for settlement",
+		"Results say Completed, Failed, Cancelled, Blocked, Safety stop, or Needs input",
 		"",
-		"Views",
-		"1  Dashboard",
-		"2  Tasks",
-		"3  Runs",
-		"4  Run Detail",
-		"5  Preflight",
-		"6  Workflow",
-		"/  Focus command composer",
-		"d/e/A  Open change summary, evidence, or approval",
+		"Focused Overlays",
+		"? or bare / or /help or /commands  Help",
+		"2 or /tasks  Tasks",
+		"3 or /runs  Runs",
+		"4 or /detail  Run Detail",
+		"5 or /preflight  Preflight",
+		"6 or /workflow  Workflow",
+		"d or /diff  Change Summary",
+		"e or /evidence  Evidence",
+		"A or /approval  Approval",
+		"a or /answer <option-id>  Answer typed needs-input",
+		"Esc or Backspace returns; Run Detail returns to Runs",
+		"Typed input returns to Workflow or Approval",
+		"Change Summary and Evidence return to their opening parent",
+		"",
+		"Run and Task Actions",
 		"a  Add task",
-		"R  Run once",
+		"R or /run  Run once",
 		fmt.Sprintf("n  Cycle loop max passes (current %d)", m.selectedRunLoopPasses()),
-		"U  Run selected autonomous task until terminal",
-		"Q  Run autonomous queue until exhausted",
-		"L  Run loop",
-		"r  Refresh status",
-		"c  Cancel active run",
-		"q  Quit",
+		"L or /loop  Run bounded loop",
+		"U or /task-run  Run selected autonomous task until terminal-for-now",
+		"Q or /queue  Run bounded sequential queue",
+		"r or /refresh  Refresh status",
+		"c or /cancel  Cancel active work and keep the TUI open",
+		"v or /validate  Validate the loaded receipt",
+		"q or /quit or Ctrl-C  Quit after active work settles",
 		"",
 		"Tasks: j/k Move selection, u Retry blocked selected task",
-		"Runs: j/k Move selection",
+		"Runs: j/k Move selection, enter or o Open selected run",
 		"Run Detail: up/down Scroll, home/end Jump, v Validate receipt",
 		"Workflow: j/k Select, enter Reload, a Answer, pgup/pgdown Scroll",
 		"Preflight: p Run readiness checks",
-		"enter or o  Open selected run",
-		"Run Detail: esc returns to Runs",
+		"Typed input: j/k Choose, Enter review, Enter submit, Esc back",
 		"",
 		"Slash Commands",
-		"/dashboard /transcript /tasks /runs /detail /workflow",
+		"/tasks /runs /detail /workflow",
 		"/diff /evidence /approval /answer <option-id>",
 		"/preflight /run /loop /task-run /queue",
 		"/refresh /cancel /validate /help /commands /quit",
+		"",
+		"Terminal History",
+		"Use terminal or multiplexer scroll, selection, and copy",
+		"Tested: XTerm 390 and tmux 3.4; other terminals are unclaimed",
+		"Emitted hard wraps remain newlines when copied; 80+ columns helps",
+		"40x24 is the supported minimum; below 40 columns is best effort",
+		"Ctrl-Z and external suspend/continue are unsupported",
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
@@ -4551,7 +4411,7 @@ func runTimelineLines(history ledger.RunWithEvents) []string {
 	return lines
 }
 
-func dashboardTimelineLine(row app.RunTimelineRow) string {
+func transcriptTimelineLine(row app.RunTimelineRow) string {
 	label := strings.TrimSpace(row.Phase + " " + row.Status)
 	detail := oneLine(row.Detail)
 	switch {
@@ -4581,14 +4441,14 @@ func dashboardTimelineLine(row app.RunTimelineRow) string {
 		detail, _, _ = strings.Cut(detail, " (")
 		detail = strings.ReplaceAll(detail, "captured changed files", "captured files")
 	}
-	line := fmt.Sprintf("%s %s  %s", dashboardTimelineMarker(row.Status), dashboardTimelineTime(row.Timestamp), label)
+	line := fmt.Sprintf("%s %s  %s", transcriptTimelineMarker(row.Status), transcriptTimelineTime(row.Timestamp), label)
 	if detail != "" {
-		line += " — " + truncateDashboardDetail(detail)
+		line += " — " + truncateTranscriptDetail(detail)
 	}
 	return line
 }
 
-func dashboardTimelineMarker(status string) string {
+func transcriptTimelineMarker(status string) string {
 	switch status {
 	case "completed", "passed", "created", "captured":
 		return "✓"
@@ -4603,19 +4463,19 @@ func dashboardTimelineMarker(status string) string {
 	}
 }
 
-func dashboardTimelineTime(value time.Time) string {
+func transcriptTimelineTime(value time.Time) string {
 	if value.IsZero() {
 		return "--:--"
 	}
 	return value.UTC().Format("15:04")
 }
 
-func truncateDashboardDetail(value string) string {
+func truncateTranscriptDetail(value string) string {
 	runes := []rune(value)
-	if len(runes) <= maxDashboardDetail {
+	if len(runes) <= maxTranscriptDetail {
 		return value
 	}
-	return string(runes[:maxDashboardDetail-1]) + "…"
+	return string(runes[:maxTranscriptDetail-1]) + "…"
 }
 
 func runArtifactLines(events []ledger.Event) []string {
@@ -5343,9 +5203,7 @@ func styleContentLine(line string) string {
 
 func isSectionHeading(value string) bool {
 	switch value {
-	case "Dashboard",
-		"Idle",
-		"Transcript",
+	case "Transcript",
 		"Tasks",
 		"Task List",
 		"Task Detail",
@@ -5518,22 +5376,22 @@ func (m *StatusModel) setPreflightNotice(message string) {
 }
 
 func (m StatusModel) workflowOverlayActive() bool {
-	return m.overlay != nil && m.overlay.content == viewAutonomous
+	return m.overlay != nil && (m.overlay.content == viewAutonomous || m.overlay.content == viewNeedsInput && m.overlay.parent == viewAutonomous)
 }
 
 func (m StatusModel) workflowActive() bool {
-	return m.view == viewAutonomous || m.workflowOverlayActive()
+	return m.workflowOverlayActive()
 }
 
 func (m StatusModel) selectedAutonomousPosition() int {
-	if m.workflowOverlayActive() {
+	if m.workflowOverlayActive() || m.approvalOverlayActive() || m.needsInputOverlayActive() {
 		return m.overlay.selected
 	}
 	return m.autonomous.Selected
 }
 
 func (m *StatusModel) setSelectedAutonomous(index int) {
-	if m.workflowOverlayActive() {
+	if m.workflowOverlayActive() || m.approvalOverlayActive() || m.needsInputOverlayActive() {
 		m.overlay.selected = index
 		return
 	}
@@ -5541,7 +5399,7 @@ func (m *StatusModel) setSelectedAutonomous(index int) {
 }
 
 func (m StatusModel) workflowNotice() string {
-	if m.workflowOverlayActive() {
+	if m.workflowOverlayActive() || m.needsInputOverlayActive() {
 		return m.overlay.message
 	}
 	return m.message
@@ -5598,32 +5456,24 @@ func (m StatusModel) evidenceOverlayActive() bool {
 	return m.overlay != nil && m.overlay.content == viewEvidence
 }
 
+func (m StatusModel) approvalOverlayActive() bool {
+	return m.overlay != nil && m.overlay.content == viewApproval
+}
+
+func (m StatusModel) needsInputOverlayActive() bool {
+	return m.overlay != nil && m.overlay.content == viewNeedsInput
+}
+
 func (m StatusModel) focusedProjectionOverlayActive() bool {
-	return m.changeSummaryOverlayActive() || m.evidenceOverlayActive()
+	return m.changeSummaryOverlayActive() || m.evidenceOverlayActive() || m.approvalOverlayActive() || m.needsInputOverlayActive() && m.overlay.parent == viewApproval
 }
 
 func (m StatusModel) focusedProjectionActive() bool {
-	return isFocusedView(m.view) || m.focusedProjectionOverlayActive()
-}
-
-func (m StatusModel) focusedSourceView() TUIView {
-	if m.focusedProjectionOverlayActive() {
-		if isFocusedView(m.overlay.source) {
-			return m.focusSource
-		}
-		return m.overlay.source
-	}
-	return m.focusSource
+	return m.focusedProjectionOverlayActive()
 }
 
 func (m StatusModel) focusedAutonomous() bool {
-	if m.focusedProjectionOverlayActive() {
-		if isFocusedView(m.overlay.source) {
-			return m.focusedFromAutonomous
-		}
-		return m.overlay.source == viewAutonomous
-	}
-	return m.focusedFromAutonomous
+	return m.approvalOverlayActive() || m.overlay != nil && (m.overlay.parent == viewApproval || m.overlay.parent == viewAutonomous) && (m.changeSummaryOverlayActive() || m.evidenceOverlayActive() || m.needsInputOverlayActive())
 }
 
 func (m StatusModel) focusedProjectionNotice() string {

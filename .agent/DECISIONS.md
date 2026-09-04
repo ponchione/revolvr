@@ -1,5 +1,73 @@
 # Agent Decisions
 
+## Codex-Like TUI Task Graph Is Accepted (2026-09-04)
+
+- The accepted plan is `docs/architecture/codex-tui/README.md`, grounded in
+  `docs/architecture/codex-tui-baseline.md` and the installed Codex launch.
+- The sequence separates observable contracts from implementation: CTUI-001,
+  CTUI-025, CTUI-055, and CTUI-065 lock evidence-backed behavior before their
+  dependent implementation passes.
+- CTUI-010 owns the first product slice: bare and explicit TUI dispatch,
+  terminal ownership before bootstrap, one immediate pending frame, and no
+  startup `tea.Println` history emission. Exact initialized frames remain
+  CTUI-020 work.
+- Ordinary launch stays inline. Existing Bubble Tea facilities remain the
+  default; CTUI-045 may authorize only one bounded renderer follow-up when
+  captured failure evidence demonstrates a concrete gap.
+- Tasks publish sequentially in the plan's numbered order. CTUI-001 is the only
+  canonical pending task; every later task remains an accepted unpublished
+  draft. Completion may publish one successor and must not execute it in the
+  same pass.
+
+## Codex TUI Becomes The Visual Baseline (2026-09-03)
+
+- The user rejected the completed transcript-first TUI overhaul as the product
+  baseline. Passing its internal acceptance criteria did not demonstrate that
+  Revolvr launched or felt like base Codex.
+- The visible Codex TUI is now the presentation baseline. Revolvr should match
+  its startup composition, hierarchy, spacing, composer, status/footer,
+  transcript rhythm, command discovery, and modal presentation before adding
+  deliberate product-specific differences.
+- The baseline is observation-based. Codex source must not be copied, ported,
+  vendored, embedded, or added as a dependency; the current Go/Bubble Tea
+  boundary remains unless a later explicit decision changes it.
+- The former canonical task inventory and
+  `docs/architecture/tui-overhaul/` planning tree are retired. Git history is
+  their archive. No replacement task, epic, or recovery draft is authorized by
+  this reset.
+- Existing product-code changes are preserved pending a new plan; this reset
+  neither accepts them as the baseline nor discards them.
+
+## Transcript-First TUI Overhaul Is Accepted (2026-09-03)
+
+- TUI-072 closes the accepted TUI overhaul after every whole-overhaul criterion
+  passed focused or full-suite automation and the final XTerm/tmux, lifecycle,
+  settlement, no-color, and dark/light terminal repeats.
+- E0 through E7 and TUI-000 through TUI-072 are terminal. The accepted D3
+  hard-wrap limitation and unsupported Ctrl-Z/suspend path remain explicit;
+  neither requires a product fix or broader terminal layer.
+- Application/domain authority, dependencies, and CLI behavior outside
+  `revolvr tui` are unchanged. No corrective or follow-up task was found, so no
+  next draft is published.
+
+## Overlay-Only TUI Removes Page Rollback Presentation (2026-09-03)
+
+- TUI-070 completed the accepted removal gate. `internal/tui.StatusModel` has
+  no page selector, page return/focus state, or committed-history viewport;
+  the managed frame now owns only current live state, the composer, and one
+  overlay viewport while focused content is open.
+- Root overlays retain the exact composer state. Runs/Run Detail and typed
+  needs-input retain their one-level parent return. Change Summary and Evidence
+  reuse that same one-level parent field when opened from Workflow or Approval
+  so autonomous evidence context and exact Escape return survive page removal;
+  this is not a general overlay stack.
+- Empty-composer Escape still selects the existing keyboard-shortcut input
+  mode required by D4, but it has no separate visual presentation: the accepted
+  composer/footer remains visible. Modal overlays continue to own focus.
+- The obsolete page render/switch paths and `/dashboard` and `/transcript`
+  aliases are removed. Existing app callbacks, guards, domain authority,
+  terminal-owned history, and every retained D4 entry remain unchanged.
+
 ## Evaluation Fixture Identity Uses Git-Portable Modes (2026-09-02)
 
 - Architecture 022 fixture identity records regular files as canonical Git

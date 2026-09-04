@@ -60,35 +60,36 @@ func TestTranscriptNavigatesCanonicalChangeSummaryAndEvidenceAtNarrowWidth(t *te
 	}
 	assertMaxLineWidth(t, transcriptLines, 48)
 	requireLines(t, normalizedViewLines(model.View()), "›", "Enter submit · / commands · ? shortcuts")
-	dashboardLines := normalizedViewLines(model.View())
+	frameLines := normalizedViewLines(model.View())
 	for _, noise := range []string{"item.started", "item.completed", "command_execution", "verbose task instructions"} {
 		if strings.Contains(transcriptCellSource(model.committed), noise) {
 			t.Fatalf("committed transcript contains noisy detail %q: %q", noise, transcriptCellSource(model.committed))
 		}
 	}
-	for _, duplicate := range []string{"Dashboard", "Transcript", "Activity", "State: initialized", "Tasks", "Latest Run", "Recent Runs", "Events", "Task architecture-024-ui", "Run run-ui"} {
-		requireNoLine(t, dashboardLines, duplicate)
+	for _, duplicate := range []string{"Transcript", "Activity", "State: initialized", "Tasks", "Latest Run", "Recent Runs", "Events", "Task architecture-024-ui", "Run run-ui"} {
+		requireNoLine(t, frameLines, duplicate)
 	}
 
-	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-	model, cmd := updateStatusModel(t, model, keyRunes("d"))
-	if cmd != nil || model.overlay == nil || model.overlay.content != viewDiff || model.view != viewDashboard {
-		t.Fatalf("diff navigation overlay=%#v view=%v cmd=%v", model.overlay, model.view, cmd)
+	model, _ = updateStatusModel(t, model, keyRunes("/diff"))
+	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || model.overlay == nil || model.overlay.content != viewDiff {
+		t.Fatalf("diff navigation overlay=%#v cmd=%v", model.overlay, cmd)
 	}
 	requireLines(t, normalizedViewLines(model.View()), "Change Summary", "Changed Files", "internal/tui/model.go", "6 changed_files_captured 2026-08-27T15:00:05Z")
 	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
 
-	model, cmd = updateStatusModel(t, model, keyRunes("e"))
-	if cmd != nil || model.overlay == nil || model.overlay.content != viewEvidence || model.view != viewDashboard {
-		t.Fatalf("evidence navigation overlay=%#v view=%v cmd=%v", model.overlay, model.view, cmd)
+	model, _ = updateStatusModel(t, model, keyRunes("/evidence"))
+	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
+	if model.overlay == nil || model.overlay.content != viewEvidence {
+		t.Fatalf("evidence navigation overlay=%#v cmd=%v", model.overlay, cmd)
 	}
 	lines := normalizedViewLines(model.View())
 	requireLines(t, lines, "Evidence", "receipt: .revolvr/receipts/run-ui.md", "Canonical Events")
 	assertMaxLineWidth(t, lines, 48)
 
 	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || model.overlay != nil || model.view != viewDashboard {
-		t.Fatalf("focus return overlay=%#v view=%v cmd=%v", model.overlay, model.view, cmd)
+	if cmd != nil || model.overlay != nil {
+		t.Fatalf("focus return overlay=%#v cmd=%v", model.overlay, cmd)
 	}
 }
 
@@ -100,17 +101,9 @@ func TestFocusedRunRefreshReloadsCanonicalHistory(t *testing.T) {
 	refreshed.Events = append(refreshed.Events, ledger.Event{ID: 2, RunID: run.ID, Type: ledger.EventChangedFilesCaptured, CreatedAt: started.Add(time.Second)})
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{run}}, StatusActions{
 		RefreshStatus: func() (app.StatusResult, error) {
-			return app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{run}}, nil
-		},
-		OpenRun: func(runID string) (ledger.RunWithEvents, error) {
-			if runID != run.ID {
-				t.Fatalf("opened run = %q", runID)
-			}
-			return refreshed, nil
+			return app.StatusResult{Initialized: true, RecentRuns: []ledger.Run{run}, LatestEvents: refreshed.Events}, nil
 		},
 	})
-	model.view = viewRunDetail
-	model.composer.Active = false
 	model.runDetails = &history
 	model.openEvidenceOverlay()
 	model.Init()
@@ -120,17 +113,13 @@ func TestFocusedRunRefreshReloadsCanonicalHistory(t *testing.T) {
 		t.Fatal("refresh command is nil")
 	}
 	model, cmd = runStatusModelCmd(t, model, cmd)
-	if cmd == nil {
-		t.Fatal("focused run reload command is nil")
-	}
-	model, cmd = runStatusModelCmd(t, model, cmd)
-	if cmd != nil || model.overlay == nil || model.overlay.content != viewEvidence || model.view != viewRunDetail || model.runDetails == nil || len(model.runDetails.Events) != 2 {
-		t.Fatalf("focused refresh state: overlay=%#v view=%v details=%#v cmd=%v", model.overlay, model.view, model.runDetails, cmd)
+	if model.overlay == nil || model.overlay.content != viewEvidence {
+		t.Fatalf("focused refresh state: overlay=%#v cmd=%v", model.overlay, cmd)
 	}
 	requireLines(t, normalizedViewLines(model.View()), "2  changed_files_captured  2026-08-27T16:00:01Z")
 }
 
-func TestApprovalComposerSubmitsTypedNeedsInputResponse(t *testing.T) {
+func TestNeedsInputCommandOverlaySubmitsTypedResponse(t *testing.T) {
 	view := tuiAutonomousView("input-task", "needs_input")
 	view.Input = autonomousview.OperatorInput{
 		State:                   "waiting",
@@ -158,8 +147,6 @@ func TestApprovalComposerSubmitsTypedNeedsInputResponse(t *testing.T) {
 			return resumed, nil
 		},
 	})
-	model.view = viewAutonomous
-	model.composer.Active = false
 	model.autonomous.View = &view
 	model.autonomous.Selector = "input-task"
 	model.autonomous.TaskID = "input-task"
@@ -169,20 +156,24 @@ func TestApprovalComposerSubmitsTypedNeedsInputResponse(t *testing.T) {
 	model, _ = updateStatusModel(t, model, keyRunes("/"))
 	model, _ = updateStatusModel(t, model, keyRunes("approval"))
 	model, cmd := updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || model.view != viewApproval {
-		t.Fatalf("approval command view=%v cmd=%v", model.view, cmd)
+	if cmd != nil || model.overlay == nil || model.overlay.content != viewApproval {
+		t.Fatalf("approval command overlay=%#v cmd=%v", model.overlay, cmd)
 	}
 	requireLines(t, normalizedViewLines(model.View()), "Approval", "Acceptance", "Recommendation (not selected): keep |", "  Compatibility.")
+	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil || model.overlay != nil {
+		t.Fatalf("approval return overlay=%#v cmd=%v", model.overlay, cmd)
+	}
 
 	model, _ = updateStatusModel(t, model, keyRunes("/"))
 	model, _ = updateStatusModel(t, model, keyRunes("answer"))
 	model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeySpace})
 	model, _ = updateStatusModel(t, model, keyRunes("keep"))
 	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || called != 0 || !model.autonomous.Answer.Active || !model.autonomous.Answer.Confirming {
-		t.Fatalf("typed answer state=%#v calls=%d cmd=%v", model.autonomous.Answer, called, cmd)
+	if cmd != nil || called != 0 || model.overlay == nil || model.overlay.content != viewNeedsInput || model.overlay.parent != viewApproval || !model.autonomous.Answer.Active || !model.autonomous.Answer.Confirming {
+		t.Fatalf("typed answer overlay=%#v state=%#v calls=%d cmd=%v", model.overlay, model.autonomous.Answer, called, cmd)
 	}
-	requireLines(t, normalizedViewLines(model.View()), "> Option keep: Keep behavior.", "Answer control: confirmation required: press", "  enter")
+	requireLines(t, normalizedViewLines(model.View()), "Needs Input", "> keep: Keep behavior.", "Answer control: confirmation required: press", "  enter again")
 
 	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -193,8 +184,8 @@ func TestApprovalComposerSubmitsTypedNeedsInputResponse(t *testing.T) {
 		t.Fatalf("answer result=%#v calls=%d reload=%v", model.autonomous.Answer, called, cmd)
 	}
 	model, cmd = runStatusModelCmd(t, model, cmd)
-	if cmd != nil || model.autonomous.View.Input.State != "none" {
-		t.Fatalf("reloaded approval input=%#v cmd=%v", model.autonomous.View.Input, cmd)
+	if cmd != nil || model.overlay == nil || model.overlay.content != viewApproval || model.autonomous.View.Input.State != "none" {
+		t.Fatalf("reloaded approval overlay=%#v input=%#v cmd=%v", model.overlay, model.autonomous.View.Input, cmd)
 	}
 	assertMaxLineWidth(t, normalizedViewLines(model.View()), 44)
 }

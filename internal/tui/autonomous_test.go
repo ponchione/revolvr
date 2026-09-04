@@ -62,8 +62,7 @@ func TestAutonomousWorkflowLoadsProjectionAndRejectsStaleResponse(t *testing.T) 
 
 func TestAutonomousWorkflowPreservesTaskIdentityAcrossActiveToArchiveRefresh(t *testing.T) {
 	model := NewStatusModelWithActions(app.StatusResult{Initialized: true}, StatusActions{LoadAutonomous: func(string) (autonomousview.View, error) { return tuiAutonomousView("task-one", "completed"), nil }})
-	model.view = viewAutonomous
-	model.composer.Active = false
+	model.openOverlay(viewAutonomous, 0)
 	model.autonomous = autonomousState{TaskID: "task-one", Selector: "task-one", Request: 7, Selectors: []app.AutonomousTaskSelector{{Selector: "task-one", TaskID: "task-one", SourceKind: autonomousview.SourceActive}}}
 	archive := app.AutonomousTaskSelector{Selector: "archive-one", TaskID: "task-one", SourceKind: autonomousview.SourceArchive, Status: "completed", ArchiveID: "archive-one", Disposition: "completed"}
 	updated, cmd := model.Update(autonomousSelectorsMsg{token: 7, selectors: []app.AutonomousTaskSelector{archive}})
@@ -78,8 +77,7 @@ func TestAutonomousWorkflowRenderingIsPlainNarrowAndScrollableAcrossLifecycles(t
 		t.Run(lifecycle, func(t *testing.T) {
 			view := tuiAutonomousView("task-"+strings.ReplaceAll(lifecycle, "_", "-"), lifecycle)
 			model := NewStatusModel(app.StatusResult{Initialized: true})
-			model.view = viewAutonomous
-			model.composer.Active = false
+			model.openOverlay(viewAutonomous, 0)
 			model.autonomous.View = &view
 			model.autonomous.Selector = view.Identity.TaskID
 			model.autonomous.Selectors = []app.AutonomousTaskSelector{{Selector: view.Identity.TaskID, TaskID: view.Identity.TaskID, SourceKind: autonomousview.SourceActive, Status: "pending"}}
@@ -91,10 +89,10 @@ func TestAutonomousWorkflowRenderingIsPlainNarrowAndScrollableAcrossLifecycles(t
 			if !containsLine(lines, "Autonomous Workflow") {
 				t.Fatalf("missing workflow title: %#v", lines)
 			}
-			before := model.viewport.YOffset
+			before := model.overlay.viewport.YOffset
 			model, _ = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyPgDown})
-			if model.viewport.YOffset <= before {
-				t.Fatalf("lifecycle %s did not scroll: before=%d after=%d", lifecycle, before, model.viewport.YOffset)
+			if model.overlay.viewport.YOffset <= before {
+				t.Fatalf("lifecycle %s did not scroll: before=%d after=%d", lifecycle, before, model.overlay.viewport.YOffset)
 			}
 		})
 	}
@@ -118,8 +116,7 @@ func TestAutonomousAnswerRequiresExplicitChoiceAndDoubleConfirmation(t *testing.
 			return resumed, nil
 		},
 	})
-	model.view = viewAutonomous
-	model.composer.Active = false
+	model.openOverlay(viewAutonomous, 0)
 	model.autonomous.View = &view
 	model.autonomous.Selector = "input-task"
 	model.autonomous.TaskID = "input-task"
@@ -161,8 +158,7 @@ func TestAutonomousAnswerRejectsReloadedQuestionDuringConfirmation(t *testing.T)
 		called++
 		return app.AnswerAutonomousInputResult{}, nil
 	}})
-	model.view = viewAutonomous
-	model.composer.Active = false
+	model.openOverlay(viewAutonomous, 0)
 	model.autonomous.View = &view
 	model.autonomous.Selector = "input-task"
 	model.autonomous.TaskID = "input-task"
@@ -181,8 +177,8 @@ func TestAutonomousAnswerRejectsReloadedQuestionDuringConfirmation(t *testing.T)
 	updated, _ := model.Update(autonomousViewMsg{token: model.autonomous.Request, selector: "input-task", view: reloaded})
 	model = updated.(StatusModel)
 	model, cmd = updateStatusModel(t, model, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || called != 0 || model.autonomous.Answer.Active || !strings.Contains(model.message, "question changed") {
-		t.Fatalf("reloaded confirmation was not rejected: answer=%#v calls=%d message=%q cmd=%v", model.autonomous.Answer, called, model.message, cmd)
+	if cmd != nil || called != 0 || !model.autonomous.Answer.Active || model.autonomous.Answer.Selected != -1 || model.overlay.message != "Select an offered option before confirming." {
+		t.Fatalf("reloaded confirmation was not rejected: answer=%#v calls=%d message=%q cmd=%v", model.autonomous.Answer, called, model.overlay.message, cmd)
 	}
 }
 
